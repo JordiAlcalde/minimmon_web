@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #fbf9f8;
+  color: #1b1c1c;
+  font-family: 'Hanken Grotesk', sans-serif;
+}
+
+.font-serif, .font-serif-headline {
+  font-family: 'Playfair Display', 'Bodoni Moda', serif;
+  font-weight: 600;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+.wood-texture-overlay {
+  background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="noiseFilter"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noiseFilter)" opacity="0.03"/></svg>');
+  pointer-events: none;
+}
+
+.laser-line {
+  height: 1px;
+  background-color: #26170c;
+  opacity: 0.15;
+  width: 100%;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #fbf9f8;
+}
+::-webkit-scrollbar-thumb {
+  background: #81756e;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #26170c;
+}
