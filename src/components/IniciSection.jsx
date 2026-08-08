@@ -102,7 +102,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 <img 
                   className="w-full h-full object-cover" 
                   alt="Jordi Alcalde Casalta" 
-                  src="/images/jordi-alcalde.png" 
+                  src={resolveMediaUrl('images/jordi-alcalde.png')} 
                 />
               </div>
               <div>
@@ -135,7 +135,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
             <div className="bg-surface border border-outline/15 rounded-lg p-6 md:p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
               <div className="w-24 h-24 mb-6 flex items-center justify-center">
                 <img 
-                  src="/images/icon-ull.png?v=2" 
+                  src={resolveMediaUrl('images/icon-ull.png')} 
                   alt="La mirada artística" 
                   className="max-w-full max-h-full object-contain"
                 />
@@ -149,7 +149,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
             <div className="bg-surface border border-outline/15 rounded-lg p-6 md:p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
               <div className="w-24 h-24 mb-6 flex items-center justify-center">
                 <img 
-                  src="/images/icon-cervell.png?v=2" 
+                  src={resolveMediaUrl('images/icon-cervell.png')} 
                   alt="El rigor del càlcul" 
                   className="max-w-full max-h-full object-contain"
                 />
@@ -163,7 +163,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
             <div className="bg-surface border border-outline/15 rounded-lg p-6 md:p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
               <div className="w-24 h-24 mb-6 flex items-center justify-center">
                 <img 
-                  src="/images/icon-ma.png?v=2" 
+                  src={resolveMediaUrl('images/icon-ma.png')} 
                   alt="El muntatge meticulós" 
                   className="max-w-full max-h-full object-contain"
                 />
@@ -177,7 +177,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
             <div className="bg-surface border border-outline/15 rounded-lg p-6 md:p-8 flex flex-col items-center text-center shadow-sm hover:shadow-md transition-shadow">
               <div className="w-24 h-24 mb-6 flex items-center justify-center">
                 <img 
-                  src="/images/icon-cor.png?v=2" 
+                  src={resolveMediaUrl('images/icon-cor.png')} 
                   alt="El motor conceptual" 
                   className="max-w-full max-h-full object-contain"
                 />

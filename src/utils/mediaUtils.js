@@ -44,8 +44,15 @@ export function resolveMediaUrl(url) {
   let cleanPath = trimmed;
   if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
   
+  // Check if cleanPath is a local asset in public/images/
+  if (cleanPath.startsWith('images/')) {
+    const baseUrl = import.meta.env.BASE_URL || './';
+    const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    return safeEncodeURI(`${prefix}${cleanPath}`);
+  }
+
   // Support imatges/, images/, and videos/ folders
-  if (!cleanPath.startsWith('imatges/') && !cleanPath.startsWith('images/') && !cleanPath.startsWith('videos/')) {
+  if (!cleanPath.startsWith('imatges/') && !cleanPath.startsWith('videos/')) {
     cleanPath = isVideoExtension(cleanPath) ? `videos/${cleanPath}` : `imatges/${cleanPath}`;
   }
 
