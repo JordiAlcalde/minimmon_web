@@ -926,8 +926,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               {/* Video Title & URL */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-4">
                   <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Títol de la Secció del Vídeo</label>
                   <input 
                     type="text"
@@ -937,7 +937,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-full px-3 py-2 rounded bg-surface border text-sm"
                   />
                 </div>
-                <div>
+                <div className="md:col-span-8">
                   <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">URL del Fitxer de Vídeo (.mp4 / YouTube / Vimeo)</label>
                   <div className="flex gap-2">
                     <input 
