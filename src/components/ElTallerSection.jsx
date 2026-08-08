@@ -15,7 +15,7 @@ export default function ElTallerSection({ setActiveTab }) {
             <p className="font-body-lg text-body-lg text-on-surface-variant mb-6 md:pr-16 leading-relaxed">
               El taller no és només un espai físic; és un santuari on la fusta respira i les idees prenen forma. L'acumulació de coneixement, el polsim de l'experiència en disseny industrial, es fa palès en cada encenall que cau al terra.
             </p>
-            <p className="font-body-md text-body-md text-on-surface-variant md:pr-16 leading-relaxed">
+            <p className="font-body-lg text-body-lg text-on-surface-variant md:pr-16 leading-relaxed">
               Aquí, el temps s'atura. Les eines, algunes noves, altres heretades, són l'extensió de les mans que busquen l'equilibri perfecte entre la tècnica precisa i la calidesa de l'artesania.
             </p>
           </div>
@@ -36,7 +36,7 @@ export default function ElTallerSection({ setActiveTab }) {
       <section className="bg-surface-container-lowest py-24 mb-24">
         <div className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
           <div className="text-center max-w-3xl mx-auto">
-            <span className="material-symbols-outlined text-outline mb-6 text-5xl">handshake</span>
+            <span className="material-symbols-outlined text-outline mb-6 text-5xl notranslate" translate="no" aria-hidden="true">handshake</span>
             <h2 className="font-headline-lg text-headline-lg text-primary mb-8 font-serif text-3xl md:text-4xl">
               La Bonhomia del Procés
             </h2>

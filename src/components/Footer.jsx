@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Lock } from 'lucide-react';
+import { getCurrentLanguage, setLanguage } from '../utils/translator';
 
 export default function Footer({ setActiveTab, onOpenLegal }) {
-  const [lang, setLang] = useState('CA');
+  const [lang, setLang] = useState(() => getCurrentLanguage());
+
+  const handleLanguageChange = (l) => {
+    setLang(l);
+    setLanguage(l);
+  };
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
@@ -40,8 +47,9 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
               {['CA', 'ES', 'EN', 'FR'].map((l) => (
                 <li key={l}>
                   <button 
-                    onClick={() => setLang(l)}
-                    className={`${lang === l ? 'text-primary font-bold underline' : 'hover:text-primary'} transition-colors cursor-pointer`}
+                    onClick={() => handleLanguageChange(l)}
+                    className={`${lang === l ? 'text-primary font-bold underline' : 'hover:text-primary'} transition-colors cursor-pointer notranslate`}
+                    translate="no"
                   >
                     {l}
                   </button>
@@ -56,12 +64,12 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
             <ul className="space-y-2 font-body-md text-on-surface-variant">
               <li>
                 <button onClick={() => handleNavClick('inici')} className="hover:text-primary transition-colors cursor-pointer text-left">
-                  Univers Mínim
+                  Univers <span className="notranslate" translate="no">Mínim</span>
                 </button>
               </li>
               <li>
                 <button onClick={() => handleNavClick('mons')} className="hover:text-primary transition-colors cursor-pointer text-left">
-                  Mínims Móns
+                  <span className="notranslate" translate="no">Mínims Móns</span>
                 </button>
               </li>
               <li>
@@ -91,7 +99,7 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
 
           {/* Contacte (Jordi Alcalde Casalta) */}
           <div className="md:col-span-2">
-            <h3 className="font-headline-md text-primary mb-4 text-xl font-serif">Jordi Alcalde</h3>
+            <h3 className="font-headline-md text-primary mb-4 text-xl font-serif notranslate" translate="no">Jordi Alcalde</h3>
             <div className="space-y-1 font-body-md text-on-surface-variant">
               <p>
                 <a className="hover:text-primary transition-colors" href="mailto:info@minimmon.cat">info@minimmon.cat</a>
@@ -108,10 +116,15 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
 
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-outline/10 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="font-body-md text-sm text-on-surface-variant">
-            © 2026 Mínim Món de Jordi Alcalde · Tots els drets reservats
+          <div className="font-body-md text-sm text-on-surface-variant flex flex-wrap items-center gap-1.5">
+            <span>© 2026</span>
+            <span className="notranslate" translate="no">Mínim Món</span>
+            <span>de</span>
+            <span className="notranslate" translate="no">Jordi Alcalde</span>
+            <span>·</span>
+            <span>Tots els drets reservats</span>
           </div>
-          <div className="flex space-x-6 font-body-md text-sm text-on-surface-variant">
+          <div className="flex items-center space-x-6 font-body-md text-sm text-on-surface-variant">
             <button onClick={() => onOpenLegal('Avís legal')} className="hover:text-primary transition-colors cursor-pointer">
               Avís legal
             </button>
@@ -120,6 +133,16 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
             </button>
             <button onClick={() => onOpenLegal('Cookies')} className="hover:text-primary transition-colors cursor-pointer">
               Cookies
+            </button>
+
+            {/* Accés Àrea Privada */}
+            <button 
+              onClick={() => handleNavClick('privat')} 
+              className="hover:text-primary text-primary/80 font-medium transition-colors cursor-pointer flex items-center gap-1.5 pl-2 border-l border-outline/20"
+              title="Accedir a l'Àrea Privada de Treball"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>PRIVAT</span>
             </button>
           </div>
         </div>

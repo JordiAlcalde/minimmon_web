@@ -1,40 +1,136 @@
-import React, { useState } from 'react';
-import { STITCH_PROJECTS } from '../data/stitchData';
+import React, { useState, useEffect } from 'react';
+import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { resolveMediaUrl } from '../utils/mediaUtils';
 
 export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
   const [filter, setFilter] = useState('Tots');
+  const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
+  const [projectsList, setProjectsList] = useState(null);
+  const [branquesList, setBranquesList] = useState(['Tots', ...DEFAULT_BRANQUES.map(b => b.nom)]);
 
-  const categories = ['Tots', 'Arquitectura', 'Topografia', 'Gravat 3D', 'Diorama'];
+  useEffect(() => {
+    // Listen to real-time 'projectes'
+    const qProjects = query(collection(db, "projectes"), orderBy("ordre", "asc"));
+    const unsubscribeProjects = onSnapshot(qProjects, (snapshot) => {
+      if (!snapshot.empty) {
+        const loadedProjects = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })).filter(p => p.actiu !== false);
 
+        if (loadedProjects.length > 0) {
+          setProjectsList(loadedProjects);
+          return;
+        }
+      }
+      setProjectsList(STITCH_PROJECTS);
+    }, (err) => {
+      console.warn("Utilitzant projectes locals per defecte:", err);
+      setProjectsList(STITCH_PROJECTS);
+    });
+
+    // Listen to real-time 'branques'
+    const qBranques = query(collection(db, "branques"), orderBy("ordre", "asc"));
+    const unsubscribeBranques = onSnapshot(qBranques, (snapshot) => {
+      if (!snapshot.empty) {
+        const loadedBranques = snapshot.docs.map(doc => doc.data().nom);
+        setBranquesList(['Tots', ...loadedBranques]);
+      }
+    }, (err) => {
+      console.warn("Utilitzant branques locals per defecte:", err);
+    });
+
+    return () => {
+      unsubscribeProjects();
+      unsubscribeBranques();
+    };
+  }, []);
+
+  // Filter projects by category (multi-category support)
+  const currentList = projectsList || [];
   const filteredProjects = filter === 'Tots' 
-    ? STITCH_PROJECTS 
-    : STITCH_PROJECTS.filter(p => p.category.toLowerCase().includes(filter.toLowerCase()));
+    ? currentList 
+    : currentList.filter(p => {
+        const pBranques = Array.isArray(p.branques) && p.branques.length > 0
+          ? p.branques
+          : [p.branca || p.category || ''];
+        return pBranques.some(b => b.toLowerCase() === filter.toLowerCase());
+      });
+
+  // Sort projects by Data de Creació (default newest first)
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    const dateA = a.dataCreacio || a.data || '';
+    const dateB = b.dataCreacio || b.data || '';
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    
+    if (sortOrder === 'newest') {
+      return dateB.localeCompare(dateA); // newest first
+    } else {
+      return dateA.localeCompare(dateB); // oldest first
+    }
+  });
 
   return (
     <div className="pt-28 pb-32 animate-fadeIn">
       {/* Hero Header */}
       <header className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16 text-center">
         <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
-        <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">Móns Mínims: L'Art de la Precisió</h1>
-        <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">
-          Una exploració tàctil on la calidesa orgànica de la fusta es troba amb la rigorositat matemàtica del làser. Cada projecte és un diàleg silenciós entre la matèria i la llum.
-        </p>
+        <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl"><span className="notranslate" translate="no">Móns Mínims</span>: L'Art de la Precisió</h1>
         
-        {/* Category Filters */}
-        <div className="flex justify-center gap-3 mt-10 flex-wrap">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat)}
-              className={`px-5 py-2 rounded-full font-body-md text-sm transition-all cursor-pointer ${
-                filter === cat 
-                  ? 'bg-primary text-on-primary font-medium shadow-sm' 
-                  : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-              }`}
+        {/* Poetic Intro Block */}
+        <div className="max-w-3xl mx-auto space-y-4 text-on-surface-variant leading-relaxed text-base md:text-lg mb-10">
+          <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">
+            Cada línia té un nom. Cada volum, una ànima.
+          </h2>
+          <p>
+            Els projectes que estàs a punt de veure no són fruit d'un disseny de catàleg, sinó de la vida mateixa. Tots tenen protagonistes reals i neixen d'històries autèntiques, de records compartits o d'emocions que han deixat empremta.
+          </p>
+          <p>
+            Però el camí per arribar-hi és un acte de fe: qui demana un <span className="notranslate" translate="no">Món Mínim</span> no en dissenya el resultat. Simplement ens descriu records, ens parla de moments i ens confia les seves emocions. A partir d'aquí, a <span className="notranslate" translate="no">Mínim Món</span> ens inventem l'escenari: decidim la forma i les mides, escollim els colors i seleccionem els petits objectes que donaran vida a la història de manera física o intangible.
+          </p>
+          <p>
+            El client confia i es deixa portar per la nostra imaginació. El resultat és un pacte de complicitat on la sorpresa és doble: es meravella tant qui fa el regal en veure'l materialitzat per primera vegada, com el destinatari final en rebre'l.
+          </p>
+          <p className="font-serif text-xl text-primary italic font-medium pt-2">
+            Deixa't inspirar.
+          </p>
+        </div>
+        
+        {/* Controls Bar: Category Filters & Sort Selector */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 mt-10 max-w-container-max mx-auto">
+          {/* Category Filters */}
+          <div className="flex justify-center flex-wrap gap-2 flex-1">
+            {branquesList.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilter(cat)}
+                className={`px-4 py-1.5 rounded-full font-body-md text-xs transition-all cursor-pointer ${
+                  filter === cat 
+                    ? 'bg-primary text-on-primary font-medium shadow-sm' 
+                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline/15'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Order Control */}
+          <div className="flex items-center gap-2 text-xs font-mono text-on-surface-variant shrink-0 bg-surface-container/60 px-4 py-2 rounded-lg border border-outline/15 shadow-sm">
+            <span className="font-semibold uppercase tracking-wider text-primary">Ordenar:</span>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="bg-surface border border-outline/20 rounded px-2.5 py-1 text-xs text-primary font-sans cursor-pointer hover:border-primary/40 transition-colors"
             >
-              {cat}
-            </button>
-          ))}
+              <option value="newest">📅 Data (Més recents primer)</option>
+              <option value="oldest">📅 Data (Més antics primer)</option>
+            </select>
+          </div>
         </div>
 
         <div className="w-16 h-px bg-primary/20 mx-auto mt-12"></div>
@@ -42,65 +138,103 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
 
       {/* Gallery Section */}
       <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-        <div className="flex flex-col gap-24">
-          {filteredProjects.map((project, index) => {
-            const isEven = index % 2 === 0;
-
-            return (
-              <article 
-                key={project.id} 
-                className="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center group cursor-pointer"
-                onClick={() => onSelectProject(project)}
-              >
-                {/* Image Side */}
-                <div className={`md:col-span-7 ${isEven ? 'order-2 md:order-1' : 'md:col-start-6 order-2'} relative`}>
-                  <div className={`absolute inset-0 bg-surface-container-low ${isEven ? 'translate-x-4' : '-translate-x-4'} translate-y-4 rounded transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2`}></div>
-                  <img 
-                    className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]" 
-                    alt={project.title}
-                    src={project.image}
-                  />
+        {!projectsList ? (
+          /* Loading Skeletons */
+          <div className="flex flex-col gap-16">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center animate-pulse">
+                <div className="md:col-span-7 h-80 rounded-lg bg-surface-container/60 border border-outline/15"></div>
+                <div className="md:col-span-5 space-y-4">
+                  <div className="h-4 bg-outline/20 rounded w-32"></div>
+                  <div className="h-8 bg-outline/20 rounded w-64"></div>
+                  <div className="h-16 bg-outline/20 rounded w-full"></div>
                 </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Real Project Cards */
+          <div className="flex flex-col gap-24">
+            {sortedProjects.map((project, index) => {
+              const isEven = index % 2 === 0;
+              const title = project.titol || project.title;
+              const subtitle = project.subtitol || project.subtitle;
+              const displayBranques = Array.isArray(project.branques) && project.branques.length > 0 
+                ? project.branques 
+                : [project.branca || project.category || ''];
+              const description = project.encarrec || project.description;
+              const projectDataCreacio = project.dataCreacio || project.data || '';
 
-                {/* Text Side */}
-                <div className={`md:col-span-5 ${isEven ? 'md:col-start-8 order-1 md:order-2' : 'md:col-start-1 md:row-start-1 order-1'} mb-8 md:mb-0`}>
-                  <div className="inline-flex gap-2 mb-3">
-                    <span className="px-3 py-1 bg-surface-container-high rounded text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest">
-                      {project.woodType}
-                    </span>
-                    <span className="px-3 py-1 bg-surface-container-high rounded text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest">
-                      {project.category}
-                    </span>
+              // Get header image
+              let mainImage = project.image;
+              if (Array.isArray(project.media) && project.media.length > 0) {
+                const principalObj = project.media.find(m => m.principal) || project.media[0];
+                if (principalObj && principalObj.imatge) mainImage = principalObj.imatge;
+              }
+              mainImage = resolveMediaUrl(mainImage);
+
+              return (
+                <article 
+                  key={project.id || index} 
+                  className="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center group cursor-pointer animate-fadeIn"
+                  onClick={() => onSelectProject(project)}
+                >
+                  {/* Image Side */}
+                  <div className={`md:col-span-7 ${isEven ? 'order-2 md:order-1' : 'md:col-start-6 order-2'} relative`}>
+                    <div className={`absolute inset-0 bg-surface-container-low ${isEven ? 'translate-x-4' : '-translate-x-4'} translate-y-4 rounded transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2`}></div>
+                    <img 
+                      className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]" 
+                      alt={title}
+                      src={mainImage}
+                    />
                   </div>
 
-                  <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 font-serif text-3xl">
-                    {project.title}
-                  </h2>
+                  {/* Text Side */}
+                  <div className={`md:col-span-5 ${isEven ? 'md:col-start-8 order-1 md:order-2' : 'md:col-start-1 md:row-start-1 order-1'} mb-8 md:mb-0`}>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {displayBranques.map((bName, idx) => (
+                        bName && (
+                          <span key={idx} className="px-3 py-1 bg-surface-container-high rounded text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest">
+                            {bName}
+                          </span>
+                        )
+                      ))}
+                      {projectDataCreacio && (
+                        <span className="px-3 py-1 bg-primary/10 text-primary rounded text-label-sm font-mono text-xs font-semibold">
+                          📅 {projectDataCreacio}
+                        </span>
+                      )}
+                    </div>
 
-                  <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
-                    {project.subtitle}
-                  </p>
+                    <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 font-serif text-3xl">
+                      {title}
+                    </h2>
 
-                  <p className="font-body-md text-body-md text-on-surface-variant/80 mb-6 text-sm">
-                    {project.description}
-                  </p>
+                    <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
+                      {subtitle}
+                    </p>
 
-                  <button className="font-body-md text-primary font-medium flex items-center gap-2 group-hover:translate-x-1 transition-transform">
-                    <span>Explora el perquè de cada detall</span>
-                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                  </button>
+                    <p className="font-body-md text-body-md text-on-surface-variant/80 mb-6 text-sm line-clamp-3">
+                      {description}
+                    </p>
 
-                  <div className="laser-line mt-6"></div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+                    <button className="font-body-md text-primary font-medium flex items-center gap-2 group-hover:translate-x-1 transition-transform">
+                      <span>Explora la fitxa del projecte</span>
+                      <span className="material-symbols-outlined text-sm notranslate" translate="no" aria-hidden="true">arrow_forward</span>
+                    </button>
+
+                    <div className="laser-line mt-6"></div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Bottom CTA */}
       <div className="mt-32 max-w-xl mx-auto text-center px-6">
-        <h3 className="font-serif text-2xl text-primary mb-3">Vols crear un Món Mínim personalitzat?</h3>
+        <h3 className="font-serif text-2xl text-primary mb-3">Vols crear un <span className="notranslate" translate="no">Món Mínim</span> personalitzat?</h3>
         <p className="text-on-surface-variant text-sm mb-6">
           Cada espai o memòria té una forma única en fusta. Parlem directament per idear la teva peça.
         </p>

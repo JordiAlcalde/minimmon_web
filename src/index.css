@@ -9,6 +9,49 @@ body {
   background-color: #fbf9f8;
   color: #1b1c1c;
   font-family: 'Hanken Grotesk', sans-serif;
+  top: 0px !important;
+  position: static !important;
+  margin-top: 0px !important;
+}
+
+/* Ocultació transparent i total de la barra superior i elements d'interfície de Google Translate */
+.goog-te-banner-frame,
+.goog-te-banner-frame.skiptranslate,
+.goog-te-balloon-frame,
+#goog-gt-tt,
+.goog-te-spinner-pos,
+.goog-te-gadget,
+#google_translate_element,
+iframe.goog-te-banner-frame,
+iframe.skiptranslate,
+iframe[id*=":1.container"],
+iframe[id*=":2.container"],
+iframe[name*="goog"],
+.VIpgJd-Z25bfe-hL9-b4256,
+.VIpgJd-Z25bfe-VGmIgf-hL9-b4256,
+body > iframe,
+div.skiptranslate {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  width: 0 !important;
+  max-height: 0 !important;
+  max-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+
+.goog-tooltip,
+.goog-tooltip:hover {
+  display: none !important;
+}
+
+.goog-text-highlight {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .font-serif, .font-serif-headline {
@@ -16,8 +59,12 @@ body {
   font-weight: 600;
 }
 
-.material-symbols-outlined {
+.material-symbols-outlined,
+.notranslate,
+[translate="no"] {
   font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+  -webkit-translate: no !important;
+  translate: no !important;
 }
 
 .wood-texture-overlay {

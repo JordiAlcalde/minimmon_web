@@ -114,15 +114,15 @@ export default function ContacteSection() {
                   className="w-full bg-primary text-on-primary py-4 rounded font-body-md hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <span>Enviar Missatge</span>
-                  <span className="material-symbols-outlined text-sm">send</span>
+                  <span className="material-symbols-outlined text-sm notranslate" translate="no" aria-hidden="true">send</span>
                 </button>
               </form>
             ) : (
               <div className="text-center py-12 space-y-4">
-                <span className="material-symbols-outlined text-5xl text-primary">check_circle</span>
+                <span className="material-symbols-outlined text-5xl text-primary notranslate" translate="no" aria-hidden="true">check_circle</span>
                 <h3 className="font-serif text-3xl text-primary">Moltes gràcies, {formData.name}!</h3>
                 <p className="text-on-surface-variant max-w-md mx-auto">
-                  El teu missatge ha estat rebut. En <strong>Jordi Alcalde</strong> es posarà en contacte amb tu molt aviat a través de {formData.email}.
+                  El teu missatge ha estat rebut. En <strong className="notranslate" translate="no">Jordi Alcalde</strong> es posarà en contacte amb tu molt aviat a través de {formData.email}.
                 </p>
                 <button 
                   onClick={() => setSubmitted(false)}
@@ -138,13 +138,13 @@ export default function ContacteSection() {
           <div className="md:col-span-5 bg-surface-container p-8 md:p-10 rounded-lg space-y-8 border border-outline/10">
             <div>
               <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest font-semibold block mb-1">Creador &amp; Taller</span>
-              <h2 className="font-serif text-3xl text-primary">{STITCH_CRAFTSMAN.name}</h2>
-              <p className="text-on-surface-variant text-sm mt-1">{STITCH_CRAFTSMAN.brandName}</p>
+              <h2 className="font-serif text-3xl text-primary notranslate" translate="no">{STITCH_CRAFTSMAN.name}</h2>
+              <p className="text-on-surface-variant text-sm mt-1 notranslate" translate="no">{STITCH_CRAFTSMAN.brandName}</p>
             </div>
 
             <div className="space-y-4 border-t border-outline/15 pt-6">
               <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-1">mail</span>
+                <span className="material-symbols-outlined text-primary mt-1 notranslate" translate="no" aria-hidden="true">mail</span>
                 <div>
                   <p className="font-label-sm text-xs text-outline uppercase">Correus directes</p>
                   <p><a href={`mailto:${STITCH_CRAFTSMAN.emails[0]}`} className="text-primary hover:underline">{STITCH_CRAFTSMAN.emails[0]}</a></p>
@@ -153,7 +153,7 @@ export default function ContacteSection() {
               </div>
 
               <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-1">call</span>
+                <span className="material-symbols-outlined text-primary mt-1 notranslate" translate="no" aria-hidden="true">call</span>
                 <div>
                   <p className="font-label-sm text-xs text-outline uppercase">Telèfon de contacte</p>
                   <p><a href={`tel:${STITCH_CRAFTSMAN.phone.replace(/\s+/g, '')}`} className="text-primary hover:underline font-mono">{STITCH_CRAFTSMAN.phone}</a></p>
@@ -161,7 +161,7 @@ export default function ContacteSection() {
               </div>
 
               <div className="flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-1">precision_manufacturing</span>
+                <span className="material-symbols-outlined text-primary mt-1 notranslate" translate="no" aria-hidden="true">precision_manufacturing</span>
                 <div>
                   <p className="font-label-sm text-xs text-outline uppercase">Infraestructura</p>
                   <p className="text-on-surface-variant text-sm">Màquina làser de petit format, impressora 3D de detall i eines de fusteria fina.</p>
@@ -170,7 +170,7 @@ export default function ContacteSection() {
             </div>
 
             <div className="bg-surface-container-lowest p-6 rounded border border-outline/10 text-xs text-on-surface-variant space-y-2">
-              <p className="font-bold text-primary text-sm">Atelier Privat Mínim Món</p>
+              <p className="font-bold text-primary text-sm">Atelier Privat <span className="notranslate" translate="no">Mínim Món</span></p>
               <p>Treball privat sota comanda personalitzada. No es realitza producció en massa; cada peça rep dedicació artesana individual.</p>
             </div>
           </div>

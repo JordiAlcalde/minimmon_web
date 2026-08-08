@@ -79,7 +79,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                   ))}
                 </div>
               </div>
-              <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl">
+              <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl notranslate" translate="no" aria-hidden="true">
                 arrow_forward
               </span>
             </div>

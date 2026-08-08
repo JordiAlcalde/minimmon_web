@@ -6,6 +6,7 @@ import MonsMinimsSection from './components/MonsMinimsSection';
 import RegalsCatalogSection from './components/RegalsCatalogSection';
 import ElTallerSection from './components/ElTallerSection';
 import ContacteSection from './components/ContacteSection';
+import PrivateAreaSection from './components/PrivateAreaSection';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 
@@ -52,6 +53,10 @@ export default function App() {
 
         {activeTab === 'contacte' && (
           <ContacteSection />
+        )}
+
+        {activeTab === 'privat' && (
+          <PrivateAreaSection setActiveTab={setActiveTab} />
         )}
       </main>
 

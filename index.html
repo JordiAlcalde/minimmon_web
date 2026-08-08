@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mínim Món de Jordi Alcalde | Essències en Miniatura</title>
     <meta name="description" content="L'essència del que som, en miniatura. Capturant la memòria, l'espai i l'emoció a través de la calidesa de la fusta i la precisió de la llum. Jordi Alcalde Casalta." />
@@ -108,6 +111,20 @@
     </script>
   </head>
   <body class="bg-surface text-on-surface font-body-md antialiased overflow-x-hidden relative selection:bg-primary-container selection:text-on-primary-container min-h-screen flex flex-col">
+    <!-- Contenidor ocult per a Google Translate -->
+    <div id="google_translate_element" style="display:none!important; visibility:hidden!important;"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement({
+          pageLanguage: 'ca',
+          includedLanguages: 'ca,es,en,fr',
+          autoDisplay: false,
+          layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+        }, 'google_translate_element');
+      }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

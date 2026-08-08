@@ -70,7 +70,7 @@ export default function Header({ activeTab, setActiveTab }) {
             className="cursor-pointer active:scale-95 transition-transform p-2 text-primary"
             aria-label="Menú de navegació"
           >
-            <span className="material-symbols-outlined">{mobileMenuOpen ? 'close' : 'menu'}</span>
+            <span className="material-symbols-outlined notranslate" translate="no">{mobileMenuOpen ? 'close' : 'menu'}</span>
           </button>
         </div>
       </div>
