@@ -9,6 +9,7 @@ import ContacteSection from './components/ContacteSection';
 import PrivateAreaSection from './components/PrivateAreaSection';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
+import { FloatingWhatsApp } from './components/WhatsAppButton';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('inici');
@@ -77,6 +78,9 @@ export default function App() {
         title={legalTitle} 
         onClose={() => setLegalTitle(null)} 
       />
+
+      {/* Floating WhatsApp Button */}
+      <FloatingWhatsApp />
     </div>
   );
 }

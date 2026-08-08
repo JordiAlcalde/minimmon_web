@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { STITCH_CRAFTSMAN } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 
 export default function ContacteSection() {
   const [submitted, setSubmitted] = useState(false);
@@ -167,6 +168,26 @@ export default function ContacteSection() {
                   <p className="text-on-surface-variant text-sm">Màquina làser de petit format, impressora 3D de detall i eines de fusteria fina.</p>
                 </div>
               </div>
+            </div>
+
+            {/* Direct WhatsApp Card */}
+            <div className="bg-primary/5 p-5 rounded-lg border border-primary/20 space-y-3">
+              <div className="flex items-center gap-3 text-primary font-serif font-semibold">
+                <WhatsAppIcon className="w-5 h-5 text-primary shrink-0" />
+                <span>Consulta Ràpida per WhatsApp</span>
+              </div>
+              <p className="text-xs text-on-surface-variant leading-relaxed">
+                Prefereixes una resposta immediata o enviar fotos del teu espai? Parlem-ho directament per xat.
+              </p>
+              <a
+                href={getWhatsAppLink("Hola Jordi, m'agradaria fer-te una consulta sobre un projecte personalitzat.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-primary text-on-primary text-xs font-semibold rounded hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
+              >
+                <WhatsAppIcon className="w-4 h-4" />
+                <span>Obrir xat de WhatsApp ({STITCH_CRAFTSMAN.phone})</span>
+              </a>
             </div>
 
             <div className="bg-surface-container-lowest p-6 rounded border border-outline/10 text-xs text-on-surface-variant space-y-2">

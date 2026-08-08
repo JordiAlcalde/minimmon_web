@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, Film, Sparkles, X, Maximize2 } from 'lucide-react';
 import { resolveMediaUrl, formatVideoEmbedUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
+import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import VideoPlayer from './VideoPlayer';
 
 export default function ProjectModal({ project, onClose, setActiveTab }) {
@@ -276,12 +277,23 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
                 Podem crear un <span className="notranslate" translate="no">Món Mínim</span> basat en el teu espai o memòria personal.
               </p>
             </div>
-            <button 
-              onClick={() => { onClose(); setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer whitespace-nowrap"
-            >
-              Contacta amb en <span className="notranslate" translate="no">Jordi</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <a
+                href={getWhatsAppLink(`Hola Jordi, m'ha agradat molt el projecte "${title}" i m'agradaria fer-te una consulta.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-surface border border-primary/30 hover:border-primary text-primary px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+              >
+                <WhatsAppIcon className="w-4 h-4" />
+                <span>Consulta per WhatsApp</span>
+              </a>
+              <button 
+                onClick={() => { onClose(); setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className="bg-primary text-on-primary px-6 py-3 rounded-DEFAULT font-body-md text-sm hover:bg-primary-container transition-colors shadow-md cursor-pointer whitespace-nowrap"
+              >
+                Formulari de Contacte
+              </button>
+            </div>
           </div>
 
         </div>

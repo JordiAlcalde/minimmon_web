@@ -3,6 +3,7 @@ import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
+import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 
 export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
   const [filter, setFilter] = useState('Tots');
@@ -238,12 +239,23 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
         <p className="text-on-surface-variant text-sm mb-6">
           Cada espai o memòria té una forma única en fusta. Parlem directament per idear la teva peça.
         </p>
-        <button 
-          onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
-        >
-          Demana una proposta
-        </button>
+        <div className="flex flex-wrap justify-center items-center gap-4">
+          <a
+            href={getWhatsAppLink("Hola Jordi, m'agradaria consultar-te per crear un Món Mínim personalitzat.")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="bg-surface border border-primary/30 hover:border-primary text-primary px-6 py-3.5 rounded-DEFAULT font-body-md hover:bg-surface-container transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+          >
+            <WhatsAppIcon className="w-4 h-4" />
+            <span>Parlem per WhatsApp</span>
+          </a>
+          <button 
+            onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
+          >
+            Formulari de proposta
+          </button>
+        </div>
       </div>
     </div>
   );
