@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { resolveMediaUrl } from '../utils/mediaUtils';
+import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
 
 export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
   const [filter, setFilter] = useState('Tots');
@@ -201,7 +201,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                       ))}
                       {projectDataCreacio && (
                         <span className="px-3 py-1 bg-primary/10 text-primary rounded text-label-sm font-mono text-xs font-semibold">
-                          📅 {projectDataCreacio}
+                          📅 {formatDateDDMMAAAA(projectDataCreacio)}
                         </span>
                       )}
                     </div>

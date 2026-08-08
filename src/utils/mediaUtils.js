@@ -97,3 +97,25 @@ export function formatVideoEmbedUrl(url) {
 
   return resolveMediaUrl(trimmed);
 }
+
+export function formatDateDDMMAAAA(dateStr) {
+  if (!dateStr) return '';
+  const str = String(dateStr).trim();
+
+  // If format is YYYY-MM-DD
+  const matchISO = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (matchISO) {
+    const [, yyyy, mm, dd] = matchISO;
+    return `${dd.padStart(2, '0')}-${mm.padStart(2, '0')}-${yyyy}`;
+  }
+
+  // If format is DD-MM-YYYY or DD/MM/YYYY
+  const matchEU = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (matchEU) {
+    const [, dd, mm, yyyy] = matchEU;
+    return `${dd.padStart(2, '0')}-${mm.padStart(2, '0')}-${yyyy}`;
+  }
+
+  return str;
+}
+

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Play, Pause, Film, Sparkles, X, Maximize2 } from 'lucide-react';
-import { resolveMediaUrl, formatVideoEmbedUrl } from '../utils/mediaUtils';
+import { resolveMediaUrl, formatVideoEmbedUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
 import VideoPlayer from './VideoPlayer';
 
 export default function ProjectModal({ project, onClose, setActiveTab }) {
@@ -146,7 +146,7 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
               {dataCreacio && (
                 <div className={`${detalls ? 'pt-3 border-t border-outline/15' : ''} text-xs text-on-surface-variant flex items-center gap-2 font-mono`}>
                   <span className="font-semibold uppercase tracking-wider text-primary">Data de creació:</span>
-                  <span>{dataCreacio}</span>
+                  <span>{formatDateDDMMAAAA(dataCreacio)}</span>
                 </div>
               )}
             </div>
