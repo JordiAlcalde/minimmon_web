@@ -104,6 +104,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [dbProductesAdmin, setDbProductesAdmin] = useState([]);
   const [loadingProductesAdmin, setLoadingProductesAdmin] = useState(true);
   const [editingProducte, setEditingProducte] = useState(null); // null = list mode, {} = edit mode
+  const [adminFamFilter, setAdminFamFilter] = useState('Totes');
+  const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const descTextAreaRef = useRef(null);
 
   useEffect(() => {
@@ -427,8 +429,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
       ? editingProducte.imatges
       : (editingProducte.imatgesStr || '').split('\n').map(s => s.trim()).filter(Boolean);
 
-    const resolvedImages = rawImages.map(img => resolveMediaUrl(img));
-    const mainImg = resolveMediaUrl(editingProducte.imatgePrincipal || (resolvedImages[0] || ''));
+    const resolvedImages = rawImages.map(img => {
+      let clean = img.trim();
+      if (!clean) return '';
+      if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:')) return clean;
+      if (!clean.startsWith('imatges/') && !clean.startsWith('images/') && !clean.startsWith('videos/')) {
+        clean = clean.startsWith('productes/') ? `imatges/${clean}` : `imatges/productes/${clean}`;
+      }
+      return clean;
+    }).filter(Boolean);
+
+    const mainImg = resolvedImages[0] || (editingProducte.imatgePrincipal ? resolveMediaUrl(editingProducte.imatgePrincipal) : '');
 
     try {
       const docRef = doc(db, "productes", docId);
@@ -449,6 +460,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         gruix: editingProducte.gruix || '',
         pes: editingProducte.pes || '',
         acabat: editingProducte.acabat || '',
+        ordre: Number(editingProducte.ordre || 1),
         actiu: editingProducte.actiu !== false,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
@@ -1455,8 +1467,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 )}
               </div>
 
-              {/* Termini de Fabricació i Preus Privats (Text) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surface p-4 rounded-lg border border-outline/15">
+              {/* Termini de Fabricació, Preus Privats i Ordre */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-surface p-4 rounded-lg border border-outline/15">
                 <div>
                   <label className="block text-xs uppercase font-semibold text-primary mb-1">Termini de Fabricació:</label>
                   <input
@@ -1489,6 +1501,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-full px-3 py-2 rounded bg-surface-container border text-xs font-mono"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-mono text-outline mb-1">Ordre de Visualització</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editingProducte.ordre || 1}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, ordre: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs font-mono font-bold text-primary"
+                  />
+                </div>
               </div>
 
               {/* Botons d'Acció */}
@@ -1510,7 +1533,53 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </form>
           ) : (
             /* Llista de Productes en Taula */
-            <div className="bg-surface-container-lowest rounded-xl border border-outline/15 overflow-hidden shadow-sm">
+            <div className="bg-surface-container-lowest rounded-xl border border-outline/15 overflow-hidden shadow-sm space-y-0">
+              
+              {/* FILTRES DINÀMICS DE LA TAULA (Família i Gamma) */}
+              <div className="p-4 bg-surface-container/60 border-b border-outline/15 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase font-mono font-semibold text-primary">Filtrar per Família:</span>
+                  <select
+                    value={adminFamFilter}
+                    onChange={(e) => {
+                      setAdminFamFilter(e.target.value);
+                      setAdminGamFilter('Totes');
+                    }}
+                    className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary font-semibold cursor-pointer outline-none focus:border-primary"
+                  >
+                    <option value="Totes">Totes les Famílies</option>
+                    {dbFamilies.map(f => (
+                      <option key={f.id} value={f.nom}>{f.nom}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase font-mono font-semibold text-primary">Filtrar per Gamma:</span>
+                  <select
+                    value={adminGamFilter}
+                    onChange={(e) => setAdminGamFilter(e.target.value)}
+                    className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary font-semibold cursor-pointer outline-none focus:border-primary"
+                  >
+                    <option value="Totes">Totes les Gammes</option>
+                    {dbGammes
+                      .filter(g => adminFamFilter === 'Totes' || (g.familiaNom || '').toLowerCase().includes(adminFamFilter.toLowerCase()))
+                      .map(g => (
+                        <option key={g.id} value={g.nom}>{g.nom} ({g.familiaNom})</option>
+                      ))}
+                  </select>
+                </div>
+
+                {(adminFamFilter !== 'Totes' || adminGamFilter !== 'Totes') && (
+                  <button
+                    onClick={() => { setAdminFamFilter('Totes'); setAdminGamFilter('Totes'); }}
+                    className="text-xs text-primary underline font-medium cursor-pointer ml-auto"
+                  >
+                    Netejar filtres
+                  </button>
+                )}
+              </div>
+
               {loadingProductesAdmin ? (
                 <div className="p-8 text-center text-on-surface-variant flex items-center justify-center gap-2">
                   <RefreshCw className="w-5 h-5 animate-spin text-primary" />
@@ -1528,62 +1597,92 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
                       <tr>
                         <th className="p-4">Codi</th>
+                        <th className="p-4 font-mono">Ordre</th>
                         <th className="p-4">Imatge</th>
                         <th className="p-4">Nom del Producte</th>
                         <th className="p-4">Famílies</th>
+                        <th className="p-4">Gammes</th>
                         <th className="p-4 font-mono">Cost (€)</th>
                         <th className="p-4 font-mono">Preu (€)</th>
                         <th className="p-4 text-right">Accions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline/10">
-                      {dbProductesAdmin.map((p) => (
-                        <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
-                          <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
-                          <td className="p-4">
-                            <div className="w-10 h-10 rounded bg-surface-container overflow-hidden border">
-                              {(() => {
-                                const rawImgs = (p.imatges && p.imatges.length > 0) ? p.imatges : [p.imatgePrincipal].filter(Boolean);
-                                const thumbImg = (p.imatgePrincipal && p.imatgePrincipal.startsWith('http')) 
-                                  ? p.imatgePrincipal 
-                                  : (rawImgs[0] || p.imatgePrincipal || '');
-                                return thumbImg ? (
-                                  <img 
-                                    src={resolveMediaUrl(thumbImg)} 
-                                    alt="" 
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      if (rawImgs[0] && e.target.src !== resolveMediaUrl(rawImgs[0])) {
-                                        e.target.src = resolveMediaUrl(rawImgs[0]);
-                                      }
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-[10px] text-outline">N/A</div>
-                                );
-                              })()}
-                            </div>
-                          </td>
-                          <td className="p-4 font-semibold text-primary">{p.nom}</td>
-                          <td className="p-4 text-xs text-on-surface-variant">{(p.familaIds || []).join(', ')}</td>
-                          <td className="p-4 font-mono text-xs text-outline">{p.cost ? `${p.cost}€` : '-'}</td>
-                          <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
-                          <td className="p-4 text-right space-x-2">
-                            <button
-                              onClick={() => setEditingProducte(p)}
-                              className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteProducte(p.id)}
-                              className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              Esborrar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {(() => {
+                        const filteredAdminProducts = dbProductesAdmin.filter(p => {
+                          if (adminFamFilter !== 'Totes') {
+                            const matchFam = (p.familaIds || []).some(f => f.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
+                              (p.gammaIds || []).some(g => g.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
+                              p.nom.toLowerCase().includes(adminFamFilter.toLowerCase());
+                            if (!matchFam) return false;
+                          }
+                          if (adminGamFilter !== 'Totes') {
+                            const matchGam = (p.gammaIds || []).some(g => g.toLowerCase().includes(adminGamFilter.toLowerCase()));
+                            if (!matchGam) return false;
+                          }
+                          return true;
+                        }).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
+
+                        if (filteredAdminProducts.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan="9" className="p-8 text-center text-xs text-on-surface-variant">
+                                No hi ha cap producte que coincideixi amb els filtres seleccionats.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return filteredAdminProducts.map((p) => (
+                          <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
+                            <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
+                            <td className="p-4 font-mono text-xs font-bold text-primary">{p.ordre || 1}</td>
+                            <td className="p-4">
+                              <div className="w-10 h-10 rounded bg-surface-container overflow-hidden border">
+                                {(() => {
+                                  const rawImgs = (p.imatges && p.imatges.length > 0) ? p.imatges : [p.imatgePrincipal].filter(Boolean);
+                                  const thumbImg = (p.imatgePrincipal && p.imatgePrincipal.startsWith('http')) 
+                                    ? p.imatgePrincipal 
+                                    : (rawImgs[0] || p.imatgePrincipal || '');
+                                  return thumbImg ? (
+                                    <img 
+                                      src={resolveMediaUrl(thumbImg)} 
+                                      alt="" 
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        if (rawImgs[0] && e.target.src !== resolveMediaUrl(rawImgs[0])) {
+                                          e.target.src = resolveMediaUrl(rawImgs[0]);
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-[10px] text-outline">N/A</div>
+                                  );
+                                })()}
+                              </div>
+                            </td>
+                            <td className="p-4 font-semibold text-primary">{p.nom}</td>
+                            <td className="p-4 text-xs text-on-surface-variant">{(p.familaIds || []).join(', ') || '-'}</td>
+                            <td className="p-4 text-xs text-on-surface-variant font-medium">{(p.gammaIds || []).join(', ') || '-'}</td>
+                            <td className="p-4 font-mono text-xs text-outline">{p.cost ? `${p.cost}€` : '-'}</td>
+                            <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
+                            <td className="p-4 text-right space-x-2">
+                              <button
+                                onClick={() => setEditingProducte(p)}
+                                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProducte(p.id)}
+                                className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer"
+                              >
+                                Esborrar
+                              </button>
+                            </td>
+                          </tr>
+                        ));
+                      })()}
                     </tbody>
                   </table>
                 </div>

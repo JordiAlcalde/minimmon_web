@@ -106,7 +106,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Filtrar productes per Gamma o Família
+  // Filtrar i ordenar productes per Gamma o Família i pel camp Ordre
   const filteredProducts = dbProducts.filter(p => {
     if (selectedFamilia === 'Tots' && selectedGamma === 'Tots') return true;
 
@@ -121,7 +121,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
       if (matchFam && selectedGamma === 'Tots') return true;
     }
     return false;
-  });
+  }).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
 
   // Obtenir la imatge activa per a la miniatura del filtre
   const currentFamObj = activeFamilies.find(f => f.nom.toLowerCase() === selectedFamilia.toLowerCase());
