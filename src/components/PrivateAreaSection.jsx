@@ -3,6 +3,7 @@ import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../fi
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { resolveMediaUrl, GITHUB_RAW_BASE } from '../utils/mediaUtils';
+import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
 import { 
   Lock, 
   Key, 
@@ -66,6 +67,48 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [newKeyInput, setNewKeyInput] = useState('');
   const [keyChangeStatus, setKeyChangeStatus] = useState({ type: '', msg: '' });
   const [copiedId, setCopiedId] = useState(null);
+
+  // Telegram state
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramStatus, setTelegramStatus] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated && activeModule === 'config') {
+      getTelegramConfig().then(cfg => {
+        if (cfg.botToken) setTelegramToken(cfg.botToken);
+        if (cfg.chatId) setTelegramChatId(cfg.chatId);
+      });
+    }
+  }, [isAuthenticated, activeModule]);
+
+  const handleSaveTelegramConfig = async (e) => {
+    e.preventDefault();
+    setTelegramStatus('Desant...');
+    const ok = await saveTelegramConfig(telegramToken, telegramChatId);
+    if (ok) {
+      setTelegramStatus('✓ Configuració de Telegram desada correctament a Firestore!');
+    } else {
+      setTelegramStatus('Error desant la configuració');
+    }
+    setTimeout(() => setTelegramStatus(''), 4000);
+  };
+
+  const handleTestTelegram = async () => {
+    setTelegramStatus('Enviant notificació de prova...');
+    const success = await sendTelegramNotification({
+      nom: 'Jordi Alcalde (Prova)',
+      email: 'info@minimmon.cat',
+      telefon: '+34 699 592 326',
+      missatge: 'Això és una prova de notificació instantània de Mínim Món al teu mòbil!',
+      tipus: 'Prova de Sistema'
+    });
+    if (success) {
+      setTelegramStatus('🚀 Notificació de prova enviada amb èxit! Comprova el teu Telegram.');
+    } else {
+      setTelegramStatus('❌ Error enviant la notificació. Revisa el Bot Token i el Chat ID.');
+    }
+  };
 
   // Handle Login
   const handleLogin = async (e) => {
@@ -1378,52 +1421,118 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
       {/* MODULE 4: CONFIGURACIÓ I SEGURETAT */}
       {activeModule === 'config' && (
-        <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline/15 shadow-sm max-w-xl">
-          <div className="mb-6">
-            <h2 className="font-serif text-xl font-semibold text-primary">Canviar Clau d'Accés de l'Àrea Privada</h2>
-            <p className="text-sm text-on-surface-variant mt-1">
-              Aquesta clau es guarda directament al teu Cloud Firestore (<code className="font-mono text-primary font-semibold">config/access</code>) i s'utilitza per protegir l'Àrea Privada.
-            </p>
-          </div>
-
-          <form onSubmit={handleChangeKey} className="space-y-4">
-            <div>
-              <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-2" htmlFor="new-key-input">
-                Nova Clau d'Accés
-              </label>
-              <input 
-                id="new-key-input"
-                type="text"
-                required
-                value={newKeyInput}
-                onChange={(e) => setNewKeyInput(e.target.value)}
-                placeholder="Ex: laTevaNovaClau2026"
-                className="w-full px-4 py-3 rounded-lg bg-surface border border-outline/30 text-on-surface focus:outline-none focus:border-primary text-base"
-              />
-              <p className="text-xs text-on-surface-variant mt-1.5">
-                Clau actual establerta inicialment a Firestore: <code className="bg-surface px-1.5 py-0.5 rounded font-mono text-primary font-semibold">jac58webDB</code>
+        <div className="space-y-8 max-w-2xl">
+          {/* Key Change Card */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline/15 shadow-sm">
+            <div className="mb-6">
+              <h2 className="font-serif text-xl font-semibold text-primary">Canviar Clau d'Accés de l'Àrea Privada</h2>
+              <p className="text-sm text-on-surface-variant mt-1">
+                Aquesta clau es guarda directament al teu Cloud Firestore (<code className="font-mono text-primary font-semibold">config/access</code>) i s'utilitza per protegir l'Àrea Privada.
               </p>
             </div>
 
-            {keyChangeStatus.msg && (
-              <div className={`p-3 rounded-lg text-xs border flex items-center gap-2 ${
-                keyChangeStatus.type === 'success' 
-                  ? 'bg-emerald-100 border-emerald-300 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' 
-                  : keyChangeStatus.type === 'error' 
-                    ? 'bg-error-container/40 border-error/20 text-error' 
-                    : 'bg-surface border-outline/20 text-on-surface'
-              }`}>
-                <span>{keyChangeStatus.msg}</span>
+            <form onSubmit={handleChangeKey} className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-2" htmlFor="new-key-input">
+                  Nova Clau d'Accés
+                </label>
+                <input 
+                  id="new-key-input"
+                  type="text"
+                  required
+                  value={newKeyInput}
+                  onChange={(e) => setNewKeyInput(e.target.value)}
+                  placeholder="Ex: laTevaNovaClau2026"
+                  className="w-full px-4 py-3 rounded-lg bg-surface border border-outline/30 text-on-surface focus:outline-none focus:border-primary text-base"
+                />
+                <p className="text-xs text-on-surface-variant mt-1.5">
+                  Clau actual establerta inicialment a Firestore: <code className="bg-surface px-1.5 py-0.5 rounded font-mono text-primary font-semibold">jac58webDB</code>
+                </p>
               </div>
-            )}
 
-            <button 
-              type="submit"
-              className="px-6 py-3 bg-primary hover:bg-primary-container text-on-primary font-medium rounded-lg transition-colors cursor-pointer"
-            >
-              Desar Nova Clau a Firestore
-            </button>
-          </form>
+              {keyChangeStatus.msg && (
+                <div className={`p-3 rounded-lg text-xs border flex items-center gap-2 ${
+                  keyChangeStatus.type === 'success' 
+                    ? 'bg-emerald-100 border-emerald-300 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' 
+                    : keyChangeStatus.type === 'error' 
+                      ? 'bg-error-container/40 border-error/20 text-error' 
+                      : 'bg-surface border-outline/20 text-on-surface'
+                }`}>
+                  <span>{keyChangeStatus.msg}</span>
+                </div>
+              )}
+
+              <button 
+                type="submit"
+                className="px-6 py-3 bg-primary hover:bg-primary-container text-on-primary font-medium rounded-lg transition-colors cursor-pointer"
+              >
+                Desar Nova Clau a Firestore
+              </button>
+            </form>
+          </div>
+
+          {/* Telegram Notifications Card */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 shadow-sm space-y-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono font-semibold uppercase">Notificacions al Mòbil</span>
+              </div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Notificacions Instantànies de Telegram</h2>
+              <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+                Rep avisos immediats al teu telèfon mòbil cada vegada que un client ompli el formulari de contacte o l'assistent de la web.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveTelegramConfig} className="space-y-4">
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                  Telegram Bot Token
+                </label>
+                <input 
+                  type="text"
+                  value={telegramToken}
+                  onChange={(e) => setTelegramToken(e.target.value)}
+                  placeholder="Ex: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                  className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 font-mono text-xs text-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                  El teu Telegram Chat ID
+                </label>
+                <input 
+                  type="text"
+                  value={telegramChatId}
+                  onChange={(e) => setTelegramChatId(e.target.value)}
+                  placeholder="Ex: 987654321"
+                  className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 font-mono text-xs text-primary"
+                />
+              </div>
+
+              {telegramStatus && (
+                <div className="p-3 bg-surface-container border border-primary/20 rounded-lg text-xs font-mono text-primary">
+                  {telegramStatus}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button 
+                  type="submit"
+                  className="px-5 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow"
+                >
+                  Desar Configuració a Firestore
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleTestTelegram}
+                  className="px-5 py-2.5 bg-surface hover:bg-surface-container border border-primary/30 text-primary text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  ⚡ Provar Notificació al Mòbil
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

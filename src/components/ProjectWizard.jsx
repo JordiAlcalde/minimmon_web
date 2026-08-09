@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Sparkles, ArrowRight, ArrowLeft, CheckCircle2, MessageSquare, Heart, Box, Gift, Send } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { sendTelegramNotification } from '../utils/telegramUtils';
 
 export default function ProjectWizard({ isOpen, onClose, initialItemTitle = '' }) {
   const [step, setStep] = useState(1);
@@ -48,8 +51,33 @@ export default function ProjectWizard({ isOpen, onClose, initialItemTitle = '' }
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    try {
+      await addDoc(collection(db, "consultes"), {
+        nom: formData.clientName,
+        contacte: formData.clientContact,
+        tipus: formData.projectType,
+        titolPeca: formData.itemTitle,
+        concepte: formData.conceptEmotion,
+        destinatari: formData.recipient,
+        fusta: formData.preferredWood,
+        caracteristiques: formData.specialFeatures,
+        notes: formData.notes,
+        data: serverTimestamp()
+      });
+
+      sendTelegramNotification({
+        nom: formData.clientName,
+        email: formData.clientContact,
+        telefon: formData.clientContact,
+        projecteTitol: formData.itemTitle || formData.projectType,
+        missatge: `Tipus: ${formData.projectType}\nIdees/Concepte: ${formData.conceptEmotion}\nDestinatari: ${formData.recipient}\nFusta: ${formData.preferredWood}\nNotes: ${formData.notes}`,
+        tipus: 'Assistent Wizard'
+      });
+    } catch (err) {
+      console.warn("Nota de Firebase Wizard:", err);
+    }
     setIsSent(true);
   };
 

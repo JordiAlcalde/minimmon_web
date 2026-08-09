@@ -3,6 +3,7 @@ import { STITCH_CRAFTSMAN } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
+import { sendTelegramNotification } from '../utils/telegramUtils';
 
 export default function ContacteSection() {
   const [submitted, setSubmitted] = useState(false);
@@ -23,6 +24,15 @@ export default function ContacteSection() {
         telefon: formData.phone,
         missatge: formData.message,
         data: serverTimestamp()
+      });
+
+      // Enviar notificació instantània al mòbil per Telegram
+      sendTelegramNotification({
+        nom: formData.name,
+        email: formData.email,
+        telefon: formData.phone,
+        missatge: formData.message,
+        tipus: 'Formulari de Contacte'
       });
     } catch (err) {
       console.warn("Nota de Firebase: La petició s'ha processat en mode local o pendent de valors de configuració reals.", err);
