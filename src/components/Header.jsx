@@ -62,7 +62,7 @@ export default function Header({ activeTab, setActiveTab }) {
             onClick={() => handleNavClick('contacte')}
             className={`${activeTab === 'contacte' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
           >
-            COM ENCARREGAR
+            CONNECTAR
           </button>
 
           {/* Desktop Budget Cart Icon Button */}
@@ -137,7 +137,7 @@ export default function Header({ activeTab, setActiveTab }) {
             onClick={() => handleNavClick('contacte')}
             className={`text-left font-body-md text-lg uppercase tracking-wider py-2 ${activeTab === 'contacte' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}
           >
-            Com Encarregar / Contacte
+            Connectar
           </button>
         </div>
       )}
