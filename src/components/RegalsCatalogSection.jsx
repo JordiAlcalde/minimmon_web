@@ -99,8 +99,8 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     }
     if (selectedFamilia !== 'Tots') {
       const matchFam = (p.gammaIds || []).some(g => g.toLowerCase().includes(selectedFamilia.toLowerCase())) ||
-                       (p.familaIds || []).some(f => f.toLowerCase().includes(selectedFamilia.toLowerCase())) ||
-                       p.nom.toLowerCase().includes(selectedFamilia.toLowerCase());
+        (p.familaIds || []).some(f => f.toLowerCase().includes(selectedFamilia.toLowerCase())) ||
+        p.nom.toLowerCase().includes(selectedFamilia.toLowerCase());
       if (matchFam && selectedGamma === 'Tots') return true;
     }
     return false;
@@ -112,12 +112,12 @@ export default function RegalsCatalogSection({ setActiveTab }) {
   // Obtenir les gammes disponibles per a la família seleccionada
   const getSubGammesForSelectedFamily = () => {
     if (selectedFamilia === 'Tots') return [];
-    
+
     // Si hi ha gammes a Firestore
     const fromDb = dbGammes
       .filter(g => g.familiaNom && g.familiaNom.toLowerCase().includes(selectedFamilia.toLowerCase()))
       .map(g => g.nom);
-    
+
     if (fromDb.length > 0) return fromDb;
 
     // Si utilitza les inicials per defecte
@@ -128,7 +128,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
 
   return (
     <div className="pt-28 pb-24 animate-fadeIn">
-      
+
       {/* ========================================================================= */}
       {/* VISTA 1: CATÀLEG PRINCIPAL DE REGALS (4 Blocs Tradicionals de Mínim Món)  */}
       {/* ========================================================================= */}
@@ -148,9 +148,9 @@ export default function RegalsCatalogSection({ setActiveTab }) {
           {/* Subcategories Bar (Navegació per Famílies i Gammes) */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-gutter py-8 border-y border-outline/10">
-              
+
               <div className="space-y-3">
-                <button 
+                <button
                   onClick={() => handleSelectFamilia('Jocs i creativitat')}
                   className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
                 >
@@ -164,7 +164,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
               </div>
 
               <div className="space-y-3">
-                <button 
+                <button
                   onClick={() => handleSelectFamilia('Records i fotografia')}
                   className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
                 >
@@ -178,7 +178,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
               </div>
 
               <div className="space-y-3">
-                <button 
+                <button
                   onClick={() => handleSelectFamilia('Complements i quotidiana')}
                   className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
                 >
@@ -192,7 +192,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
               </div>
 
               <div className="space-y-3">
-                <button 
+                <button
                   onClick={() => handleSelectFamilia('Dates assenyalades')}
                   className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
                 >
@@ -211,13 +211,13 @@ export default function RegalsCatalogSection({ setActiveTab }) {
           {/* Grid of Catalog Cards (Els 4 Blocs Tradicionals) */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
             {STITCH_GIFTS.map((gift) => (
-              <div 
-                key={gift.id} 
+              <div
+                key={gift.id}
                 onClick={() => handleSelectFamilia(gift.title)}
                 className="group block relative overflow-hidden rounded-lg aspect-[4/3] bg-surface-container-low transition-transform duration-300 hover:scale-[1.02] cursor-pointer shadow-md"
               >
-                <div 
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" 
+                <div
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
                   style={{ backgroundImage: `url("${gift.image}")` }}
                 ></div>
                 <div className="absolute inset-0 bg-gradient-to-t from-primary-container/85 via-primary-container/30 to-transparent"></div>
@@ -248,7 +248,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
       {/* ========================================================================= */}
       {currentView === 'products' && (
         <div className="space-y-10 animate-fadeIn">
-          
+
           {/* Header Superior: Botó de Retorn */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex justify-between items-center">
             <button
@@ -263,18 +263,17 @@ export default function RegalsCatalogSection({ setActiveTab }) {
           {/* BARRA DE FILTRES AMB PALETA TERCIÀRIA DE STITCH (#404A39 i #DBE6CF) */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-sm">
-              
+
               {/* 1. Botó "Tot el Catàleg" */}
               <button
                 onClick={() => {
                   setSelectedFamilia('Tots');
                   setSelectedGamma('Tots');
                 }}
-                className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${
-                  selectedFamilia === 'Tots' && selectedGamma === 'Tots'
+                className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${selectedFamilia === 'Tots' && selectedGamma === 'Tots'
                     ? 'bg-[#404A39] text-white font-semibold shadow-md'
                     : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                }`}
+                  }`}
               >
                 Tot el<br />Catàleg
               </button>
@@ -301,11 +300,10 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                           setSelectedFamilia(fam);
                           setSelectedGamma('Tots');
                         }}
-                        className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                          isActive
+                        className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${isActive
                             ? 'bg-[#404A39] text-white font-semibold shadow-xs'
                             : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                        }`}
+                          }`}
                       >
                         {fam}
                       </button>
@@ -319,11 +317,10 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                     {/* Botó "Tot" per a aquesta Família */}
                     <button
                       onClick={() => setSelectedGamma('Tots')}
-                      className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                        selectedGamma === 'Tots'
+                      className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${selectedGamma === 'Tots'
                           ? 'bg-[#404A39] text-white font-semibold shadow-xs'
                           : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                      }`}
+                        }`}
                     >
                       Tot
                     </button>
@@ -335,11 +332,10 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                         <button
                           key={gam}
                           onClick={() => setSelectedGamma(gam)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                            isGamActive
+                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${isGamActive
                               ? 'bg-[#404A39] text-white font-semibold shadow-xs'
                               : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                          }`}
+                            }`}
                         >
                           {gam}
                         </button>
@@ -378,7 +374,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
         <p className="text-on-surface-variant text-sm mb-6">
           Tot el catàleg es pot adaptar amb noms, dates, frases o dissenys exclusius en marcatge làser.
         </p>
-        <button 
+        <button
           onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
           className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
         >
@@ -394,13 +390,13 @@ function isValidImagePath(str) {
   if (!str || typeof str !== 'string') return false;
   const trimmed = str.trim();
   if (!trimmed) return false;
-  return trimmed.startsWith('http://') || 
-         trimmed.startsWith('https://') || 
-         trimmed.startsWith('data:') || 
-         trimmed.startsWith('/') ||
-         trimmed.startsWith('images/') || 
-         trimmed.startsWith('imatges/') ||
-         /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+  return trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('images/') ||
+    trimmed.startsWith('imatges/') ||
+    /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
 }
 
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
@@ -454,14 +450,14 @@ function ProductCard({ product, onAddToCart }) {
 
   return (
     <article className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 p-6 md:p-8 items-start">
-      
+
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
         <div className="aspect-[4/3] bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
           {currentDisplayImg ? (
-            <img 
-              src={resolveMediaUrl(currentDisplayImg)} 
-              alt={product.nom} 
+            <img
+              src={resolveMediaUrl(currentDisplayImg)}
+              alt={product.nom}
               className="w-full h-full object-cover transition-all duration-300"
               onError={(e) => {
                 if (imagesList.length > 0 && e.target.src !== resolveMediaUrl(imagesList[0])) {
@@ -482,9 +478,8 @@ function ProductCard({ product, onAddToCart }) {
               <button
                 key={idx}
                 onClick={() => setSelectedImg(imgUrl)}
-                className={`w-14 h-14 rounded overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
-                  (selectedImg === imgUrl || (!selectedImg && idx === 0)) ? 'border-primary shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
-                }`}
+                className={`w-14 h-14 rounded overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${(selectedImg === imgUrl || (!selectedImg && idx === 0)) ? 'border-primary shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
+                  }`}
               >
                 <img src={resolveMediaUrl(imgUrl)} alt="" className="w-full h-full object-cover" />
               </button>
@@ -544,7 +539,7 @@ function ProductCard({ product, onAddToCart }) {
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
             <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">PERSONALITZA AL TEU GUST:</h4>
-            
+
             <div className="flex flex-col gap-3">
               {product.opcionsPersonalitzacio.map((opc, idx) => (
                 <div key={idx} className="space-y-1">
@@ -585,12 +580,12 @@ function ProductCard({ product, onAddToCart }) {
         {/* Quantitat i Observacions */}
         <div className="space-y-3 pt-2">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-            
+
             {/* Quantitat */}
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-on-surface-variant uppercase font-mono">Quantitat:</span>
               <div className="flex items-center border border-outline/25 rounded bg-surface">
-                <button 
+                <button
                   type="button"
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   className="p-2 hover:bg-surface-container text-primary transition-colors cursor-pointer"
@@ -598,7 +593,7 @@ function ProductCard({ product, onAddToCart }) {
                   <Minus className="w-3.5 h-3.5" />
                 </button>
                 <span className="px-3 text-xs font-mono font-semibold text-primary">{quantity}</span>
-                <button 
+                <button
                   type="button"
                   onClick={() => setQuantity(quantity + 1)}
                   className="p-2 hover:bg-surface-container text-primary transition-colors cursor-pointer"
@@ -612,7 +607,7 @@ function ProductCard({ product, onAddToCart }) {
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Observacions o gravat personalitzat..."
+                placeholder="Vols afegir res més?"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary"
