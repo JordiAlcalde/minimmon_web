@@ -80,11 +80,11 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
       {/* Hero Header */}
       <header className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16 text-center">
         <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
-        <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl"><span className="notranslate" translate="no">Móns Mínims</span>: L'Art de la Precisió</h1>
+        <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">L'Art de la Precisió</h1>
         
         {/* Poetic Intro Block */}
         <div className="max-w-3xl mx-auto space-y-4 text-on-surface-variant leading-relaxed text-base md:text-lg mb-10">
-          <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">
+          <h2 className="font-serif text-lg md:text-xl text-primary font-medium">
             Cada línia té un nom. Cada volum, una ànima.
           </h2>
           <p>
