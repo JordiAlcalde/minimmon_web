@@ -82,7 +82,15 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     };
   }, []);
 
-  const familiesList = ['Jocs i creativitat', 'Records i fotografia', 'Complements i quotidiana', 'Dates assenyalades'];
+  // Llista de Famílies activa i dinàmica de Firestore (ordenada per ordre)
+  const activeFamilies = dbFamilies && dbFamilies.length > 0
+    ? [...dbFamilies].sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
+    : [
+        { id: 'fam-1', nom: 'Jocs i creativitat', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg' },
+        { id: 'fam-2', nom: 'Records i fotografia', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/records_fotografia.jpg' },
+        { id: 'fam-3', nom: 'Complements i quotidiana', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/complements_quotidiana.jpg' },
+        { id: 'fam-4', nom: 'Dates assenyalades', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/dates_assenyalades.jpg' }
+      ];
 
   const handleSelectFamilia = (famName) => {
     setSelectedFamilia(famName);
@@ -116,7 +124,10 @@ export default function RegalsCatalogSection({ setActiveTab }) {
   });
 
   // Obtenir la imatge activa per a la miniatura del filtre
-  const activeFamilyImage = FAMILY_IMAGES[selectedFamilia] || FAMILY_IMAGES['Tots'];
+  const currentFamObj = activeFamilies.find(f => f.nom.toLowerCase() === selectedFamilia.toLowerCase());
+  const activeFamilyImage = currentFamObj?.imatge 
+    ? resolveMediaUrl(currentFamObj.imatge) 
+    : (FAMILY_IMAGES[selectedFamilia] || FAMILY_IMAGES['Tots']);
 
   // Obtenir les gammes disponibles per a la família seleccionada
   const getSubGammesForSelectedFamily = () => {
@@ -125,6 +136,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     // Si hi ha gammes a Firestore
     const fromDb = dbGammes
       .filter(g => g.familiaNom && g.familiaNom.toLowerCase().includes(selectedFamilia.toLowerCase()))
+      .sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
       .map(g => g.nom);
 
     if (fromDb.length > 0) return fromDb;
@@ -283,11 +295,12 @@ export default function RegalsCatalogSection({ setActiveTab }) {
               <div className="flex-1 space-y-3">
                 {/* Fila 1: Botons de Famílies */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {familiesList.map(fam => {
+                  {activeFamilies.map(famObj => {
+                    const fam = famObj.nom;
                     const isActive = selectedFamilia.toLowerCase() === fam.toLowerCase();
                     return (
                       <button
-                        key={fam}
+                        key={famObj.id || fam}
                         onClick={() => {
                           setSelectedFamilia(fam);
                           setSelectedGamma('Tots');
