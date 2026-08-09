@@ -444,6 +444,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
         terminiFabricacio: editingProducte.terminiFabricacio || '3 - 5 dies feiners',
+        material: editingProducte.material || '',
+        dimensions: editingProducte.dimensions || '',
+        gruix: editingProducte.gruix || '',
+        pes: editingProducte.pes || '',
+        acabat: editingProducte.acabat || '',
         actiu: editingProducte.actiu !== false,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
@@ -1251,6 +1256,69 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 />
               </div>
 
+              {/* Especificacions Tècniques Opcionals (Material, Dimensions, Gruix, Pes, Acabat) */}
+              <div className="space-y-3 p-4 bg-surface rounded-lg border border-outline/15">
+                <label className="block text-xs uppercase font-semibold text-primary">
+                  Especificacions Tècniques Opcionals (Només es mostraran si s'omplen):
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">Material</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Fusta de tilo americà"
+                      value={editingProducte.material || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, material: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-sans"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">Dimensions</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 15 x 10 cm"
+                      value={editingProducte.dimensions || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, dimensions: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-sans"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">Gruix</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 2 mm"
+                      value={editingProducte.gruix || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, gruix: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-sans"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">Pes</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 1,3 Kilogramos"
+                      value={editingProducte.pes || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, pes: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-sans"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">Acabat</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Vernís ecològic mat"
+                      value={editingProducte.acabat || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, acabat: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-sans"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Imatges (Fins a 5 URLs Raw GitHub o imatges) */}
               <div className="space-y-2">
                 <label className="block text-xs uppercase font-semibold text-on-surface-variant">
@@ -1471,11 +1539,26 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
                           <td className="p-4">
                             <div className="w-10 h-10 rounded bg-surface-container overflow-hidden border">
-                              {p.imatgePrincipal ? (
-                                <img src={resolveMediaUrl(p.imatgePrincipal)} alt="" className="w-full h-full object-cover" />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[10px] text-outline">N/A</div>
-                              )}
+                              {(() => {
+                                const rawImgs = (p.imatges && p.imatges.length > 0) ? p.imatges : [p.imatgePrincipal].filter(Boolean);
+                                const thumbImg = (p.imatgePrincipal && p.imatgePrincipal.startsWith('http')) 
+                                  ? p.imatgePrincipal 
+                                  : (rawImgs[0] || p.imatgePrincipal || '');
+                                return thumbImg ? (
+                                  <img 
+                                    src={resolveMediaUrl(thumbImg)} 
+                                    alt="" 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      if (rawImgs[0] && e.target.src !== resolveMediaUrl(rawImgs[0])) {
+                                        e.target.src = resolveMediaUrl(rawImgs[0]);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-[10px] text-outline">N/A</div>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="p-4 font-semibold text-primary">{p.nom}</td>

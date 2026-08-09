@@ -389,9 +389,30 @@ export default function RegalsCatalogSection({ setActiveTab }) {
   );
 }
 
+// Comprova si un text és un camí o URL d'imatge vàlid
+function isValidImagePath(str) {
+  if (!str || typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  if (!trimmed) return false;
+  return trimmed.startsWith('http://') || 
+         trimmed.startsWith('https://') || 
+         trimmed.startsWith('data:') || 
+         trimmed.startsWith('/') ||
+         trimmed.startsWith('images/') || 
+         trimmed.startsWith('imatges/') ||
+         /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+}
+
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
 function ProductCard({ product, onAddToCart }) {
-  const [selectedImg, setSelectedImg] = useState(product.imatgePrincipal || (product.imatges && product.imatges[0]) || '');
+  // Llista d'imatges vàlides
+  const rawImages = (product.imatges && product.imatges.length > 0) ? product.imatges : [product.imatgePrincipal].filter(Boolean);
+  const imagesList = rawImages.filter(isValidImagePath).length > 0 ? rawImages.filter(isValidImagePath) : rawImages;
+
+  // Imatge principal per defecte (privilegia la primera imatge vàlida)
+  const defaultMainImage = (isValidImagePath(product.imatgePrincipal) ? product.imatgePrincipal : null) || imagesList[0] || product.imatgePrincipal || '';
+
+  const [selectedImg, setSelectedImg] = useState(defaultMainImage);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [selectedOptions, setSelectedOptions] = useState(() => {
@@ -408,13 +429,19 @@ function ProductCard({ product, onAddToCart }) {
   });
   const [addedToast, setAddedToast] = useState(false);
 
-  const imagesList = product.imatges && product.imatges.length > 0 ? product.imatges : [product.imatgePrincipal].filter(Boolean);
+  // Sincronitzar la imatge seleccionada quan carreguen dades noves de Firestore
+  useEffect(() => {
+    const bestImg = (isValidImagePath(product.imatgePrincipal) ? product.imatgePrincipal : null) || imagesList[0] || product.imatgePrincipal || '';
+    setSelectedImg(bestImg);
+  }, [product.id, product.imatgePrincipal, JSON.stringify(product.imatges)]);
+
+  const currentDisplayImg = selectedImg || defaultMainImage;
 
   const handleAdd = () => {
     onAddToCart({
       producteId: product.id,
       nom: product.nom,
-      imatge: selectedImg || product.imatgePrincipal,
+      imatge: currentDisplayImg || product.imatgePrincipal,
       quantitat: quantity,
       observacions: notes,
       opcionsTriades: selectedOptions,
@@ -431,20 +458,21 @@ function ProductCard({ product, onAddToCart }) {
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
         <div className="aspect-[4/3] bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
-          {selectedImg ? (
+          {currentDisplayImg ? (
             <img 
-              src={resolveMediaUrl(selectedImg)} 
+              src={resolveMediaUrl(currentDisplayImg)} 
               alt={product.nom} 
               className="w-full h-full object-cover transition-all duration-300"
+              onError={(e) => {
+                if (imagesList.length > 0 && e.target.src !== resolveMediaUrl(imagesList[0])) {
+                  e.target.src = resolveMediaUrl(imagesList[0]);
+                }
+              }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-outline text-xs">Sense imatge</div>
           )}
-          {product.codi && (
-            <span className="absolute top-3 left-3 bg-surface/85 backdrop-blur-md px-2.5 py-1 rounded text-[11px] font-mono font-bold text-primary border border-primary/20">
-              {product.codi}
-            </span>
-          )}
+          {/* Sense badge de codi de producte segons petició */}
         </div>
 
         {/* Galeria de miniatures (Fins a 5 imatges) */}
@@ -455,7 +483,7 @@ function ProductCard({ product, onAddToCart }) {
                 key={idx}
                 onClick={() => setSelectedImg(imgUrl)}
                 className={`w-14 h-14 rounded overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
-                  selectedImg === imgUrl ? 'border-primary shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
+                  (selectedImg === imgUrl || (!selectedImg && idx === 0)) ? 'border-primary shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
                 }`}
               >
                 <img src={resolveMediaUrl(imgUrl)} alt="" className="w-full h-full object-cover" />
@@ -469,12 +497,6 @@ function ProductCard({ product, onAddToCart }) {
       <div className="md:col-span-7 space-y-5">
         <div>
           <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
-          {product.terminiFabricacio && (
-            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant mt-1 font-mono">
-              <Clock className="w-3.5 h-3.5 text-primary" />
-              <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio}</strong></span>
-            </div>
-          )}
         </div>
 
         {/* Descripció Formatada (Rich Text) */}
@@ -482,12 +504,48 @@ function ProductCard({ product, onAddToCart }) {
           {renderFormattedText(product.descripcio)}
         </div>
 
-        {/* Opcions de Personalització */}
+        {/* Especificacions Tècniques (Sense títol de grup, només si tenen contingut) */}
+        {(product.material || product.dimensions || product.gruix || product.pes || product.acabat) && (
+          <div className="space-y-1.5 border-t border-outline/10 pt-3 text-xs">
+            {product.material && (
+              <div className="flex items-baseline gap-4">
+                <span className="w-28 font-bold text-primary shrink-0">Material</span>
+                <span className="text-on-surface-variant flex-1">{product.material}</span>
+              </div>
+            )}
+            {product.dimensions && (
+              <div className="flex items-baseline gap-4">
+                <span className="w-28 font-bold text-primary shrink-0">Dimensions</span>
+                <span className="text-on-surface-variant flex-1">{product.dimensions}</span>
+              </div>
+            )}
+            {product.gruix && (
+              <div className="flex items-baseline gap-4">
+                <span className="w-28 font-bold text-primary shrink-0">Gruix</span>
+                <span className="text-on-surface-variant flex-1">{product.gruix}</span>
+              </div>
+            )}
+            {product.pes && (
+              <div className="flex items-baseline gap-4">
+                <span className="w-28 font-bold text-primary shrink-0">Pes</span>
+                <span className="text-on-surface-variant flex-1">{product.pes}</span>
+              </div>
+            )}
+            {product.acabat && (
+              <div className="flex items-baseline gap-4">
+                <span className="w-28 font-bold text-primary shrink-0">Acabat</span>
+                <span className="text-on-surface-variant flex-1">{product.acabat}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
-            <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">Opcions de Personalització:</h4>
+            <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">PERSONALITZA AL TEU GUST:</h4>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-3">
               {product.opcionsPersonalitzacio.map((opc, idx) => (
                 <div key={idx} className="space-y-1">
                   <label className="block text-xs font-medium text-on-surface-variant">{opc.titol}</label>
@@ -516,8 +574,16 @@ function ProductCard({ product, onAddToCart }) {
           </div>
         )}
 
+        {/* Termini de fabricació estimat (Ubicat just abans de la quantitat) */}
+        {product.terminiFabricacio && (
+          <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono pt-3 border-t border-outline/10">
+            <Clock className="w-3.5 h-3.5 text-primary" />
+            <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio}</strong></span>
+          </div>
+        )}
+
         {/* Quantitat i Observacions */}
-        <div className="space-y-3 pt-3 border-t border-outline/10">
+        <div className="space-y-3 pt-2">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             
             {/* Quantitat */}
