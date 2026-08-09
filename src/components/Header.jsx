@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { useBudget } from '../context/BudgetContext';
+import { ShoppingBag } from 'lucide-react';
 
 export default function Header({ activeTab, setActiveTab }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { totalItems, setIsDrawerOpen } = useBudget();
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
@@ -61,10 +64,38 @@ export default function Header({ activeTab, setActiveTab }) {
           >
             COM ENCARREGAR
           </button>
+
+          {/* Desktop Budget Cart Button */}
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer border border-primary/20 ml-4 shadow-xs hover:shadow"
+            title="Obrir Cistella de Pressupostos"
+          >
+            <ShoppingBag className="w-4 h-4 text-primary" />
+            <span>Pressupost</span>
+            {totalItems > 0 && (
+              <span className="w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold">
+                {totalItems}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Mobile Menu Button */}
-        <div className="flex items-center text-primary dark:text-primary-fixed md:hidden">
+        {/* Mobile Menu & Budget Button */}
+        <div className="flex items-center gap-3 text-primary dark:text-primary-fixed md:hidden">
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="relative flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary transition-all cursor-pointer border border-primary/20"
+            title="Obrir Cistella de Pressupostos"
+          >
+            <ShoppingBag className="w-4 h-4 text-primary" />
+            {totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-on-primary font-mono text-[9px] flex items-center justify-center font-bold">
+                {totalItems}
+              </span>
+            )}
+          </button>
+
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="cursor-pointer active:scale-95 transition-transform p-2 text-primary"

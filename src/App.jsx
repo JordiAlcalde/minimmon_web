@@ -10,6 +10,8 @@ import PrivateAreaSection from './components/PrivateAreaSection';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
+import { BudgetProvider } from './context/BudgetContext';
+import BudgetDrawer from './components/BudgetDrawer';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('inici');
@@ -17,7 +19,8 @@ export default function App() {
   const [legalTitle, setLegalTitle] = useState(null);
 
   return (
-    <div className="min-h-screen flex flex-col relative bg-surface text-on-surface">
+    <BudgetProvider>
+      <div className="min-h-screen flex flex-col relative bg-surface text-on-surface">
       {/* Texture overlay */}
       <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
@@ -81,6 +84,10 @@ export default function App() {
 
       {/* Floating WhatsApp Button */}
       <FloatingWhatsApp />
+
+      {/* Budget Cart Drawer */}
+      <BudgetDrawer />
     </div>
+    </BudgetProvider>
   );
 }

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
+import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
 import { resolveMediaUrl, GITHUB_RAW_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
+import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { 
   Lock, 
   Key, 
@@ -31,7 +32,10 @@ import {
   Image as ImageIcon,
   Film,
   Sparkles,
-  Tag
+  Tag,
+  ShoppingBag,
+  Package,
+  FileText
 } from 'lucide-react';
 
 export default function PrivateAreaSection({ setActiveTab }) {
@@ -63,10 +67,37 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [loadingBranques, setLoadingBranques] = useState(true);
   const [editingBranca, setEditingBranca] = useState(null); // null = list, {} = form
 
-  // Key change state
-  const [newKeyInput, setNewKeyInput] = useState('');
-  const [keyChangeStatus, setKeyChangeStatus] = useState({ type: '', msg: '' });
-  const [copiedId, setCopiedId] = useState(null);
+  // Pressupostos state
+  const [pressupostos, setPressupostos] = useState([]);
+  const [loadingPressupostos, setLoadingPressupostos] = useState(true);
+  const [selectedPressupost, setSelectedPressupost] = useState(null);
+
+  // Productes state
+  const [dbProductesAdmin, setDbProductesAdmin] = useState([]);
+  const [loadingProductesAdmin, setLoadingProductesAdmin] = useState(true);
+  const [editingProducte, setEditingProducte] = useState(null); // null = list mode, {} = edit mode
+  const descTextAreaRef = useRef(null);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const qPress = query(collection(db, "pressupostos"), orderBy("data", "desc"));
+      const unsubPress = onSnapshot(qPress, (snapshot) => {
+        setPressupostos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoadingPressupostos(false);
+      }, () => setLoadingPressupostos(false));
+
+      const qProd = query(collection(db, "productes"), orderBy("dataCreacio", "desc"));
+      const unsubProd = onSnapshot(qProd, (snapshot) => {
+        setDbProductesAdmin(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoadingProductesAdmin(false);
+      }, () => setLoadingProductesAdmin(false));
+
+      return () => {
+        unsubPress();
+        unsubProd();
+      };
+    }
+  }, [isAuthenticated]);
 
   // Telegram state
   const [telegramToken, setTelegramToken] = useState('');
@@ -333,7 +364,57 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }
   };
 
-  // Save Branca
+  // Save Producte
+  const handleSaveProducte = async (e) => {
+    e.preventDefault();
+    if (!editingProducte || !editingProducte.nom) {
+      alert("Indica un nom per al producte.");
+      return;
+    }
+
+    const code = editingProducte.codi || generateNextProductCode(dbProductesAdmin);
+    const docId = editingProducte.id || `prdt-${Date.now()}`;
+
+    const rawImages = Array.isArray(editingProducte.imatges)
+      ? editingProducte.imatges
+      : (editingProducte.imatgesStr || '').split('\n').map(s => s.trim()).filter(Boolean);
+
+    const resolvedImages = rawImages.map(img => resolveMediaUrl(img));
+    const mainImg = resolveMediaUrl(editingProducte.imatgePrincipal || (resolvedImages[0] || ''));
+
+    try {
+      const docRef = doc(db, "productes", docId);
+      await setDoc(docRef, {
+        codi: code,
+        nom: editingProducte.nom,
+        descripcio: editingProducte.descripcio || '',
+        imatgePrincipal: mainImg,
+        imatges: resolvedImages,
+        familaIds: editingProducte.familaIds || ['Jocs i creativitat'],
+        gammaIds: editingProducte.gammaIds || [],
+        opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
+        cost: Number(editingProducte.cost || 0),
+        preu: Number(editingProducte.preu || 0),
+        terminiFabricacio: editingProducte.terminiFabricacio || '3 - 5 dies feiners',
+        actiu: editingProducte.actiu !== false,
+        dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
+      }, { merge: true });
+
+      setEditingProducte(null);
+    } catch (err) {
+      alert("Error desant el producte: " + err.message);
+    }
+  };
+
+  const handleDeleteProducte = async (prodId) => {
+    if (window.confirm("Segur que vols esborrar aquest producte de Firestore?")) {
+      try {
+        await deleteDoc(doc(db, "productes", prodId));
+      } catch (err) {
+        alert("Error esborrant producte: " + err.message);
+      }
+    }
+  };
   const handleSaveBranca = async (e) => {
     e.preventDefault();
     if (!editingBranca || !editingBranca.nom) return;
@@ -521,6 +602,38 @@ export default function PrivateAreaSection({ setActiveTab }) {
               {pendentsCount}
             </span>
           )}
+        </button>
+
+        <button 
+          onClick={() => setActiveModule('pressupostos')}
+          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+            activeModule === 'pressupostos' 
+              ? 'border-primary text-primary font-semibold' 
+              : 'border-transparent text-on-surface-variant hover:text-primary'
+          }`}
+        >
+          <ShoppingBag className="w-4 h-4" />
+          <span>Pressupostos Rebuts</span>
+          {pressupostos.length > 0 && (
+            <span className="px-2 py-0.5 text-xs bg-primary text-on-primary rounded-full font-bold">
+              {pressupostos.length}
+            </span>
+          )}
+        </button>
+
+        <button 
+          onClick={() => setActiveModule('productes')}
+          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+            activeModule === 'productes' 
+              ? 'border-primary text-primary font-semibold' 
+              : 'border-transparent text-on-surface-variant hover:text-primary'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Catàleg de Regals / Productes</span>
+          <span className="text-xs text-on-surface-variant font-normal">
+            ({dbProductesAdmin.length})
+          </span>
         </button>
 
         <button 
@@ -760,6 +873,423 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               )}
 
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODULE: PRESSUPOSTOS REBUTS */}
+      {activeModule === 'pressupostos' && (
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Sol·licituds de Pressupost Rebuts</h2>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Llista de les cistelles de pressupostos enviades pels clients des de la web.
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-mono font-bold rounded-full">
+              {pressupostos.length} pressupostos
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Llista de Pressupostos */}
+            <div className={`${selectedPressupost ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-4`}>
+              {loadingPressupostos ? (
+                <div className="p-8 text-center text-on-surface-variant">Carregant pressupostos des de Firestore...</div>
+              ) : pressupostos.length === 0 ? (
+                <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-outline/15 text-on-surface-variant">
+                  <ShoppingBag className="w-8 h-8 text-outline mx-auto mb-2" />
+                  <p className="font-serif text-base text-primary">No s'ha rebut cap sol·licitud de pressupost encara</p>
+                </div>
+              ) : (
+                pressupostos.map((p) => (
+                  <div 
+                    key={p.id}
+                    onClick={() => setSelectedPressupost(p)}
+                    className={`p-5 rounded-xl border transition-all cursor-pointer ${
+                      selectedPressupost && selectedPressupost.id === p.id 
+                        ? 'bg-surface-container-lowest border-primary shadow-md ring-2 ring-primary/20' 
+                        : 'bg-surface-container-lowest border-outline/15 hover:border-primary/40'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
+                          {p.codiReferencia || p.id}
+                        </span>
+                        <h3 className="font-serif text-lg text-primary font-semibold mt-1">{p.clientNom}</h3>
+                      </div>
+                      <span className="text-xs font-mono text-on-surface-variant">
+                        {p.data ? new Date(p.data.seconds * 1000).toLocaleDateString('ca-ES') : 'Recent'}
+                      </span>
+                    </div>
+
+                    <div className="text-xs text-on-surface-variant space-y-1">
+                      <p>Contacte: <strong className="text-primary font-mono">{p.clientContacte}</strong></p>
+                      <p>Productes triats: <strong>{(p.productes || []).length} peces</strong></p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Detall del Pressupost Seleccionat */}
+            {selectedPressupost && (
+              <div className="lg:col-span-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/30 shadow-lg space-y-6 sticky top-24 self-start">
+                <div className="flex justify-between items-start border-b border-outline/15 pb-4">
+                  <div>
+                    <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
+                      {selectedPressupost.codiReferencia || selectedPressupost.id}
+                    </span>
+                    <h3 className="font-serif text-2xl text-primary font-semibold mt-1">{selectedPressupost.clientNom}</h3>
+                    <p className="text-xs text-on-surface-variant font-mono">{selectedPressupost.clientContacte}</p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedPressupost(null)}
+                    className="text-xs text-on-surface-variant hover:text-primary px-2.5 py-1 bg-surface border rounded cursor-pointer"
+                  >
+                    ✕ Tancar
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-xs uppercase font-mono font-semibold text-primary tracking-wider">Peces Sol·licitades:</h4>
+                  
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {(selectedPressupost.productes || []).map((item, idx) => (
+                      <div key={idx} className="bg-surface p-3.5 rounded-lg border border-outline/15 text-xs space-y-1.5">
+                        <div className="flex justify-between font-semibold text-primary text-sm">
+                          <span>{idx + 1}. {item.nom}</span>
+                          <span className="font-mono">x{item.quantitat}</span>
+                        </div>
+
+                        {Object.keys(item.opcionsTriades || {}).length > 0 && (
+                          <div className="flex flex-wrap gap-1 text-[11px] text-on-surface-variant">
+                            {Object.entries(item.opcionsTriades).map(([k, v]) => (
+                              <span key={k} className="bg-surface-container px-2 py-0.5 rounded font-mono">
+                                {k}: <strong>{v}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {item.observacions && (
+                          <p className="text-xs text-on-surface-variant italic bg-surface-container/50 p-2 rounded">
+                            💬 Notes: {item.observacions}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {selectedPressupost.observacionsGenerals && (
+                    <div className="pt-3 border-t border-outline/15">
+                      <h4 className="text-xs uppercase font-mono font-semibold text-primary tracking-wider mb-1">Observacions Generals:</h4>
+                      <div className="bg-surface p-3 rounded text-xs text-on-surface-variant whitespace-pre-line border border-outline/10">
+                        {selectedPressupost.observacionsGenerals}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4 border-t border-outline/15 flex gap-3">
+                  <a
+                    href={`mailto:${selectedPressupost.clientContacte}?subject=Pressupost%20M%C3%ADnim%20M%C3%B3n%20${selectedPressupost.codiReferencia}`}
+                    className="flex-1 py-2.5 bg-primary text-on-primary rounded text-xs font-semibold hover:bg-primary-container transition-colors text-center shadow cursor-pointer"
+                  >
+                    Respondre per Email
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODULE: CATÀLEG DE REGALS / PRODUCTES */}
+      {activeModule === 'productes' && (
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Regals / Productes</h2>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Estructura de taula <code className="font-mono text-primary font-bold">productes</code> amb codis autonumèrics (`PRDT-XXXX`), descripció formatada, opcions i preus privats.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setEditingProducte({
+                id: `prdt-${Date.now()}`,
+                codi: generateNextProductCode(dbProductesAdmin),
+                nom: '',
+                descripcio: '',
+                imatgePrincipal: '',
+                imatges: [],
+                familaIds: ['Jocs i creativitat'],
+                gammaIds: [],
+                opcionsPersonalitzacio: [
+                  { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
+                ],
+                cost: 0,
+                preu: 0,
+                terminiFabricacio: '3 - 5 dies feiners',
+                actiu: true
+              })}
+              className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nou Producte (Regal)</span>
+            </button>
+          </div>
+
+          {/* EDITOR FORM DE PRODUCTE */}
+          {editingProducte ? (
+            <form onSubmit={handleSaveProducte} className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/30 shadow-lg space-y-6 max-w-4xl mx-auto">
+              <div className="flex justify-between items-center pb-4 border-b border-outline/15">
+                <div>
+                  <span className="font-mono text-xs font-bold text-primary px-2.5 py-1 bg-primary/10 rounded">
+                    {editingProducte.codi || 'PRDT-0000'}
+                  </span>
+                  <h3 className="font-serif text-xl text-primary font-semibold mt-1">
+                    {dbProductesAdmin.some(p => p.id === editingProducte.id) ? 'Editar Producte' : 'Crear Nou Producte'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingProducte(null)}
+                  className="text-xs text-on-surface-variant hover:text-primary px-3 py-1.5 bg-surface border rounded cursor-pointer"
+                >
+                  Cancel·lar
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Codi Autonumèric</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingProducte.codi || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, codi: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface border text-sm font-mono font-bold text-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom del Producte (1 línia) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: Puzle 3D de fusta artesanal"
+                    value={editingProducte.nom || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, nom: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface border text-sm text-primary font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Descripció amb Barra d'Eines Rich Text */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                    Descripció (Multilínia)
+                  </label>
+                  {/* Barra de format [ B ] [ I ] [ U ] */}
+                  <div className="flex items-center gap-1 border border-outline/20 rounded p-1 bg-surface">
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(descTextAreaRef, editingProducte.descripcio || '', 'bold', (txt) => setEditingProducte({ ...editingProducte, descripcio: txt }))}
+                      className="px-2.5 py-0.5 font-bold text-xs bg-surface-container hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Negreta (**text**)"
+                    >
+                      B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(descTextAreaRef, editingProducte.descripcio || '', 'italic', (txt) => setEditingProducte({ ...editingProducte, descripcio: txt }))}
+                      className="px-2.5 py-0.5 italic text-xs bg-surface-container hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Cursiva (*text*)"
+                    >
+                      I
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(descTextAreaRef, editingProducte.descripcio || '', 'underline', (txt) => setEditingProducte({ ...editingProducte, descripcio: txt }))}
+                      className="px-2.5 py-0.5 underline text-xs bg-surface-container hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Subratllat (<u>text</u>)"
+                    >
+                      U
+                    </button>
+                  </div>
+                </div>
+
+                <textarea
+                  ref={descTextAreaRef}
+                  rows={4}
+                  placeholder="Explica la peça... Selecciona text i clica B, I o U per formatar-lo."
+                  value={editingProducte.descripcio || ''}
+                  onChange={(e) => setEditingProducte({ ...editingProducte, descripcio: e.target.value })}
+                  className="w-full px-3 py-2 rounded bg-surface border text-sm font-sans resize-y"
+                />
+              </div>
+
+              {/* Imatges (Fins a 5 URLs Raw GitHub o imatges) */}
+              <div className="space-y-2">
+                <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                  Imatges (URLs Raw de GitHub o enllaços, 1 per línia, fins a 5 imatges)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="https://raw.githubusercontent.com/.../imatge1.jpg&#10;https://raw.githubusercontent.com/.../imatge2.jpg"
+                  value={editingProducte.imatgesStr !== undefined ? editingProducte.imatgesStr : (editingProducte.imatges || []).join('\n')}
+                  onChange={(e) => setEditingProducte({ ...editingProducte, imatgesStr: e.target.value, imatges: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
+                  className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
+                />
+              </div>
+
+              {/* Selecció de Famílies i Gammes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface p-4 rounded-lg border border-outline/15">
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-primary mb-2">Famílies a les que pertany:</label>
+                  <div className="space-y-1.5 text-xs text-on-surface-variant">
+                    {['Jocs i creativitat', 'Records i fotografia', 'Complements i quotidiana', 'Dates assenyalades'].map(fam => (
+                      <label key={fam} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={(editingProducte.familaIds || []).includes(fam)}
+                          onChange={(e) => {
+                            const current = editingProducte.familaIds || [];
+                            const updated = e.target.checked ? [...current, fam] : current.filter(f => f !== fam);
+                            setEditingProducte({ ...editingProducte, familaIds: updated });
+                          }}
+                          className="rounded text-primary"
+                        />
+                        <span>{fam}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-primary mb-2">Termini de Fabricació:</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 3 - 5 dies feiners"
+                    value={editingProducte.terminiFabricacio || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, terminiFabricacio: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs text-primary mb-4"
+                  />
+
+                  {/* Preus interns no me mostren al públic */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-outline/10">
+                    <div>
+                      <label className="block text-[11px] uppercase font-mono text-outline">Cost Intern (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingProducte.cost || 0}
+                        onChange={(e) => setEditingProducte({ ...editingProducte, cost: Number(e.target.value) })}
+                        className="w-full px-2 py-1 rounded bg-surface border text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] uppercase font-mono text-outline">Preu Orientatiu (€)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editingProducte.preu || 0}
+                        onChange={(e) => setEditingProducte({ ...editingProducte, preu: Number(e.target.value) })}
+                        className="w-full px-2 py-1 rounded bg-surface border text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botons d'Acció */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-outline/15">
+                <button
+                  type="button"
+                  onClick={() => setEditingProducte(null)}
+                  className="px-4 py-2 bg-surface border hover:bg-surface-container text-xs rounded cursor-pointer"
+                >
+                  Cancel·lar
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer"
+                >
+                  Desar Producte a Firestore
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* Llista de Productes en Taula */
+            <div className="bg-surface-container-lowest rounded-xl border border-outline/15 overflow-hidden shadow-sm">
+              {loadingProductesAdmin ? (
+                <div className="p-8 text-center text-on-surface-variant flex items-center justify-center gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+                  <span>Carregant productes des de Firestore...</span>
+                </div>
+              ) : dbProductesAdmin.length === 0 ? (
+                <div className="p-12 text-center text-on-surface-variant space-y-3">
+                  <Package className="w-10 h-10 text-outline mx-auto" />
+                  <p className="font-serif text-lg text-primary">No hi ha cap producte creat a Firestore encara</p>
+                  <p className="text-xs">El catàleg públic està utilitzant les dades inicials de mostra. Fes clic a "Nou Producte" per crear el teu primer regal.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
+                      <tr>
+                        <th className="p-4">Codi</th>
+                        <th className="p-4">Imatge</th>
+                        <th className="p-4">Nom del Producte</th>
+                        <th className="p-4">Famílies</th>
+                        <th className="p-4 font-mono">Cost (€)</th>
+                        <th className="p-4 font-mono">Preu (€)</th>
+                        <th className="p-4 text-right">Accions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline/10">
+                      {dbProductesAdmin.map((p) => (
+                        <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
+                          <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
+                          <td className="p-4">
+                            <div className="w-10 h-10 rounded bg-surface-container overflow-hidden border">
+                              {p.imatgePrincipal ? (
+                                <img src={resolveMediaUrl(p.imatgePrincipal)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[10px] text-outline">N/A</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 font-semibold text-primary">{p.nom}</td>
+                          <td className="p-4 text-xs text-on-surface-variant">{(p.familaIds || []).join(', ')}</td>
+                          <td className="p-4 font-mono text-xs text-outline">{p.cost ? `${p.cost}€` : '-'}</td>
+                          <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
+                          <td className="p-4 text-right space-x-2">
+                            <button
+                              onClick={() => setEditingProducte(p)}
+                              className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProducte(p.id)}
+                              className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              Esborrar
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>
