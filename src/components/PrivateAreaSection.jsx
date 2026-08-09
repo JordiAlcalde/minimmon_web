@@ -474,9 +474,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
     e.preventDefault();
     if (!editingFamilia || !editingFamilia.nom) return;
     const docId = editingFamilia.id || `fam-${Date.now()}`;
+    const imgResolved = editingFamilia.imatge ? resolveMediaUrl(editingFamilia.imatge) : '';
     try {
       await setDoc(doc(db, "families", docId), {
         nom: editingFamilia.nom,
+        descripcio: editingFamilia.descripcio || '',
+        imatge: imgResolved || editingFamilia.imatge || '',
         ordre: Number(editingFamilia.ordre || 1)
       }, { merge: true });
       setEditingFamilia(null);
@@ -1630,6 +1633,26 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Subtítol / Descripció Curta</label>
+                  <input
+                    type="text"
+                    value={editingFamilia.descripcio || ''}
+                    onChange={(e) => setEditingFamilia({ ...editingFamilia, descripcio: e.target.value })}
+                    placeholder="Ex: Peces que inspiren la ment."
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Imatge de la Família (URL o ruta)</label>
+                  <input
+                    type="text"
+                    value={editingFamilia.imatge || ''}
+                    onChange={(e) => setEditingFamilia({ ...editingFamilia, imatge: e.target.value })}
+                    placeholder="Ex: imatges/productes/foto.jpg o URL Raw GitHub"
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Ordre</label>
                   <input
                     type="number"
@@ -1649,7 +1672,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
                     <tr>
                       <th className="p-3 font-mono">Ordre</th>
+                      <th className="p-3">Imatge</th>
                       <th className="p-3">Nom de la Família</th>
+                      <th className="p-3">Descripció</th>
                       <th className="p-3 font-mono">ID</th>
                       <th className="p-3 text-right">Accions</th>
                     </tr>
@@ -1658,7 +1683,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     {dbFamilies.map(f => (
                       <tr key={f.id} className="hover:bg-surface-container/40">
                         <td className="p-3 font-mono text-xs">{f.ordre || 1}</td>
+                        <td className="p-3">
+                          <div className="w-12 h-9 rounded bg-surface-container overflow-hidden border">
+                            {f.imatge ? (
+                              <img src={resolveMediaUrl(f.imatge)} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[9px] text-outline">Sense foto</div>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-3 font-semibold text-primary">{f.nom}</td>
+                        <td className="p-3 text-xs text-on-surface-variant max-w-xs truncate">{f.descripcio || '-'}</td>
                         <td className="p-3 font-mono text-xs text-outline">{f.id}</td>
                         <td className="p-3 text-right space-x-2">
                           <button onClick={() => setEditingFamilia(f)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
@@ -1749,18 +1784,34 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline/10">
-                    {dbGammes.map(g => (
-                      <tr key={g.id} className="hover:bg-surface-container/40">
-                        <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
-                        <td className="p-3 font-semibold text-primary">{g.nom}</td>
-                        <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
-                        <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
-                        <td className="p-3 text-right space-x-2">
-                          <button onClick={() => setEditingGamma(g)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
-                          <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const sortedGammes = [...dbGammes].sort((a, b) => {
+                        const famIndexA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === (a.familiaNom || '').toLowerCase());
+                        const famIndexB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === (b.familiaNom || '').toLowerCase());
+                        
+                        const idxA = famIndexA !== -1 ? famIndexA : 999;
+                        const idxB = famIndexB !== -1 ? famIndexB : 999;
+                        
+                        if (idxA !== idxB) {
+                          return idxA - idxB; // Primer per la Família Pare
+                        }
+                        
+                        return (a.ordre || 1) - (b.ordre || 1); // Després per l'Ordre intern
+                      });
+
+                      return sortedGammes.map(g => (
+                        <tr key={g.id} className="hover:bg-surface-container/40">
+                          <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
+                          <td className="p-3 font-semibold text-primary">{g.nom}</td>
+                          <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
+                          <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
+                          <td className="p-3 text-right space-x-2">
+                            <button onClick={() => setEditingGamma(g)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                            <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>

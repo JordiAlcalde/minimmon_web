@@ -28,6 +28,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
   const { addToCart } = useBudget();
   const [dbProducts, setDbProducts] = useState([]);
   const [dbGammes, setDbGammes] = useState([]);
+  const [dbFamilies, setDbFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Navegació de dues pàgines: 'catalog' (Vista principal de 4 blocs) | 'products' (Vista detallada de productes)
@@ -67,9 +68,17 @@ export default function RegalsCatalogSection({ setActiveTab }) {
       }
     });
 
+    const qFam = query(collection(db, "families"), orderBy("ordre", "asc"));
+    const unsubFam = onSnapshot(qFam, (snapshot) => {
+      if (!snapshot.empty) {
+        setDbFamilies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    });
+
     return () => {
       unsubProd();
       unsubGam();
+      unsubFam();
     };
   }, []);
 
@@ -145,100 +154,83 @@ export default function RegalsCatalogSection({ setActiveTab }) {
             </p>
           </section>
 
-          {/* Subcategories Bar (Navegació per Famílies i Gammes) */}
-          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-gutter py-8 border-y border-outline/10">
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleSelectFamilia('Jocs i creativitat')}
-                  className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
-                >
-                  Jocs i creativitat
-                </button>
-                <ul className="space-y-1.5 font-body-md text-on-surface-variant text-sm">
-                  <li><button onClick={() => handleSelectGamma('Jocs i creativitat', 'Puzles')} className="hover:text-primary transition-colors cursor-pointer text-left">Puzles de fusta</button></li>
-                  <li><button onClick={() => handleSelectGamma('Jocs i creativitat', 'Jocs de taula')} className="hover:text-primary transition-colors cursor-pointer text-left">Jocs de taula tradicionals</button></li>
-                  <li><button onClick={() => handleSelectGamma('Jocs i creativitat', 'Infantil')} className="hover:text-primary transition-colors cursor-pointer text-left">Detalls infantils personalitzats</button></li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleSelectFamilia('Records i fotografia')}
-                  className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
-                >
-                  Records i fotografia
-                </button>
-                <ul className="space-y-1.5 font-body-md text-on-surface-variant text-sm">
-                  <li><button onClick={() => handleSelectGamma('Records i fotografia', 'Clauers')} className="hover:text-primary transition-colors cursor-pointer text-left">Clauers de fusta gravats</button></li>
-                  <li><button onClick={() => handleSelectGamma('Records i fotografia', 'Cartells')} className="hover:text-primary transition-colors cursor-pointer text-left">Cartells i plaques</button></li>
-                  <li><button onClick={() => handleSelectGamma('Records i fotografia', 'Marcs')} className="hover:text-primary transition-colors cursor-pointer text-left">Marcs de fotos artesans</button></li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleSelectFamilia('Complements i quotidiana')}
-                  className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
-                >
-                  Complements i quotidiana
-                </button>
-                <ul className="space-y-1.5 font-body-md text-on-surface-variant text-sm">
-                  <li><button onClick={() => handleSelectGamma('Complements i quotidiana', 'Caixes')} className="hover:text-primary transition-colors cursor-pointer text-left">Caixes de fusta amb tapa gravada</button></li>
-                  <li><button onClick={() => handleSelectGamma('Complements i quotidiana', 'Embalatges')} className="hover:text-primary transition-colors cursor-pointer text-left">Embalatges especials</button></li>
-                  <li><button onClick={() => handleSelectGamma('Complements i quotidiana', 'Miscel·lània')} className="hover:text-primary transition-colors cursor-pointer text-left">Miscel·lània de taller</button></li>
-                </ul>
-              </div>
-
-              <div className="space-y-3">
-                <button
-                  onClick={() => handleSelectFamilia('Dates assenyalades')}
-                  className="font-headline-md text-headline-md text-primary font-serif text-xl hover:underline text-left cursor-pointer"
-                >
-                  Dates assenyalades
-                </button>
-                <ul className="space-y-1.5 font-body-md text-on-surface-variant text-sm">
-                  <li><button onClick={() => handleSelectGamma('Dates assenyalades', 'Sant Jordi')} className="hover:text-primary transition-colors cursor-pointer text-left">Detalls de Sant Jordi</button></li>
-                  <li><button onClick={() => handleSelectGamma('Dates assenyalades', 'Dia del Pare')} className="hover:text-primary transition-colors cursor-pointer text-left">Dia del Pare</button></li>
-                  <li><button onClick={() => handleSelectGamma('Dates assenyalades', 'Nadal')} className="hover:text-primary transition-colors cursor-pointer text-left">Ornaments de Nadal</button></li>
-                </ul>
-              </div>
-
-            </div>
-          </section>
-
-          {/* Grid of Catalog Cards (Els 4 Blocs Tradicionals) */}
+          {/* Grid 100% Dinàmic de Famílies de Firestore */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
-            {STITCH_GIFTS.map((gift) => (
-              <div
-                key={gift.id}
-                onClick={() => handleSelectFamilia(gift.title)}
-                className="group block relative overflow-hidden rounded-lg aspect-[4/3] bg-surface-container-low transition-transform duration-300 hover:scale-[1.02] cursor-pointer shadow-md"
-              >
-                <div
-                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                  style={{ backgroundImage: `url("${gift.image}")` }}
-                ></div>
-                <div className="absolute inset-0 bg-gradient-to-t from-primary-container/85 via-primary-container/30 to-transparent"></div>
-                <div className="absolute bottom-0 left-0 p-8 w-full flex justify-between items-end">
-                  <div>
-                    <h2 className="font-headline-md text-headline-md text-on-primary mb-1 font-serif text-2xl md:text-3xl">{gift.title}</h2>
-                    <p className="font-body-md text-body-md text-inverse-on-surface opacity-90 text-sm mb-2">{gift.subtitle}</p>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {gift.items.map((item, idx) => (
-                        <span key={idx} className="bg-surface/20 backdrop-blur-sm px-2.5 py-0.5 rounded text-xs text-on-primary font-mono">
-                          {item}
-                        </span>
-                      ))}
+            {(() => {
+              // Obtenir la llista de Famílies ordenades per ordre
+              const activeFamiliesList = dbFamilies && dbFamilies.length > 0
+                ? [...dbFamilies].sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
+                : [
+                    { id: 'fam-1', nom: 'Jocs i creativitat', descripcio: 'Peces que inspiren la ment.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg' },
+                    { id: 'fam-2', nom: 'Records i fotografia', descripcio: 'Emmarca els teus moments.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/records_fotografia.jpg' },
+                    { id: 'fam-3', nom: 'Complements i quotidiana', descripcio: 'Detalls pel dia a dia.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/complements_quotidiana.jpg' },
+                    { id: 'fam-4', nom: 'Dates assenyalades', descripcio: 'Celebra les ocasions especials.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/dates_assenyalades.jpg' }
+                  ];
+
+              return activeFamiliesList.map((fam) => {
+                // Obtenir les Gammes d'aquesta Família ordenades per ordre
+                const famGammes = dbGammes.filter(g => 
+                  g.familiaNom && g.familiaNom.toLowerCase().includes(fam.nom.toLowerCase())
+                ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
+
+                // Imatge per defecte si no n'hi ha cap a la base de dades
+                const fallbackImg = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg';
+                const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : fallbackImg;
+
+                return (
+                  <div
+                    key={fam.id || fam.nom}
+                    onClick={() => handleSelectFamilia(fam.nom)}
+                    className="group block relative overflow-hidden rounded-xl aspect-[4/3] bg-surface-container-low transition-all duration-300 hover:scale-[1.015] hover:shadow-xl cursor-pointer border border-outline/10 shadow-md"
+                  >
+                    {/* Fotografia de Fons de la Família */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                      style={{ backgroundImage: `url("${cardImg}")` }}
+                    ></div>
+                    
+                    {/* Degradat fosc/càlid inferior per garantir lectura cristal·lina */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-primary-container/95 via-primary-container/40 to-transparent"></div>
+
+                    {/* Contingut i Píndoles de Gammes */}
+                    <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full flex justify-between items-end">
+                      <div className="space-y-2 max-w-xl">
+                        <h2 className="font-headline-md text-headline-md text-on-primary font-serif text-2xl md:text-3xl font-semibold">
+                          {fam.nom}
+                        </h2>
+                        {fam.descripcio && (
+                          <p className="font-body-md text-inverse-on-surface opacity-90 text-xs md:text-sm font-sans line-clamp-2">
+                            {fam.descripcio}
+                          </p>
+                        )}
+
+                        {/* Píndoles Dinàmiques de les Gammes */}
+                        {famGammes.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {famGammes.map((gam, gIdx) => (
+                              <button
+                                key={gam.id || gIdx}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectGamma(fam.nom, gam.nom);
+                                }}
+                                className="bg-surface/25 hover:bg-surface/45 backdrop-blur-md px-3 py-1 rounded-full text-xs text-on-primary font-medium transition-colors border border-white/20 shadow-2xs cursor-pointer"
+                              >
+                                {gam.nom}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl notranslate shrink-0 ml-4" translate="no" aria-hidden="true">
+                        arrow_forward
+                      </span>
                     </div>
                   </div>
-                  <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl notranslate" translate="no" aria-hidden="true">
-                    arrow_forward
-                  </span>
-                </div>
-              </div>
-            ))}
+                );
+              });
+            })()}
           </section>
         </div>
       )}
