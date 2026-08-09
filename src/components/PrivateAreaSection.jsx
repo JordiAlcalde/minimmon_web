@@ -38,6 +38,28 @@ import {
   FileText
 } from 'lucide-react';
 
+export const DEFAULT_FAMILIES = [
+  { id: 'fam-jocs', nom: 'Jocs i creativitat', ordre: 1 },
+  { id: 'fam-records', nom: 'Records i fotografia', ordre: 2 },
+  { id: 'fam-complements', nom: 'Complements i quotidiana', ordre: 3 },
+  { id: 'fam-dates', nom: 'Dates assenyalades', ordre: 4 }
+];
+
+export const DEFAULT_GAMMES = [
+  { id: 'gam-puzles', nom: 'Puzles', familiaNom: 'Jocs i creativitat', ordre: 1 },
+  { id: 'gam-jocs-trad', nom: 'Jocs de taula tradicionals', familiaNom: 'Jocs i creativitat', ordre: 2 },
+  { id: 'gam-infantil', nom: 'Detalls infantils personalitzats', familiaNom: 'Jocs i creativitat', ordre: 3 },
+  { id: 'gam-clauers', nom: 'Clauers de fusta gravats', familiaNom: 'Records i fotografia', ordre: 4 },
+  { id: 'gam-plaques', nom: 'Cartells i plaques', familiaNom: 'Records i fotografia', ordre: 5 },
+  { id: 'gam-marcs', nom: 'Marcs de fotos artesans', familiaNom: 'Records i fotografia', ordre: 6 },
+  { id: 'gam-caixes', nom: 'Caixes de fusta amb tapa gravada', familiaNom: 'Complements i quotidiana', ordre: 7 },
+  { id: 'gam-embalatges', nom: 'Embalatges especials', familiaNom: 'Complements i quotidiana', ordre: 8 },
+  { id: 'gam-miscellania', nom: 'Miscel·lània de taller', familiaNom: 'Complements i quotidiana', ordre: 9 },
+  { id: 'gam-sant-jordi', nom: 'Detalls de Sant Jordi', familiaNom: 'Dates assenyalades', ordre: 10 },
+  { id: 'gam-pare', nom: 'Dia del Pare', familiaNom: 'Dates assenyalades', ordre: 11 },
+  { id: 'gam-nadal', nom: 'Ornaments de Nadal', familiaNom: 'Dates assenyalades', ordre: 12 }
+];
+
 export default function PrivateAreaSection({ setActiveTab }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('minimmon_admin_auth') === 'true';
@@ -46,8 +68,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Active module inside Private Area ('consultes' | 'projectes' | 'branques' | 'config')
+  // Active module inside Private Area ('consultes' | 'pressupostos' | 'productes' | 'projectes' | 'taxonomy' | 'branques' | 'config')
   const [activeModule, setActiveModule] = useState('consultes');
+
+  // Famílies i Gammes State
+  const [dbFamilies, setDbFamilies] = useState(DEFAULT_FAMILIES);
+  const [dbGammes, setDbGammes] = useState(DEFAULT_GAMMES);
+  const [editingFamilia, setEditingFamilia] = useState(null);
+  const [editingGamma, setEditingGamma] = useState(null);
 
   // Messages state
   const [consultes, setConsultes] = useState([]);
@@ -92,9 +120,29 @@ export default function PrivateAreaSection({ setActiveTab }) {
         setLoadingProductesAdmin(false);
       }, () => setLoadingProductesAdmin(false));
 
+      const qFam = query(collection(db, "families"), orderBy("ordre", "asc"));
+      const unsubFam = onSnapshot(qFam, (snapshot) => {
+        if (!snapshot.empty) {
+          setDbFamilies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } else {
+          setDbFamilies(DEFAULT_FAMILIES);
+        }
+      });
+
+      const qGam = query(collection(db, "gammes"), orderBy("ordre", "asc"));
+      const unsubGam = onSnapshot(qGam, (snapshot) => {
+        if (!snapshot.empty) {
+          setDbGammes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } else {
+          setDbGammes(DEFAULT_GAMMES);
+        }
+      });
+
       return () => {
         unsubPress();
         unsubProd();
+        unsubFam();
+        unsubGam();
       };
     }
   }, [isAuthenticated]);
@@ -393,8 +441,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         familaIds: editingProducte.familaIds || ['Jocs i creativitat'],
         gammaIds: editingProducte.gammaIds || [],
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
-        cost: Number(editingProducte.cost || 0),
-        preu: Number(editingProducte.preu || 0),
+        cost: String(editingProducte.cost || ''),
+        preu: String(editingProducte.preu || ''),
         terminiFabricacio: editingProducte.terminiFabricacio || '3 - 5 dies feiners',
         actiu: editingProducte.actiu !== false,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
@@ -412,6 +460,59 @@ export default function PrivateAreaSection({ setActiveTab }) {
         await deleteDoc(doc(db, "productes", prodId));
       } catch (err) {
         alert("Error esborrant producte: " + err.message);
+      }
+    }
+  };
+
+  // Save / Delete Família
+  const handleSaveFamilia = async (e) => {
+    e.preventDefault();
+    if (!editingFamilia || !editingFamilia.nom) return;
+    const docId = editingFamilia.id || `fam-${Date.now()}`;
+    try {
+      await setDoc(doc(db, "families", docId), {
+        nom: editingFamilia.nom,
+        ordre: Number(editingFamilia.ordre || 1)
+      }, { merge: true });
+      setEditingFamilia(null);
+    } catch (err) {
+      alert("Error desant família: " + err.message);
+    }
+  };
+
+  const handleDeleteFamilia = async (famId) => {
+    if (window.confirm("Segur que vols esborrar aquesta Família de Firestore?")) {
+      try {
+        await deleteDoc(doc(db, "families", famId));
+      } catch (err) {
+        alert("Error esborrant família: " + err.message);
+      }
+    }
+  };
+
+  // Save / Delete Gamma
+  const handleSaveGamma = async (e) => {
+    e.preventDefault();
+    if (!editingGamma || !editingGamma.nom) return;
+    const docId = editingGamma.id || `gam-${Date.now()}`;
+    try {
+      await setDoc(doc(db, "gammes", docId), {
+        nom: editingGamma.nom,
+        familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || 'Jocs i creativitat'),
+        ordre: Number(editingGamma.ordre || 1)
+      }, { merge: true });
+      setEditingGamma(null);
+    } catch (err) {
+      alert("Error desant gamma: " + err.message);
+    }
+  };
+
+  const handleDeleteGamma = async (gamId) => {
+    if (window.confirm("Segur que vols esborrar aquesta Gamma de Firestore?")) {
+      try {
+        await deleteDoc(doc(db, "gammes", gamId));
+      } catch (err) {
+        alert("Error esborrant gamma: " + err.message);
       }
     }
   };
@@ -633,6 +734,21 @@ export default function PrivateAreaSection({ setActiveTab }) {
           <span>Catàleg de Regals / Productes</span>
           <span className="text-xs text-on-surface-variant font-normal">
             ({dbProductesAdmin.length})
+          </span>
+        </button>
+
+        <button 
+          onClick={() => setActiveModule('taxonomy')}
+          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+            activeModule === 'taxonomy' 
+              ? 'border-primary text-primary font-semibold' 
+              : 'border-transparent text-on-surface-variant hover:text-primary'
+          }`}
+        >
+          <Folder className="w-4 h-4" />
+          <span>Famílies i Gammes</span>
+          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
+            {dbGammes.length}
           </span>
         </button>
 
@@ -1149,62 +1265,158 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 />
               </div>
 
-              {/* Selecció de Famílies i Gammes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-surface p-4 rounded-lg border border-outline/15">
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-primary mb-2">Famílies a les que pertany:</label>
-                  <div className="space-y-1.5 text-xs text-on-surface-variant">
-                    {['Jocs i creativitat', 'Records i fotografia', 'Complements i quotidiana', 'Dates assenyalades'].map(fam => (
-                      <label key={fam} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={(editingProducte.familaIds || []).includes(fam)}
-                          onChange={(e) => {
-                            const current = editingProducte.familaIds || [];
-                            const updated = e.target.checked ? [...current, fam] : current.filter(f => f !== fam);
-                            setEditingProducte({ ...editingProducte, familaIds: updated });
-                          }}
-                          className="rounded text-primary"
-                        />
-                        <span>{fam}</span>
-                      </label>
-                    ))}
-                  </div>
+              {/* Selecció Dinàmica de Gammes a les que pertany */}
+              <div className="bg-surface p-4 rounded-lg border border-outline/15 space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs uppercase font-semibold text-primary">
+                    Gammes a les que pertany (Dinàmic):
+                  </label>
+                  <span className="text-[11px] text-on-surface-variant font-mono">
+                    {dbGammes.length} gammes disponibles
+                  </span>
                 </div>
 
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-2 bg-surface-container/50 rounded border border-outline/10">
+                  {dbGammes.map((gam) => (
+                    <label key={gam.id || gam.nom} className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary p-1 bg-surface rounded border border-outline/10">
+                      <input
+                        type="checkbox"
+                        checked={(editingProducte.gammaIds || []).includes(gam.nom)}
+                        onChange={(e) => {
+                          const current = editingProducte.gammaIds || [];
+                          const updated = e.target.checked
+                            ? [...current, gam.nom]
+                            : current.filter(g => g !== gam.nom);
+                          setEditingProducte({ ...editingProducte, gammaIds: updated });
+                        }}
+                        className="rounded text-primary"
+                      />
+                      <span className="font-medium truncate">{gam.nom}</span>
+                      {gam.familiaNom && <span className="text-[10px] text-outline font-mono truncate">({gam.familiaNom})</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Builder d'Opcions de Personalització */}
+              <div className="space-y-3 p-4 bg-surface rounded-lg border border-outline/15">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs uppercase font-semibold text-primary">Opcions de Personalització:</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentOps = editingProducte.opcionsPersonalitzacio || [];
+                      setEditingProducte({
+                        ...editingProducte,
+                        opcionsPersonalitzacio: [
+                          ...currentOps,
+                          { tipus: 'desplegable', titol: '', valors: '' }
+                        ]
+                      });
+                    }}
+                    className="px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold rounded flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Afegir Opció</span>
+                  </button>
+                </div>
+
+                {(editingProducte.opcionsPersonalitzacio || []).length === 0 ? (
+                  <p className="text-xs text-on-surface-variant italic">Sense opcions de personalització.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {editingProducte.opcionsPersonalitzacio.map((opc, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 bg-surface-container rounded border border-outline/10">
+                        <select
+                          value={opc.tipus || 'desplegable'}
+                          onChange={(e) => {
+                            const ops = [...editingProducte.opcionsPersonalitzacio];
+                            ops[idx].tipus = e.target.value;
+                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                          }}
+                          className="bg-surface border border-outline/25 rounded px-2 py-1.5 text-xs text-primary font-mono"
+                        >
+                          <option value="desplegable">Desplegable</option>
+                          <option value="text">Text</option>
+                          <option value="quantitat">Quantitat</option>
+                          <option value="fitxer">Fitxer</option>
+                          <option value="colors">Colors</option>
+                        </select>
+
+                        <input
+                          type="text"
+                          placeholder="Títol (ex: Fusta preferida)"
+                          value={opc.titol || ''}
+                          onChange={(e) => {
+                            const ops = [...editingProducte.opcionsPersonalitzacio];
+                            ops[idx].titol = e.target.value;
+                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                          }}
+                          className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary flex-1"
+                        />
+
+                        <input
+                          type="text"
+                          placeholder={opc.tipus === 'desplegable' ? "Valors: Noguer, Roure, Bedoll" : "Placeholder de text..."}
+                          value={opc.valors || ''}
+                          onChange={(e) => {
+                            const ops = [...editingProducte.opcionsPersonalitzacio];
+                            ops[idx].valors = e.target.value;
+                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                          }}
+                          className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary flex-1"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const ops = editingProducte.opcionsPersonalitzacio.filter((_, i) => i !== idx);
+                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                          }}
+                          className="text-error hover:bg-error-container/30 p-1.5 rounded transition-colors cursor-pointer"
+                          title="Esborrar opció"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Termini de Fabricació i Preus Privats (Text) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surface p-4 rounded-lg border border-outline/15">
                 <div>
-                  <label className="block text-xs uppercase font-semibold text-primary mb-2">Termini de Fabricació:</label>
+                  <label className="block text-xs uppercase font-semibold text-primary mb-1">Termini de Fabricació:</label>
                   <input
                     type="text"
                     placeholder="Ex: 3 - 5 dies feiners"
                     value={editingProducte.terminiFabricacio || ''}
                     onChange={(e) => setEditingProducte({ ...editingProducte, terminiFabricacio: e.target.value })}
-                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs text-primary mb-4"
+                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs text-primary font-mono"
                   />
+                </div>
 
-                  {/* Preus interns no me mostren al públic */}
-                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-outline/10">
-                    <div>
-                      <label className="block text-[11px] uppercase font-mono text-outline">Cost Intern (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editingProducte.cost || 0}
-                        onChange={(e) => setEditingProducte({ ...editingProducte, cost: Number(e.target.value) })}
-                        className="w-full px-2 py-1 rounded bg-surface border text-xs font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] uppercase font-mono text-outline">Preu Orientatiu (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={editingProducte.preu || 0}
-                        onChange={(e) => setEditingProducte({ ...editingProducte, preu: Number(e.target.value) })}
-                        className="w-full px-2 py-1 rounded bg-surface border text-xs font-mono"
-                      />
-                    </div>
-                  </div>
+                <div>
+                  <label className="block text-xs uppercase font-mono text-outline mb-1">Cost Intern (Text)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 15€ o 12.50 + IVA"
+                    value={editingProducte.cost || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, cost: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-mono text-outline mb-1">Preu Orientatiu (Text)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 25€ o Segons mida"
+                    value={editingProducte.preu || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, preu: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs font-mono"
+                  />
                 </div>
               </div>
 
@@ -1292,6 +1504,185 @@ export default function PrivateAreaSection({ setActiveTab }) {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* MODULE: GESTIÓ DE FAMÍLIES I GAMMES */}
+      {activeModule === 'taxonomy' && (
+        <div className="space-y-8">
+          
+          {/* SECCIÓ 1: FAMÍLIES */}
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline/15 pb-4">
+              <div>
+                <h2 className="font-serif text-xl font-semibold text-primary">1. Famílies de Regals (Nivell Principal)</h2>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Les famílies agrupen les diferents gammes de productes del catàleg.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setEditingFamilia({ id: `fam-${Date.now()}`, nom: '', ordre: dbFamilies.length + 1 })}
+                className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nova Família</span>
+              </button>
+            </div>
+
+            {editingFamilia ? (
+              <form onSubmit={handleSaveFamilia} className="bg-surface p-5 rounded-lg border border-primary/30 space-y-4 max-w-md">
+                <h3 className="font-serif text-base font-semibold text-primary">
+                  {dbFamilies.some(f => f.id === editingFamilia.id) ? 'Editar Família' : 'Crear Nova Família'}
+                </h3>
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Família *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingFamilia.nom || ''}
+                    onChange={(e) => setEditingFamilia({ ...editingFamilia, nom: e.target.value })}
+                    placeholder="Ex: Jocs i creativitat"
+                    className="w-full px-3 py-2 rounded bg-surface border text-sm text-primary font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Ordre</label>
+                  <input
+                    type="number"
+                    value={editingFamilia.ordre || 1}
+                    onChange={(e) => setEditingFamilia({ ...editingFamilia, ordre: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setEditingFamilia(null)} className="px-3 py-1.5 bg-surface border text-xs rounded">Cancel·lar</button>
+                  <button type="submit" className="px-4 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded">Desar Família</button>
+                </div>
+              </form>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
+                    <tr>
+                      <th className="p-3 font-mono">Ordre</th>
+                      <th className="p-3">Nom de la Família</th>
+                      <th className="p-3 font-mono">ID</th>
+                      <th className="p-3 text-right">Accions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline/10">
+                    {dbFamilies.map(f => (
+                      <tr key={f.id} className="hover:bg-surface-container/40">
+                        <td className="p-3 font-mono text-xs">{f.ordre || 1}</td>
+                        <td className="p-3 font-semibold text-primary">{f.nom}</td>
+                        <td className="p-3 font-mono text-xs text-outline">{f.id}</td>
+                        <td className="p-3 text-right space-x-2">
+                          <button onClick={() => setEditingFamilia(f)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                          <button onClick={() => handleDeleteFamilia(f.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* SECCIÓ 2: GAMMES */}
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline/15 pb-4">
+              <div>
+                <h2 className="font-serif text-xl font-semibold text-primary">2. Gammes de Productes (Subnivell)</h2>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Les gammes apareixen com a opcions de selecció dinàmica quan crees o edites un regal.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || 'Jocs i creativitat', ordre: dbGammes.length + 1 })}
+                className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nova Gamma</span>
+              </button>
+            </div>
+
+            {editingGamma ? (
+              <form onSubmit={handleSaveGamma} className="bg-surface p-5 rounded-lg border border-primary/30 space-y-4 max-w-md">
+                <h3 className="font-serif text-base font-semibold text-primary">
+                  {dbGammes.some(g => g.id === editingGamma.id) ? 'Editar Gamma' : 'Crear Nova Gamma'}
+                </h3>
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Gamma *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingGamma.nom || ''}
+                    onChange={(e) => setEditingGamma({ ...editingGamma, nom: e.target.value })}
+                    placeholder="Ex: Puzles, Clauers..."
+                    className="w-full px-3 py-2 rounded bg-surface border text-sm text-primary font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Família a la que pertany *</label>
+                  <select
+                    value={editingGamma.familiaNom || ''}
+                    onChange={(e) => setEditingGamma({ ...editingGamma, familiaNom: e.target.value })}
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary font-semibold"
+                  >
+                    {dbFamilies.map(fam => (
+                      <option key={fam.id} value={fam.nom}>{fam.nom}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Ordre</label>
+                  <input
+                    type="number"
+                    value={editingGamma.ordre || 1}
+                    onChange={(e) => setEditingGamma({ ...editingGamma, ordre: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setEditingGamma(null)} className="px-3 py-1.5 bg-surface border text-xs rounded">Cancel·lar</button>
+                  <button type="submit" className="px-4 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded">Desar Gamma</button>
+                </div>
+              </form>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
+                    <tr>
+                      <th className="p-3 font-mono">Ordre</th>
+                      <th className="p-3">Nom de la Gamma</th>
+                      <th className="p-3">Família Pare</th>
+                      <th className="p-3 font-mono">ID</th>
+                      <th className="p-3 text-right">Accions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline/10">
+                    {dbGammes.map(g => (
+                      <tr key={g.id} className="hover:bg-surface-container/40">
+                        <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
+                        <td className="p-3 font-semibold text-primary">{g.nom}</td>
+                        <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
+                        <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
+                        <td className="p-3 text-right space-x-2">
+                          <button onClick={() => setEditingGamma(g)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                          <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

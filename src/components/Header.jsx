@@ -29,7 +29,7 @@ export default function Header({ activeTab, setActiveTab }) {
         </button>
 
         {/* Desktop Navigation Links */}
-        <div className="hidden md:flex gap-8 items-center font-body-md text-body-md uppercase tracking-wider flex-grow justify-center">
+        <div className="hidden md:flex gap-5 lg:gap-8 items-center font-body-md text-[11px] lg:text-xs uppercase tracking-wider flex-grow justify-center">
           <button 
             onClick={() => handleNavClick('inici')}
             className={`${activeTab === 'inici' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
@@ -65,16 +65,16 @@ export default function Header({ activeTab, setActiveTab }) {
             COM ENCARREGAR
           </button>
 
-          {/* Desktop Budget Cart Button */}
+          {/* Desktop Budget Cart Icon Button */}
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="relative flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer border border-primary/20 ml-4 shadow-xs hover:shadow"
-            title="Obrir Cistella de Pressupostos"
+            className="relative flex items-center justify-center p-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 ml-2 shadow-xs hover:shadow hover:scale-105"
+            title="Cistella de Pressupostos"
+            aria-label="Cistella de Pressupostos"
           >
-            <ShoppingBag className="w-4 h-4 text-primary" />
-            <span>Pressupost</span>
+            <ShoppingBag className="w-5 h-5 text-primary" />
             {totalItems > 0 && (
-              <span className="w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold">
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
                 {totalItems}
               </span>
             )}
