@@ -35,30 +35,13 @@ import {
   Tag,
   ShoppingBag,
   Package,
-  FileText
+  FileText,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
-export const DEFAULT_FAMILIES = [
-  { id: 'fam-jocs', nom: 'Jocs i creativitat', ordre: 1 },
-  { id: 'fam-records', nom: 'Records i fotografia', ordre: 2 },
-  { id: 'fam-complements', nom: 'Complements i quotidiana', ordre: 3 },
-  { id: 'fam-dates', nom: 'Dates assenyalades', ordre: 4 }
-];
-
-export const DEFAULT_GAMMES = [
-  { id: 'gam-puzles', nom: 'Puzles', familiaNom: 'Jocs i creativitat', ordre: 1 },
-  { id: 'gam-jocs-trad', nom: 'Jocs de taula tradicionals', familiaNom: 'Jocs i creativitat', ordre: 2 },
-  { id: 'gam-infantil', nom: 'Detalls infantils personalitzats', familiaNom: 'Jocs i creativitat', ordre: 3 },
-  { id: 'gam-clauers', nom: 'Clauers de fusta gravats', familiaNom: 'Records i fotografia', ordre: 4 },
-  { id: 'gam-plaques', nom: 'Cartells i plaques', familiaNom: 'Records i fotografia', ordre: 5 },
-  { id: 'gam-marcs', nom: 'Marcs de fotos artesans', familiaNom: 'Records i fotografia', ordre: 6 },
-  { id: 'gam-caixes', nom: 'Caixes de fusta amb tapa gravada', familiaNom: 'Complements i quotidiana', ordre: 7 },
-  { id: 'gam-embalatges', nom: 'Embalatges especials', familiaNom: 'Complements i quotidiana', ordre: 8 },
-  { id: 'gam-miscellania', nom: 'Miscel·lània de taller', familiaNom: 'Complements i quotidiana', ordre: 9 },
-  { id: 'gam-sant-jordi', nom: 'Detalls de Sant Jordi', familiaNom: 'Dates assenyalades', ordre: 10 },
-  { id: 'gam-pare', nom: 'Dia del Pare', familiaNom: 'Dates assenyalades', ordre: 11 },
-  { id: 'gam-nadal', nom: 'Ornaments de Nadal', familiaNom: 'Dates assenyalades', ordre: 12 }
-];
+export const DEFAULT_FAMILIES = [];
+export const DEFAULT_GAMMES = [];
 
 export default function PrivateAreaSection({ setActiveTab }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -441,6 +424,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
     const mainImg = resolvedImages[0] || (editingProducte.imatgePrincipal ? resolveMediaUrl(editingProducte.imatgePrincipal) : '');
 
+    const selectedGammes = editingProducte.gammaIds || [];
+    const autoFamilies = Array.from(new Set(
+      selectedGammes
+        .map(gName => dbGammes.find(g => (g.nom || '').toLowerCase() === gName.toLowerCase())?.familiaNom)
+        .filter(Boolean)
+    ));
+
+    const finalFamilaIds = autoFamilies.length > 0
+      ? autoFamilies
+      : ((editingProducte.familaIds && editingProducte.familaIds.length > 0)
+          ? editingProducte.familaIds
+          : [dbFamilies[0]?.nom || '']);
+
     try {
       const docRef = doc(db, "productes", docId);
       await setDoc(docRef, {
@@ -449,8 +445,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         descripcio: editingProducte.descripcio || '',
         imatgePrincipal: mainImg,
         imatges: resolvedImages,
-        familaIds: editingProducte.familaIds || ['Jocs i creativitat'],
-        gammaIds: editingProducte.gammaIds || [],
+        familaIds: finalFamilaIds,
+        gammaIds: selectedGammes,
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
@@ -478,6 +474,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
       } catch (err) {
         alert("Error esborrant producte: " + err.message);
       }
+    }
+  };
+
+  const handleMoveProductOrder = async (currProd, targetProd) => {
+    if (!currProd || !targetProd) return;
+    const currOrdre = currProd.ordre || 1;
+    const targetOrdre = targetProd.ordre || 1;
+
+    let newCurrOrdre = targetOrdre;
+    let newTargetOrdre = currOrdre;
+    if (newCurrOrdre === newTargetOrdre) {
+      newCurrOrdre = Math.max(1, targetOrdre - 1);
+    }
+
+    try {
+      await updateDoc(doc(db, "productes", currProd.id), { ordre: newCurrOrdre });
+      await updateDoc(doc(db, "productes", targetProd.id), { ordre: newTargetOrdre });
+    } catch (err) {
+      alert("Error reordenant productes: " + err.message);
     }
   };
 
@@ -518,7 +533,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
     try {
       await setDoc(doc(db, "gammes", docId), {
         nom: editingGamma.nom,
-        familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || 'Jocs i creativitat'),
+        familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || ''),
         ordre: Number(editingGamma.ordre || 1)
       }, { merge: true });
       setEditingGamma(null);
@@ -717,7 +732,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <MessageSquare className="w-4 h-4" />
-          <span>Consultes i Encàrrecs</span>
+          <span>Comunicacions</span>
           {pendentsCount > 0 && (
             <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
               {pendentsCount}
@@ -734,7 +749,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <ShoppingBag className="w-4 h-4" />
-          <span>Pressupostos Rebuts</span>
+          <span>Pressupostos</span>
           {pressupostos.length > 0 && (
             <span className="px-2 py-0.5 text-xs bg-primary text-on-primary rounded-full font-bold">
               {pressupostos.length}
@@ -751,7 +766,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <Package className="w-4 h-4" />
-          <span>Catàleg de Regals / Productes</span>
+          <span>Productes</span>
           <span className="text-xs text-on-surface-variant font-normal">
             ({dbProductesAdmin.length})
           </span>
@@ -766,7 +781,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <Folder className="w-4 h-4" />
-          <span>Famílies i Gammes</span>
+          <span>Famílies-Gammes</span>
           <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
             {dbGammes.length}
           </span>
@@ -781,7 +796,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>Móns Mínims (Projectes)</span>
+          <span>Projectes</span>
           <span className="text-xs text-on-surface-variant font-normal">
             ({dbProjects.length})
           </span>
@@ -796,7 +811,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           }`}
         >
           <Tag className="w-4 h-4" />
-          <span>Gestió de Branques</span>
+          <span>Categories</span>
           <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
             {dbBranques.length}
           </span>
@@ -1163,7 +1178,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 descripcio: '',
                 imatgePrincipal: '',
                 imatges: [],
-                familaIds: ['Jocs i creativitat'],
+                familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
                 gammaIds: [],
                 opcionsPersonalitzacio: [
                   { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
@@ -1621,7 +1636,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             if (!matchGam) return false;
                           }
                           return true;
-                        }).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
+                        }).sort((a, b) => {
+                          const famA = (a.familaIds || [])[0] || '';
+                          const famB = (b.familaIds || [])[0] || '';
+                          const famIdxA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famA.toLowerCase());
+                          const famIdxB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famB.toLowerCase());
+                          const fA = famIdxA !== -1 ? famIdxA : 999;
+                          const fB = famIdxB !== -1 ? famIdxB : 999;
+                          if (fA !== fB) return fA - fB;
+
+                          const gamA = (a.gammaIds || [])[0] || '';
+                          const gamB = (b.gammaIds || [])[0] || '';
+                          const gamIdxA = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamA.toLowerCase());
+                          const gamIdxB = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamB.toLowerCase());
+                          const gA = gamIdxA !== -1 ? gamIdxA : 999;
+                          const gB = gamIdxB !== -1 ? gamIdxB : 999;
+                          if (gA !== gB) return gA - gB;
+
+                          return (a.ordre || 1) - (b.ordre || 1);
+                        });
 
                         if (filteredAdminProducts.length === 0) {
                           return (
@@ -1633,10 +1666,42 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           );
                         }
 
-                        return filteredAdminProducts.map((p) => (
+                        return filteredAdminProducts.map((p, idx) => (
                           <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
                             <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
-                            <td className="p-4 font-mono text-xs font-bold text-primary">{p.ordre || 1}</td>
+                            <td className="p-4 font-mono text-xs font-bold text-primary">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5">{p.ordre || 1}</span>
+                                <div className="flex flex-col gap-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={adminGamFilter === 'Totes' || idx === 0}
+                                    onClick={() => handleMoveProductOrder(p, filteredAdminProducts[idx - 1])}
+                                    title={adminGamFilter === 'Totes' ? "Filtra per una Gamma per poder canviar l'ordre" : "Pujar d'ordre"}
+                                    className={`p-0.5 rounded transition-colors ${
+                                      adminGamFilter !== 'Totes' && idx > 0
+                                        ? 'hover:bg-primary/20 text-primary cursor-pointer'
+                                        : 'opacity-20 cursor-not-allowed text-outline'
+                                    }`}
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={adminGamFilter === 'Totes' || idx === filteredAdminProducts.length - 1}
+                                    onClick={() => handleMoveProductOrder(p, filteredAdminProducts[idx + 1])}
+                                    title={adminGamFilter === 'Totes' ? "Filtra per una Gamma per poder canviar l'ordre" : "Baixar d'ordre"}
+                                    className={`p-0.5 rounded transition-colors ${
+                                      adminGamFilter !== 'Totes' && idx < filteredAdminProducts.length - 1
+                                        ? 'hover:bg-primary/20 text-primary cursor-pointer'
+                                        : 'opacity-20 cursor-not-allowed text-outline'
+                                    }`}
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
                             <td className="p-4">
                               <div className="w-10 h-10 rounded bg-surface-container overflow-hidden border">
                                 {(() => {
@@ -1662,7 +1727,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               </div>
                             </td>
                             <td className="p-4 font-semibold text-primary">{p.nom}</td>
-                            <td className="p-4 text-xs text-on-surface-variant">{(p.familaIds || []).join(', ') || '-'}</td>
+                            <td className="p-4 text-xs text-on-surface-variant font-medium">
+                              {(() => {
+                                const resolvedFamNames = Array.from(new Set(
+                                  (p.gammaIds || [])
+                                    .map(gamName => dbGammes.find(g => (g.nom || '').toLowerCase() === gamName.toLowerCase())?.familiaNom)
+                                    .filter(Boolean)
+                                ));
+                                const cleanDirectFams = (p.familaIds || []).filter(f => f !== 'Jocs i creativitat');
+                                const result = resolvedFamNames.length > 0 ? resolvedFamNames : cleanDirectFams;
+                                return result.join(', ') || '-';
+                              })()}
+                            </td>
                             <td className="p-4 text-xs text-on-surface-variant font-medium">{(p.gammaIds || []).join(', ') || '-'}</td>
                             <td className="p-4 font-mono text-xs text-outline">{p.cost ? `${p.cost}€` : '-'}</td>
                             <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
@@ -1817,7 +1893,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || 'Jocs i creativitat', ordre: dbGammes.length + 1 })}
+                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1 })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -2442,14 +2518,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
         </div>
       )}
 
-      {/* MODULE 3: GESTIÓ DE BRANQUES */}
+      {/* MODULE 3: GESTIÓ DE CATEGORIES */}
       {activeModule === 'branques' && (
         <div className="space-y-6">
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-              <h2 className="font-serif text-xl font-semibold text-primary">Gestió de Branques i Categories</h2>
+              <h2 className="font-serif text-xl font-semibold text-primary">Gestió de categories</h2>
               <p className="text-xs text-on-surface-variant mt-1">
-                Aquestes branques defineixen els filtres de la galeria pública i les categories de cada projecte a Cloud Firestore.
+                Aquestes categories defineixen els filtres de la galeria pública i les categories de cada projecte a Cloud Firestore.
               </p>
             </div>
 
@@ -2462,16 +2538,16 @@ export default function PrivateAreaSection({ setActiveTab }) {
               className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
             >
               <Plus className="w-4 h-4" />
-              <span>Nova Branca</span>
+              <span>Nova Categoria</span>
             </button>
           </div>
 
-          {/* BRANCA EDITOR FORM */}
+          {/* BRANCA / CATEGORIA EDITOR FORM */}
           {editingBranca ? (
             <form onSubmit={handleSaveBranca} className="bg-surface-container-lowest p-6 rounded-xl border border-primary/30 shadow-lg space-y-4 max-w-lg">
               <div className="flex justify-between items-center pb-3 border-b border-outline/15">
                 <h3 className="font-serif text-lg text-primary font-semibold">
-                  {dbBranques.some(b => b.id === editingBranca.id) ? `Editar Branca` : 'Crear Nova Branca'}
+                  {dbBranques.some(b => b.id === editingBranca.id) ? `Editar Categoria` : 'Crear Nova Categoria'}
                 </h3>
                 <button 
                   type="button" 
@@ -2483,7 +2559,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <div>
-                <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Branca</label>
+                <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Categoria</label>
                 <input 
                   type="text"
                   required
@@ -2516,28 +2592,28 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   type="submit"
                   className="px-5 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer"
                 >
-                  Desar Branca
+                  Desar Categoria
                 </button>
               </div>
             </form>
           ) : (
-            /* BRANQUES TABLE */
+            /* CATEGORIES TABLE */
             <div className="bg-surface-container-lowest rounded-xl border border-outline/15 overflow-hidden shadow-sm max-w-2xl">
               {loadingBranques ? (
                 <div className="p-8 text-center text-on-surface-variant flex items-center justify-center gap-2">
                   <RefreshCw className="w-5 h-5 animate-spin text-primary" />
-                  <span>Carregant branques des de Cloud Firestore...</span>
+                  <span>Carregant categories des de Cloud Firestore...</span>
                 </div>
               ) : dbBranques.length === 0 ? (
                 <div className="p-8 text-center text-on-surface-variant">
-                  <p className="font-serif text-base text-primary">No hi ha branques creades a Firestore</p>
+                  <p className="font-serif text-base text-primary">No hi ha categories creades a Firestore</p>
                 </div>
               ) : (
                 <table className="w-full text-left text-sm">
                   <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
                     <tr>
                       <th className="p-4">Ordre</th>
-                      <th className="p-4">Nom de la Branca</th>
+                      <th className="p-4">Categoria</th>
                       <th className="p-4">ID Firestore</th>
                       <th className="p-4 text-right">Accions</th>
                     </tr>

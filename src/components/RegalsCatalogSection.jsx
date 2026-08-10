@@ -1,40 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { STITCH_GIFTS, DEFAULT_BRANQUES } from '../data/stitchData';
+import { STITCH_GIFTS } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { DEFAULT_FAMILIES } from './PrivateAreaSection';
 
-// Imatges per defecte de les Famílies de Mínim Món
-const FAMILY_IMAGES = {
-  'Jocs i creativitat': STITCH_GIFTS[0].image,
-  'Records i fotografia': STITCH_GIFTS[1].image,
-  'Complements i quotidiana': STITCH_GIFTS[2].image,
-  'Dates assenyalades': STITCH_GIFTS[3].image,
-  'Tots': STITCH_GIFTS[0].image // Imatge per defecte quan s'escul "Tot el Catàleg"
-};
-
-// Gammes per defecte si Firestore no en té
-const DEFAULT_GAMMES_BY_FAMILY = {
-  'Jocs i creativitat': ['Puzles', 'Jocs de taula', 'Infantil'],
-  'Records i fotografia': ['Clauers', 'Cartells', 'Marcs'],
-  'Complements i quotidiana': ['Caixes', 'Embalatges', 'Miscel·lània'],
-  'Dates assenyalades': ['Sant Jordi', 'Dia del Pare', 'Nadal']
-};
-
-export default function RegalsCatalogSection({ setActiveTab }) {
+export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
   const [dbProducts, setDbProducts] = useState([]);
   const [dbGammes, setDbGammes] = useState([]);
   const [dbFamilies, setDbFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Navegació de dues pàgines: 'catalog' (Vista principal de 4 blocs) | 'products' (Vista detallada de productes)
+  // Navegació de dues pàgines: 'catalog' (Vista principal de blocs de famílies) | 'products' (Vista detallada de productes)
   const [currentView, setCurrentView] = useState('catalog');
   const [selectedFamilia, setSelectedFamilia] = useState('Tots');
   const [selectedGamma, setSelectedGamma] = useState('Tots');
+
+  // Quan es clica el botó "CATÀLEG DE REGALS" a la navbar, es recarrega la portada principal del catàleg
+  useEffect(() => {
+    if (catalogResetKey > 0) {
+      setCurrentView('catalog');
+      setSelectedFamilia('Tots');
+      setSelectedGamma('Tots');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [catalogResetKey]);
 
   useEffect(() => {
     const qProd = query(collection(db, "productes"), orderBy("dataCreacio", "desc"));
@@ -85,12 +79,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
   // Llista de Famílies activa i dinàmica de Firestore (ordenada per ordre)
   const activeFamilies = dbFamilies && dbFamilies.length > 0
     ? [...dbFamilies].sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
-    : [
-        { id: 'fam-1', nom: 'Jocs i creativitat', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg' },
-        { id: 'fam-2', nom: 'Records i fotografia', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/records_fotografia.jpg' },
-        { id: 'fam-3', nom: 'Complements i quotidiana', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/complements_quotidiana.jpg' },
-        { id: 'fam-4', nom: 'Dates assenyalades', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/dates_assenyalades.jpg' }
-      ];
+    : DEFAULT_FAMILIES;
 
   const handleSelectFamilia = (famName) => {
     setSelectedFamilia(famName);
@@ -106,7 +95,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Filtrar i ordenar productes per Gamma o Família i pel camp Ordre
+  // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre
   const filteredProducts = dbProducts.filter(p => {
     if (selectedFamilia === 'Tots' && selectedGamma === 'Tots') return true;
 
@@ -121,28 +110,40 @@ export default function RegalsCatalogSection({ setActiveTab }) {
       if (matchFam && selectedGamma === 'Tots') return true;
     }
     return false;
-  }).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
+  }).sort((a, b) => {
+    const famA = (a.familaIds || [])[0] || '';
+    const famB = (b.familaIds || [])[0] || '';
+    const famIdxA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famA.toLowerCase());
+    const famIdxB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famB.toLowerCase());
+    const fA = famIdxA !== -1 ? famIdxA : 999;
+    const fB = famIdxB !== -1 ? famIdxB : 999;
+    if (fA !== fB) return fA - fB;
 
-  // Obtenir la imatge activa per a la miniatura del filtre
+    const gamA = (a.gammaIds || [])[0] || '';
+    const gamB = (b.gammaIds || [])[0] || '';
+    const gamIdxA = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamA.toLowerCase());
+    const gamIdxB = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamB.toLowerCase());
+    const gA = gamIdxA !== -1 ? gamIdxA : 999;
+    const gB = gamIdxB !== -1 ? gamIdxB : 999;
+    if (gA !== gB) return gA - gB;
+
+    return (a.ordre || 1) - (b.ordre || 1);
+  });
+
+  // Obtenir la imatge activa per a la miniatura del filtre (amb fallback a images/tots_productes.jpg)
   const currentFamObj = activeFamilies.find(f => f.nom.toLowerCase() === selectedFamilia.toLowerCase());
   const activeFamilyImage = currentFamObj?.imatge 
     ? resolveMediaUrl(currentFamObj.imatge) 
-    : (FAMILY_IMAGES[selectedFamilia] || FAMILY_IMAGES['Tots']);
+    : resolveMediaUrl('images/tots_productes.jpg');
 
   // Obtenir les gammes disponibles per a la família seleccionada
   const getSubGammesForSelectedFamily = () => {
     if (selectedFamilia === 'Tots') return [];
 
-    // Si hi ha gammes a Firestore
-    const fromDb = dbGammes
+    return dbGammes
       .filter(g => g.familiaNom && g.familiaNom.toLowerCase().includes(selectedFamilia.toLowerCase()))
       .sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
       .map(g => g.nom);
-
-    if (fromDb.length > 0) return fromDb;
-
-    // Si utilitza les inicials per defecte
-    return DEFAULT_GAMMES_BY_FAMILY[selectedFamilia] || [];
   };
 
   const currentSubGammes = getSubGammesForSelectedFamily();
@@ -151,7 +152,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
     <div className="pt-28 pb-24 animate-fadeIn">
 
       {/* ========================================================================= */}
-      {/* VISTA 1: CATÀLEG PRINCIPAL DE REGALS (4 Blocs Tradicionals de Mínim Món)  */}
+      {/* VISTA 1: CATÀLEG PRINCIPAL DE REGALS (Grid Dinàmic de Famílies)            */}
       {/* ========================================================================= */}
       {currentView === 'catalog' && (
         <div className="space-y-16 animate-fadeIn">
@@ -159,7 +160,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center">
             <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Catàleg d'Artesania</span>
             <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">
-              Catàleg de regals:<br />petites peces amb ànima.
+              Petites peces amb ànima.
             </h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">
               Descobreix la nostra selecció de peces úniques, on la calidesa de la fusta i la precisió artesanal s'uneixen per crear records inesborrables.
@@ -168,26 +169,13 @@ export default function RegalsCatalogSection({ setActiveTab }) {
 
           {/* Grid 100% Dinàmic de Famílies de Firestore */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
-            {(() => {
-              // Obtenir la llista de Famílies ordenades per ordre
-              const activeFamiliesList = dbFamilies && dbFamilies.length > 0
-                ? [...dbFamilies].sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
-                : [
-                    { id: 'fam-1', nom: 'Jocs i creativitat', descripcio: 'Peces que inspiren la ment.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg' },
-                    { id: 'fam-2', nom: 'Records i fotografia', descripcio: 'Emmarca els teus moments.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/records_fotografia.jpg' },
-                    { id: 'fam-3', nom: 'Complements i quotidiana', descripcio: 'Detalls pel dia a dia.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/complements_quotidiana.jpg' },
-                    { id: 'fam-4', nom: 'Dates assenyalades', descripcio: 'Celebra les ocasions especials.', imatge: 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/dates_assenyalades.jpg' }
-                  ];
+            {activeFamilies.map((fam) => {
+              // Obtenir les Gammes d'aquesta Família ordenades per ordre
+              const famGammes = dbGammes.filter(g => 
+                g.familiaNom && g.familiaNom.toLowerCase().includes(fam.nom.toLowerCase())
+              ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
 
-              return activeFamiliesList.map((fam) => {
-                // Obtenir les Gammes d'aquesta Família ordenades per ordre
-                const famGammes = dbGammes.filter(g => 
-                  g.familiaNom && g.familiaNom.toLowerCase().includes(fam.nom.toLowerCase())
-                ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
-
-                // Imatge per defecte si no n'hi ha cap a la base de dades
-                const fallbackImg = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/jocs_creativitat.jpg';
-                const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : fallbackImg;
+              const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : '';
 
                 return (
                   <div
@@ -241,8 +229,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                     </div>
                   </div>
                 );
-              });
-            })()}
+              })}
           </section>
         </div>
       )}
@@ -253,18 +240,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
       {currentView === 'products' && (
         <div className="space-y-10 animate-fadeIn">
 
-          {/* Header Superior: Botó de Retorn */}
-          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex justify-between items-center">
-            <button
-              onClick={() => setCurrentView('catalog')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-surface hover:bg-surface-container text-primary text-xs font-semibold rounded-lg transition-colors border border-outline/20 cursor-pointer shadow-xs"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Tornar al Catàleg de Regals</span>
-            </button>
-          </section>
-
-          {/* BARRA DE FILTRES AMB PALETA TERCIÀRIA DE STITCH (#404A39 i #DBE6CF) */}
+          {/* BARRA DE FILTRES AMB PALETA PRIMÀRIA (#3D2B1F / #F3ECE4) I VERDA PER A SUB-GAMMES */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
             <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-sm">
 
@@ -275,8 +251,8 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                   setSelectedGamma('Tots');
                 }}
                 className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${selectedFamilia === 'Tots' && selectedGamma === 'Tots'
-                    ? 'bg-[#404A39] text-white font-semibold shadow-md'
-                    : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                    ? 'bg-[#3D2B1F] text-white font-semibold shadow-md'
+                    : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
                   }`}
               >
                 Tot el<br />Catàleg
@@ -285,7 +261,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
               {/* 2. Miniatura de la Família Seleccionada */}
               <div className="w-16 h-16 rounded-xl overflow-hidden border border-outline/20 shadow-xs shrink-0 bg-surface-container relative">
                 <img
-                  src={resolveMediaUrl(activeFamilyImage)}
+                  src={activeFamilyImage}
                   alt={selectedFamilia}
                   className="w-full h-full object-cover transition-all duration-300"
                 />
@@ -293,7 +269,7 @@ export default function RegalsCatalogSection({ setActiveTab }) {
 
               {/* 3. Filera de Botons de Famílies i Sub-Gammes */}
               <div className="flex-1 space-y-3">
-                {/* Fila 1: Botons de Famílies */}
+                {/* Fila 1: Botons de Famílies (Colors Primaris) */}
                 <div className="flex flex-wrap items-center gap-2">
                   {activeFamilies.map(famObj => {
                     const fam = famObj.nom;
@@ -306,8 +282,8 @@ export default function RegalsCatalogSection({ setActiveTab }) {
                           setSelectedGamma('Tots');
                         }}
                         className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${isActive
-                            ? 'bg-[#404A39] text-white font-semibold shadow-xs'
-                            : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                            ? 'bg-[#3D2B1F] text-white font-semibold shadow-xs'
+                            : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
                           }`}
                       >
                         {fam}
@@ -458,7 +434,7 @@ function ProductCard({ product, onAddToCart }) {
 
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
-        <div className="aspect-[4/3] bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
+        <div className="aspect-square bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
           {currentDisplayImg ? (
             <img
               src={resolveMediaUrl(currentDisplayImg)}

@@ -15,8 +15,17 @@ import BudgetDrawer from './components/BudgetDrawer';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('inici');
+  const [catalogResetKey, setCatalogResetKey] = useState(0);
   const [selectedProject, setSelectedProject] = useState(null);
   const [legalTitle, setLegalTitle] = useState(null);
+
+  const handleSelectTab = (tabId) => {
+    if (tabId === 'regals' && activeTab === 'regals') {
+      setCatalogResetKey(prev => prev + 1);
+    } else {
+      setActiveTab(tabId);
+    }
+  };
 
   return (
     <BudgetProvider>
@@ -25,27 +34,28 @@ export default function App() {
       <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
       {/* Header */}
-      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header activeTab={activeTab} setActiveTab={handleSelectTab} />
 
       {/* Main Content Area */}
       <main className="flex-grow z-10">
         {activeTab === 'inici' && (
           <IniciSection 
-            setActiveTab={setActiveTab} 
+            setActiveTab={handleSelectTab} 
             onSelectProject={(project) => setSelectedProject(project)} 
           />
         )}
 
         {activeTab === 'mons' && (
           <MonsMinimsSection 
-            setActiveTab={setActiveTab}
+            setActiveTab={handleSelectTab}
             onSelectProject={(project) => setSelectedProject(project)} 
           />
         )}
 
         {activeTab === 'regals' && (
           <RegalsCatalogSection 
-            setActiveTab={setActiveTab} 
+            setActiveTab={handleSelectTab} 
+            catalogResetKey={catalogResetKey}
           />
         )}
 
