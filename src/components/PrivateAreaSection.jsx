@@ -1186,6 +1186,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 cost: 0,
                 preu: 0,
                 terminiFabricacio: '3 - 5 dies feiners',
+                material: 'Fusta de til·ler',
+                acabat: 'Vernís mat',
                 actiu: true
               })}
               className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
