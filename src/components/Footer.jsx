@@ -102,10 +102,7 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
             <h3 className="font-headline-md text-primary mb-4 text-xl font-serif notranslate" translate="no">Jordi Alcalde</h3>
             <div className="space-y-1 font-body-md text-on-surface-variant">
               <p>
-                <a className="hover:text-primary transition-colors" href="mailto:info@minimmon.cat">info@minimmon.cat</a>
-              </p>
-              <p>
-                <a className="hover:text-primary transition-colors" href="mailto:jordi.alcalde@outlook.com">jordi.alcalde@outlook.com</a>
+                <a className="hover:text-primary transition-colors" href="mailto:minimmon58@gmail.com">minimmon58@gmail.com</a>
               </p>
               <p>
                 <a className="hover:text-primary transition-colors" href="tel:+34699592326">+34 699 592 326</a>

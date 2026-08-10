@@ -82,6 +82,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [pressupostos, setPressupostos] = useState([]);
   const [loadingPressupostos, setLoadingPressupostos] = useState(true);
   const [selectedPressupost, setSelectedPressupost] = useState(null);
+  const [pressupostFilter, setPressupostFilter] = useState('tots');
 
   // Productes state
   const [dbProductesAdmin, setDbProductesAdmin] = useState([]);
@@ -162,7 +163,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
     setTelegramStatus('Enviant notificació de prova...');
     const success = await sendTelegramNotification({
       nom: 'Jordi Alcalde (Prova)',
-      email: 'info@minimmon.cat',
+      email: 'minimmon58@gmail.com',
       telefon: '+34 699 592 326',
       missatge: 'Això és una prova de notificació instantània de Mínim Món al teu mòbil!',
       tipus: 'Prova de Sistema'
@@ -302,6 +303,37 @@ export default function PrivateAreaSection({ setActiveTab }) {
       }
     } catch (err) {
       alert("Error eliminant consulta: " + err.message);
+    }
+  };
+
+  // Toggle pressupost status ('ates' / 'pendent')
+  const handleTogglePressupostStatus = async (pressupost, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const isAtes = pressupost.estat === 'ates';
+      const newStatus = isAtes ? 'pendent' : 'ates';
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estat: newStatus
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({ ...prev, estat: newStatus }));
+      }
+    } catch (err) {
+      alert("Error canviant estat del pressupost: " + err.message);
+    }
+  };
+
+  // Delete pressupost
+  const handleDeletePressupost = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm("Estàs segur que vols eliminar aquesta sol·licitud de pressupost? Aquesta acció no es pot desfer.")) return;
+    try {
+      await deleteDoc(doc(db, "pressupostos", id));
+      if (selectedPressupost && selectedPressupost.id === id) {
+        setSelectedPressupost(null);
+      }
+    } catch (err) {
+      alert("Error eliminant pressupost: " + err.message);
     }
   };
 
@@ -619,6 +651,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   const pendentsCount = consultes.filter(c => c.estat !== 'llegit').length;
 
+  const filteredPressupostos = pressupostos.filter(p => {
+    if (pressupostFilter === 'tots') return true;
+    if (pressupostFilter === 'pendent') return p.estat !== 'ates';
+    if (pressupostFilter === 'ates') return p.estat === 'ates';
+    return true;
+  });
+
+  const pressupostosPendentsCount = pressupostos.filter(p => p.estat !== 'ates').length;
+
   // ----------------------------------------------------
   // LOGIN SCREEN (UNAUTHENTICATED)
   // ----------------------------------------------------
@@ -750,9 +791,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
         >
           <ShoppingBag className="w-4 h-4" />
           <span>Pressupostos</span>
-          {pressupostos.length > 0 && (
-            <span className="px-2 py-0.5 text-xs bg-primary text-on-primary rounded-full font-bold">
-              {pressupostos.length}
+          {pressupostosPendentsCount > 0 && (
+            <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
+              {pressupostosPendentsCount}
             </span>
           )}
         </button>
@@ -767,8 +808,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         >
           <Package className="w-4 h-4" />
           <span>Productes</span>
-          <span className="text-xs text-on-surface-variant font-normal">
-            ({dbProductesAdmin.length})
+          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
+            {dbProductesAdmin.length}
           </span>
         </button>
 
@@ -797,8 +838,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         >
           <Layers className="w-4 h-4" />
           <span>Projectes</span>
-          <span className="text-xs text-on-surface-variant font-normal">
-            ({dbProjects.length})
+          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
+            {dbProjects.length}
           </span>
         </button>
 
@@ -1006,11 +1047,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   {/* Quick Action Buttons */}
                   <div className="flex flex-wrap gap-3 pt-4 border-t border-outline/15">
                     <a 
-                      href={`mailto:${selectedConsulta.email}?subject=Resposta%20M%C3%ADnim%20M%C3%B3n`}
+                      href={`https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&to=${encodeURIComponent(selectedConsulta.email)}&su=${encodeURIComponent(`Consulta Mínim Món - ${selectedConsulta.nom}`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-medium hover:bg-primary-container transition-colors flex items-center gap-2 shadow cursor-pointer"
                     >
                       <Mail className="w-4 h-4" />
-                      <span>Respondre per Correu</span>
+                      <span>Obrir a Gmail</span>
                     </a>
 
                     <button 
@@ -1039,9 +1082,34 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 Llista de les cistelles de pressupostos enviades pels clients des de la web.
               </p>
             </div>
-            <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-mono font-bold rounded-full">
-              {pressupostos.length} pressupostos
-            </span>
+
+            {/* Filters */}
+            <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
+              <button 
+                onClick={() => setPressupostFilter('tots')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  pressupostFilter === 'tots' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Tots ({pressupostos.length})
+              </button>
+              <button 
+                onClick={() => setPressupostFilter('pendent')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  pressupostFilter === 'pendent' ? 'bg-amber-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Pendents ({pressupostosPendentsCount})
+              </button>
+              <button 
+                onClick={() => setPressupostFilter('ates')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  pressupostFilter === 'ates' ? 'bg-emerald-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Atesos ({pressupostos.length - pressupostosPendentsCount})
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -1049,40 +1117,87 @@ export default function PrivateAreaSection({ setActiveTab }) {
             <div className={`${selectedPressupost ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-4`}>
               {loadingPressupostos ? (
                 <div className="p-8 text-center text-on-surface-variant">Carregant pressupostos des de Firestore...</div>
-              ) : pressupostos.length === 0 ? (
+              ) : filteredPressupostos.length === 0 ? (
                 <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-outline/15 text-on-surface-variant">
                   <ShoppingBag className="w-8 h-8 text-outline mx-auto mb-2" />
-                  <p className="font-serif text-base text-primary">No s'ha rebut cap sol·licitud de pressupost encara</p>
+                  <p className="font-serif text-base text-primary">No s'ha trobat cap sol·licitud de pressupost</p>
                 </div>
               ) : (
-                pressupostos.map((p) => (
-                  <div 
-                    key={p.id}
-                    onClick={() => setSelectedPressupost(p)}
-                    className={`p-5 rounded-xl border transition-all cursor-pointer ${
-                      selectedPressupost && selectedPressupost.id === p.id 
-                        ? 'bg-surface-container-lowest border-primary shadow-md ring-2 ring-primary/20' 
-                        : 'bg-surface-container-lowest border-outline/15 hover:border-primary/40'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
-                          {p.codiReferencia || p.id}
-                        </span>
-                        <h3 className="font-serif text-lg text-primary font-semibold mt-1">{p.clientNom}</h3>
-                      </div>
-                      <span className="text-xs font-mono text-on-surface-variant">
-                        {p.data ? new Date(p.data.seconds * 1000).toLocaleDateString('ca-ES') : 'Recent'}
-                      </span>
-                    </div>
+                filteredPressupostos.map((p) => {
+                  const isAtes = p.estat === 'ates';
+                  const isSelected = selectedPressupost && selectedPressupost.id === p.id;
 
-                    <div className="text-xs text-on-surface-variant space-y-1">
-                      <p>Contacte: <strong className="text-primary font-mono">{p.clientContacte}</strong></p>
-                      <p>Productes triats: <strong>{(p.productes || []).length} peces</strong></p>
+                  return (
+                    <div 
+                      key={p.id}
+                      onClick={() => setSelectedPressupost(p)}
+                      className={`p-5 rounded-xl border transition-all cursor-pointer relative ${
+                        isSelected 
+                          ? 'bg-surface-container-lowest border-primary shadow-md ring-2 ring-primary/20' 
+                          : isAtes
+                            ? 'bg-surface-container-lowest border-outline/15 hover:border-primary/40'
+                            : 'border-amber-300 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 hover:border-amber-400'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isAtes ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                          <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
+                            {p.codiReferencia || p.id}
+                          </span>
+                        </div>
+
+                        <span className="text-xs font-mono text-on-surface-variant">
+                          {p.data ? new Date(p.data.seconds * 1000).toLocaleDateString('ca-ES') : 'Recent'}
+                        </span>
+                      </div>
+
+                      <h3 className="font-serif text-lg text-primary font-semibold mb-1">{p.clientNom}</h3>
+
+                      <div className="text-xs text-on-surface-variant space-y-1 mb-3">
+                        <p>Contacte: <strong className="text-primary font-mono">{p.clientContacte}</strong></p>
+                        <p>Productes triats: <strong>{(p.productes || []).length} peces</strong></p>
+                      </div>
+
+                      <div className="pt-3 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
+                        <button 
+                          onClick={(e) => handleTogglePressupostStatus(p, e)}
+                          className={`text-xs font-medium px-2.5 py-1 rounded transition-colors flex items-center gap-1 cursor-pointer ${
+                            isAtes ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                          }`}
+                        >
+                          {isAtes ? <CheckCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                          <span>{isAtes ? 'Marcar com a pendent' : 'Marcar com a atès'}</span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <a
+                            href={p.clientContacte && p.clientContacte.includes('@')
+                              ? `https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&to=${encodeURIComponent(p.clientContacte)}&su=${encodeURIComponent(`Pressupost Mínim Món - ${p.codiReferencia || p.id}`)}`
+                              : `https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&su=${encodeURIComponent(`Pressupost Mínim Món - ${p.clientNom} (${p.clientContacte})`)}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1 bg-surface hover:bg-surface-container text-primary border border-outline/20 text-xs font-medium rounded transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Obrir Gmail en una nova pestanya amb el compte minimmon58@gmail.com"
+                          >
+                            <Mail className="w-3 h-3 text-primary" />
+                            <span>Gmail</span>
+                          </a>
+
+                          <button 
+                            onClick={(e) => handleDeletePressupost(p.id, e)}
+                            className="text-xs text-error hover:bg-error-container/30 p-1.5 rounded transition-colors"
+                            title="Eliminar pressupost"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -1091,9 +1206,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
               <div className="lg:col-span-6 bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/30 shadow-lg space-y-6 sticky top-24 self-start">
                 <div className="flex justify-between items-start border-b border-outline/15 pb-4">
                   <div>
-                    <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
-                      {selectedPressupost.codiReferencia || selectedPressupost.id}
-                    </span>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedPressupost.estat === 'ates' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
+                      <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
+                        {selectedPressupost.codiReferencia || selectedPressupost.id}
+                      </span>
+                    </div>
                     <h3 className="font-serif text-2xl text-primary font-semibold mt-1">{selectedPressupost.clientNom}</h3>
                     <p className="text-xs text-on-surface-variant font-mono">{selectedPressupost.clientContacte}</p>
                   </div>
@@ -1145,13 +1263,43 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   )}
                 </div>
 
-                <div className="pt-4 border-t border-outline/15 flex gap-3">
-                  <a
-                    href={`mailto:${selectedPressupost.clientContacte}?subject=Pressupost%20M%C3%ADnim%20M%C3%B3n%20${selectedPressupost.codiReferencia}`}
-                    className="flex-1 py-2.5 bg-primary text-on-primary rounded text-xs font-semibold hover:bg-primary-container transition-colors text-center shadow cursor-pointer"
+                {/* Accions de Tancament i Gmail */}
+                <div className="pt-4 border-t border-outline/15 flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    onClick={(e) => handleTogglePressupostStatus(selectedPressupost, e)}
+                    className={`px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-xs ${
+                      selectedPressupost.estat === 'ates'
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
                   >
-                    Respondre per Email
-                  </a>
+                    {selectedPressupost.estat === 'ates' ? <Clock className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                    <span>{selectedPressupost.estat === 'ates' ? 'Marcar com a Pendent' : 'Marcar com a Atès / Respost'}</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={selectedPressupost.clientContacte && selectedPressupost.clientContacte.includes('@')
+                        ? `https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&to=${encodeURIComponent(selectedPressupost.clientContacte)}&su=${encodeURIComponent(`Pressupost Mínim Món - ${selectedPressupost.codiReferencia || selectedPressupost.id}`)}`
+                        : `https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&su=${encodeURIComponent(`Pressupost Mínim Món - ${selectedPressupost.clientNom} (${selectedPressupost.clientContacte})`)}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 bg-surface hover:bg-surface-container text-primary border border-outline/20 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      title="Obrir esborrany a Gmail en una nova pestanya"
+                    >
+                      <Mail className="w-4 h-4 text-primary" />
+                      <span>Obrir a Gmail</span>
+                    </a>
+
+                    <button
+                      onClick={(e) => handleDeletePressupost(selectedPressupost.id, e)}
+                      className="px-3 py-2 bg-error-container/20 hover:bg-error-container/40 text-error text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                      title="Eliminar sol·licitud"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

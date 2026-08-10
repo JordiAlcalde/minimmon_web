@@ -14,7 +14,7 @@ export default function LegalModal({ title, onClose }) {
             <span className="notranslate" translate="no">Jordi Alcalde Casalta</span><br />
             08512 - Sant Hipòlit de Voltregà - Barcelona - Espanya<br />
             DNI: 37732370L<br />
-            Email: <a href="mailto:jordi.alcalde@outlook.com" className="text-primary underline font-medium">jordi.alcalde@outlook.com</a>
+            Email: <a href="mailto:minimmon58@gmail.com" className="text-primary underline font-medium">minimmon58@gmail.com</a>
           </p>
           <p>
             Aquest lloc web té com a finalitat la presentació de serveis i productes entre particulars i mostrar projectes personals.
@@ -41,7 +41,7 @@ export default function LegalModal({ title, onClose }) {
             <i>Legitimació</i>: Consentiment de l'interessat i execució del contracte.<br />
             <i>Destinataris</i>: No se cediran dades a tercers excepte obligació legal.<br />
             <i>Drets</i>: Accés, rectificació, supressió, limitació, portabilitat i oposició.<br />
-            <i>Contacte</i>: <a href="mailto:jordi.alcalde@outlook.com" className="text-primary underline font-medium">jordi.alcalde@outlook.com</a>
+            <i>Contacte</i>: <a href="mailto:minimmon58@gmail.com" className="text-primary underline font-medium">minimmon58@gmail.com</a>
           </p>
           <p>
             Les dades personals es conservaran mentre duri la relació professional i durant el termini legalment establert.
@@ -49,10 +49,10 @@ export default function LegalModal({ title, onClose }) {
           <p>
             Pots exercir els teus drets enviant un correu electrònic a{' '}
             <a
-              href="mailto:jordi.alcalde@outlook.com"
+              href="mailto:minimmon58@gmail.com"
               style={{ color: '#AC80FF', textDecoration: 'underline', fontWeight: 500 }}
             >
-              jordi.alcalde@outlook.com
+              minimmon58@gmail.com
             </a>.
           </p>
         </div>
@@ -80,7 +80,7 @@ export default function LegalModal({ title, onClose }) {
             Pots configurar el teu navegador per rebutjar galetes. Tingueu en compte que això pot afectar el funcionament del lloc.
           </p>
           <p>
-            Contacte: <a href="mailto:jordialcalde@outlook.com" className="text-primary underline font-medium">jordialcalde@outlook.com</a>
+            Contacte: <a href="mailto:minimmon58@gmail.com" className="text-primary underline font-medium">minimmon58@gmail.com</a>
           </p>
         </div>
       );

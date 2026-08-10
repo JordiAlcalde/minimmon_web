@@ -187,7 +187,7 @@ export const STITCH_CRAFTSMAN = {
   brandName: "Mínim Món de Jordi Alcalde",
   tagline: "L'essència del que som, en miniatura.",
   subtitle: "Capturant la memòria, l'espai i l'emoció a través de la calidesa de la fusta i la precisió de la llum.",
-  emails: ["info@minimmon.cat", "jordi.alcalde@outlook.com"],
+  emails: ["minimmon58@gmail.com"],
   phone: "+34 699 592 326",
   experienceYears: 60,
   bio: "Després de més de 60 anys aprenent de la vida i acumulant experiència en disseny industrial, programació i marcatge làser, he trobat en la fusta un llenç i en el làser la meva nova eina d'expressió. Mínim Món neix de la voluntat d'aturar el temps, de destil·lar espais i records en petits formats tangibles que capten l'esperit de les persones i els seus llocs."
