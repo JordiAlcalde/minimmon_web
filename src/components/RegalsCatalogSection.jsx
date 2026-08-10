@@ -6,7 +6,7 @@ import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
-import { DEFAULT_FAMILIES } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
@@ -111,23 +111,12 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
     }
     return false;
   }).sort((a, b) => {
-    const famA = (a.familaIds || [])[0] || '';
-    const famB = (b.familaIds || [])[0] || '';
-    const famIdxA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famA.toLowerCase());
-    const famIdxB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famB.toLowerCase());
-    const fA = famIdxA !== -1 ? famIdxA : 999;
-    const fB = famIdxB !== -1 ? famIdxB : 999;
-    if (fA !== fB) return fA - fB;
+    const gamFilter = selectedGamma !== 'Tots' ? selectedGamma : null;
+    const ordA = getEffectiveProductOrder(a, gamFilter);
+    const ordB = getEffectiveProductOrder(b, gamFilter);
+    if (ordA !== ordB) return ordA - ordB;
 
-    const gamA = (a.gammaIds || [])[0] || '';
-    const gamB = (b.gammaIds || [])[0] || '';
-    const gamIdxA = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamA.toLowerCase());
-    const gamIdxB = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamB.toLowerCase());
-    const gA = gamIdxA !== -1 ? gamIdxA : 999;
-    const gB = gamIdxB !== -1 ? gamIdxB : 999;
-    if (gA !== gB) return gA - gB;
-
-    return (a.ordre || 1) - (b.ordre || 1);
+    return (a.codi || '').localeCompare(b.codi || '');
   });
 
   // Obtenir la imatge activa per a la miniatura del filtre (amb fallback a images/tots_productes.jpg)

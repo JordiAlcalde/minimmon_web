@@ -43,6 +43,33 @@ import {
 export const DEFAULT_FAMILIES = [];
 export const DEFAULT_GAMMES = [];
 
+export const getEffectiveProductOrder = (product, gammaNom) => {
+  if (!product) return 1;
+  if (gammaNom && gammaNom !== 'Totes' && gammaNom !== 'Tots' && product.ordrePerGamma && product.ordrePerGamma[gammaNom] !== undefined) {
+    return Number(product.ordrePerGamma[gammaNom]);
+  }
+  return Number(product.ordre || 1);
+};
+
+export const calculateSmartNextProductOrder = (selectedGammes, allProducts) => {
+  if (!allProducts || allProducts.length === 0) return 1;
+  const gammas = (selectedGammes || []).filter(g => g && g !== 'Totes' && g !== 'Tots');
+  if (gammas.length === 0) {
+    const maxGlobal = Math.max(0, ...allProducts.map(p => Number(p.ordre || 0)));
+    return maxGlobal + 1;
+  }
+  const matchingProds = allProducts.filter(p => 
+    (p.gammaIds || []).some(g => gammas.includes(g))
+  );
+  if (matchingProds.length === 0) return 1;
+
+  const maxOrders = matchingProds.map(p => {
+    const perGamOrders = gammas.map(g => (p.ordrePerGamma && p.ordrePerGamma[g] !== undefined) ? Number(p.ordrePerGamma[g]) : Number(p.ordre || 0));
+    return Math.max(...perGamOrders);
+  });
+  return Math.max(0, ...maxOrders) + 1;
+};
+
 export default function PrivateAreaSection({ setActiveTab }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('minimmon_admin_auth') === 'true';
@@ -469,6 +496,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
           ? editingProducte.familaIds
           : [dbFamilies[0]?.nom || '']);
 
+    // Build/update ordrePerGamma map
+    const existingOrdrePerGamma = editingProducte.ordrePerGamma || {};
+    const updatedOrdrePerGamma = { ...existingOrdrePerGamma };
+    const mainOrdre = Number(editingProducte.ordre || 1);
+
+    selectedGammes.forEach(gName => {
+      if (updatedOrdrePerGamma[gName] === undefined) {
+        updatedOrdrePerGamma[gName] = mainOrdre;
+      }
+    });
+
     try {
       const docRef = doc(db, "productes", docId);
       await setDoc(docRef, {
@@ -488,7 +526,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         gruix: editingProducte.gruix || '',
         pes: editingProducte.pes || '',
         acabat: editingProducte.acabat || '',
-        ordre: Number(editingProducte.ordre || 1),
+        ordre: mainOrdre,
+        ordrePerGamma: updatedOrdrePerGamma,
         actiu: editingProducte.actiu !== false,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
@@ -511,20 +550,42 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   const handleMoveProductOrder = async (currProd, targetProd) => {
     if (!currProd || !targetProd) return;
-    const currOrdre = currProd.ordre || 1;
-    const targetOrdre = targetProd.ordre || 1;
 
-    let newCurrOrdre = targetOrdre;
-    let newTargetOrdre = currOrdre;
-    if (newCurrOrdre === newTargetOrdre) {
-      newCurrOrdre = Math.max(1, targetOrdre - 1);
-    }
+    if (adminGamFilter && adminGamFilter !== 'Totes') {
+      const currOrdre = getEffectiveProductOrder(currProd, adminGamFilter);
+      const targetOrdre = getEffectiveProductOrder(targetProd, adminGamFilter);
 
-    try {
-      await updateDoc(doc(db, "productes", currProd.id), { ordre: newCurrOrdre });
-      await updateDoc(doc(db, "productes", targetProd.id), { ordre: newTargetOrdre });
-    } catch (err) {
-      alert("Error reordenant productes: " + err.message);
+      let newCurrOrdre = targetOrdre;
+      let newTargetOrdre = currOrdre;
+      if (newCurrOrdre === newTargetOrdre) {
+        newCurrOrdre = Math.max(1, targetOrdre - 1);
+      }
+
+      const currPerGam = { ...(currProd.ordrePerGamma || {}), [adminGamFilter]: newCurrOrdre };
+      const targetPerGam = { ...(targetProd.ordrePerGamma || {}), [adminGamFilter]: newTargetOrdre };
+
+      try {
+        await updateDoc(doc(db, "productes", currProd.id), { ordrePerGamma: currPerGam });
+        await updateDoc(doc(db, "productes", targetProd.id), { ordrePerGamma: targetPerGam });
+      } catch (err) {
+        alert("Error reordenant productes: " + err.message);
+      }
+    } else {
+      const currOrdre = currProd.ordre || 1;
+      const targetOrdre = targetProd.ordre || 1;
+
+      let newCurrOrdre = targetOrdre;
+      let newTargetOrdre = currOrdre;
+      if (newCurrOrdre === newTargetOrdre) {
+        newCurrOrdre = Math.max(1, targetOrdre - 1);
+      }
+
+      try {
+        await updateDoc(doc(db, "productes", currProd.id), { ordre: newCurrOrdre });
+        await updateDoc(doc(db, "productes", targetProd.id), { ordre: newTargetOrdre });
+      } catch (err) {
+        alert("Error reordenant productes: " + err.message);
+      }
     }
   };
 
@@ -1319,25 +1380,30 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
 
             <button
-              onClick={() => setEditingProducte({
-                id: `prdt-${Date.now()}`,
-                codi: generateNextProductCode(dbProductesAdmin),
-                nom: '',
-                descripcio: '',
-                imatgePrincipal: '',
-                imatges: [],
-                familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
-                gammaIds: [],
-                opcionsPersonalitzacio: [
-                  { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
-                ],
-                cost: 0,
-                preu: 0,
-                terminiFabricacio: '3 - 5 dies feiners',
-                material: 'Fusta de til·ler',
-                acabat: 'Vernís mat',
-                actiu: true
-              })}
+              onClick={() => {
+                const initialGammas = adminGamFilter && adminGamFilter !== 'Totes' ? [adminGamFilter] : [];
+                const initialOrdre = calculateSmartNextProductOrder(initialGammas, dbProductesAdmin);
+                setEditingProducte({
+                  id: `prdt-${Date.now()}`,
+                  codi: generateNextProductCode(dbProductesAdmin),
+                  nom: '',
+                  descripcio: '',
+                  imatgePrincipal: '',
+                  imatges: [],
+                  familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
+                  gammaIds: initialGammas,
+                  opcionsPersonalitzacio: [
+                    { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
+                  ],
+                  cost: 0,
+                  preu: 0,
+                  terminiFabricacio: '3 - 5 dies feiners',
+                  material: 'Fusta de til·ler',
+                  acabat: 'Vernís mat',
+                  ordre: initialOrdre,
+                  actiu: true
+                });
+              }}
               className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
             >
               <Plus className="w-4 h-4" />
@@ -1787,23 +1853,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           }
                           return true;
                         }).sort((a, b) => {
-                          const famA = (a.familaIds || [])[0] || '';
-                          const famB = (b.familaIds || [])[0] || '';
-                          const famIdxA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famA.toLowerCase());
-                          const famIdxB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famB.toLowerCase());
-                          const fA = famIdxA !== -1 ? famIdxA : 999;
-                          const fB = famIdxB !== -1 ? famIdxB : 999;
-                          if (fA !== fB) return fA - fB;
+                          const gamFilter = adminGamFilter !== 'Totes' ? adminGamFilter : null;
+                          const ordA = getEffectiveProductOrder(a, gamFilter);
+                          const ordB = getEffectiveProductOrder(b, gamFilter);
+                          if (ordA !== ordB) return ordA - ordB;
 
-                          const gamA = (a.gammaIds || [])[0] || '';
-                          const gamB = (b.gammaIds || [])[0] || '';
-                          const gamIdxA = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamA.toLowerCase());
-                          const gamIdxB = dbGammes.findIndex(g => (g.nom || '').toLowerCase() === gamB.toLowerCase());
-                          const gA = gamIdxA !== -1 ? gamIdxA : 999;
-                          const gB = gamIdxB !== -1 ? gamIdxB : 999;
-                          if (gA !== gB) return gA - gB;
-
-                          return (a.ordre || 1) - (b.ordre || 1);
+                          return (a.codi || '').localeCompare(b.codi || '');
                         });
 
                         if (filteredAdminProducts.length === 0) {
@@ -1821,15 +1876,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
                             <td className="p-4 font-mono text-xs font-bold text-primary">
                               <div className="flex items-center gap-2">
-                                <span className="w-5">{p.ordre || 1}</span>
+                                <span className="w-5">{getEffectiveProductOrder(p, adminGamFilter !== 'Totes' ? adminGamFilter : null)}</span>
                                 <div className="flex flex-col gap-0.5">
                                   <button
                                     type="button"
-                                    disabled={adminGamFilter === 'Totes' || idx === 0}
+                                    disabled={idx === 0}
                                     onClick={() => handleMoveProductOrder(p, filteredAdminProducts[idx - 1])}
-                                    title={adminGamFilter === 'Totes' ? "Filtra per una Gamma per poder canviar l'ordre" : "Pujar d'ordre"}
+                                    title={adminGamFilter !== 'Totes' ? `Pujar d'ordre a la gamma ${adminGamFilter}` : "Pujar d'ordre general"}
                                     className={`p-0.5 rounded transition-colors ${
-                                      adminGamFilter !== 'Totes' && idx > 0
+                                      idx > 0
                                         ? 'hover:bg-primary/20 text-primary cursor-pointer'
                                         : 'opacity-20 cursor-not-allowed text-outline'
                                     }`}
@@ -1838,11 +1893,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   </button>
                                   <button
                                     type="button"
-                                    disabled={adminGamFilter === 'Totes' || idx === filteredAdminProducts.length - 1}
+                                    disabled={idx === filteredAdminProducts.length - 1}
                                     onClick={() => handleMoveProductOrder(p, filteredAdminProducts[idx + 1])}
-                                    title={adminGamFilter === 'Totes' ? "Filtra per una Gamma per poder canviar l'ordre" : "Baixar d'ordre"}
+                                    title={adminGamFilter !== 'Totes' ? `Baixar d'ordre a la gamma ${adminGamFilter}` : "Baixar d'ordre general"}
                                     className={`p-0.5 rounded transition-colors ${
-                                      adminGamFilter !== 'Totes' && idx < filteredAdminProducts.length - 1
+                                      idx < filteredAdminProducts.length - 1
                                         ? 'hover:bg-primary/20 text-primary cursor-pointer'
                                         : 'opacity-20 cursor-not-allowed text-outline'
                                     }`}
