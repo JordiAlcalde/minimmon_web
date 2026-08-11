@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCw, Sparkles, Sun } from 'lucide-react';
+import { RotateCw, Sun } from 'lucide-react';
 
 export default function ProductSimulator({ initialLetter = '', phraseText = '' }) {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -22,14 +22,6 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
 
   return (
     <div className="space-y-2 my-3">
-      {/* Barra de control del simulador (Títol simplificat i sense botó eliminat segons marca vermella) */}
-      <div className="flex items-center justify-between bg-surface-container/60 px-3 py-1.5 rounded-xl border border-outline/15 text-xs font-mono">
-        <div className="flex items-center gap-2 text-primary font-bold">
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>Simulador Gravat</span>
-        </div>
-      </div>
-
       {/* Escenari 3D del Clauer (Mida molt compacta per veure canvis mentre s'edita en mòbil) */}
       <div className={`relative w-full py-3 px-2 flex flex-col items-center justify-center rounded-2xl border border-outline/15 shadow-inner min-h-[195px] sm:min-h-[235px] overflow-hidden select-none transition-colors duration-300 ${isLit ? 'bg-gradient-to-b from-surface-container-lowest via-amber-950/5 to-surface-container-lowest' : 'bg-surface-container-lowest'}`}>
         

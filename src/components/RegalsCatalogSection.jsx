@@ -160,8 +160,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
   // Obtenir la imatge activa per a la miniatura del filtre (amb fallback a images/tots_productes.jpg)
   const currentFamObj = activeFamilies.find(f => f && String(f.nom || '').toLowerCase() === String(selectedFamilia || '').toLowerCase());
-  const activeFamilyImage = currentFamObj?.imatge 
-    ? resolveMediaUrl(currentFamObj.imatge) 
+  const activeFamilyImage = currentFamObj?.imatge
+    ? resolveMediaUrl(currentFamObj.imatge)
     : resolveMediaUrl('images/tots_productes.jpg');
 
   // Obtenir les gammes disponibles per a la família seleccionada
@@ -201,65 +201,65 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
             {activeFamilies.map((fam) => {
               // Obtenir les Gammes d'aquesta Família ordenades per ordre
-              const famGammes = dbGammes.filter(g => 
+              const famGammes = dbGammes.filter(g =>
                 g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(fam?.nom || '').toLowerCase())
               ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
 
               const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : '';
 
-                return (
+              return (
+                <div
+                  key={fam.id || fam.nom}
+                  onClick={() => handleSelectFamilia(fam.nom)}
+                  className="group block relative overflow-hidden rounded-xl aspect-[4/3] bg-surface-container-low transition-all duration-300 hover:scale-[1.015] hover:shadow-xl cursor-pointer border border-outline/10 shadow-md"
+                >
+                  {/* Fotografia de Fons de la Família */}
                   <div
-                    key={fam.id || fam.nom}
-                    onClick={() => handleSelectFamilia(fam.nom)}
-                    className="group block relative overflow-hidden rounded-xl aspect-[4/3] bg-surface-container-low transition-all duration-300 hover:scale-[1.015] hover:shadow-xl cursor-pointer border border-outline/10 shadow-md"
-                  >
-                    {/* Fotografia de Fons de la Família */}
-                    <div
-                      className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                      style={{ backgroundImage: `url("${cardImg}")` }}
-                    ></div>
-                    
-                    {/* Degradat fosc/càlid inferior per garantir lectura cristal·lina */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary-container/95 via-primary-container/40 to-transparent"></div>
+                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                    style={{ backgroundImage: `url("${cardImg}")` }}
+                  ></div>
 
-                    {/* Contingut i Píndoles de Gammes */}
-                    <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full flex justify-between items-end">
-                      <div className="space-y-2 max-w-xl">
-                        <h2 className="font-headline-md text-headline-md text-on-primary font-serif text-2xl md:text-3xl font-semibold">
-                          {fam.nom}
-                        </h2>
-                        {fam.descripcio && (
-                          <p className="font-body-md text-inverse-on-surface opacity-90 text-xs md:text-sm font-sans line-clamp-2">
-                            {fam.descripcio}
-                          </p>
-                        )}
+                  {/* Degradat fosc/càlid inferior per garantir lectura cristal·lina */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-primary-container/95 via-primary-container/40 to-transparent"></div>
 
-                        {/* Píndoles Dinàmiques de les Gammes */}
-                        {famGammes.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {famGammes.map((gam, gIdx) => (
-                              <button
-                                key={gam.id || gIdx}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectGamma(fam.nom, gam.nom);
-                                }}
-                                className="bg-surface/25 hover:bg-surface/45 backdrop-blur-md px-3 py-1 rounded-full text-xs text-on-primary font-medium transition-colors border border-white/20 shadow-2xs cursor-pointer"
-                              >
-                                {gam.nom}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                  {/* Contingut i Píndoles de Gammes */}
+                  <div className="absolute bottom-0 left-0 p-6 md:p-8 w-full flex justify-between items-end">
+                    <div className="space-y-2 max-w-xl">
+                      <h2 className="font-headline-md text-headline-md text-on-primary font-serif text-2xl md:text-3xl font-semibold">
+                        {fam.nom}
+                      </h2>
+                      {fam.descripcio && (
+                        <p className="font-body-md text-inverse-on-surface opacity-90 text-xs md:text-sm font-sans line-clamp-2">
+                          {fam.descripcio}
+                        </p>
+                      )}
 
-                      <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl notranslate shrink-0 ml-4" translate="no" aria-hidden="true">
-                        arrow_forward
-                      </span>
+                      {/* Píndoles Dinàmiques de les Gammes */}
+                      {famGammes.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {famGammes.map((gam, gIdx) => (
+                            <button
+                              key={gam.id || gIdx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectGamma(fam.nom, gam.nom);
+                              }}
+                              className="bg-surface/25 hover:bg-surface/45 backdrop-blur-md px-3 py-1 rounded-full text-xs text-on-primary font-medium transition-colors border border-white/20 shadow-2xs cursor-pointer"
+                            >
+                              {gam.nom}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
+
+                    <span className="material-symbols-outlined text-on-primary group-hover:translate-x-2 transition-transform text-3xl notranslate shrink-0 ml-4" translate="no" aria-hidden="true">
+                      arrow_forward
+                    </span>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
           </section>
         </div>
       )}
@@ -281,8 +281,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                   setSelectedGamma('Tots');
                 }}
                 className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${selectedFamilia === 'Tots' && selectedGamma === 'Tots'
-                    ? 'bg-[#3D2B1F] text-white font-semibold shadow-md'
-                    : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                  ? 'bg-[#3D2B1F] text-white font-semibold shadow-md'
+                  : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
                   }`}
               >
                 Tot el<br />Catàleg
@@ -307,11 +307,10 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                       setSelectedFamilia('Novetats');
                       setSelectedGamma('Tots');
                     }}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                      selectedFamilia === 'Novetats'
+                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${selectedFamilia === 'Novetats'
                         ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
                         : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
-                    }`}
+                      }`}
                   >
                     <Sparkles className={`w-3.5 h-3.5 ${selectedFamilia === 'Novetats' ? 'text-amber-400' : 'text-amber-700'}`} />
                     <span>Novetats</span>
@@ -328,8 +327,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                           setSelectedGamma('Tots');
                         }}
                         className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${isActive
-                            ? 'bg-[#3D2B1F] text-white font-semibold shadow-xs'
-                            : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                          ? 'bg-[#3D2B1F] text-white font-semibold shadow-xs'
+                          : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
                           }`}
                       >
                         {fam}
@@ -345,8 +344,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                     <button
                       onClick={() => setSelectedGamma('Tots')}
                       className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${selectedGamma === 'Tots'
-                          ? 'bg-[#404A39] text-white font-semibold shadow-xs'
-                          : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                        ? 'bg-[#404A39] text-white font-semibold shadow-xs'
+                        : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
                         }`}
                     >
                       Tot
@@ -360,8 +359,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                           key={gam}
                           onClick={() => setSelectedGamma(gam)}
                           className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${isGamActive
-                              ? 'bg-[#404A39] text-white font-semibold shadow-xs'
-                              : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                            ? 'bg-[#404A39] text-white font-semibold shadow-xs'
+                            : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
                             }`}
                         >
                           {gam}
@@ -497,9 +496,8 @@ function ProductCard({ product, onAddToCart }) {
   const [attachedFiles, setAttachedFiles] = useState({});
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Detectar si el producte és el clauer "Inicial" o té camps de gravat
-  const isInicialKeychain = String(product.nom || '').toLowerCase().includes('inicial') || 
-    safeOpcions.some(o => String(o?.titol || '').toLowerCase().includes('inicial'));
+  // Detectar si el producte és específicament el clauer "Inicial" (té simulador 3D)
+  const isInicialKeychain = String(product.nom || '').toLowerCase().includes('inicial');
 
   const initialKey = safeOpcions.find(o => {
     const t = String(o?.titol || '').toLowerCase();
@@ -533,8 +531,8 @@ function ProductCard({ product, onAddToCart }) {
     reader.onload = (event) => {
       const dataUrl = event.target.result;
       const isImg = file.type.startsWith('image/');
-      const formattedSize = file.size > 1024 * 1024 
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+      const formattedSize = file.size > 1024 * 1024
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
         : `${Math.round(file.size / 1024)} KB`;
 
       const fileObj = {
@@ -692,7 +690,9 @@ function ProductCard({ product, onAddToCart }) {
         {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
-            <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">PERSONALITZA AL TEU GUST:</h4>
+            <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">
+              {isInicialKeychain ? "PERSONALITZACIÓ - Mira el simulador en temps real:" : "PERSONALITZACIÓ:"}
+            </h4>
 
             <div className="flex flex-col gap-3">
               {(product.opcionsPersonalitzacio || []).map((opc, idx) => {
@@ -701,8 +701,8 @@ function ProductCard({ product, onAddToCart }) {
                 const opcType = (opc.tipus || '').toLowerCase();
                 const valorsStr = typeof opc.valors === 'string' ? opc.valors : '';
                 const lowerKey = key.toLowerCase();
-                const isInitialField = lowerKey.includes('inicial') || lowerKey.includes('cara a') || lowerKey.includes('lletra');
-                const isPhraseField = lowerKey.includes('frase') || lowerKey.includes('cara b') || lowerKey.includes('text') || lowerKey.includes('dedicatòria');
+                const isInitialField = isInicialKeychain && (lowerKey.includes('inicial') || lowerKey.includes('lletra') || (lowerKey.includes('cara a') && !lowerKey.includes('text')));
+                const isPhraseField = (isInicialKeychain && (lowerKey.includes('frase') || lowerKey.includes('cara b'))) || lowerKey.includes('dedicatòria') || opcType === 'textarea';
 
                 return (
                   <div key={idx} className="space-y-1">
