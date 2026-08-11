@@ -42,36 +42,38 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
       {/* Hero Section */}
       <section className="relative w-full min-h-[80vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <div 
-            className="bg-cover bg-center w-full h-full opacity-40" 
-            style={{ 
-              backgroundImage: `url("https://lh3.googleusercontent.com/aida-public/AB6AXuCG0nU_luhqFEt3VNzbd_G3ONzn2bqro8OqFO_wXtmQb38sbMCLjAPTWd8XVJWOD7cyjrqgk_YZOA_1y-EohuUjULhFs019JKmtgKoWfrucAI0RU2mikaOxzu7qirAi8AGSw-oWGPklgxaejgnchwkjxNaXGYD6jibSIgmySZFN_kqMlj5GHtR-YkOb7bQ-kMxLqDXkwWzrkYXQHpI49gmjqvQHClGIOc-XFVmh8EJJF85AfrkLuZ2tUw")` 
-            }}
-          ></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/60 to-transparent"></div>
+          <img 
+            src={resolveMediaUrl('images/hero.jpg')} 
+            alt="Mínim Món artesania en fusta" 
+            className="w-full h-full object-cover opacity-60 object-center scale-105 transition-transform duration-1000" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-surface via-black/40 to-black/60"></div>
         </div>
 
-        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 mt-16 md:mt-0">
-          <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest border border-outline/20 px-4 py-1 rounded-DEFAULT backdrop-blur-sm bg-surface/30">
-            Artesania Digital
+        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 py-16">
+          <span className="font-label-sm text-xs text-amber-200 uppercase tracking-widest border border-amber-200/30 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-sm font-bold shadow-xs">
+            Artesania Digital &amp; Marcatge Làser
           </span>
-          <h1 className="font-headline-xl text-headline-xl md:text-[60px] md:leading-[68px] text-primary font-serif font-semibold">
+
+          <h1 className="font-headline-xl text-headline-xl md:text-[60px] md:leading-[68px] text-white font-serif font-semibold drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
             L'essència del que som,<br />
             <span className="inline-block">en miniatura.</span>
           </h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-2">
+
+          <p className="font-body-lg text-body-lg text-amber-50/90 max-w-2xl mt-1 font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
             {STITCH_CRAFTSMAN.subtitle}
           </p>
+
           <div className="mt-6 flex flex-col sm:flex-row gap-4">
             <button 
               onClick={() => { setActiveTab('mons'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md text-body-md hover:bg-primary-container transition-colors duration-300 active:scale-95 cursor-pointer shadow-md"
+              className="bg-[#3D2B1F] text-white border border-amber-200/30 px-8 py-3.5 rounded-xl font-body-md text-body-md hover:bg-[#523B2B] transition-all duration-300 active:scale-95 cursor-pointer shadow-lg font-semibold"
             >
               Descobreix l'Obra
             </button>
             <button 
               onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="border border-primary/20 text-primary px-8 py-3.5 rounded-DEFAULT font-body-md text-body-md hover:bg-surface-variant transition-colors duration-300 active:scale-95 bg-surface/50 backdrop-blur-sm cursor-pointer"
+              className="border border-white/40 text-white px-8 py-3.5 rounded-xl font-body-md text-body-md hover:bg-white/20 transition-all duration-300 active:scale-95 bg-black/30 backdrop-blur-sm cursor-pointer font-medium shadow-md"
             >
               Contacta'm
             </button>

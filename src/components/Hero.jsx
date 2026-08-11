@@ -86,15 +86,15 @@ export default function Hero({ onOpenWizard }) {
           height: 100%;
           object-fit: cover;
           object-position: center;
-          filter: brightness(0.4) contrast(1.1);
+          filter: brightness(0.8) contrast(1.05);
         }
 
         .hero-overlay {
           position: absolute;
           inset: 0;
           background: linear-gradient(180deg, 
-            rgba(18, 16, 14, 0.7) 0%, 
-            rgba(18, 16, 14, 0.85) 60%, 
+            rgba(18, 16, 14, 0.35) 0%, 
+            rgba(18, 16, 14, 0.5) 60%, 
             var(--bg-dark) 100%
           );
           z-index: 2;
