@@ -97,6 +97,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
   // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre
   const filteredProducts = dbProducts.filter(p => {
+    if (p.actiu === false) return false;
     if (selectedFamilia === 'Tots' && selectedGamma === 'Tots') return true;
 
     if (selectedGamma !== 'Tots') {
@@ -424,6 +425,12 @@ function ProductCard({ product, onAddToCart }) {
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
         <div className="aspect-square bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
+          {product.novetat && (
+            <div className="absolute top-3 left-3 bg-[#3D2B1F] text-amber-200 font-bold font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-amber-200/30">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              <span>NOVETAT</span>
+            </div>
+          )}
           {currentDisplayImg ? (
             <img
               src={resolveMediaUrl(currentDisplayImg)}

@@ -54,20 +54,46 @@ export const getEffectiveProductOrder = (product, gammaNom) => {
 export const calculateSmartNextProductOrder = (selectedGammes, allProducts) => {
   if (!allProducts || allProducts.length === 0) return 1;
   const gammas = (selectedGammes || []).filter(g => g && g !== 'Totes' && g !== 'Tots');
+
   if (gammas.length === 0) {
     const maxGlobal = Math.max(0, ...allProducts.map(p => Number(p.ordre || 0)));
     return maxGlobal + 1;
   }
-  const matchingProds = allProducts.filter(p => 
-    (p.gammaIds || []).some(g => gammas.includes(g))
-  );
-  if (matchingProds.length === 0) return 1;
 
-  const maxOrders = matchingProds.map(p => {
-    const perGamOrders = gammas.map(g => (p.ordrePerGamma && p.ordrePerGamma[g] !== undefined) ? Number(p.ordrePerGamma[g]) : Number(p.ordre || 0));
-    return Math.max(...perGamOrders);
+  let maxOrder = 0;
+  gammas.forEach(g => {
+    const matchingProds = allProducts.filter(p => (p.gammaIds || []).includes(g));
+    matchingProds.forEach(p => {
+      let ord = 0;
+      if (p.ordrePerGamma && p.ordrePerGamma[g] !== undefined) {
+        ord = Number(p.ordrePerGamma[g]);
+      } else {
+        ord = Number(p.ordre || 0);
+      }
+      if (ord > maxOrder) maxOrder = ord;
+    });
   });
-  return Math.max(0, ...maxOrders) + 1;
+
+  return maxOrder + 1;
+};
+
+export const getSortedGammes = (dbGammes, dbFamilies, currentFamFilter) => {
+  if (!dbGammes) return [];
+  let filtered = dbGammes;
+  if (currentFamFilter && currentFamFilter !== 'Totes' && currentFamFilter !== 'Tots') {
+    filtered = dbGammes.filter(g => (g.familiaNom || '').toLowerCase() === currentFamFilter.toLowerCase());
+  }
+  return [...filtered].sort((a, b) => {
+    const famA = a.familiaNom || '';
+    const famB = b.familiaNom || '';
+    const famIdxA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famA.toLowerCase());
+    const famIdxB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === famB.toLowerCase());
+    const fA = famIdxA !== -1 ? famIdxA : 999;
+    const fB = famIdxB !== -1 ? famIdxB : 999;
+    if (fA !== fB) return fA - fB;
+
+    return (a.ordre || 1) - (b.ordre || 1);
+  });
 };
 
 export default function PrivateAreaSection({ setActiveTab }) {
@@ -499,13 +525,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
     // Build/update ordrePerGamma map
     const existingOrdrePerGamma = editingProducte.ordrePerGamma || {};
     const updatedOrdrePerGamma = { ...existingOrdrePerGamma };
-    const mainOrdre = Number(editingProducte.ordre || 1);
 
     selectedGammes.forEach(gName => {
       if (updatedOrdrePerGamma[gName] === undefined) {
-        updatedOrdrePerGamma[gName] = mainOrdre;
+        updatedOrdrePerGamma[gName] = calculateSmartNextProductOrder([gName], dbProductesAdmin);
       }
     });
+
+    const mainOrdre = Number(editingProducte.ordre || calculateSmartNextProductOrder(selectedGammes, dbProductesAdmin));
 
     try {
       const docRef = doc(db, "productes", docId);
@@ -529,6 +556,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         ordre: mainOrdre,
         ordrePerGamma: updatedOrdrePerGamma,
         actiu: editingProducte.actiu !== false,
+        novetat: editingProducte.novetat === true,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
 
@@ -541,7 +569,31 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const handleDeleteProducte = async (prodId) => {
     if (window.confirm("Segur que vols esborrar aquest producte de Firestore?")) {
       try {
+        const deletedProd = dbProductesAdmin.find(p => p.id === prodId);
         await deleteDoc(doc(db, "productes", prodId));
+
+        // Re-index/compact remaining products in affected gammes to avoid gaps
+        if (deletedProd && deletedProd.gammaIds) {
+          const remaining = dbProductesAdmin.filter(p => p.id !== prodId);
+          for (const gName of deletedProd.gammaIds) {
+            const prodsInGam = remaining
+              .filter(p => (p.gammaIds || []).includes(gName))
+              .sort((a, b) => getEffectiveProductOrder(a, gName) - getEffectiveProductOrder(b, gName));
+
+            for (let newIdx = 0; newIdx < prodsInGam.length; newIdx++) {
+              const p = prodsInGam[newIdx];
+              const newOrd = newIdx + 1;
+              if (getEffectiveProductOrder(p, gName) !== newOrd) {
+                const newPerGam = { ...(p.ordrePerGamma || {}), [gName]: newOrd };
+                try {
+                  await updateDoc(doc(db, "productes", p.id), { ordrePerGamma: newPerGam });
+                } catch (e) {
+                  console.warn("Re-index error:", e);
+                }
+              }
+            }
+          }
+        }
       } catch (err) {
         alert("Error esborrant producte: " + err.message);
       }
@@ -1591,7 +1643,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-2 bg-surface-container/50 rounded border border-outline/10">
-                  {dbGammes.map((gam) => (
+                  {getSortedGammes(dbGammes, dbFamilies, 'Totes').map((gam) => (
                     <label key={gam.id || gam.nom} className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary p-1 bg-surface rounded border border-outline/10">
                       <input
                         type="checkbox"
@@ -1734,15 +1786,48 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs uppercase font-mono text-outline mb-1">Ordre de Visualització</label>
+                  <label className="block text-xs uppercase font-mono text-outline mb-1">Ordre de Visualització (Automàtic)</label>
                   <input
                     type="number"
-                    min="1"
+                    readOnly
                     value={editingProducte.ordre || 1}
-                    onChange={(e) => setEditingProducte({ ...editingProducte, ordre: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded bg-surface-container border text-xs font-mono font-bold text-primary"
+                    className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono font-bold text-primary opacity-75 cursor-not-allowed"
                   />
+                  <p className="text-[10px] text-on-surface-variant mt-1 leading-tight">
+                    💡 Assignat automàticament per la gamma. Canvia l'ordre amb les fletxes (▲/▼) de la taula.
+                  </p>
                 </div>
+              </div>
+
+              {/* Switches d'Estat: Actiu / Inactiu i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProducte.actiu !== false}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, actiu: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold">Actiu al Catàleg</span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment al públic.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProducte.novetat === true}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, novetat: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold text-amber-900 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Destacar com a Novetat
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Mostra la vinyeta "NOVETAT" al catàleg.</span>
+                  </div>
+                </label>
               </div>
 
               {/* Botons d'Acció */}
@@ -1793,11 +1878,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary font-semibold cursor-pointer outline-none focus:border-primary"
                   >
                     <option value="Totes">Totes les Gammes</option>
-                    {dbGammes
-                      .filter(g => adminFamFilter === 'Totes' || (g.familiaNom || '').toLowerCase().includes(adminFamFilter.toLowerCase()))
-                      .map(g => (
-                        <option key={g.id} value={g.nom}>{g.nom} ({g.familiaNom})</option>
-                      ))}
+                    {getSortedGammes(dbGammes, dbFamilies, adminFamFilter).map(g => (
+                      <option key={g.id || g.nom} value={g.nom}>
+                        {adminFamFilter === 'Totes' ? `(${g.familiaNom || 'Sense família'}) ${g.nom}` : g.nom}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1931,7 +2016,21 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 })()}
                               </div>
                             </td>
-                            <td className="p-4 font-semibold text-primary">{p.nom}</td>
+                            <td className="p-4 font-semibold text-primary">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span>{p.nom}</span>
+                                {p.novetat && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-0.5 shadow-2xs">
+                                    <Sparkles className="w-3 h-3 text-amber-600" /> NOVETAT
+                                  </span>
+                                )}
+                                {p.actiu === false && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 border border-gray-400 inline-flex items-center gap-0.5">
+                                    Inactiu
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="p-4 text-xs text-on-surface-variant font-medium">
                               {(() => {
                                 const resolvedFamNames = Array.from(new Set(
