@@ -3,13 +3,46 @@ import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
+import { Sparkles } from 'lucide-react';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
+
+// Error Boundary per protegir la galeria de Móns Mínims davant dades inusuals
+class ProjectCardErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error al carregar el projecte:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/20 text-xs text-on-surface-variant space-y-2">
+          <p className="font-semibold text-primary">⚠️ No s'ha pogut renderitzar aquest projecte específicament.</p>
+          {this.state.error && (
+            <p className="font-mono text-[10px] text-error/80 bg-error/5 p-2 rounded border border-error/20">
+              Detall tècnic: {this.state.error.message || String(this.state.error)}
+            </p>
+          )}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
   const [filter, setFilter] = useState('Tots');
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
   const [projectsList, setProjectsList] = useState(null);
-  const [branquesList, setBranquesList] = useState(['Tots', ...DEFAULT_BRANQUES.map(b => b.nom)]);
+  const [branquesList, setBranquesList] = useState(['Tots', 'Novetats', ...DEFAULT_BRANQUES.map(b => b.nom)]);
 
   useEffect(() => {
     // Listen to real-time 'projectes'
@@ -37,7 +70,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
     const unsubscribeBranques = onSnapshot(qBranques, (snapshot) => {
       if (!snapshot.empty) {
         const loadedBranques = snapshot.docs.map(doc => doc.data().nom);
-        setBranquesList(['Tots', ...loadedBranques]);
+        setBranquesList(['Tots', 'Novetats', ...loadedBranques]);
       }
     }, (err) => {
       console.warn("Utilitzant branques locals per defecte:", err);
@@ -49,21 +82,25 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
     };
   }, []);
 
-  // Filter projects by category (multi-category support)
+  // Filter projects by category (multi-category support & Novetats filter)
   const currentList = projectsList || [];
   const filteredProjects = filter === 'Tots' 
     ? currentList 
-    : currentList.filter(p => {
-        const pBranques = Array.isArray(p.branques) && p.branques.length > 0
-          ? p.branques
-          : [p.branca || p.category || ''];
-        return pBranques.some(b => b.toLowerCase() === filter.toLowerCase());
-      });
+    : (filter === 'Novetats'
+        ? currentList.filter(p => p && p.novetat === true)
+        : currentList.filter(p => {
+            if (!p) return false;
+            const pBranques = Array.isArray(p.branques) && p.branques.length > 0
+              ? p.branques
+              : [p.branca || p.category || ''];
+            return pBranques.some(b => String(b || '').toLowerCase() === String(filter || '').toLowerCase());
+          })
+      );
 
   // Sort projects by Data de Creació (default newest first)
   const sortedProjects = [...filteredProjects].sort((a, b) => {
-    const dateA = a.dataCreacio || a.data || '';
-    const dateB = b.dataCreacio || b.data || '';
+    const dateA = String(a?.dataCreacio || a?.data || '');
+    const dateB = String(b?.dataCreacio || b?.data || '');
     if (!dateA && !dateB) return 0;
     if (!dateA) return 1;
     if (!dateB) return -1;
@@ -77,47 +114,68 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
 
   return (
     <div className="pt-28 pb-32 animate-fadeIn">
-      {/* Hero Header */}
+      {/* Hero Header amb Fons Càlid d'Artesania */}
       <header className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16 text-center">
-        <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
-        <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">L'Art de la Precisió</h1>
-        
-        {/* Poetic Intro Block */}
-        <div className="max-w-3xl mx-auto space-y-4 text-on-surface-variant leading-relaxed text-base md:text-lg mb-10">
-          <h2 className="font-serif text-lg md:text-xl text-primary font-medium">
-            Cada línia té un nom. Cada volum, una ànima.
-          </h2>
-          <p>
-            Els projectes que estàs a punt de veure no són fruit d'un disseny de catàleg, sinó de la vida mateixa. Tots tenen protagonistes reals i neixen d'històries autèntiques, de records compartits o d'emocions que han deixat empremta.
-          </p>
-          <p>
-            Però el camí per arribar-hi és un acte de fe: qui demana un <span className="notranslate" translate="no">Món Mínim</span> no en dissenya el resultat. Simplement ens descriu records, ens parla de moments i ens confia les seves emocions. A partir d'aquí, a <span className="notranslate" translate="no">Mínim Món</span> ens inventem l'escenari: decidim la forma i les mides, escollim els colors i seleccionem els petits objectes que donaran vida a la història de manera física o intangible.
-          </p>
-          <p>
-            El client confia i es deixa portar per la nostra imaginació. El resultat és un pacte de complicitat on la sorpresa és doble: es meravella tant qui fa el regal en veure'l materialitzat per primera vegada, com el destinatari final en rebre'l.
-          </p>
-          <p className="font-serif text-xl text-primary italic font-medium pt-2">
-            Deixa't inspirar.
-          </p>
+        <div className="relative overflow-hidden rounded-3xl p-8 md:p-14 border border-outline/15 bg-surface-container-lowest shadow-md">
+          {/* Imatge de fons atmosfèrica amb degradats per omplir el desert de fons */}
+          <div 
+            className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-multiply blur-[0.5px]"
+            style={{ backgroundImage: `url('/images/mons_minims_hero_bg.png')` }}
+          ></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-surface-container-lowest/50 via-surface-container-lowest/80 to-surface-container-lowest"></div>
+
+          <div className="relative z-10 max-w-3xl mx-auto">
+            <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
+            <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">L'Art de la Precisió</h1>
+            
+            {/* Poetic Intro Block */}
+            <div className="space-y-4 text-on-surface-variant leading-relaxed text-base md:text-lg mb-6">
+              <h2 className="font-serif text-lg md:text-xl text-primary font-medium">
+                Cada línia té un nom. Cada volum, una ànima.
+              </h2>
+              <p>
+                Els projectes que estàs a punt de veure no són fruit d'un disseny de catàleg, sinó de la vida mateixa. Tots tenen protagonistes reals i neixen d'històries autèntiques, de records compartits o d'emocions que han deixat empremta.
+              </p>
+              <p>
+                Però el camí per arribar-hi és un acte de fe: qui demana un <span className="notranslate" translate="no">Món Mínim</span> no en dissenya el resultat. Simplement ens descriu records, ens parla de moments i ens confia les seves emocions. A partir d'aquí, a <span className="notranslate" translate="no">Mínim Món</span> ens inventem l'escenari: decidim la forma i les mides, escollim els colors i seleccionem els petits objectes que donaran vida a la història de manera física o intangible.
+              </p>
+              <p>
+                El client confia i es deixa portar per la nostra imaginació. El resultat és un pacte de complicitat on la sorpresa és doble: es meravella tant qui fa el regal en veure'l materialitzat per primera vegada, com el destinatari final en rebre'l.
+              </p>
+              <p className="font-serif text-xl text-primary italic font-medium pt-2">
+                Deixa't inspirar.
+              </p>
+            </div>
+          </div>
         </div>
         
         {/* Controls Bar: Category Filters & Sort Selector */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 mt-10 max-w-container-max mx-auto">
-          {/* Category Filters */}
+          {/* Category Filters amb la píndola 'Novetats' */}
           <div className="flex justify-center flex-wrap gap-2 flex-1">
-            {branquesList.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setFilter(cat)}
-                className={`px-4 py-1.5 rounded-full font-body-md text-xs transition-all cursor-pointer ${
-                  filter === cat 
-                    ? 'bg-primary text-on-primary font-medium shadow-sm' 
-                    : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline/15'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
+            {branquesList.map((cat) => {
+              const isNovetats = cat === 'Novetats';
+              const isSelected = filter === cat;
+              
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setFilter(cat)}
+                  className={`px-4 py-1.5 rounded-full font-body-md text-xs transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                    isSelected 
+                      ? (isNovetats 
+                          ? 'bg-[#3D2B1F] text-amber-200 font-bold border border-amber-200/40 shadow-sm' 
+                          : 'bg-primary text-on-primary font-medium shadow-sm')
+                      : (isNovetats 
+                          ? 'bg-surface-container text-amber-800 hover:bg-surface-container-high border border-amber-800/20 font-semibold' 
+                          : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline/15')
+                  }`}
+                >
+                  {isNovetats && <Sparkles className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-400' : 'text-amber-700'}`} />}
+                  <span>{cat}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Sort Order Control */}
@@ -175,58 +233,65 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
               mainImage = resolveMediaUrl(mainImage);
 
               return (
-                <article 
-                  key={project.id || index} 
-                  className="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center group cursor-pointer animate-fadeIn"
-                  onClick={() => onSelectProject(project)}
-                >
-                  {/* Image Side */}
-                  <div className={`md:col-span-7 ${isEven ? 'order-2 md:order-1' : 'md:col-start-6 order-2'} relative`}>
-                    <div className={`absolute inset-0 bg-surface-container-low ${isEven ? 'translate-x-4' : '-translate-x-4'} translate-y-4 rounded transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2`}></div>
-                    <img 
-                      className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]" 
-                      alt={title}
-                      src={mainImage}
-                    />
-                  </div>
-
-                  {/* Text Side */}
-                  <div className={`md:col-span-5 ${isEven ? 'md:col-start-8 order-1 md:order-2' : 'md:col-start-1 md:row-start-1 order-1'} mb-8 md:mb-0`}>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {displayBranques.map((bName, idx) => (
-                        bName && (
-                          <span key={idx} className="px-3 py-1 bg-surface-container-high rounded text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest">
-                            {bName}
-                          </span>
-                        )
-                      ))}
-                      {projectDataCreacio && (
-                        <span className="px-3 py-1 bg-primary/10 text-primary rounded text-label-sm font-mono text-xs font-semibold">
-                          📅 {formatDateDDMMAAAA(projectDataCreacio)}
-                        </span>
-                      )}
+                <ProjectCardErrorBoundary key={project.id || index}>
+                  <article 
+                    className="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center group cursor-pointer animate-fadeIn"
+                    onClick={() => onSelectProject(project)}
+                  >
+                    {/* Image Side */}
+                    <div className={`md:col-span-7 ${isEven ? 'order-2 md:order-1' : 'md:col-start-6 order-2'} relative`}>
+                      <div className={`absolute inset-0 bg-surface-container-low ${isEven ? 'translate-x-4' : '-translate-x-4'} translate-y-4 rounded transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2`}></div>
+                      <img 
+                        className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]" 
+                        alt={title}
+                        src={mainImage}
+                      />
                     </div>
 
-                    <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 font-serif text-3xl">
-                      {title}
-                    </h2>
+                    {/* Text Side */}
+                    <div className={`md:col-span-5 ${isEven ? 'md:col-start-8 order-1 md:order-2' : 'md:col-start-1 md:row-start-1 order-1'} mb-8 md:mb-0`}>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        {displayBranques.map((bName, idx) => (
+                          bName && (
+                            <span key={idx} className="px-3 py-1 bg-surface-container-high rounded text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest">
+                              {bName}
+                            </span>
+                          )
+                        ))}
+                        {projectDataCreacio && (
+                          <span className="px-3 py-1 bg-primary/10 text-primary rounded text-label-sm font-mono text-xs font-semibold">
+                            📅 {formatDateDDMMAAAA(projectDataCreacio)}
+                          </span>
+                        )}
+                        {project.novetat && (
+                          <span className="px-3 py-1 bg-[#3D2B1F] text-amber-200 font-bold font-mono text-xs uppercase tracking-wider rounded-full shadow-sm inline-flex items-center gap-1.5 border border-amber-200/30">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            <span>NOVETAT</span>
+                          </span>
+                        )}
+                      </div>
 
-                    <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
-                      {subtitle}
-                    </p>
+                      <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 font-serif text-3xl">
+                        {title}
+                      </h2>
 
-                    <p className="font-body-md text-body-md text-on-surface-variant/80 mb-6 text-sm line-clamp-3">
-                      {description}
-                    </p>
+                      <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
+                        {subtitle}
+                      </p>
 
-                    <button className="font-body-md text-primary font-medium flex items-center gap-2 group-hover:translate-x-1 transition-transform">
-                      <span>Explora la fitxa del projecte</span>
-                      <span className="material-symbols-outlined text-sm notranslate" translate="no" aria-hidden="true">arrow_forward</span>
-                    </button>
+                      <p className="font-body-md text-body-md text-on-surface-variant/80 mb-6 text-sm line-clamp-3">
+                        {description}
+                      </p>
 
-                    <div className="laser-line mt-6"></div>
-                  </div>
-                </article>
+                      <button className="font-body-md text-primary font-medium flex items-center gap-2 group-hover:translate-x-1 transition-transform">
+                        <span>Explora la fitxa del projecte</span>
+                        <span className="material-symbols-outlined text-sm notranslate" translate="no" aria-hidden="true">arrow_forward</span>
+                      </button>
+
+                      <div className="laser-line mt-6"></div>
+                    </div>
+                  </article>
+                </ProjectCardErrorBoundary>
               );
             })}
           </div>

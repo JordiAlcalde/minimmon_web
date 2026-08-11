@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Send, CheckCircle2, MessageSquare, Sparkles } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Send, CheckCircle2, MessageSquare, Sparkles, FileText, Paperclip } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { db } from '../firebase';
@@ -199,11 +199,22 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                           {/* Opcions Triades */}
                           {Object.keys(item.opcionsTriades || {}).length > 0 && (
                             <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-outline">
-                              {Object.entries(item.opcionsTriades).map(([k, v]) => (
-                                <span key={k} className="bg-surface px-2 py-0.5 rounded border border-outline/10">
-                                  {k}: <strong>{v}</strong>
-                                </span>
-                              ))}
+                              {Object.entries(item.opcionsTriades).map(([k, v]) => {
+                                const isFileObj = v && typeof v === 'object' && v.fileName;
+                                return (
+                                  <span key={k} className="bg-surface px-2 py-0.5 rounded border border-outline/10 inline-flex items-center gap-1">
+                                    <span>{k}:</span>
+                                    {isFileObj ? (
+                                      <span className="font-semibold text-primary inline-flex items-center gap-1">
+                                        {v.isImage ? <img src={v.dataUrl} alt="" className="w-3.5 h-3.5 rounded object-cover" /> : <FileText className="w-3 h-3 text-primary" />}
+                                        <span>{v.fileName} ({v.fileSize})</span>
+                                      </span>
+                                    ) : (
+                                      <strong className="text-primary">{String(v)}</strong>
+                                    )}
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

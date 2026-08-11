@@ -450,6 +450,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         titolVideo: editingProject.titolVideo || '',
         ordre: Number(editingProject.ordre || 1),
         actiu: editingProject.actiu !== false,
+        novetat: editingProject.novetat === true,
         media: resolvedMedia
       }, { merge: true });
 
@@ -2335,6 +2336,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   video: '',
                   ordre: dbProjects.length + 1,
                   actiu: true,
+                  novetat: false,
                   media: []
                 })}
                 className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
@@ -2734,6 +2736,37 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* Switches d'Estat: Actiu / Inactiu i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProject.actiu !== false}
+                    onChange={(e) => setEditingProject({ ...editingProject, actiu: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold">Actiu a Móns Mínims</span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment de la galeria pública.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProject.novetat === true}
+                    onChange={(e) => setEditingProject({ ...editingProject, novetat: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold text-amber-900 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" /> Destacar com a Novetat
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Mostra la vinyeta "NOVETAT" a la galeria.</span>
+                  </div>
+                </label>
+              </div>
+
               {/* Form Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-outline/15">
                 <button 
@@ -2782,7 +2815,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
                           <td className="p-4 font-mono text-xs">{p.ordre || 1}</td>
                           <td className="p-4">
-                            <div className="font-semibold text-primary">{p.titol || p.title}</div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-primary">{p.titol || p.title}</span>
+                              {p.novetat && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-0.5 shadow-2xs">
+                                  <Sparkles className="w-3 h-3 text-amber-600" /> NOVETAT
+                                </span>
+                              )}
+                              {p.actiu === false && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 border border-gray-400 inline-flex items-center gap-0.5">
+                                  Inactiu
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-on-surface-variant">{p.subtitol || p.subtitle}</div>
                           </td>
                           <td className="p-4">

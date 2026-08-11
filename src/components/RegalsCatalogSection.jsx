@@ -5,7 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
@@ -97,17 +97,24 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
   // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre
   const filteredProducts = dbProducts.filter(p => {
+    if (!p) return false;
     if (p.actiu === false) return false;
+    if (selectedFamilia === 'Novetats') {
+      return p.novetat === true;
+    }
     if (selectedFamilia === 'Tots' && selectedGamma === 'Tots') return true;
 
+    const selGamLower = String(selectedGamma || '').toLowerCase();
+    const selFamLower = String(selectedFamilia || '').toLowerCase();
+
     if (selectedGamma !== 'Tots') {
-      const matchGam = (p.gammaIds || []).some(g => g.toLowerCase().includes(selectedGamma.toLowerCase()));
+      const matchGam = (p.gammaIds || []).some(g => String(g || '').toLowerCase().includes(selGamLower));
       if (matchGam) return true;
     }
     if (selectedFamilia !== 'Tots') {
-      const matchFam = (p.gammaIds || []).some(g => g.toLowerCase().includes(selectedFamilia.toLowerCase())) ||
-        (p.familaIds || []).some(f => f.toLowerCase().includes(selectedFamilia.toLowerCase())) ||
-        p.nom.toLowerCase().includes(selectedFamilia.toLowerCase());
+      const matchFam = (p.gammaIds || []).some(g => String(g || '').toLowerCase().includes(selFamLower)) ||
+        (p.familaIds || []).some(f => String(f || '').toLowerCase().includes(selFamLower)) ||
+        String(p.nom || '').toLowerCase().includes(selFamLower);
       if (matchFam && selectedGamma === 'Tots') return true;
     }
     return false;
@@ -117,11 +124,11 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
     const ordB = getEffectiveProductOrder(b, gamFilter);
     if (ordA !== ordB) return ordA - ordB;
 
-    return (a.codi || '').localeCompare(b.codi || '');
+    return String(a?.codi || '').localeCompare(String(b?.codi || ''));
   });
 
   // Obtenir la imatge activa per a la miniatura del filtre (amb fallback a images/tots_productes.jpg)
-  const currentFamObj = activeFamilies.find(f => f.nom.toLowerCase() === selectedFamilia.toLowerCase());
+  const currentFamObj = activeFamilies.find(f => f && String(f.nom || '').toLowerCase() === String(selectedFamilia || '').toLowerCase());
   const activeFamilyImage = currentFamObj?.imatge 
     ? resolveMediaUrl(currentFamObj.imatge) 
     : resolveMediaUrl('images/tots_productes.jpg');
@@ -129,11 +136,13 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
   // Obtenir les gammes disponibles per a la família seleccionada
   const getSubGammesForSelectedFamily = () => {
     if (selectedFamilia === 'Tots') return [];
+    const selFamLower = String(selectedFamilia || '').toLowerCase();
 
     return dbGammes
-      .filter(g => g.familiaNom && g.familiaNom.toLowerCase().includes(selectedFamilia.toLowerCase()))
+      .filter(g => g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(selFamLower))
       .sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
-      .map(g => g.nom);
+      .map(g => g.nom)
+      .filter(Boolean);
   };
 
   const currentSubGammes = getSubGammesForSelectedFamily();
@@ -162,7 +171,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
             {activeFamilies.map((fam) => {
               // Obtenir les Gammes d'aquesta Família ordenades per ordre
               const famGammes = dbGammes.filter(g => 
-                g.familiaNom && g.familiaNom.toLowerCase().includes(fam.nom.toLowerCase())
+                g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(fam?.nom || '').toLowerCase())
               ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
 
               const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : '';
@@ -261,9 +270,25 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
               <div className="flex-1 space-y-3">
                 {/* Fila 1: Botons de Famílies (Colors Primaris) */}
                 <div className="flex flex-wrap items-center gap-2">
+                  {/* Botó Novetats integrat en el disseny del catàleg */}
+                  <button
+                    onClick={() => {
+                      setSelectedFamilia('Novetats');
+                      setSelectedGamma('Tots');
+                    }}
+                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      selectedFamilia === 'Novetats'
+                        ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
+                        : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                    }`}
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${selectedFamilia === 'Novetats' ? 'text-amber-400' : 'text-amber-700'}`} />
+                    <span>Novetats</span>
+                  </button>
+
                   {activeFamilies.map(famObj => {
                     const fam = famObj.nom;
-                    const isActive = selectedFamilia.toLowerCase() === fam.toLowerCase();
+                    const isActive = String(selectedFamilia || '').toLowerCase() === String(fam || '').toLowerCase();
                     return (
                       <button
                         key={famObj.id || fam}
@@ -298,7 +323,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
                     {/* Sub-Gammes individuals */}
                     {currentSubGammes.map(gam => {
-                      const isGamActive = selectedGamma.toLowerCase() === gam.toLowerCase();
+                      const isGamActive = String(selectedGamma || '').toLowerCase() === String(gam || '').toLowerCase();
                       return (
                         <button
                           key={gam}
@@ -332,7 +357,9 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
               </div>
             ) : (
               filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} onAddToCart={addToCart} />
+                <ProductCardErrorBoundary key={product.id || product.nom}>
+                  <ProductCard product={product} onAddToCart={addToCart} />
+                </ProductCardErrorBoundary>
               ))
             )}
           </section>
@@ -370,11 +397,48 @@ function isValidImagePath(str) {
     /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
 }
 
+// Error Boundary per prevenir que un error a la fitxa d'un regal faci caure el catàleg en blanc
+class ProductCardErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error al carregar la fitxa de producte:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/20 text-xs text-on-surface-variant space-y-2">
+          <p className="font-semibold text-primary">⚠️ No s'ha pogut renderitzar aquesta fitxa de regal específicament.</p>
+          {this.state.error && (
+            <p className="font-mono text-[10px] text-error/80 bg-error/5 p-2 rounded border border-error/20">
+              Detall tècnic: {this.state.error.message || String(this.state.error)}
+            </p>
+          )}
+          <p>Revisa les opcions de personalització o les dades de la peça a l'àrea privada.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
 function ProductCard({ product, onAddToCart }) {
-  // Llista d'imatges vàlides
-  const rawImages = (product.imatges && product.imatges.length > 0) ? product.imatges : [product.imatgePrincipal].filter(Boolean);
-  const imagesList = rawImages.filter(isValidImagePath).length > 0 ? rawImages.filter(isValidImagePath) : rawImages;
+  // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
+  const rawImages = Array.isArray(product.imatges)
+    ? product.imatges
+    : (typeof product.imatges === 'string' && product.imatges.trim() ? [product.imatges.trim()] : [product.imatgePrincipal].filter(Boolean));
+
+  const validImgs = Array.isArray(rawImages) ? rawImages.filter(isValidImagePath) : [];
+  const imagesList = validImgs.length > 0 ? validImgs : (Array.isArray(rawImages) ? rawImages : []);
 
   // Imatge principal per defecte (privilegia la primera imatge vàlida)
   const defaultMainImage = (isValidImagePath(product.imatgePrincipal) ? product.imatgePrincipal : null) || imagesList[0] || product.imatgePrincipal || '';
@@ -382,19 +446,68 @@ function ProductCard({ product, onAddToCart }) {
   const [selectedImg, setSelectedImg] = useState(defaultMainImage);
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
+  const safeOpcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
+
   const [selectedOptions, setSelectedOptions] = useState(() => {
     const initial = {};
-    (product.opcionsPersonalitzacio || []).forEach(opc => {
-      if (opc.tipus === 'desplegable' && opc.valors) {
+    safeOpcions.forEach((opc, idx) => {
+      if (!opc || typeof opc !== 'object') return;
+      const key = opc.titol || `Opció ${idx + 1}`;
+      if (opc.tipus === 'desplegable' && opc.valors && typeof opc.valors === 'string') {
         const valorsArr = opc.valors.split(',').map(s => s.trim());
-        initial[opc.titol] = valorsArr[0] || '';
+        initial[key] = valorsArr[0] || '';
       } else {
-        initial[opc.titol] = '';
+        initial[key] = '';
       }
     });
     return initial;
   });
   const [addedToast, setAddedToast] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState({});
+
+  const handleFileUpload = (title, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("El fitxer és massa gran (màxim 5 MB). Utilitza una imatge o PDF més petit.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target.result;
+      const isImg = file.type.startsWith('image/');
+      const formattedSize = file.size > 1024 * 1024 
+        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` 
+        : `${Math.round(file.size / 1024)} KB`;
+
+      const fileObj = {
+        fileName: file.name,
+        fileSize: formattedSize,
+        fileType: file.type,
+        isImage: isImg,
+        dataUrl: dataUrl
+      };
+
+      setAttachedFiles(prev => ({ ...prev, [title]: fileObj }));
+      setSelectedOptions(prev => ({ ...prev, [title]: fileObj }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveFile = (title) => {
+    setAttachedFiles(prev => {
+      const updated = { ...prev };
+      delete updated[title];
+      return updated;
+    });
+    setSelectedOptions(prev => {
+      const updated = { ...prev };
+      delete updated[title];
+      return updated;
+    });
+  };
 
   // Sincronitzar la imatge seleccionada quan carreguen dades noves de Firestore
   useEffect(() => {
@@ -518,30 +631,74 @@ function ProductCard({ product, onAddToCart }) {
             <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">PERSONALITZA AL TEU GUST:</h4>
 
             <div className="flex flex-col gap-3">
-              {product.opcionsPersonalitzacio.map((opc, idx) => (
-                <div key={idx} className="space-y-1">
-                  <label className="block text-xs font-medium text-on-surface-variant">{opc.titol}</label>
-                  {opc.tipus === 'desplegable' && opc.valors ? (
-                    <select
-                      value={selectedOptions[opc.titol] || ''}
-                      onChange={(e) => setSelectedOptions({ ...selectedOptions, [opc.titol]: e.target.value })}
-                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans"
-                    >
-                      {opc.valors.split(',').map((val, vIdx) => (
-                        <option key={vIdx} value={val.trim()}>{val.trim()}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder={opc.valors || "Escriu la teva opció..."}
-                      value={selectedOptions[opc.titol] || ''}
-                      onChange={(e) => setSelectedOptions({ ...selectedOptions, [opc.titol]: e.target.value })}
-                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary"
-                    />
-                  )}
-                </div>
-              ))}
+              {(product.opcionsPersonalitzacio || []).map((opc, idx) => {
+                if (!opc || typeof opc !== 'object') return null;
+                const key = opc.titol || opc.nom || `Opció ${idx + 1}`;
+                const opcType = (opc.tipus || '').toLowerCase();
+                const valorsStr = typeof opc.valors === 'string' ? opc.valors : '';
+
+                return (
+                  <div key={idx} className="space-y-1">
+                    <label className="block text-xs font-medium text-on-surface-variant">{key}</label>
+                    {opcType === 'desplegable' && valorsStr ? (
+                      <select
+                        value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
+                        onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value })}
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans"
+                      >
+                        {valorsStr.split(',').map((val, vIdx) => (
+                          <option key={vIdx} value={val.trim()}>{val.trim()}</option>
+                        ))}
+                      </select>
+                    ) : opcType === 'fitxer' || opcType === 'imatge' ? (
+                      <div className="space-y-2">
+                        <label className="flex items-center justify-center gap-2 py-2.5 px-4 bg-surface border border-dashed border-primary/40 hover:border-primary rounded-xl transition-all cursor-pointer text-xs text-primary font-semibold shadow-2xs hover:bg-primary/5">
+                          <Paperclip className="w-4 h-4 text-primary shrink-0" />
+                          <span>{attachedFiles[key] ? "Canviar fitxer / imatge" : "Adjuntar imatge o logotip (PNG, SVG, JPG, PDF)"}</span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf,.svg"
+                            onChange={(e) => handleFileUpload(key, e)}
+                            className="hidden"
+                          />
+                        </label>
+
+                        {attachedFiles[key] && (
+                          <div className="flex items-center justify-between p-2.5 bg-primary/5 border border-primary/20 rounded-xl text-xs">
+                            <div className="flex items-center gap-2.5 overflow-hidden">
+                              {attachedFiles[key].isImage ? (
+                                <img src={attachedFiles[key].dataUrl} alt="Preview" className="w-9 h-9 rounded-lg object-cover border border-outline/20 shrink-0 shadow-xs" />
+                              ) : (
+                                <FileText className="w-7 h-7 text-primary shrink-0" />
+                              )}
+                              <div className="truncate">
+                                <p className="font-semibold text-primary truncate">{attachedFiles[key].fileName}</p>
+                                <p className="text-[10px] text-on-surface-variant font-mono">{attachedFiles[key].fileSize}</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFile(key)}
+                              className="p-1.5 text-error hover:bg-error-container/30 rounded-lg transition-colors shrink-0 cursor-pointer"
+                              title="Eliminar fitxer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={valorsStr || "Escriu la teva opció..."}
+                        value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
+                        onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value })}
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

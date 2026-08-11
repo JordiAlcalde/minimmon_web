@@ -13,6 +13,56 @@ import { FloatingWhatsApp } from './components/WhatsAppButton';
 import { BudgetProvider } from './context/BudgetContext';
 import BudgetDrawer from './components/BudgetDrawer';
 
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Error global de renderitzat:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-6 bg-surface text-on-surface">
+          <div className="max-w-xl w-full bg-surface-container-lowest p-8 rounded-2xl border border-error/30 shadow-xl text-center space-y-4">
+            <h2 className="font-serif text-xl font-semibold text-primary">S'ha produït un error de lectura de dades</h2>
+            <p className="text-xs text-on-surface-variant">
+              Hi ha hagut un detall de dades incompatible al navegar per aquesta secció.
+            </p>
+            {this.state.error && (
+              <div className="text-left bg-error/5 p-4 rounded-xl border border-error/20 space-y-2 overflow-hidden">
+                <p className="font-mono text-xs font-bold text-error">{this.state.error.message || String(this.state.error)}</p>
+                {this.state.error.stack && (
+                  <pre className="font-mono text-[10px] text-error/80 overflow-x-auto max-h-40 whitespace-pre-wrap">
+                    {this.state.error.stack}
+                  </pre>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.reload();
+              }}
+              className="px-6 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer shadow-md"
+            >
+              Recarregar la pàgina
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('inici');
   const [catalogResetKey, setCatalogResetKey] = useState(0);
@@ -28,16 +78,17 @@ export default function App() {
   };
 
   return (
-    <BudgetProvider>
-      <div className="min-h-screen flex flex-col relative bg-surface text-on-surface">
-      {/* Texture overlay */}
-      <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
+    <GlobalErrorBoundary>
+      <BudgetProvider>
+        <div className="min-h-screen flex flex-col relative bg-surface text-on-surface">
+        {/* Texture overlay */}
+        <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-      {/* Header */}
-      <Header activeTab={activeTab} setActiveTab={handleSelectTab} />
+        {/* Header */}
+        <Header activeTab={activeTab} setActiveTab={handleSelectTab} />
 
-      {/* Main Content Area */}
-      <main className="flex-grow z-10">
+        {/* Main Content Area */}
+        <main className="flex-grow z-10">
         {activeTab === 'inici' && (
           <IniciSection 
             setActiveTab={handleSelectTab} 
@@ -99,5 +150,6 @@ export default function App() {
       <BudgetDrawer />
     </div>
     </BudgetProvider>
+    </GlobalErrorBoundary>
   );
 }
