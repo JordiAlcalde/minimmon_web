@@ -8,6 +8,7 @@ import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2 } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
+import ProductSimulator from './ProductSimulator';
 
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
@@ -496,6 +497,23 @@ function ProductCard({ product, onAddToCart }) {
   const [attachedFiles, setAttachedFiles] = useState({});
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Detectar si el producte és el clauer "Inicial" o té camps de gravat
+  const isInicialKeychain = String(product.nom || '').toLowerCase().includes('inicial') || 
+    safeOpcions.some(o => String(o?.titol || '').toLowerCase().includes('inicial'));
+
+  const initialKey = safeOpcions.find(o => {
+    const t = String(o?.titol || '').toLowerCase();
+    return t.includes('inicial') || t.includes('cara a') || t.includes('lletra');
+  })?.titol || (safeOpcions[0]?.titol || 'Inicial (Cara A)');
+
+  const phraseKey = safeOpcions.find(o => {
+    const t = String(o?.titol || '').toLowerCase();
+    return t.includes('frase') || t.includes('cara b') || t.includes('text') || t.includes('dedicatòria');
+  })?.titol || (safeOpcions[1]?.titol || 'Text (Cara B)');
+
+  const simInitial = typeof selectedOptions[initialKey] === 'string' ? selectedOptions[initialKey] : '';
+  const simPhrase = typeof selectedOptions[phraseKey] === 'string' ? selectedOptions[phraseKey] : '';
+
   const handleShareProductLink = async () => {
     await copyDirectLink('producte', product.id);
     setCopiedLink(true);
@@ -671,6 +689,14 @@ function ProductCard({ product, onAddToCart }) {
           </div>
         )}
 
+        {/* Simulador en Temps Real (si és clauer inicial o té camps de gravat) */}
+        {isInicialKeychain && (
+          <ProductSimulator
+            initialLetter={selectedOptions[initialKey] || ''}
+            phraseText={selectedOptions[phraseKey] || ''}
+          />
+        )}
+
         {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
@@ -682,10 +708,25 @@ function ProductCard({ product, onAddToCart }) {
                 const key = opc.titol || opc.nom || `Opció ${idx + 1}`;
                 const opcType = (opc.tipus || '').toLowerCase();
                 const valorsStr = typeof opc.valors === 'string' ? opc.valors : '';
+                const lowerKey = key.toLowerCase();
+                const isInitialField = lowerKey.includes('inicial') || lowerKey.includes('cara a') || lowerKey.includes('lletra');
+                const isPhraseField = lowerKey.includes('frase') || lowerKey.includes('cara b') || lowerKey.includes('text') || lowerKey.includes('dedicatòria');
 
                 return (
                   <div key={idx} className="space-y-1">
-                    <label className="block text-xs font-medium text-on-surface-variant">{key}</label>
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="font-medium text-on-surface-variant">
+                        {key}
+                        {isInitialField && <span className="text-[10px] text-primary/70 font-mono ml-1">(1 lletra majúscula)</span>}
+                        {isPhraseField && <span className="text-[10px] text-primary/70 font-mono ml-1">(Màxim 80 caràcters, admet salts de línia amb CTRL+INTRO)</span>}
+                      </label>
+                      {isPhraseField && (
+                        <span className={`text-[10px] font-mono font-semibold ${(selectedOptions[key] || '').length >= 70 ? 'text-amber-600 font-bold' : 'text-on-surface-variant/70'}`}>
+                          {(selectedOptions[key] || '').length} / 80
+                        </span>
+                      )}
+                    </div>
+
                     {opcType === 'desplegable' && valorsStr ? (
                       <select
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
@@ -733,6 +774,27 @@ function ProductCard({ product, onAddToCart }) {
                           </div>
                         )}
                       </div>
+                    ) : isInitialField ? (
+                      <input
+                        type="text"
+                        maxLength={1}
+                        placeholder="Ex: J"
+                        value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
+                        onChange={(e) => {
+                          const val = e.target.value.toUpperCase().replace(/[^A-ZÀ-ÜÑ]/gi, '');
+                          setSelectedOptions({ ...selectedOptions, [key]: val });
+                        }}
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-sm text-primary font-bold tracking-widest outline-none focus:border-primary uppercase"
+                      />
+                    ) : isPhraseField ? (
+                      <textarea
+                        rows={3}
+                        maxLength={80}
+                        placeholder={"Es pitjor apuntar massa baix\ni encertar que apuntar massa\namunt i fallar."}
+                        value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
+                        onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value.slice(0, 80) })}
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans resize-none"
+                      />
                     ) : (
                       <input
                         type="text"

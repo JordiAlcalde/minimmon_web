@@ -318,7 +318,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        <span>Sol·licitar PressupostSense Compromís</span>
+                        <span>Sol·licitar Pressupost Sense Compromís</span>
                       </>
                     )}
                   </button>
