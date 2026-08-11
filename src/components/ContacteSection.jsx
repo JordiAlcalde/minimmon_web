@@ -122,7 +122,7 @@ export default function ContacteSection() {
 
                 <button
                   type="submit"
-                  className="w-full bg-primary text-on-primary py-4 rounded font-body-md hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full bg-primary text-on-primary py-4 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer font-semibold"
                 >
                   <span>Enviar Missatge</span>
                   <span className="material-symbols-outlined text-sm notranslate" translate="no" aria-hidden="true">send</span>
@@ -193,7 +193,7 @@ export default function ContacteSection() {
                 href={getWhatsAppLink("Hola Jordi, m'agradaria fer-te una consulta sobre un projecte personalitzat.")}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-primary text-on-primary text-xs font-semibold rounded hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-primary text-on-primary text-xs font-semibold rounded-xl hover:bg-primary-container transition-colors shadow-sm cursor-pointer"
               >
                 <WhatsAppIcon className="w-4 h-4" />
                 <span>Obrir xat de WhatsApp ({STITCH_CRAFTSMAN.phone})</span>

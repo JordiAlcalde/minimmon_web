@@ -97,3 +97,19 @@ div.skiptranslate {
 ::-webkit-scrollbar-thumb:hover {
   background: #26170c;
 }
+
+/* Unificació universal de botons amb cantonades arrodonides estil pàgina principal */
+button,
+.btn,
+a.btn,
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  border-radius: 0.75rem !important;
+}
+
+/* Conservar cercles perfectes per a icones circulars i vinyetes rodones */
+button.rounded-full,
+.rounded-full {
+  border-radius: 9999px !important;
+}
