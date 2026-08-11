@@ -689,14 +689,6 @@ function ProductCard({ product, onAddToCart }) {
           </div>
         )}
 
-        {/* Simulador en Temps Real (si és clauer inicial o té camps de gravat) */}
-        {isInicialKeychain && (
-          <ProductSimulator
-            initialLetter={selectedOptions[initialKey] || ''}
-            phraseText={selectedOptions[phraseKey] || ''}
-          />
-        )}
-
         {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
@@ -801,7 +793,7 @@ function ProductCard({ product, onAddToCart }) {
                         placeholder={valorsStr || "Escriu la teva opció..."}
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
                         onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value })}
-                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary"
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans"
                       />
                     )}
                   </div>
@@ -809,6 +801,14 @@ function ProductCard({ product, onAddToCart }) {
               })}
             </div>
           </div>
+        )}
+
+        {/* Simulador en Temps Real (ubicat DESPRÉS de les opcions de personalització) */}
+        {isInicialKeychain && (
+          <ProductSimulator
+            initialLetter={selectedOptions[initialKey] || ''}
+            phraseText={selectedOptions[phraseKey] || ''}
+          />
         )}
 
         {/* Termini de fabricació estimat (Ubicat just abans de la quantitat) */}

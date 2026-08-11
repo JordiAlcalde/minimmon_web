@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { RotateCw, Sparkles } from 'lucide-react';
+import { RotateCw, Sparkles, Sun } from 'lucide-react';
 
-export default function ProductSimulator({ initialLetter = '', phraseText = '', onInitialChange, onPhraseChange }) {
+export default function ProductSimulator({ initialLetter = '', phraseText = '' }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [isLit, setIsLit] = useState(true);
 
   // Netejar inicial: 1 sola lletra majúscula
   const cleanInitial = (initialLetter || '').trim().charAt(0).toUpperCase();
@@ -10,44 +11,77 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
   // Netejar frase: màxim 80 caràcters
   const cleanPhrase = (phraseText || '').slice(0, 80);
 
-  // Mida dinàmica de la font per a la Cara B (Molt més gran i ocupant la fusta)
+  // Mida dinàmica de la font per a la Cara B
   const getPhraseFontSize = (text) => {
     const len = text.length;
-    if (len <= 15) return 'text-xl md:text-2xl font-bold font-serif leading-snug';
-    if (len <= 35) return 'text-lg md:text-xl font-bold font-serif leading-snug';
-    if (len <= 55) return 'text-base md:text-lg font-bold font-serif leading-snug';
-    return 'text-sm md:text-base font-bold font-serif leading-tight';
+    if (len <= 15) return 'text-sm sm:text-base md:text-lg font-bold font-serif leading-snug';
+    if (len <= 35) return 'text-xs sm:text-sm md:text-base font-bold font-serif leading-snug';
+    if (len <= 55) return 'text-[11px] sm:text-xs md:text-sm font-bold font-serif leading-snug';
+    return 'text-[10px] sm:text-[11px] md:text-xs font-bold font-serif leading-tight';
   };
 
   return (
-    <div className="space-y-4 my-6">
-      {/* Barra de control del simulador */}
-      <div className="flex items-center justify-between bg-surface-container/60 px-4 py-2.5 rounded-xl border border-outline/15 text-xs font-mono">
+    <div className="space-y-2 my-3">
+      {/* Barra de control del simulador (Títol simplificat i sense botó eliminat segons marca vermella) */}
+      <div className="flex items-center justify-between bg-surface-container/60 px-3 py-1.5 rounded-xl border border-outline/15 text-xs font-mono">
         <div className="flex items-center gap-2 text-primary font-bold">
-          <Sparkles className="w-4 h-4 text-amber-600" />
-          <span>Simulador de Gravat en Temps Real</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+          <span>Simulador Gravat</span>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsFlipped(!isFlipped)}
-          className="px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
-        >
-          <RotateCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isFlipped ? 'rotate-180' : ''}`} />
-          <span>{isFlipped ? 'Girar a Cara A (Inicial)' : 'Girar a Cara B (Frase)'}</span>
-        </button>
       </div>
 
-      {/* Escenari 3D del Clauer amb la silueta real de la peca */}
-      <div className="relative w-full py-8 flex flex-col items-center justify-center bg-gradient-to-b from-surface-container-lowest via-surface-container/30 to-surface-container-lowest rounded-2xl border border-outline/15 shadow-inner min-h-[330px] overflow-hidden select-none">
+      {/* Escenari 3D del Clauer (Mida molt compacta per veure canvis mentre s'edita en mòbil) */}
+      <div className={`relative w-full py-3 px-2 flex flex-col items-center justify-center rounded-2xl border border-outline/15 shadow-inner min-h-[195px] sm:min-h-[235px] overflow-hidden select-none transition-colors duration-300 ${isLit ? 'bg-gradient-to-b from-surface-container-lowest via-amber-950/5 to-surface-container-lowest' : 'bg-surface-container-lowest'}`}>
         
-        {/* Anella metàl·lica superior passant pel forat de la peca */}
-        <div className="absolute top-2 flex flex-col items-center z-20 pointer-events-none">
-          <div className="w-9 h-9 rounded-full border-4 border-slate-300 shadow-md bg-transparent"></div>
-          <div className="w-2.5 h-5 bg-slate-400/90 rounded-sm -mt-2 shadow-xs border border-slate-500"></div>
+        {/* Controls integrats dibuixats en blau (A B a l'esquerra, Bombeta al centre, Gir a la dreta) */}
+        <div className="absolute top-2 left-3 right-3 flex items-center justify-between z-30 pointer-events-auto">
+          {/* Selector A / B (AB en blau) */}
+          <div className="flex items-center bg-surface/90 backdrop-blur-xs border border-outline/25 rounded-lg p-0.5 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setIsFlipped(false)}
+              className={`px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer ${!isFlipped ? 'bg-primary text-on-primary shadow-xs' : 'text-primary/70 hover:text-primary'}`}
+            >
+              A
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsFlipped(true)}
+              className={`px-2 py-0.5 text-[11px] font-mono font-bold rounded transition-all cursor-pointer ${isFlipped ? 'bg-primary text-on-primary shadow-xs' : 'text-primary/70 hover:text-primary'}`}
+            >
+              B
+            </button>
+          </div>
+
+          {/* Icona de llum/lluminositat central (Bombeta en blau) */}
+          <button
+            type="button"
+            onClick={() => setIsLit(!isLit)}
+            className={`p-1.5 rounded-full transition-all cursor-pointer ${isLit ? 'bg-amber-500/20 text-amber-600 ring-1 ring-amber-500/40' : 'bg-surface/80 text-outline border border-outline/20'}`}
+            title="Commutar llum ambiental"
+          >
+            <Sun className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Botó de girar (Icona de gir en blau) */}
+          <button
+            type="button"
+            onClick={() => setIsFlipped(!isFlipped)}
+            className="p-1.5 bg-surface/90 hover:bg-surface text-primary rounded-lg border border-outline/25 shadow-xs transition-transform cursor-pointer active:scale-95"
+            title="Girar la peça"
+          >
+            <RotateCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isFlipped ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
-        {/* Contenidor 3D Flip Card amb la silueta exacta de la peca */}
-        <div className="w-56 h-72 perspective-1000 mt-5 cursor-pointer group" onClick={() => setIsFlipped(!isFlipped)}>
+        {/* Anella metàl·lica superior passant pel forat de la peca */}
+        <div className="relative flex flex-col items-center z-20 pointer-events-none mt-4">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-3 border-slate-300 shadow-md bg-transparent"></div>
+          <div className="w-2 h-3 sm:w-2.5 sm:h-3.5 bg-slate-400/90 rounded-sm -mt-1.5 shadow-xs border border-slate-500"></div>
+        </div>
+
+        {/* Contenidor 3D Flip Card amb la silueta exacta (Mida molt compacta per veure canvis mentre s'edita) */}
+        <div className="w-36 h-48 sm:w-44 sm:h-56 perspective-1000 -mt-1 cursor-pointer group" onClick={() => setIsFlipped(!isFlipped)}>
           <div 
             className="relative w-full h-full duration-700 transform-style-3d transition-transform"
             style={{
@@ -58,7 +92,7 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
             }}
           >
             
-            {/* FRONT FACE: CARA A (INICIAL AMB SILUETA REAL I LLETRA GRAVADA) */}
+            {/* FRONT FACE: CARA A */}
             <div 
               className="absolute inset-0 w-full h-full backface-hidden"
               style={{
@@ -82,7 +116,7 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
                   </filter>
                 </defs>
 
-                {/* Cos de la peca amb la silueta exacta (sostre en angle, costats rectes i base corbada) */}
+                {/* Cos de la peca amb la silueta exacta */}
                 <path 
                   d="M 100,6 L 194,52 L 194,160 C 194,242 6,242 6,160 L 6,52 Z" 
                   fill="url(#woodBase)" 
@@ -96,11 +130,11 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
                 <circle cx="100" cy="24" r="8" fill="#3D2B1F" stroke="#2B1A0E" strokeWidth="1.5" />
 
                 {/* Etiqueta discreta de cara */}
-                <text x="100" y="44" textAnchor="middle" fill="#6B4E3D" fontSize="8" fontFamily="monospace" letterSpacing="1.5" opacity="0.6">
+                <text x="100" y="44" textAnchor="middle" fill="#6B4E3D" fontSize="9" fontFamily="monospace" letterSpacing="1.5" opacity="0.6">
                   CARA A
                 </text>
 
-                {/* Inicial gravada en fusta fosca (estil idèntic a la foto real, cos gran) */}
+                {/* Inicial gravada en fusta fosca */}
                 {cleanInitial ? (
                   <text 
                     x="100" 
@@ -131,7 +165,7 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
               </svg>
             </div>
 
-            {/* BACK FACE: CARA B (FRASE / DEDICATÒRIA AMB LA MATEIXA SILUETA REAL) */}
+            {/* BACK FACE: CARA B */}
             <div 
               className="absolute inset-0 w-full h-full backface-hidden"
               style={{
@@ -157,20 +191,20 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
                 <circle cx="100" cy="24" r="8" fill="#3D2B1F" stroke="#2B1A0E" strokeWidth="1.5" />
 
                 {/* Etiqueta de cara */}
-                <text x="100" y="44" textAnchor="middle" fill="#6B4E3D" fontSize="8" fontFamily="monospace" letterSpacing="1.5" opacity="0.6">
+                <text x="100" y="44" textAnchor="middle" fill="#6B4E3D" fontSize="9" fontFamily="monospace" letterSpacing="1.5" opacity="0.6">
                   CARA B
                 </text>
               </svg>
 
-              {/* Frase / Dedicatòria gravada centrada dins de la silueta (fidel a la placa real) */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-4 pt-8 text-center pointer-events-none">
+              {/* Frase / Dedicatòria gravada centrada dins de la silueta */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-2.5 pt-5 text-center pointer-events-none">
                 {cleanPhrase ? (
-                  <p className={`text-[#24170E] font-serif font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] ${getPhraseFontSize(cleanPhrase)} animate-fadeIn max-w-[178px] whitespace-pre-wrap leading-snug`}>
+                  <p className={`text-[#24170E] font-serif font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] ${getPhraseFontSize(cleanPhrase)} animate-fadeIn max-w-[130px] sm:max-w-[150px] whitespace-pre-wrap leading-snug`}>
                     {cleanPhrase}
                   </p>
                 ) : (
-                  <p className="text-xs font-serif italic text-[#8B6E59]/70">
-                    (Escriu la teva frase a sota...)
+                  <p className="text-[10px] font-serif italic text-[#8B6E59]/70">
+                    (Escriu la teva frase a sobre...)
                   </p>
                 )}
               </div>
@@ -179,12 +213,10 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
           </div>
         </div>
 
-        {/* Indicador de gir */}
-        <p className="text-[11px] font-mono text-on-surface-variant/70 mt-4 flex items-center gap-1.5">
-          <RotateCw className="w-3.5 h-3.5 text-primary" />
-          <span>Fes clic sobre la peça per girar el clauer</span>
-        </p>
       </div>
     </div>
   );
 }
+
+
+
