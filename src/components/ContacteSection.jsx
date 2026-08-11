@@ -44,12 +44,12 @@ export default function ContacteSection() {
     <div className="pt-28 pb-24 animate-fadeIn">
       <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Contacte i Connexió</span>
+          <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Estem en contacte</span>
           <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">
-            Com Encarregar o Iniciar un Diàleg
+            Comencem a xerrar
           </h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant">
-            Parlar i connectar amb qui m'encarrega una feina és tan valuós com el resultat final. Explica'm la teva idea sense cap compromís.
+            Parlar i connectar amb qui m'encarrega una feina és tan valuós com el resultat final.<br />Explica'm la teva idea sense cap compromís.
           </p>
         </div>
 
@@ -64,7 +64,7 @@ export default function ContacteSection() {
                   <label className="font-label-sm text-label-sm text-on-surface-variant uppercase mb-2 block" htmlFor="contact-name">
                     El teu Nom *
                   </label>
-                  <input 
+                  <input
                     required
                     id="contact-name"
                     type="text"
@@ -80,7 +80,7 @@ export default function ContacteSection() {
                     <label className="font-label-sm text-label-sm text-on-surface-variant uppercase mb-2 block" htmlFor="contact-email">
                       Correu Electrònic *
                     </label>
-                    <input 
+                    <input
                       required
                       id="contact-email"
                       type="email"
@@ -94,7 +94,7 @@ export default function ContacteSection() {
                     <label className="font-label-sm text-label-sm text-on-surface-variant uppercase mb-2 block" htmlFor="contact-phone">
                       Telèfon (opcional)
                     </label>
-                    <input 
+                    <input
                       id="contact-phone"
                       type="tel"
                       placeholder="600 000 000"
@@ -109,7 +109,7 @@ export default function ContacteSection() {
                   <label className="font-label-sm text-label-sm text-on-surface-variant uppercase mb-2 block" htmlFor="contact-message">
                     Descriu la teva idea o encàrrec *
                   </label>
-                  <textarea 
+                  <textarea
                     required
                     id="contact-message"
                     rows={5}
@@ -120,7 +120,7 @@ export default function ContacteSection() {
                   />
                 </div>
 
-                <button 
+                <button
                   type="submit"
                   className="w-full bg-primary text-on-primary py-4 rounded font-body-md hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
@@ -135,7 +135,7 @@ export default function ContacteSection() {
                 <p className="text-on-surface-variant max-w-md mx-auto">
                   El teu missatge ha estat rebut. En <strong className="notranslate" translate="no">Jordi Alcalde</strong> es posarà en contacte amb tu molt aviat a través de {formData.email}.
                 </p>
-                <button 
+                <button
                   onClick={() => setSubmitted(false)}
                   className="mt-6 text-sm text-primary underline cursor-pointer"
                 >
@@ -157,7 +157,7 @@ export default function ContacteSection() {
               <div className="flex items-start gap-3">
                 <span className="material-symbols-outlined text-primary mt-1 notranslate" translate="no" aria-hidden="true">mail</span>
                 <div>
-                  <p className="font-label-sm text-xs text-outline uppercase">Correus directes</p>
+                  <p className="font-label-sm text-xs text-outline uppercase">Correu directe</p>
                   <p><a href={`mailto:${STITCH_CRAFTSMAN.emails[0]}`} className="text-primary hover:underline">{STITCH_CRAFTSMAN.emails[0]}</a></p>
                   <p><a href={`mailto:${STITCH_CRAFTSMAN.emails[1]}`} className="text-primary hover:underline">{STITCH_CRAFTSMAN.emails[1]}</a></p>
                 </div>
@@ -175,7 +175,7 @@ export default function ContacteSection() {
                 <span className="material-symbols-outlined text-primary mt-1 notranslate" translate="no" aria-hidden="true">precision_manufacturing</span>
                 <div>
                   <p className="font-label-sm text-xs text-outline uppercase">Infraestructura</p>
-                  <p className="text-on-surface-variant text-sm">Màquina làser de petit format, impressora 3D de detall i eines de fusteria fina.</p>
+                  <p className="text-on-surface-variant text-sm">Màquina làser de petit format, impressora 3D i eines de fusteria fina. Software professional.</p>
                 </div>
               </div>
             </div>
