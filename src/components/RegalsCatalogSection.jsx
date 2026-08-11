@@ -5,8 +5,9 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2 } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
+import { copyDirectLink } from '../utils/shareUtils';
 
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
@@ -464,6 +465,13 @@ function ProductCard({ product, onAddToCart }) {
   });
   const [addedToast, setAddedToast] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState({});
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareProductLink = async () => {
+    await copyDirectLink('producte', product.id);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   const handleFileUpload = (title, e) => {
     const file = e.target.files?.[0];
@@ -533,7 +541,7 @@ function ProductCard({ product, onAddToCart }) {
   };
 
   return (
-    <article className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 p-6 md:p-8 items-start">
+    <article id={`producte-${product.id}`} className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 p-6 md:p-8 items-start">
 
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
@@ -580,8 +588,17 @@ function ProductCard({ product, onAddToCart }) {
 
       {/* Columna Informació i Formulari de Pressupost (7 cols) */}
       <div className="md:col-span-7 space-y-5">
-        <div>
+        <div className="flex justify-between items-start gap-4">
           <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
+          <button
+            type="button"
+            onClick={handleShareProductLink}
+            className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1.5 text-xs font-medium"
+            title="Copiar enllaç directe d'aquest producte per a màrqueting"
+          >
+            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
+            <span className="hidden sm:inline">{copiedLink ? 'Copiat!' : 'Copiar enllaç'}</span>
+          </button>
         </div>
 
         {/* Descripció Formatada (Rich Text) */}

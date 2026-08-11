@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Play, Pause, Film, Sparkles, X, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Pause, Film, Sparkles, X, Maximize2, Share2, Check } from 'lucide-react';
 import { resolveMediaUrl, formatVideoEmbedUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import VideoPlayer from './VideoPlayer';
+import { copyDirectLink } from '../utils/shareUtils';
 
 export default function ProjectModal({ project, onClose, setActiveTab }) {
   if (!project) return null;
@@ -38,6 +39,13 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({});
   const [lightboxImg, setLightboxImg] = useState(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareLink = async () => {
+    await copyDirectLink('projecte', project.id);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   // AutoPlay timer (4 seconds per slide)
   useEffect(() => {
@@ -278,6 +286,14 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+              <button 
+                onClick={handleShareLink}
+                className="bg-surface border border-primary/30 hover:border-primary text-primary px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
+                title="Copiar enllaç directe per enviar per WhatsApp, email o xarxes"
+              >
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
+                <span>{copiedLink ? 'Enllaç copiat!' : 'Compartir enllaç'}</span>
+              </button>
               <a
                 href={getWhatsAppLink(`Hola Jordi, m'ha agradat molt el projecte "${title}" i m'agradaria fer-te una consulta.`)}
                 target="_blank"
@@ -293,9 +309,28 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
               >
                 Formulari de Contacte
               </button>
+              <button 
+                onClick={onClose}
+                className="bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline/20 px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-2xs"
+              >
+                <X className="w-4 h-4 text-primary" />
+                <span>Tancar finestra</span>
+              </button>
             </div>
           </div>
 
+        </div>
+
+        {/* Sticky Floating Close Pill accessible accessible des de qualsevol punt de la pantalla al fer scroll */}
+        <div className="sticky bottom-4 right-4 self-end z-30 pr-4 pb-4 pointer-events-none mt-auto">
+          <button 
+            onClick={onClose}
+            className="pointer-events-auto px-4 py-2.5 bg-primary/95 text-on-primary hover:bg-primary-container text-xs font-semibold rounded-full shadow-xl border border-white/20 flex items-center gap-2 transition-transform active:scale-95 cursor-pointer backdrop-blur-md"
+            aria-label="Tancar finestra"
+          >
+            <X className="w-4 h-4" />
+            <span>Tancar</span>
+          </button>
         </div>
       </div>
 

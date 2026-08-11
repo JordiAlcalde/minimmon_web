@@ -37,8 +37,11 @@ import {
   Package,
   FileText,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Share2,
+  ListOrdered
 } from 'lucide-react';
+import { copyDirectLink } from '../utils/shareUtils';
 
 export const DEFAULT_FAMILIES = [];
 export const DEFAULT_GAMMES = [];
@@ -2049,6 +2052,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
                             <td className="p-4 text-right space-x-2">
                               <button
+                                onClick={async () => {
+                                  const res = await copyDirectLink('producte', p.id);
+                                  alert(`Enllaç directe del producte copiat al portapapers:\n\n${res.link}`);
+                                }}
+                                className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-outline/20 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                                title="Copiar enllaç directe per a màrqueting"
+                              >
+                                <Share2 className="w-3 h-3 text-primary" />
+                                <span>Enllaç</span>
+                              </button>
+                              <button
                                 onClick={() => setEditingProducte(p)}
                                 className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
                               >
@@ -2842,6 +2856,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             </div>
                           </td>
                           <td className="p-4 text-right space-x-2">
+                            <button
+                              onClick={async () => {
+                                const res = await copyDirectLink('projecte', p.id);
+                                alert(`Enllaç directe del projecte copiat al portapapers:\n\n${res.link}`);
+                              }}
+                              className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-outline/20 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                              title="Copiar enllaç directe per a màrqueting"
+                            >
+                              <Share2 className="w-3 h-3 text-primary" />
+                              <span>Enllaç</span>
+                            </button>
                             <button 
                               onClick={() => setEditingProject(p)}
                               className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"

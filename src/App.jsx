@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import IniciSection from './components/IniciSection';
@@ -12,6 +12,9 @@ import LegalModal from './components/LegalModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
 import { BudgetProvider } from './context/BudgetContext';
 import BudgetDrawer from './components/BudgetDrawer';
+import { db } from './firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { STITCH_PROJECTS } from './data/stitchData';
 
 class GlobalErrorBoundary extends React.Component {
   constructor(props) {
@@ -68,6 +71,51 @@ export default function App() {
   const [catalogResetKey, setCatalogResetKey] = useState(0);
   const [selectedProject, setSelectedProject] = useState(null);
   const [legalTitle, setLegalTitle] = useState(null);
+
+  useEffect(() => {
+    // Gestió d'enllaços directes per a màrqueting (?projecte=... / ?producte=... / ?seccio=...)
+    const processDeepLink = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
+      const projectId = urlParams.get('projecte') || (hash.startsWith('#projecte-') ? hash.replace('#projecte-', '') : null);
+      const productId = urlParams.get('producte') || (hash.startsWith('#producte-') ? hash.replace('#producte-', '') : null);
+      const seccioParam = urlParams.get('seccio') || (hash.startsWith('#seccio-') ? hash.replace('#seccio-', '') : null);
+
+      if (projectId) {
+        setActiveTab('mons');
+        try {
+          const docRef = doc(db, "projectes", projectId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setSelectedProject({ id: docSnap.id, ...docSnap.data() });
+          } else {
+            const found = STITCH_PROJECTS.find(p => p.id === projectId);
+            if (found) setSelectedProject(found);
+          }
+        } catch (e) {
+          const found = STITCH_PROJECTS.find(p => p.id === projectId);
+          if (found) setSelectedProject(found);
+        }
+      } else if (productId) {
+        setActiveTab('regals');
+        setTimeout(() => {
+          const el = document.getElementById(`producte-${productId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-4', 'ring-primary/50', 'transition-all');
+            setTimeout(() => el.classList.remove('ring-4', 'ring-primary/50'), 3500);
+          }
+        }, 600);
+      } else if (seccioParam) {
+        setActiveTab(seccioParam);
+      }
+    };
+
+    processDeepLink();
+    window.addEventListener('popstate', processDeepLink);
+    return () => window.removeEventListener('popstate', processDeepLink);
+  }, []);
 
   const handleSelectTab = (tabId) => {
     if (tabId === 'regals' && activeTab === 'regals') {
