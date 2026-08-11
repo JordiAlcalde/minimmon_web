@@ -31,6 +31,35 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
     }
   }, [catalogResetKey]);
 
+  // Control de deep linking per a productes directes (?producte=... / #producte-...)
+  useEffect(() => {
+    const checkProducteDeepLink = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+      const productId = urlParams.get('producte') || (hash.startsWith('#producte-') ? hash.replace('#producte-', '') : null);
+
+      if (productId) {
+        setCurrentView('products');
+        setSelectedFamilia('Tots');
+        setSelectedGamma('Tots');
+
+        // Quan els productes estiguin al DOM, fer scroll automàtic i ressaltar
+        setTimeout(() => {
+          const el = document.getElementById(`producte-${productId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-4', 'ring-primary/60', 'transition-all', 'duration-500');
+            setTimeout(() => el.classList.remove('ring-4', 'ring-primary/60'), 4000);
+          }
+        }, 400);
+      }
+    };
+
+    checkProducteDeepLink();
+    window.addEventListener('popstate', checkProducteDeepLink);
+    return () => window.removeEventListener('popstate', checkProducteDeepLink);
+  }, [dbProducts.length]);
+
   useEffect(() => {
     const qProd = query(collection(db, "productes"), orderBy("dataCreacio", "desc"));
     const unsubProd = onSnapshot(qProd, (snapshot) => {
