@@ -29,40 +29,75 @@ export default function Header({ activeTab, setActiveTab }) {
         </button>
 
         {/* Desktop Navigation Links */}
-        <div className="hidden md:flex gap-5 lg:gap-8 items-center font-body-md text-[11px] lg:text-xs uppercase tracking-wider flex-grow justify-center">
+        <div className="hidden md:flex gap-6 lg:gap-10 items-center font-body-md text-[11px] lg:text-xs uppercase tracking-wider flex-grow justify-center">
           <button 
             onClick={() => handleNavClick('inici')}
-            className={`${activeTab === 'inici' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
+            className={`relative py-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+              activeTab === 'inici'
+                ? 'text-primary dark:text-primary-fixed font-bold'
+                : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
+            }`}
           >
-            UNIVERS MÍNIM
+            <span>UNIVERS MÍNIM</span>
+            {activeTab === 'inici' && (
+              <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
+            )}
           </button>
 
           <button 
             onClick={() => handleNavClick('mons')}
-            className={`${activeTab === 'mons' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
+            className={`relative py-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+              activeTab === 'mons'
+                ? 'text-primary dark:text-primary-fixed font-bold'
+                : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
+            }`}
           >
-            MÓNS MÍNIMS
+            <span>MÓNS MÍNIMS</span>
+            {activeTab === 'mons' && (
+              <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
+            )}
           </button>
 
           <button 
             onClick={() => handleNavClick('regals')}
-            className={`${activeTab === 'regals' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
+            className={`relative py-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+              activeTab === 'regals'
+                ? 'text-primary dark:text-primary-fixed font-bold'
+                : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
+            }`}
           >
-            CATÀLEG DE REGALS
+            <span>CATÀLEG DE REGALS</span>
+            {activeTab === 'regals' && (
+              <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
+            )}
           </button>
 
           <button 
             onClick={() => handleNavClick('taller')}
-            className={`${activeTab === 'taller' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform uppercase`}
+            className={`relative py-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+              activeTab === 'taller'
+                ? 'text-primary dark:text-primary-fixed font-bold'
+                : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
+            }`}
           >
-            EL TALLER
+            <span>EL TALLER</span>
+            {activeTab === 'taller' && (
+              <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
+            )}
           </button>
 
           <button 
             onClick={() => handleNavClick('contacte')}
-            className={`${activeTab === 'contacte' ? 'text-primary dark:text-primary-fixed border-b-2 border-primary font-semibold' : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed'} pb-1 transition-colors duration-300 cursor-pointer active:scale-95 transition-transform`}
+            className={`relative py-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+              activeTab === 'contacte'
+                ? 'text-primary dark:text-primary-fixed font-bold'
+                : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
+            }`}
           >
-            CONNECTAR
+            <span>CONNECTAR</span>
+            {activeTab === 'contacte' && (
+              <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
+            )}
           </button>
 
           {/* Desktop Budget Cart Icon Button */}
