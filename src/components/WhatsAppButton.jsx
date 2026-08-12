@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { ArrowUp } from 'lucide-react';
 
 export const WHATSAPP_PHONE = '34699592326';
 
@@ -17,19 +18,54 @@ export function WhatsAppIcon({ className = "w-5 h-5" }) {
 }
 
 export function FloatingWhatsApp() {
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 200) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <a
-      href={getWhatsAppLink()}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-3.5 py-3.5 md:px-4 md:py-3 rounded-full bg-surface/85 backdrop-blur-md border border-primary/25 text-primary shadow-lg hover:shadow-xl hover:bg-primary hover:text-on-primary transition-all duration-300 group cursor-pointer"
-      title="Contacta per WhatsApp amb Mínim Món"
-      aria-label="Contacta per WhatsApp amb Mínim Món"
-    >
-      <WhatsAppIcon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110 shrink-0" />
-      <span className="text-xs font-medium font-body-md whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 md:max-w-xs md:opacity-100 group-hover:max-w-xs group-hover:opacity-100">
-        Parlem per WhatsApp?
-      </span>
-    </a>
+    <div className="fixed bottom-20 right-5 md:right-6 z-40 flex flex-col items-end gap-3 pointer-events-none">
+      {/* Botó flotant Fletxa amunt (Tornar a l'inici) */}
+      <button
+        type="button"
+        onClick={scrollToTop}
+        className={`pointer-events-auto p-3 rounded-full bg-surface/85 backdrop-blur-md border border-primary/25 text-primary shadow-lg hover:shadow-xl hover:bg-primary hover:text-on-primary transition-all duration-300 cursor-pointer group ${
+          showScrollTop ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4 pointer-events-none'
+        }`}
+        title="Tornar a l'inici de la pàgina"
+        aria-label="Tornar a l'inici de la pàgina"
+      >
+        <ArrowUp className="w-5 h-5 transition-transform duration-300 group-hover:-translate-y-0.5" />
+      </button>
+
+      {/* Botó flotant de WhatsApp */}
+      <a
+        href={getWhatsAppLink()}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="pointer-events-auto flex items-center gap-2.5 px-3.5 py-3.5 md:px-4 md:py-3 rounded-full bg-surface/85 backdrop-blur-md border border-primary/25 text-primary shadow-lg hover:shadow-xl hover:bg-primary hover:text-on-primary transition-all duration-300 group cursor-pointer"
+        title="Contacta per WhatsApp amb Mínim Món"
+        aria-label="Contacta per WhatsApp amb Mínim Món"
+      >
+        <WhatsAppIcon className="w-5 h-5 transition-transform duration-300 group-hover:scale-110 shrink-0" />
+        <span className="text-xs font-medium font-body-md whitespace-nowrap overflow-hidden transition-all duration-300 max-w-0 opacity-0 md:max-w-xs md:opacity-100 group-hover:max-w-xs group-hover:opacity-100">
+          Parlem per WhatsApp?
+        </span>
+      </a>
+    </div>
   );
 }

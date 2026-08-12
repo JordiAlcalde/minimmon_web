@@ -384,7 +384,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
 
               <button 
                 type="submit"
-                className="mt-4 bg-primary text-on-primary w-full py-4 rounded-DEFAULT font-body-md text-body-md hover:bg-primary-container transition-colors duration-300 active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                className="mt-4 bg-primary text-on-primary w-full py-4 rounded-xl font-body-md text-body-md hover:bg-primary-container transition-colors duration-300 active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-md"
               >
                 <span>Iniciar Conversa</span>
                 <span className="material-symbols-outlined">send</span>

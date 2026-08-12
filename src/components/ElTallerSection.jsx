@@ -99,7 +99,7 @@ export default function ElTallerSection({ setActiveTab }) {
             <div className="mt-8">
               <button 
                 onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
+                className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
               >
                 Parlem del teu projecte
               </button>

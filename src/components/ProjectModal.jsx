@@ -277,55 +277,54 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
             </div>
           )}
 
-          {/* 7. Peu de Fitxa (CTA) */}
-          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
-            <div>
-              <h4 className="font-serif text-xl text-primary font-semibold">T'inspira aquesta peça?</h4>
-              <p className="text-on-surface-variant text-sm mt-1">
+          {/* 7. Peu de Fitxa (CTA) - Estructura homogeneïtzada amb botons d'igual mida */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-2xl border border-outline/20 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-sm">
+            <div className="space-y-1 text-center lg:text-left">
+              <h4 className="font-serif text-xl md:text-2xl text-primary font-semibold">T'inspira aquesta peça?</h4>
+              <p className="text-on-surface-variant text-sm max-w-sm">
                 Podem crear un <span className="notranslate" translate="no">Món Mínim</span> basat en el teu espai o memòria personal.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              <button 
-                onClick={handleShareLink}
-                className="bg-surface border border-primary/30 hover:border-primary text-primary px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
-                title="Copiar enllaç directe per enviar per WhatsApp, email o xarxes"
-              >
-                {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
-                <span>{copiedLink ? 'Enllaç copiat!' : 'Compartir enllaç'}</span>
-              </button>
-              <a
-                href={getWhatsAppLink(`Hola Jordi, m'ha agradat molt el projecte "${title}" i m'agradaria fer-te una consulta.`)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-surface border border-primary/30 hover:border-primary text-primary px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer whitespace-nowrap"
-              >
-                <WhatsAppIcon className="w-4 h-4" />
-                <span>Consulta per WhatsApp</span>
-              </a>
+
+            {/* Bloc de 3 botons amb la mateixa mida i proporcions */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+              <div className="flex flex-col gap-2.5 w-full sm:w-auto">
+                <button 
+                  onClick={handleShareLink}
+                  className="w-full sm:w-56 h-12 bg-surface border border-outline/30 hover:border-primary text-primary px-4 rounded-xl font-body-md text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer whitespace-nowrap"
+                  title="Copiar enllaç directe per enviar per WhatsApp, email o xarxes"
+                >
+                  {copiedLink ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Share2 className="w-4 h-4 text-primary shrink-0" />}
+                  <span>{copiedLink ? 'Enllaç copiat!' : 'Compartir enllaç'}</span>
+                </button>
+
+                <a
+                  href={getWhatsAppLink(`Hola Jordi, m'ha agradat molt el projecte "${title}" i m'agradaria fer-te una consulta.`)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-56 h-12 bg-surface border border-outline/30 hover:border-primary text-primary px-4 rounded-xl font-body-md text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-2xs cursor-pointer whitespace-nowrap"
+                >
+                  <WhatsAppIcon className="w-4 h-4 shrink-0" />
+                  <span>Consulta per WhatsApp</span>
+                </a>
+              </div>
+
               <button 
                 onClick={() => { onClose(); setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="bg-primary text-on-primary px-6 py-3 rounded-DEFAULT font-body-md text-sm hover:bg-primary-container transition-colors shadow-md cursor-pointer whitespace-nowrap"
+                className="w-full sm:w-56 h-12 sm:h-[106px] bg-[#2B1A0E] hover:bg-[#3D2B1F] text-amber-100 font-semibold px-4 rounded-xl font-body-md text-xs sm:text-sm transition-colors shadow-md cursor-pointer flex items-center justify-center text-center leading-tight whitespace-normal"
               >
                 Formulari de Contacte
-              </button>
-              <button 
-                onClick={onClose}
-                className="bg-surface-container hover:bg-surface-container-high text-on-surface border border-outline/20 px-5 py-3 rounded-DEFAULT font-body-md text-sm transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap shadow-2xs"
-              >
-                <X className="w-4 h-4 text-primary" />
-                <span>Tancar finestra</span>
               </button>
             </div>
           </div>
 
         </div>
 
-        {/* Sticky Floating Close Pill accessible accessible des de qualsevol punt de la pantalla al fer scroll */}
+        {/* Floating Close Pill inferior dret */}
         <div className="sticky bottom-4 right-4 self-end z-30 pr-4 pb-4 pointer-events-none mt-auto">
           <button 
             onClick={onClose}
-            className="pointer-events-auto px-4 py-2.5 bg-primary/95 text-on-primary hover:bg-primary-container text-xs font-semibold rounded-full shadow-xl border border-white/20 flex items-center gap-2 transition-transform active:scale-95 cursor-pointer backdrop-blur-md"
+            className="pointer-events-auto px-5 py-2.5 bg-[#2B1A0E] text-amber-100 hover:bg-[#3D2B1F] text-xs font-semibold rounded-full shadow-xl border border-amber-200/20 flex items-center gap-2 transition-transform active:scale-95 cursor-pointer backdrop-blur-md"
             aria-label="Tancar finestra"
           >
             <X className="w-4 h-4" />

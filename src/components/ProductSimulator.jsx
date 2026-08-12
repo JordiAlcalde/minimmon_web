@@ -206,6 +206,11 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
         </div>
 
       </div>
+
+      {/* Llegenda explicativa del simulador */}
+      <p className="text-[10px] text-on-surface-variant/70 font-mono text-center pt-1 px-1">
+        Aquesta imatge és una simulació que pot no concordar exactament amb com es veurà la peça física. Qualsevol canvi serà en benefici del resultat final.
+      </p>
     </div>
   );
 }

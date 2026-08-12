@@ -309,14 +309,14 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
             href={getWhatsAppLink("Hola Jordi, m'agradaria consultar-te per crear un Món Mínim personalitzat.")}
             target="_blank"
             rel="noopener noreferrer"
-            className="bg-surface border border-primary/30 hover:border-primary text-primary px-6 py-3.5 rounded-DEFAULT font-body-md hover:bg-surface-container transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+            className="bg-surface border border-primary/30 hover:border-primary text-primary px-6 py-3.5 rounded-xl font-body-md hover:bg-surface-container transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
           >
             <WhatsAppIcon className="w-4 h-4" />
             <span>Parlem per WhatsApp</span>
           </a>
           <button 
             onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className="bg-primary text-on-primary px-8 py-3.5 rounded-DEFAULT font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
+            className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
           >
             Formulari de proposta
           </button>
