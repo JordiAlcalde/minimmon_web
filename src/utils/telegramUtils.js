@@ -78,3 +78,48 @@ ${cleanMissatge}
     return false;
   }
 }
+
+export async function sendTelegramCommentNotification({ autor, puntuacio, comentari, targetTitol, targetType = 'peça' }) {
+  try {
+    const { botToken, chatId } = await getTelegramConfig();
+
+    if (!botToken || !chatId) {
+      console.log('Notificació de Telegram pendent de configurar Token i Chat ID');
+      return false;
+    }
+
+    const numStars = Math.min(5, Math.max(1, Number(puntuacio) || 5));
+    const starsStr = '★'.repeat(numStars) + '☆'.repeat(5 - numStars);
+    const cleanAutor = autor || 'Anònim';
+    const cleanComentari = comentari || 'Sense text';
+    const cleanTitol = targetTitol || 'Peça Mínim Món';
+
+    const text = `
+⭐ <b>NOVA VALORACIÓ PENDENT D'APROVAR</b>
+
+🎨 <b>${targetType === 'projecte' ? 'Projecte' : 'Producte'}:</b> ${cleanTitol}
+👤 <b>Autor:</b> ${cleanAutor}
+⭐ <b>Puntuació:</b> ${starsStr} (${numStars}/5)
+💬 <b>Comentari:</b>
+<i>"${cleanComentari}"</i>
+
+--------------------------------
+<i>Accedeix a l'Àrea Privada per aprovar-la.</i>
+`.trim();
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.warn('Error enviant notificació de valoració a Telegram:', err);
+    return false;
+  }
+}

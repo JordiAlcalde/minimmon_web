@@ -5,6 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
 import { Sparkles } from 'lucide-react';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
+import { StarRating } from './CommentsSection';
 
 // Error Boundary per protegir la galeria de Móns Mínims davant dades inusuals
 class ProjectCardErrorBoundary extends React.Component {
@@ -43,6 +44,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest' | 'oldest'
   const [projectsList, setProjectsList] = useState(null);
   const [branquesList, setBranquesList] = useState(['Tots', 'Novetats', ...DEFAULT_BRANQUES.map(b => b.nom)]);
+  const [ratingsMap, setRatingsMap] = useState({});
 
   useEffect(() => {
     // Listen to real-time 'projectes'
@@ -76,9 +78,29 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
       console.warn("Utilitzant branques locals per defecte:", err);
     });
 
+    // Carregar valoracions aprovades per als projectes
+    const qVal = query(collection(db, "valoracions"));
+    const unsubscribeVal = onSnapshot(qVal, (snapshot) => {
+      const map = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.estat === 'aprovat' && data.targetId) {
+          if (!map[data.targetId]) {
+            map[data.targetId] = { total: 0, sum: 0 };
+          }
+          map[data.targetId].total += 1;
+          map[data.targetId].sum += (Number(data.puntuacio) || 5);
+        }
+      });
+      setRatingsMap(map);
+    }, (err) => {
+      console.warn("Error carregant valoracions:", err);
+    });
+
     return () => {
       unsubscribeProjects();
       unsubscribeBranques();
+      unsubscribeVal();
     };
   }, []);
 
@@ -289,6 +311,38 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                       </button>
 
                       <div className="laser-line mt-6"></div>
+
+                      {/* Secció de Valoració en la llista de projectes */}
+                      <div className="mt-3">
+                        {(() => {
+                          const projId = project.id || project.titol;
+                          const rData = ratingsMap[projId] || ratingsMap[project.id] || { total: 0, sum: 0 };
+                          const avg = rData.total > 0 ? (rData.sum / rData.total).toFixed(1) : 0;
+
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectProject(project, { scrollToComments: true });
+                              }}
+                              className="group/val text-xs text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 cursor-pointer font-mono pt-1"
+                              title="Veure o afegir comentaris d'aquest projecte"
+                            >
+                              <StarRating rating={Math.round(Number(avg))} size="w-3.5 h-3.5" />
+                              {rData.total > 0 ? (
+                                <span className="font-bold text-primary">
+                                  {avg} <span className="font-normal text-on-surface-variant/70">({rData.total} {rData.total === 1 ? 'valoració' : 'valoracions'})</span>
+                                </span>
+                              ) : (
+                                <span className="text-on-surface-variant/70 italic group-hover/val:underline">
+                                  Sigues el primer en valorar aquesta peça.
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </article>
                 </ProjectCardErrorBoundary>

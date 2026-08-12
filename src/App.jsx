@@ -140,14 +140,14 @@ export default function App() {
         {activeTab === 'inici' && (
           <IniciSection 
             setActiveTab={handleSelectTab} 
-            onSelectProject={(project) => setSelectedProject(project)} 
+            onSelectProject={(project, opts) => setSelectedProject(project ? { ...project, ...(opts || {}) } : null)} 
           />
         )}
 
         {activeTab === 'mons' && (
           <MonsMinimsSection 
             setActiveTab={handleSelectTab}
-            onSelectProject={(project) => setSelectedProject(project)} 
+            onSelectProject={(project, opts) => setSelectedProject(project ? { ...project, ...(opts || {}) } : null)} 
           />
         )}
 

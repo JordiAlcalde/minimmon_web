@@ -9,6 +9,7 @@ import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
+import CommentsSection from './CommentsSection';
 
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
@@ -874,6 +875,9 @@ function ProductCard({ product, onAddToCart }) {
               </span>
             )}
           </div>
+
+          {/* Secció de Valoracions i Comentaris del Producte */}
+          <CommentsSection targetId={product.id} targetType="producte" targetTitol={product.nom} />
         </div>
       </div>
     </article>

@@ -4,8 +4,9 @@ import { resolveMediaUrl, formatVideoEmbedUrl, formatDateDDMMAAAA } from '../uti
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import VideoPlayer from './VideoPlayer';
 import { copyDirectLink } from '../utils/shareUtils';
+import CommentsSection from './CommentsSection';
 
-export default function ProjectModal({ project, onClose, setActiveTab }) {
+export default function ProjectModal({ project, onClose, setActiveTab, options }) {
   if (!project) return null;
 
   // Extract properties with fallbacks
@@ -46,6 +47,18 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
+
+  useEffect(() => {
+    const shouldScroll = project?.scrollToComments || options?.scrollToComments;
+    if (shouldScroll) {
+      setTimeout(() => {
+        const el = document.getElementById('seccio-comentaris');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 400);
+    }
+  }, [project?.id, project?.scrollToComments, options?.scrollToComments]);
 
   // AutoPlay timer (4 seconds per slide)
   useEffect(() => {
@@ -276,6 +289,15 @@ export default function ProjectModal({ project, onClose, setActiveTab }) {
               </div>
             </div>
           )}
+
+          {/* Secció de Valoracions i Comentaris del Projecte */}
+          <CommentsSection 
+            targetId={project.id} 
+            targetType="projecte" 
+            targetTitol={title}
+            defaultOpen={!!(project?.scrollToComments || options?.scrollToComments)}
+            autoOpenForm={!!(project?.scrollToComments || options?.scrollToComments)}
+          />
 
           {/* 7. Peu de Fitxa (CTA) - Estructura homogeneïtzada amb botons d'igual mida */}
           <div className="bg-surface-container-lowest p-6 md:p-8 rounded-2xl border border-outline/20 flex flex-col lg:flex-row items-center justify-between gap-6 shadow-sm">

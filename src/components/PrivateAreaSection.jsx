@@ -39,9 +39,11 @@ import {
   ChevronUp,
   ChevronDown,
   Share2,
-  ListOrdered
+  ListOrdered,
+  Star
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
+import { StarRating } from './CommentsSection';
 
 export const DEFAULT_FAMILIES = [];
 export const DEFAULT_GAMMES = [];
@@ -148,6 +150,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const descTextAreaRef = useRef(null);
 
+  // Valoracions state
+  const [valoracionsAdmin, setValoracionsAdmin] = useState([]);
+  const [loadingValoracionsAdmin, setLoadingValoracionsAdmin] = useState(true);
+  const [valoracionsFilter, setValoracionsFilter] = useState('tots'); // 'tots' | 'pendent' | 'aprovat'
+
   useEffect(() => {
     if (isAuthenticated) {
       const qPress = query(collection(db, "pressupostos"), orderBy("data", "desc"));
@@ -180,11 +187,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
         }
       });
 
+      const qVal = query(collection(db, "valoracions"), orderBy("data", "desc"));
+      const unsubVal = onSnapshot(qVal, (snapshot) => {
+        setValoracionsAdmin(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoadingValoracionsAdmin(false);
+      }, () => setLoadingValoracionsAdmin(false));
+
       return () => {
         unsubPress();
         unsubProd();
         unsubFam();
         unsubGam();
+        unsubVal();
       };
     }
   }, [isAuthenticated]);
@@ -193,6 +207,29 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [telegramToken, setTelegramToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramStatus, setTelegramStatus] = useState('');
+
+  const valoracionsPendentsCount = valoracionsAdmin.filter(v => v.estat === 'pendent').length;
+
+  const handleApproveValoracio = async (id) => {
+    try {
+      const docRef = doc(db, "valoracions", id);
+      await updateDoc(docRef, { estat: 'aprovat' });
+    } catch (e) {
+      console.error("Error aprovant valoració:", e);
+      alert("Error aprovant la valoració");
+    }
+  };
+
+  const handleDeleteValoracio = async (id) => {
+    if (!window.confirm("Segur que vols eliminar aquesta valoració?")) return;
+    try {
+      const docRef = doc(db, "valoracions", id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error("Error eliminant valoració:", e);
+      alert("Error eliminant la valoració");
+    }
+  };
 
   useEffect(() => {
     if (isAuthenticated && activeModule === 'config') {
@@ -604,6 +641,45 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }
   };
 
+  const handleDuplicateProducte = async (p) => {
+    if (!p) return;
+    if (!window.confirm(`Vols duplicar el producte "${p.nom}"?`)) return;
+
+    const nextCodi = generateNextProductCode(dbProductesAdmin);
+    const nextOrdre = calculateSmartNextProductOrder(p.gammaIds || [], dbProductesAdmin);
+    const newId = `prdt-${Date.now()}`;
+
+    // Replicar ordrePerGamma si existeix
+    const nextOrdrePerGamma = {};
+    if (p.ordrePerGamma && typeof p.ordrePerGamma === 'object') {
+      Object.keys(p.ordrePerGamma).forEach(g => {
+        nextOrdrePerGamma[g] = calculateSmartNextProductOrder([g], dbProductesAdmin);
+      });
+    }
+
+    const duplicatedProd = {
+      ...p,
+      id: newId,
+      codi: nextCodi,
+      nom: `COPIAT de ${p.nom || ''}`,
+      descripcio: `AIXÒ ÉS UNA CÒPIA. CAL REVISAR\n\n${p.descripcio || ''}`,
+      imatgePrincipal: '',
+      imatges: [],
+      ordre: nextOrdre,
+      ordrePerGamma: nextOrdrePerGamma,
+      dataCreacio: new Date().toISOString()
+    };
+
+    try {
+      await setDoc(doc(db, "productes", newId), duplicatedProd);
+      setEditingProducte(duplicatedProd);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error("Error duplicant el producte:", err);
+      alert("Error duplicant el producte: " + err.message);
+    }
+  };
+
   const handleMoveProductOrder = async (currProd, targetProd) => {
     if (!currProd || !targetProd) return;
 
@@ -973,6 +1049,27 @@ export default function PrivateAreaSection({ setActiveTab }) {
           <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
             {dbBranques.length}
           </span>
+        </button>
+
+        <button 
+          onClick={() => setActiveModule('valoracions')}
+          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
+            activeModule === 'valoracions' 
+              ? 'border-primary text-primary font-semibold' 
+              : 'border-transparent text-on-surface-variant hover:text-primary'
+          }`}
+        >
+          <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+          <span>Valoracions</span>
+          {valoracionsPendentsCount > 0 ? (
+            <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
+              {valoracionsPendentsCount}
+            </span>
+          ) : (
+            <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
+              {valoracionsAdmin.length}
+            </span>
+          )}
         </button>
 
         <button 
@@ -2063,6 +2160,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 <span>Enllaç</span>
                               </button>
                               <button
+                                type="button"
+                                onClick={() => handleDuplicateProducte(p)}
+                                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1 border border-amber-500/20"
+                                title="Duplicar aquest producte com a plantilla nova"
+                              >
+                                <Copy className="w-3 h-3 text-amber-600" />
+                                <span>Duplicar</span>
+                              </button>
+                              <button
                                 onClick={() => setEditingProducte(p)}
                                 className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
                               >
@@ -3020,6 +3126,117 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* MODULE: VALORACIONS I COMENTARIS */}
+      {activeModule === 'valoracions' && (
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-primary flex items-center gap-2">
+                <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                <span>Gestió i Moderació de Valoracions</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Revisa, aprova o elimina les valoracions i comentaris enviats pels usuaris del lloc web.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setValoracionsFilter('tots')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  valoracionsFilter === 'tots' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Totes ({valoracionsAdmin.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setValoracionsFilter('pendent')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  valoracionsFilter === 'pendent' ? 'bg-amber-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Pendents ({valoracionsPendentsCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setValoracionsFilter('aprovat')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  valoracionsFilter === 'aprovat' ? 'bg-emerald-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Aprovades ({valoracionsAdmin.filter(v => v.estat === 'aprovat').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Llista de Valoracions */}
+          <div className="space-y-4">
+            {valoracionsAdmin
+              .filter(v => valoracionsFilter === 'tots' ? true : v.estat === valoracionsFilter)
+              .length === 0 ? (
+                <div className="bg-surface-container-lowest p-12 rounded-xl border border-outline/15 text-center text-on-surface-variant font-mono text-sm">
+                  Sense valoracions {valoracionsFilter !== 'tots' ? `en estat "${valoracionsFilter}"` : 'disponibles'}.
+                </div>
+              ) : (
+                valoracionsAdmin
+                  .filter(v => valoracionsFilter === 'tots' ? true : v.estat === valoracionsFilter)
+                  .map(v => (
+                    <div key={v.id} className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 shadow-2xs flex flex-col md:flex-row items-start justify-between gap-4">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="font-semibold text-primary font-body-md text-sm">{v.autor || 'Anònim'}</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold bg-primary/10 text-primary">
+                            {v.targetType === 'projecte' ? 'Projecte' : 'Producte'}: {v.targetTitol || v.targetId}
+                          </span>
+                          <StarRating rating={Number(v.puntuacio) || 5} size="w-4 h-4" />
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                            v.estat === 'aprovat' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'
+                          }`}>
+                            {v.estat === 'aprovat' ? '✓ Aprovada' : '⏳ Pendent d\'aprovació'}
+                          </span>
+                        </div>
+
+                        <p className="text-on-surface-variant text-sm italic font-sans bg-surface p-3 rounded-lg border border-outline/10">
+                          "{v.comentari}"
+                        </p>
+
+                        {v.data && (
+                          <span className="text-[10px] font-mono text-on-surface-variant/60 block">
+                            Data: {new Date(v.data).toLocaleString('ca-ES')}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                        {v.estat !== 'aprovat' && (
+                          <button
+                            type="button"
+                            onClick={() => handleApproveValoracio(v.id)}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-mono font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>Aprovar</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteValoracio(v.id)}
+                          className="px-3 py-2 bg-error-container/20 hover:bg-error-container/40 text-error rounded-lg text-xs font-mono transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Eliminar valoració"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Esborrar</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+              )}
+          </div>
         </div>
       )}
 
