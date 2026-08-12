@@ -175,6 +175,25 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
             ) : (
               /* Cart Items List */
               <div className="space-y-6">
+                <div className="flex items-center justify-between pb-1 border-b border-outline/10">
+                  <span className="text-xs uppercase font-mono font-semibold text-primary tracking-wider">
+                    Peces a la cistella ({totalItems}):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Vols buidar la cistella i cancel·lar la sol·licitud de pressupost?")) {
+                        clearCart();
+                      }
+                    }}
+                    className="text-xs text-error hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                    title="Buidar tota la cistella"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Buidar cistella</span>
+                  </button>
+                </div>
+
                 <div className="space-y-4">
                   {cart.map((item) => (
                     <div 
@@ -321,6 +340,20 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                         <span>Sol·licitar Pressupost Sense Compromís</span>
                       </>
                     )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Vols cancel·lar aquesta sol·licitud i buidar la cistella?")) {
+                        clearCart();
+                        handleClose();
+                      }
+                    }}
+                    className="w-full py-2.5 bg-error-container/20 hover:bg-error-container/40 text-error text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Cancel·lar sol·licitud i buidar cistella</span>
                   </button>
                 </form>
               </div>

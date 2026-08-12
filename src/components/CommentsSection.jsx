@@ -179,10 +179,19 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
       {/* Formulari d'enviament de valoració */}
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-surface p-4 rounded-xl border border-primary/30 shadow-sm space-y-3 animate-fadeIn">
-          <div className="flex items-center justify-between gap-4">
-            <h5 className="text-xs uppercase font-semibold text-primary font-mono">La teva opinió sobre la peça</h5>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-on-surface-variant font-mono">Puntuació:</span>
+          <div className="flex flex-col gap-1.5 pb-2 border-b border-outline/10">
+            <div>
+              <span className="text-xs text-on-surface-variant font-sans block">
+                La teva opinió sobre la peça
+              </span>
+              {targetTitol && (
+                <span className="text-xs font-bold text-primary font-sans block mt-0.5">
+                  {targetTitol}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className="text-xs text-on-surface-variant font-sans">Puntuació:</span>
               <StarRating rating={rating} size="w-5 h-5" interactive onSelect={setRating} />
             </div>
           </div>
