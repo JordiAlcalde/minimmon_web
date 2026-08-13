@@ -40,7 +40,22 @@ import {
   ChevronDown,
   Share2,
   ListOrdered,
-  Star
+  Star,
+  Calculator,
+  Percent,
+  Coins,
+  History,
+  UserCheck,
+  PhoneCall,
+  MessageCircle,
+  Globe,
+  ArrowRight,
+  Save,
+  FileSpreadsheet,
+  AlertCircle,
+  ArrowUpRight,
+  HelpCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
 import { StarRating } from './CommentsSection';
@@ -101,6 +116,25 @@ export const getSortedGammes = (dbGammes, dbFamilies, currentFamFilter) => {
   });
 };
 
+export const getProductFamiliaGamma = (product, dbGammes) => {
+  if (!product) return '— / —';
+  if (product.familiaGamma) return product.familiaGamma;
+  if (product.familiaNom && product.gammaNom) return `${product.familiaNom} / ${product.gammaNom}`;
+  
+  const gIds = Array.isArray(product.gammaIds) ? product.gammaIds : (product.gammaId ? [product.gammaId] : []);
+  if (gIds.length > 0 && dbGammes && dbGammes.length > 0) {
+    const foundGam = dbGammes.find(g => g.id === gIds[0] || g.nom === gIds[0]);
+    if (foundGam) {
+      const fam = foundGam.familiaNom || 'General';
+      const gam = foundGam.nom || gIds[0];
+      return `${fam} / ${gam}`;
+    }
+    return `General / ${gIds[0]}`;
+  }
+  if (product.familia) return `${product.familia} / ${product.gamma || 'General'}`;
+  return 'General / General';
+};
+
 export default function PrivateAreaSection({ setActiveTab }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('minimmon_admin_auth') === 'true';
@@ -155,6 +189,31 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [loadingValoracionsAdmin, setLoadingValoracionsAdmin] = useState(true);
   const [valoracionsFilter, setValoracionsFilter] = useState('tots'); // 'tots' | 'pendent' | 'aprovat'
 
+  // Càlcul de pressupostos state
+  const [calculsPressupostos, setCalculsPressupostos] = useState([]);
+  const [loadingCalculs, setLoadingCalculs] = useState(true);
+
+  // Form state per al calculador
+  const [calcClientNom, setCalcClientNom] = useState('');
+  const [calcClientContacte, setCalcClientContacte] = useState('');
+  const [calcArticleNom, setCalcArticleNom] = useState('');
+  const [calcFamiliaGamma, setCalcFamiliaGamma] = useState('');
+  const [calcCanal, setCalcCanal] = useState('web'); // 'web' | 'whatsapp' | 'telefonic'
+  const [calcWebRefId, setCalcWebRefId] = useState('');
+  const [calcResenyaManual, setCalcResenyaManual] = useState('');
+  const [calcQuantitatUnits, setCalcQuantitatUnits] = useState(1);
+
+  const [calcPreuCost, setCalcPreuCost] = useState('');
+  const [calcPercentGuany, setCalcPercentGuany] = useState(30);
+  const [calcPercentQuantitat, setCalcPercentQuantitat] = useState(0);
+  const [calcPercentEstacional, setCalcPercentEstacional] = useState(0);
+  const [calcPercentUrgent, setCalcPercentUrgent] = useState(0);
+  const [calcPreuVendaFinal, setCalcPreuVendaFinal] = useState('');
+  const [calcSavingStatus, setCalcSavingStatus] = useState('');
+  const [calcSearchQuery, setCalcSearchQuery] = useState('');
+  const [calcFilterCanal, setCalcFilterCanal] = useState('tots');
+  const [selectedCalculView, setSelectedCalculView] = useState(null);
+
   useEffect(() => {
     if (isAuthenticated) {
       const qPress = query(collection(db, "pressupostos"), orderBy("data", "desc"));
@@ -193,12 +252,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
         setLoadingValoracionsAdmin(false);
       }, () => setLoadingValoracionsAdmin(false));
 
+      const qCalc = query(collection(db, "calculs_pressupostos"), orderBy("dataCreacio", "desc"));
+      const unsubCalc = onSnapshot(qCalc, (snapshot) => {
+        setCalculsPressupostos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoadingCalculs(false);
+      }, () => setLoadingCalculs(false));
+
       return () => {
         unsubPress();
         unsubProd();
         unsubFam();
         unsubGam();
         unsubVal();
+        unsubCalc();
       };
     }
   }, [isAuthenticated]);
@@ -453,6 +519,179 @@ export default function PrivateAreaSection({ setActiveTab }) {
       alert("Error inicialitzant DB: " + err.message);
       setSeedingStatus('');
     }
+  };
+
+  // --- HELPERS CÀLCUL DE PRESSUPOSTOS ---
+  const computeCalculatedPrice = () => {
+    const cost = parseFloat(calcPreuCost);
+    if (isNaN(cost) || cost <= 0) return { unitari: 0, total: 0 };
+    const fGuany = 1 + ((parseFloat(calcPercentGuany) || 0) / 100);
+    const fQuantitat = 1 + ((parseFloat(calcPercentQuantitat) || 0) / 100);
+    const fEstacional = 1 + ((parseFloat(calcPercentEstacional) || 0) / 100);
+    const fUrgent = 1 + ((parseFloat(calcPercentUrgent) || 0) / 100);
+
+    const unitari = cost * fGuany * fQuantitat * fEstacional * fUrgent;
+    const units = Math.max(1, parseInt(calcQuantitatUnits) || 1);
+    const total = unitari * units;
+
+    return {
+      unitari: Number(unitari.toFixed(2)),
+      total: Number(total.toFixed(2))
+    };
+  };
+
+  const { unitari: preuCalculatUnitari, total: preuCalculatTotal } = computeCalculatedPrice();
+
+  const handleTransmitPreuVenda = (mode = 'total') => {
+    const { unitari, total } = computeCalculatedPrice();
+    if (total > 0) {
+      if (mode === 'unitari') {
+        setCalcPreuVendaFinal(unitari.toFixed(2));
+      } else {
+        setCalcPreuVendaFinal(total.toFixed(2));
+      }
+    } else {
+      alert("Primer introdueix un preu de cost vàlid per fer el càlcul.");
+    }
+  };
+
+  const getHistoricMatches = () => {
+    const clientClean = (calcClientNom || '').trim().toLowerCase();
+    const articleClean = (calcArticleNom || '').trim().toLowerCase();
+
+    if (!clientClean || !articleClean) return [];
+
+    return calculsPressupostos.filter(item => {
+      const matchClient = (item.clientNom || '').toLowerCase().includes(clientClean) ||
+                          (item.clientContacte || '').toLowerCase().includes(clientClean);
+      const matchArticle = (item.articleNom || '').toLowerCase().includes(articleClean);
+      return matchClient && matchArticle;
+    });
+  };
+
+  const historicMatches = getHistoricMatches();
+
+  const handleSaveCalcul = async (e) => {
+    if (e) e.preventDefault();
+    if (!calcClientNom.trim()) {
+      alert("El nom del client és obligatori.");
+      return;
+    }
+    if (!calcArticleNom.trim()) {
+      alert("El nom o concepte de l'article és obligatori.");
+      return;
+    }
+    const costNum = parseFloat(calcPreuCost);
+    if (isNaN(costNum) || costNum <= 0) {
+      alert("S'ha d'introduir un preu de cost vàlid extraït d'Odoo.");
+      return;
+    }
+    const finalVendaNum = parseFloat(calcPreuVendaFinal);
+    if (isNaN(finalVendaNum) || finalVendaNum <= 0) {
+      alert("S'ha d'introduir un preu de venda final vàlid (o prémer 'Transmetre al Preu de Venda').");
+      return;
+    }
+
+    setCalcSavingStatus('Desant càlcul...');
+    try {
+      const newId = `calc-${Date.now()}`;
+      const nowIso = new Date().toISOString();
+      const calcData = {
+        id: newId,
+        clientNom: calcClientNom.trim(),
+        clientContacte: calcClientContacte.trim(),
+        articleNom: calcArticleNom.trim(),
+        familiaGamma: calcFamiliaGamma.trim(),
+        quantitatUnits: Math.max(1, parseInt(calcQuantitatUnits) || 1),
+        canal: calcCanal, // 'web' | 'whatsapp' | 'telefonic'
+        webRefId: calcCanal === 'web' ? calcWebRefId : '',
+        resenyaManual: calcResenyaManual.trim(),
+        preuCost: costNum,
+        percentatges: {
+          guany: parseFloat(calcPercentGuany) || 0,
+          quantitat: parseFloat(calcPercentQuantitat) || 0,
+          estacional: parseFloat(calcPercentEstacional) || 0,
+          urgent: parseFloat(calcPercentUrgent) || 0,
+        },
+        preuCalculatUnitari: preuCalculatUnitari,
+        preuCalculatTotal: preuCalculatTotal,
+        preuCalculat: preuCalculatTotal,
+        preuVendaFinal: finalVendaNum,
+        dataCreacio: nowIso,
+        dataFormatted: new Date().toLocaleDateString('ca-ES', { 
+          day: '2-digit', month: '2-digit', year: 'numeric', 
+          hour: '2-digit', minute: '2-digit' 
+        })
+      };
+
+      await setDoc(doc(db, "calculs_pressupostos", newId), calcData);
+
+      // Si s'ha enllaçat una sol·licitud Web concreta, marcar ÚNICAMENT aquesta sol·licitud web com 'ates'
+      if (calcCanal === 'web' && calcWebRefId) {
+        try {
+          await updateDoc(doc(db, "pressupostos", calcWebRefId), {
+            estat: 'ates'
+          });
+        } catch (e) {
+          console.warn("Nota: No s'ha pogut actualitzar l'estat del pressupost web enllaçat:", e);
+        }
+      }
+
+      setCalcSavingStatus('✓ Càlcul desat a l\'històric i sol·licitud web marcada com a atesa!');
+      setTimeout(() => setCalcSavingStatus(''), 4000);
+    } catch (err) {
+      console.error("Error desant càlcul de pressupost:", err);
+      alert("Error desant el càlcul: " + err.message);
+      setCalcSavingStatus('');
+    }
+  };
+
+  const handleDeleteCalcul = async (id, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm("Estàs segur que vols eliminar aquest càlcul de l'històric?")) return;
+    try {
+      await deleteDoc(doc(db, "calculs_pressupostos", id));
+    } catch (err) {
+      alert("Error eliminant el càlcul: " + err.message);
+    }
+  };
+
+  const handleLoadCalculToForm = (calc) => {
+    setCalcClientNom(calc.clientNom || '');
+    setCalcClientContacte(calc.clientContacte || '');
+    setCalcArticleNom(calc.articleNom || '');
+    setCalcFamiliaGamma(calc.familiaGamma || (dbProductesAdmin.find(p => p.nom === calc.articleNom) ? getProductFamiliaGamma(dbProductesAdmin.find(p => p.nom === calc.articleNom), dbGammes) : ''));
+    setCalcQuantitatUnits(calc.quantitatUnits || 1);
+    setCalcCanal(calc.canal || 'web');
+    setCalcWebRefId(calc.webRefId || '');
+    setCalcResenyaManual(calc.resenyaManual || '');
+    setCalcPreuCost(calc.preuCost ? String(calc.preuCost) : '');
+    if (calc.percentatges) {
+      setCalcPercentGuany(calc.percentatges.guany ?? 30);
+      setCalcPercentQuantitat(calc.percentatges.quantitat ?? 0);
+      setCalcPercentEstacional(calc.percentatges.estacional ?? 0);
+      setCalcPercentUrgent(calc.percentatges.urgent ?? 0);
+    }
+    setCalcPreuVendaFinal(calc.preuVendaFinal ? String(calc.preuVendaFinal) : '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleResetCalculForm = () => {
+    setCalcClientNom('');
+    setCalcClientContacte('');
+    setCalcArticleNom('');
+    setCalcFamiliaGamma('');
+    setCalcQuantitatUnits(1);
+    setCalcCanal('web');
+    setCalcWebRefId('');
+    setCalcResenyaManual('');
+    setCalcPreuCost('');
+    setCalcPercentGuany(30);
+    setCalcPercentQuantitat(0);
+    setCalcPercentEstacional(0);
+    setCalcPercentUrgent(0);
+    setCalcPreuVendaFinal('');
+    setSelectedCalculView(null);
   };
 
   // Save Project
@@ -959,134 +1198,221 @@ export default function PrivateAreaSection({ setActiveTab }) {
         </div>
       </div>
 
-      {/* Module Navigation Tabs */}
-      <div className="flex border-b border-outline/20 mb-8 overflow-x-auto gap-2">
-        <button 
-          onClick={() => setActiveModule('consultes')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'consultes' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <MessageSquare className="w-4 h-4" />
-          <span>Comunicacions</span>
-          {pendentsCount > 0 && (
-            <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
-              {pendentsCount}
-            </span>
-          )}
-        </button>
+      {/* Module Navigation Tabs (5 Conceptual Vertical Columns) */}
+      <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-xs mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+          
+          {/* COLUMNA 1: PROJECTES I CATEGORIES */}
+          <div className="space-y-2.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-bold text-on-surface-variant/70 px-1 border-b border-outline/10 pb-1 truncate">
+              Projectes i Categories
+            </div>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveModule('projectes')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'projectes' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Projectes</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'projectes' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbProjects.length}
+                </span>
+              </button>
 
-        <button 
-          onClick={() => setActiveModule('pressupostos')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'pressupostos' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Pressupostos</span>
-          {pressupostosPendentsCount > 0 && (
-            <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
-              {pressupostosPendentsCount}
-            </span>
-          )}
-        </button>
+              <button 
+                onClick={() => setActiveModule('branques')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'branques' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Tag className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Categories</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'branques' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbBranques.length}
+                </span>
+              </button>
+            </div>
+          </div>
 
-        <button 
-          onClick={() => setActiveModule('productes')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'productes' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Package className="w-4 h-4" />
-          <span>Productes</span>
-          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
-            {dbProductesAdmin.length}
-          </span>
-        </button>
+          {/* COLUMNA 2: PRODUCTES I GRUPS */}
+          <div className="space-y-2.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-bold text-on-surface-variant/70 px-1 border-b border-outline/10 pb-1 truncate">
+              Productes i Grups
+            </div>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveModule('productes')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'productes' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Package className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Productes</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'productes' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbProductesAdmin.length}
+                </span>
+              </button>
 
-        <button 
-          onClick={() => setActiveModule('taxonomy')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'taxonomy' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Folder className="w-4 h-4" />
-          <span>Famílies-Gammes</span>
-          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
-            {dbGammes.length}
-          </span>
-        </button>
+              <button 
+                onClick={() => setActiveModule('taxonomy')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'taxonomy' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Folder className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Grups</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'taxonomy' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbGammes.length}
+                </span>
+              </button>
+            </div>
+          </div>
 
-        <button 
-          onClick={() => setActiveModule('projectes')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'projectes' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          <span>Projectes</span>
-          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
-            {dbProjects.length}
-          </span>
-        </button>
+          {/* COLUMNA 3: VENDES I PREUS */}
+          <div className="space-y-2.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-bold text-on-surface-variant/70 px-1 border-b border-outline/10 pb-1 truncate">
+              Vendes i Preus
+            </div>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveModule('pressupostos')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'pressupostos' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <ShoppingBag className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Pressupostos</span>
+                </div>
+                {pressupostosPendentsCount > 0 ? (
+                  <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold shrink-0">
+                    {pressupostosPendentsCount}
+                  </span>
+                ) : (
+                  <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'pressupostos' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    {pressupostos.length}
+                  </span>
+                )}
+              </button>
 
-        <button 
-          onClick={() => setActiveModule('branques')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'branques' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Tag className="w-4 h-4" />
-          <span>Categories</span>
-          <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
-            {dbBranques.length}
-          </span>
-        </button>
+              <button 
+                onClick={() => setActiveModule('calcul_pressupostos')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'calcul_pressupostos' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Calculator className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Càlcul de preus</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'calcul_pressupostos' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {calculsPressupostos.length}
+                </span>
+              </button>
+            </div>
+          </div>
 
-        <button 
-          onClick={() => setActiveModule('valoracions')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'valoracions' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
-          <span>Valoracions</span>
-          {valoracionsPendentsCount > 0 ? (
-            <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold">
-              {valoracionsPendentsCount}
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 text-xs bg-surface-container text-on-surface-variant rounded-full font-bold">
-              {valoracionsAdmin.length}
-            </span>
-          )}
-        </button>
+          {/* COLUMNA 4: ATENCIÓ */}
+          <div className="space-y-2.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-bold text-on-surface-variant/70 px-1 border-b border-outline/10 pb-1 truncate">
+              Atenció
+            </div>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setActiveModule('consultes')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'consultes' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <MessageSquare className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Comunicacions</span>
+                </div>
+                {pendentsCount > 0 ? (
+                  <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold shrink-0">
+                    {pendentsCount}
+                  </span>
+                ) : (
+                  <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'consultes' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    {consultes.length}
+                  </span>
+                )}
+              </button>
 
-        <button 
-          onClick={() => setActiveModule('config')}
-          className={`px-5 py-3 font-medium text-sm border-b-2 transition-all cursor-pointer flex items-center gap-2 whitespace-nowrap ${
-            activeModule === 'config' 
-              ? 'border-primary text-primary font-semibold' 
-              : 'border-transparent text-on-surface-variant hover:text-primary'
-          }`}
-        >
-          <Settings className="w-4 h-4" />
-          <span>Configuració i Seguretat</span>
-        </button>
+              <button 
+                onClick={() => setActiveModule('valoracions')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'valoracions' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Star className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Valoracions</span>
+                </div>
+                {valoracionsPendentsCount > 0 ? (
+                  <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full font-bold shrink-0">
+                    {valoracionsPendentsCount}
+                  </span>
+                ) : (
+                  <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'valoracions' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                    {valoracionsAdmin.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* COLUMNA 5: SISTEMA */}
+          <div className="space-y-2.5">
+            <div className="text-[11px] uppercase tracking-wider font-mono font-bold text-on-surface-variant/70 px-1 border-b border-outline/10 pb-1 truncate">
+              Sistema
+            </div>
+            <div className="space-y-2">
+              <div className="hidden lg:block h-12" />
+
+              <button 
+                onClick={() => setActiveModule('config')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'config' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Configuració</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* MODULE 1: CONSULTES I ENCÀRRECS */}
@@ -1374,7 +1700,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                       <div className="text-xs text-on-surface-variant space-y-1 mb-3">
                         <p>Contacte: <strong className="text-primary font-mono">{p.clientContacte}</strong></p>
-                        <p>Productes triats: <strong>{(p.productes || []).length} peces</strong></p>
+                        <p>Peces demanades: <strong className="text-primary font-mono font-bold">{(p.productes || []).reduce((acc, i) => acc + (Number(i.quantitat) || 1), 0)} unitats</strong> <span className="text-[11px] text-on-surface-variant font-normal">({(p.productes || []).length} {(p.productes || []).length === 1 ? 'model' : 'models'})</span></p>
                       </div>
 
                       <div className="pt-3 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
@@ -1521,6 +1847,708 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODULE: CÀLCUL DE PRESSUPOSTOS */}
+      {activeModule === 'calcul_pressupostos' && (
+        <div className="space-y-8 animate-fadeIn">
+          {/* Module Banner */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-emerald-600/10 text-emerald-700 dark:text-emerald-300 rounded-full text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1">
+                  <Calculator className="w-3.5 h-3.5" />
+                  Eina Interna de Pressupostació
+                </span>
+              </div>
+              <h2 className="font-serif text-2xl font-semibold text-primary">Càlcul i Pressupostador de Venda</h2>
+              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed max-w-3xl">
+                Especifica el preu de cost manual (fabricació Odoo), aplica els percentatges acumulatius (guany comercial, quantitat/volum, recàrrec estacional i demanda urgent) i detecta l'històric d'anteriors preus del mateix client i article.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleResetCalculForm}
+                className="px-4 py-2 bg-surface hover:bg-surface-container border border-outline/20 text-on-surface text-xs font-medium rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Netejar Formulari</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main Grid: Calculator Form + Calculations Preview */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* Form & Controls (8 Cols) */}
+            <div className="lg:col-span-8 space-y-6">
+              <form onSubmit={handleSaveCalcul} className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline/15 shadow-sm space-y-6">
+                
+                {/* Section 1: Client & Product Identification */}
+                <div className="space-y-4">
+                  <h3 className="font-serif text-lg font-semibold text-primary flex items-center gap-2 border-b border-outline/15 pb-2">
+                    <UserCheck className="w-5 h-5 text-primary" />
+                    <span>1. Identificació del Client i Article</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Nom Client */}
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                        Nom del Client <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={calcClientNom}
+                        onChange={(e) => setCalcClientNom(e.target.value)}
+                        placeholder="Ex: Maria Garcia / Empresa SL"
+                        className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/20 text-sm text-primary focus:outline-none focus:border-primary font-medium"
+                        required
+                      />
+                    </div>
+
+                    {/* Contacte Client */}
+                    <div>
+                      <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                        Contacte (Email / Telèfon)
+                      </label>
+                      <input
+                        type="text"
+                        value={calcClientContacte}
+                        onChange={(e) => setCalcClientContacte(e.target.value)}
+                        placeholder="Ex: maria@gmail.com / 654 321 098"
+                        className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/20 text-sm text-primary focus:outline-none focus:border-primary font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Article i Família/Gamma */}
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Article <span className="text-error">*</span>
+                    </label>
+                    <div className="flex flex-col md:flex-row gap-2">
+                      {/* Textbox Readonly a l'esquerra amb [Família] / [Gamma] */}
+                      <div className="w-full md:w-56 shrink-0">
+                        <input
+                          type="text"
+                          readOnly
+                          value={calcFamiliaGamma || '— / —'}
+                          placeholder="[Família] / [Gamma]"
+                          title="Composició [Família] / [Gamma]"
+                          className="w-full px-3 py-2.5 rounded-lg bg-surface-container/80 border border-outline/20 font-mono text-xs text-primary font-bold cursor-not-allowed select-none"
+                        />
+                      </div>
+
+                      {/* Article Editable Input */}
+                      <input
+                        type="text"
+                        value={calcArticleNom}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCalcArticleNom(val);
+                          const matched = dbProductesAdmin.find(p => p.nom?.toLowerCase() === val.trim().toLowerCase());
+                          if (matched) {
+                            setCalcFamiliaGamma(getProductFamiliaGamma(matched, dbGammes));
+                          }
+                        }}
+                        placeholder="Ex: Món Mínim Personalitzat Fusta Fageda / Caixeta Regal"
+                        className="flex-1 px-4 py-2.5 rounded-lg bg-surface border border-outline/20 text-sm text-primary focus:outline-none focus:border-primary font-medium"
+                        required
+                      />
+
+                      {/* Selector de Catàleg */}
+                      {dbProductesAdmin.length > 0 && (
+                        <select
+                          onChange={(e) => {
+                            const selectedProd = dbProductesAdmin.find(p => p.nom === e.target.value);
+                            if (selectedProd) {
+                              setCalcArticleNom(selectedProd.nom);
+                              setCalcFamiliaGamma(getProductFamiliaGamma(selectedProd, dbGammes));
+                            }
+                          }}
+                          className="px-3 py-2.5 rounded-lg bg-surface border border-outline/20 text-xs text-on-surface-variant focus:outline-none focus:border-primary cursor-pointer max-w-xs"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>-- Seleccionar del Catàleg --</option>
+                          {dbProductesAdmin.map(p => (
+                            <option key={p.id} value={p.nom}>
+                              [{p.codi || 'PRDT'}] {p.nom}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Canal de la Demanda */}
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Canal de la Demanda de Pressupost <span className="text-error">*</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCalcCanal('web')}
+                        className={`px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                          calcCanal === 'web'
+                            ? 'bg-primary text-on-primary border-primary shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-primary/40'
+                        }`}
+                      >
+                        <Globe className="w-4 h-4" />
+                        <span>Web</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCalcCanal('whatsapp')}
+                        className={`px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                          calcCanal === 'whatsapp'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-emerald-500/40'
+                        }`}
+                      >
+                        <MessageCircle className="w-4 h-4 text-emerald-400" />
+                        <span>WhatsApp</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCalcCanal('telefonic')}
+                        className={`px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                          calcCanal === 'telefonic'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-amber-500/40'
+                        }`}
+                      >
+                        <PhoneCall className="w-4 h-4 text-amber-400" />
+                        <span>Telefònic</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {calcCanal === 'web' && pressupostos.length > 0 && (
+                    <div className="bg-surface-container/60 p-3.5 rounded-lg border border-outline/10 space-y-1">
+                      <label className="block text-[11px] font-mono text-on-surface-variant">
+                        Vincular amb una Sol·licitud Web Rebuda (Opcional):
+                      </label>
+                      <select
+                        value={calcWebRefId}
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          setCalcWebRefId(selectedId);
+                          if (!selectedId) return;
+
+                          const matchedWeb = pressupostos.find(p => p.id === selectedId);
+                          if (matchedWeb) {
+                            // Refrescar SEMPRE client i contacte
+                            setCalcClientNom(matchedWeb.clientNom || '');
+                            setCalcClientContacte(matchedWeb.clientContacte || '');
+                            
+                            // Refrescar SEMPRE articles i quantitat demanada de peces
+                            if (matchedWeb.productes && matchedWeb.productes.length > 0) {
+                              const articlesStr = matchedWeb.productes.map(i => `${i.nom}${i.quantitat > 1 ? ` (x${i.quantitat})` : ''}`).join(', ');
+                              setCalcArticleNom(articlesStr);
+
+                              const totalUnits = matchedWeb.productes.reduce((acc, i) => acc + (Number(i.quantitat) || 1), 0);
+                              setCalcQuantitatUnits(totalUnits);
+
+                              // Derivar Família / Gamma del primer producte
+                              const firstProdNom = matchedWeb.productes[0].nom;
+                              const matchedCatalogProd = dbProductesAdmin.find(p => p.nom?.toLowerCase() === firstProdNom?.toLowerCase());
+                              if (matchedCatalogProd) {
+                                setCalcFamiliaGamma(getProductFamiliaGamma(matchedCatalogProd, dbGammes));
+                              } else {
+                                setCalcFamiliaGamma('Web / Personalitzat');
+                              }
+                            } else {
+                              setCalcQuantitatUnits(1);
+                            }
+
+                            // Refrescar SEMPRE la resenya manual / observacions
+                            const obsGen = matchedWeb.observacionsGenerals || '';
+                            const obsItems = (matchedWeb.productes || [])
+                              .map(p => p.observacions ? `${p.nom}: "${p.observacions}"` : '')
+                              .filter(Boolean)
+                              .join(' | ');
+                            const fullResenya = [obsGen, obsItems].filter(Boolean).join(' -- ');
+                            setCalcResenyaManual(fullResenya ? `Sol·licitud Web ${matchedWeb.codiReferencia || matchedWeb.id}: ${fullResenya}` : `Sol·licitud Web ${matchedWeb.codiReferencia || matchedWeb.id}`);
+                          }
+                        }}
+                        className="w-full px-3 py-2 rounded bg-surface border border-outline/20 text-xs font-mono text-primary cursor-pointer"
+                      >
+                        <option value="">-- Cap sol·licitud vinculada directament --</option>
+                        {pressupostos.map(p => {
+                          const totUnits = (p.productes || []).reduce((acc, i) => acc + (Number(i.quantitat) || 1), 0);
+                          const statusTag = p.estat === 'ates' ? ' ✓ [Atès]' : ' ⏳ [Pendent]';
+                          return (
+                            <option key={p.id} value={p.id}>
+                              [{p.codiReferencia || p.id}] {p.clientNom} - {totUnits} {totUnits === 1 ? 'unitat' : 'unitats'}{statusTag} ({p.data ? new Date(p.data.seconds * 1000).toLocaleDateString('ca-ES') : ''})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Resenya Manual / Context de la Demanda {calcCanal !== 'web' && <span className="text-amber-600 font-bold">(Recomanat per {calcCanal})</span>}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={calcResenyaManual}
+                      onChange={(e) => setCalcResenyaManual(e.target.value)}
+                      placeholder={
+                        calcCanal === 'whatsapp' 
+                          ? "Resenya manual del xat de WhatsApp (ex: demana 50 unitats per a un esdeveniment al juny)..." 
+                          : calcCanal === 'telefonic'
+                            ? "Resenya de la trucada telefònica (ex: consulta directa de trucada al taller)..."
+                            : "Resenya o anotacions manuals del pressupost web..."
+                      }
+                      className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/20 text-xs text-primary focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* HISTÒRIC MATCH ALERT BANNER */}
+                {historicMatches.length > 0 && (
+                  <div className="p-4 bg-amber-500/10 border-2 border-amber-500/40 rounded-xl space-y-3 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold text-sm">
+                        <AlertCircle className="w-5 h-5 shrink-0" />
+                        <span>⚠️ Atenció: Històric trobat per a aquest client i article ({historicMatches.length})</span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-on-surface-variant leading-relaxed">
+                      S'informa a títol de referència que el client <strong>{calcClientNom}</strong> ja té registrat un preu anterior per a <strong>{calcArticleNom}</strong>.
+                      <br />
+                      <em className="text-amber-800 dark:text-amber-200 font-medium">⚠️ Aquest preu no s'aplica automàticament directament perquè pot ser diferent per múltiples motius (variació de cost de matèries primeres, quantitat o personalització).</em>
+                    </p>
+
+                    <div className="space-y-2 pt-1">
+                      {historicMatches.map((match) => (
+                        <div key={match.id} className="p-3 bg-surface rounded-lg border border-amber-300 dark:border-amber-900/60 flex flex-col md:flex-row justify-between md:items-center text-xs gap-2 shadow-xs">
+                          <div>
+                            <div className="font-bold text-primary">{match.articleNom} <span className="font-mono text-[11px] font-normal text-on-surface-variant">({match.dataFormatted || match.dataCreacio?.substring(0,10)})</span></div>
+                            <div className="text-[11px] text-on-surface-variant mt-0.5">
+                              Canal: <span className="capitalize font-semibold text-primary">{match.canal}</span>
+                              {match.resenyaManual ? ` · "${match.resenyaManual}"` : ''}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3 self-end md:self-auto">
+                            <div className="text-right">
+                              <div className="text-xs text-on-surface-variant">
+                                Preu Venda Previ: <strong className="text-emerald-700 dark:text-emerald-300 text-sm font-mono">{Number(match.preuVendaFinal).toFixed(2)} €</strong>
+                              </div>
+                              <div className="text-[10px] font-mono text-on-surface-variant">
+                                Cost base Odoo: {Number(match.preuCost).toFixed(2)} €
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleLoadCalculToForm(match)}
+                              className="px-3 py-1 bg-amber-600 text-white hover:bg-amber-700 rounded text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              Carregar Dades
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 2: Cost (Odoo) & Percentatges */}
+                <div className="space-y-4 pt-2">
+                  <h3 className="font-serif text-lg font-semibold text-primary flex items-center gap-2 border-b border-outline/15 pb-2">
+                    <Coins className="w-5 h-5 text-primary" />
+                    <span>2. Preu de Cost (Odoo) i Percentatges Acumulatius</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Preu Cost (Odoo Manual) */}
+                    <div className="bg-surface-container/40 p-4 rounded-xl border border-primary/15 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs uppercase tracking-wider font-semibold text-primary">
+                          Preu de Cost (€/unitat) <span className="text-error">*</span>
+                        </label>
+                        <span className="px-2 py-0.5 bg-primary/10 text-primary font-mono text-[10px] font-bold rounded uppercase">
+                          Odoo
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={calcPreuCost}
+                          onChange={(e) => setCalcPreuCost(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full pl-10 pr-12 py-3 rounded-lg bg-surface border border-primary/30 text-lg font-mono font-bold text-primary focus:outline-none focus:border-primary"
+                          required
+                        />
+                        <span className="absolute left-3.5 top-3.5 text-primary font-bold">€</span>
+                        <span className="absolute right-3.5 top-3.5 text-xs text-on-surface-variant font-mono">EUR</span>
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant">
+                        Preu de cost unitari per peça extraït d'Odoo.
+                      </p>
+                    </div>
+
+                    {/* Quantitat Demanada (Unitats) */}
+                    <div className="bg-surface-container/40 p-4 rounded-xl border border-primary/15 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs uppercase tracking-wider font-semibold text-primary">
+                          Quantitat Demanada (Unitats) <span className="text-error">*</span>
+                        </label>
+                        <span className="px-2 py-0.5 bg-primary/10 text-primary font-mono text-[10px] font-bold rounded uppercase">
+                          Peces
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          value={calcQuantitatUnits}
+                          onChange={(e) => setCalcQuantitatUnits(Math.max(1, parseInt(e.target.value) || 1))}
+                          placeholder="1"
+                          className="w-full px-4 py-3 rounded-lg bg-surface border border-primary/30 text-lg font-mono font-bold text-primary focus:outline-none focus:border-primary"
+                          required
+                        />
+                      </div>
+                      <p className="text-[11px] text-on-surface-variant">
+                        Peces totals de la comanda (es carrega des de la cistella web).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-2">
+                      Factors Percentuals Acumulatius Aplicats sobre el Cost:
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* 1. Guany % */}
+                      <div className="p-3.5 bg-surface rounded-lg border border-outline/20 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-semibold text-primary">
+                          <span>📈 Guany Comercial (%)</span>
+                          <span className="font-mono text-primary">{calcPercentGuany}%</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={calcPercentGuany}
+                          onChange={(e) => setCalcPercentGuany(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
+                          placeholder="30"
+                        />
+                        <p className="text-[10px] text-on-surface-variant">Marge comercial base de l'empresa.</p>
+                      </div>
+
+                      {/* 2. Quantitat de compra % */}
+                      <div className="p-3.5 bg-surface rounded-lg border border-outline/20 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-semibold text-primary">
+                          <span>📦 Quantitat de Compra (%)</span>
+                          <span className="font-mono text-primary">{calcPercentQuantitat}%</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={calcPercentQuantitat}
+                          onChange={(e) => setCalcPercentQuantitat(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
+                          placeholder="0 (+ o - %)"
+                        />
+                        <p className="text-[10px] text-on-surface-variant">Ajust per volum (-% descompte / +% lot petit).</p>
+                      </div>
+
+                      {/* 3. Recàrreg estacional % */}
+                      <div className="p-3.5 bg-surface rounded-lg border border-outline/20 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-semibold text-primary">
+                          <span>☀️ Recàrreg Estacional (%)</span>
+                          <span className="font-mono text-primary">{calcPercentEstacional}%</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={calcPercentEstacional}
+                          onChange={(e) => setCalcPercentEstacional(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
+                          placeholder="0"
+                        />
+                        <p className="text-[10px] text-on-surface-variant">Increments per temporada alta (Nadal, etc.).</p>
+                      </div>
+
+                      {/* 4. Demanda urgent % */}
+                      <div className="p-3.5 bg-surface rounded-lg border border-outline/20 space-y-1.5">
+                        <div className="flex justify-between items-center text-xs font-semibold text-primary">
+                          <span>⚡ Demanda Urgent (%)</span>
+                          <span className="font-mono text-primary">{calcPercentUrgent}%</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={calcPercentUrgent}
+                          onChange={(e) => setCalcPercentUrgent(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
+                          placeholder="0"
+                        />
+                        <p className="text-[10px] text-on-surface-variant">Recàrrec per lliurament ràpid o exprés.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3: Preu Calculat & Preu Venda Final */}
+                <div className="space-y-4 pt-2">
+                  <h3 className="font-serif text-lg font-semibold text-primary flex items-center gap-2 border-b border-outline/15 pb-2">
+                    <FileSpreadsheet className="w-5 h-5 text-primary" />
+                    <span>3. Resultat del Càlcul i Preu de Venda Final</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                    
+                    {/* CASELLA 1: PREU CALCULAT (APARTAT & TRANSMISSIÓ) */}
+                    <div className="bg-emerald-500/10 border-2 border-emerald-500/30 p-5 rounded-xl flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs uppercase font-mono font-bold text-emerald-800 dark:text-emerald-300">
+                            Preu Calculat (Casella Aportada)
+                          </span>
+                          <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-mono font-bold">
+                            Automàtic
+                          </span>
+                        </div>
+
+                        <div className="my-2">
+                          <div className="text-3xl font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
+                            {preuCalculatTotal > 0 ? `${preuCalculatTotal.toFixed(2)} €` : '0.00 €'}
+                          </div>
+                          <div className="text-xs font-mono font-semibold text-emerald-800 dark:text-emerald-200 mt-0.5">
+                            Preu Total Comanda ({calcQuantitatUnits} {calcQuantitatUnits === 1 ? 'unitat' : 'unitats'})
+                          </div>
+                        </div>
+
+                        {calcQuantitatUnits > 1 && (
+                          <div className="p-2 bg-emerald-600/10 rounded border border-emerald-500/20 text-xs font-mono text-emerald-900 dark:text-emerald-200 mb-2">
+                            Preu Unitari: <strong>{preuCalculatUnitari.toFixed(2)} €</strong> / unitat
+                          </div>
+                        )}
+
+                        <div className="text-[11px] text-on-surface-variant leading-tight space-y-0.5">
+                          <div>Fórmula acumulativa sobre cost:</div>
+                          <div className="font-mono text-[10px] text-primary">
+                            Unitari ({preuCalculatUnitari.toFixed(2)}€) = Cost ({parseFloat(calcPreuCost) || 0}€) × (1+{calcPercentGuany}%) × (1+{calcPercentQuantitat}%) × (1+{calcPercentEstacional}%) × (1+{calcPercentUrgent}%)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTransmitPreuVenda('total')}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs transition-colors shadow flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <span>Transmetre Preu Total ({preuCalculatTotal.toFixed(2)} €)</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                        {calcQuantitatUnits > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleTransmitPreuVenda('unitari')}
+                            className="w-full py-1.5 bg-surface hover:bg-surface-container border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-semibold rounded text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <span>Transmetre Preu Unitari ({preuCalculatUnitari.toFixed(2)} €)</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CASELLA 2: PREU DE VENDA FINAL (EDITABLE) */}
+                    <div className="bg-surface-container-lowest p-5 rounded-xl border-2 border-primary/30 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-xs uppercase font-mono font-bold text-primary">
+                            Preu de Venda Final (€) <span className="text-error">*</span>
+                          </label>
+                          <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-mono font-bold">
+                            Editable Manualment
+                          </span>
+                        </div>
+
+                        <div className="relative my-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={calcPreuVendaFinal}
+                            onChange={(e) => setCalcPreuVendaFinal(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full pl-10 pr-12 py-2.5 rounded-lg bg-surface border border-primary text-2xl font-mono font-extrabold text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            required
+                          />
+                          <span className="absolute left-3.5 top-3 text-primary font-bold text-lg">€</span>
+                        </div>
+
+                        <p className="text-[11px] text-on-surface-variant">
+                          Pots transmetre el preu calculat directament o escriure manualment el valor definitiu per al client.
+                        </p>
+                      </div>
+
+                      <div className="pt-2">
+                        {calcSavingStatus && (
+                          <div className="p-2 mb-2 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded text-xs font-mono text-center">
+                            {calcSavingStatus}
+                          </div>
+                        )}
+
+                        <button
+                          type="submit"
+                          className="w-full py-3 bg-primary hover:bg-primary-container text-on-primary font-semibold rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 cursor-pointer"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>Desar Pressupost a l'Històric</span>
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </form>
+            </div>
+
+            {/* Historic List & Details Side Column (4 Cols) */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 shadow-sm space-y-4">
+                
+                <div className="flex justify-between items-center border-b border-outline/15 pb-3">
+                  <div>
+                    <h3 className="font-serif text-lg font-semibold text-primary flex items-center gap-2">
+                      <History className="w-5 h-5 text-primary" />
+                      <span>Històric de Càlculs</span>
+                    </h3>
+                    <p className="text-xs text-on-surface-variant mt-0.5">
+                      {calculsPressupostos.length} registres desats
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filters */}
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={calcSearchQuery}
+                      onChange={(e) => setCalcSearchQuery(e.target.value)}
+                      placeholder="Cerca per client o article..."
+                      className="w-full pl-9 pr-3 py-2 rounded-lg bg-surface border border-outline/20 text-xs focus:outline-none focus:border-primary"
+                    />
+                    <Search className="w-3.5 h-3.5 text-on-surface-variant absolute left-3 top-2.5" />
+                  </div>
+
+                  <div className="flex gap-1 overflow-x-auto text-[11px]">
+                    {['tots', 'web', 'whatsapp', 'telefonic'].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setCalcFilterCanal(c)}
+                        className={`px-2.5 py-1 rounded font-medium capitalize cursor-pointer transition-colors ${
+                          calcFilterCanal === c ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+                        }`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* List of Historic Calculations */}
+                {loadingCalculs ? (
+                  <div className="p-6 text-center text-xs text-on-surface-variant">Carregant històric des de Firestore...</div>
+                ) : calculsPressupostos.length === 0 ? (
+                  <div className="p-8 text-center bg-surface rounded-lg border border-outline/10 text-on-surface-variant text-xs space-y-1">
+                    <Calculator className="w-6 h-6 mx-auto text-outline" />
+                    <p className="font-medium text-primary">Encara no s'ha desat cap càlcul</p>
+                    <p className="text-[11px]">Els càlculs desats apareixeran aquí per mantenir un seguiment complet del client.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                    {calculsPressupostos
+                      .filter(item => {
+                        const q = calcSearchQuery.toLowerCase();
+                        const matchesQuery = !q || (item.clientNom || '').toLowerCase().includes(q) || (item.articleNom || '').toLowerCase().includes(q);
+                        const matchesCanal = calcFilterCanal === 'tots' || item.canal === calcFilterCanal;
+                        return matchesQuery && matchesCanal;
+                      })
+                      .map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3.5 bg-surface rounded-lg border border-outline/15 hover:border-primary/40 transition-all space-y-2 text-xs"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="font-bold text-primary block text-sm">{item.clientNom}</span>
+                              <span className="text-[11px] text-on-surface-variant">{item.articleNom}</span>
+                            </div>
+                            <span className="font-mono text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
+                              {item.dataFormatted || item.dataCreacio?.substring(0, 10)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] bg-surface-container-lowest p-2 rounded border border-outline/10">
+                            <div>
+                              <span className="text-on-surface-variant">Canal: </span>
+                              <strong className="capitalize font-semibold text-primary">{item.canal}</strong>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-on-surface-variant">Preu Venda: </span>
+                              <strong className="text-emerald-700 dark:text-emerald-300 font-mono text-xs">{Number(item.preuVendaFinal).toFixed(2)} €</strong>
+                            </div>
+                          </div>
+
+                          {item.resenyaManual && (
+                            <p className="text-[11px] text-on-surface-variant italic line-clamp-2">
+                              "{item.resenyaManual}"
+                            </p>
+                          )}
+
+                          <div className="flex justify-between items-center pt-1 border-t border-outline/10">
+                            <button
+                              type="button"
+                              onClick={() => handleLoadCalculToForm(item)}
+                              className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>Carregar al Formulari</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCalcul(item.id, e)}
+                              className="text-[11px] text-error hover:bg-error-container/30 p-1 rounded transition-colors"
+                              title="Eliminar de l'històric"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+              </div>
+            </div>
+
           </div>
         </div>
       )}
