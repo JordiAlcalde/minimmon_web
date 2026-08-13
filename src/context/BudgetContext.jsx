@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const BudgetContext = createContext();
 
 const CART_STORAGE_KEY = 'minimmon_budget_cart';
+const SENT_BUDGET_COUNT_KEY = 'minimmon_sent_budget_count';
 
 export function BudgetProvider({ children }) {
   const [cart, setCart] = useState(() => {
@@ -15,7 +16,26 @@ export function BudgetProvider({ children }) {
     }
   });
 
+  const [sentBudgetCount, setSentBudgetCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SENT_BUDGET_COUNT_KEY);
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const recordSentBudget = () => {
+    setSentBudgetCount((prev) => {
+      const next = prev + 1;
+      try {
+        localStorage.setItem(SENT_BUDGET_COUNT_KEY, next.toString());
+      } catch (e) {}
+      return next;
+    });
+  };
 
   // Desem a localStorage cada vegada que canvia la cistella
   useEffect(() => {
@@ -91,6 +111,8 @@ export function BudgetProvider({ children }) {
         removeFromCart,
         clearCart,
         totalItems,
+        sentBudgetCount,
+        recordSentBudget,
         isDrawerOpen,
         setIsDrawerOpen
       }}

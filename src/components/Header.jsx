@@ -4,7 +4,7 @@ import { ShoppingBag } from 'lucide-react';
 
 export default function Header({ activeTab, setActiveTab }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { totalItems, setIsDrawerOpen } = useBudget();
+  const { sentBudgetCount, setIsDrawerOpen } = useBudget();
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
@@ -108,9 +108,9 @@ export default function Header({ activeTab, setActiveTab }) {
             aria-label="Cistella de Pressupostos"
           >
             <ShoppingBag className="w-5 h-5 text-primary" />
-            {totalItems > 0 && (
+            {sentBudgetCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
-                {totalItems}
+                {sentBudgetCount}
               </span>
             )}
           </button>
@@ -124,9 +124,9 @@ export default function Header({ activeTab, setActiveTab }) {
             title="Obrir Cistella de Pressupostos"
           >
             <ShoppingBag className="w-4 h-4 text-primary" />
-            {totalItems > 0 && (
+            {sentBudgetCount > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-on-primary font-mono text-[9px] flex items-center justify-center font-bold">
-                {totalItems}
+                {sentBudgetCount}
               </span>
             )}
           </button>
