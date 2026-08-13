@@ -208,6 +208,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramStatus, setTelegramStatus] = useState('');
 
+  // Access key state
+  const [newKeyInput, setNewKeyInput] = useState('');
+  const [keyChangeStatus, setKeyChangeStatus] = useState({ type: '', msg: '' });
+
   const valoracionsPendentsCount = valoracionsAdmin.filter(v => v.estat === 'pendent').length;
 
   const handleApproveValoracio = async (id) => {

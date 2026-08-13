@@ -106,18 +106,18 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
 
   // Filter projects by category (multi-category support & Novetats filter)
   const currentList = projectsList || [];
-  const filteredProjects = filter === 'Tots' 
-    ? currentList 
+  const filteredProjects = filter === 'Tots'
+    ? currentList
     : (filter === 'Novetats'
-        ? currentList.filter(p => p && p.novetat === true)
-        : currentList.filter(p => {
-            if (!p) return false;
-            const pBranques = Array.isArray(p.branques) && p.branques.length > 0
-              ? p.branques
-              : [p.branca || p.category || ''];
-            return pBranques.some(b => String(b || '').toLowerCase() === String(filter || '').toLowerCase());
-          })
-      );
+      ? currentList.filter(p => p && p.novetat === true)
+      : currentList.filter(p => {
+        if (!p) return false;
+        const pBranques = Array.isArray(p.branques) && p.branques.length > 0
+          ? p.branques
+          : [p.branca || p.category || ''];
+        return pBranques.some(b => String(b || '').toLowerCase() === String(filter || '').toLowerCase());
+      })
+    );
 
   // Sort projects by Data de Creació (default newest first)
   const sortedProjects = [...filteredProjects].sort((a, b) => {
@@ -126,7 +126,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
     if (!dateA && !dateB) return 0;
     if (!dateA) return 1;
     if (!dateB) return -1;
-    
+
     if (sortOrder === 'newest') {
       return dateB.localeCompare(dateA); // newest first
     } else {
@@ -140,8 +140,8 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
       <header className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-16 text-center">
         <div className="relative overflow-hidden rounded-3xl p-8 md:p-14 border border-outline/15 bg-surface-container-lowest shadow-md">
           {/* Imatge de fons atmosfèrica amb degradats per omplir el desert de fons */}
-          <div 
-            className="absolute inset-0 bg-cover bg-center opacity-20 mix-blend-multiply blur-[0.5px]"
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-60 mix-blend-multiply blur-[0.5px]"
             style={{ backgroundImage: `url('/images/mons_minims_hero_bg.png')` }}
           ></div>
           <div className="absolute inset-0 bg-gradient-to-b from-surface-container-lowest/50 via-surface-container-lowest/80 to-surface-container-lowest"></div>
@@ -149,7 +149,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
           <div className="relative z-10 max-w-3xl mx-auto">
             <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
             <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">L'Art de la Precisió</h1>
-            
+
             {/* Poetic Intro Block */}
             <div className="space-y-4 text-on-surface-variant leading-relaxed text-base md:text-lg mb-6">
               <h2 className="font-serif text-lg md:text-xl text-primary font-medium">
@@ -170,7 +170,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
             </div>
           </div>
         </div>
-        
+
         {/* Controls Bar: Category Filters & Sort Selector */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 mt-10 max-w-container-max mx-auto">
           {/* Category Filters amb la píndola 'Novetats' */}
@@ -178,20 +178,19 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
             {branquesList.map((cat) => {
               const isNovetats = cat === 'Novetats';
               const isSelected = filter === cat;
-              
+
               return (
                 <button
                   key={cat}
                   onClick={() => setFilter(cat)}
-                  className={`px-4 py-1.5 rounded-full font-body-md text-xs transition-all cursor-pointer inline-flex items-center gap-1.5 ${
-                    isSelected 
-                      ? (isNovetats 
-                          ? 'bg-[#3D2B1F] text-amber-200 font-bold border border-amber-200/40 shadow-sm' 
-                          : 'bg-primary text-on-primary font-medium shadow-sm')
-                      : (isNovetats 
-                          ? 'bg-surface-container text-amber-800 hover:bg-surface-container-high border border-amber-800/20 font-semibold' 
-                          : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline/15')
-                  }`}
+                  className={`px-4 py-1.5 rounded-full font-body-md text-xs transition-all cursor-pointer inline-flex items-center gap-1.5 ${isSelected
+                    ? (isNovetats
+                      ? 'bg-[#3D2B1F] text-amber-200 font-bold border border-amber-200/40 shadow-sm'
+                      : 'bg-primary text-on-primary font-medium shadow-sm')
+                    : (isNovetats
+                      ? 'bg-surface-container text-amber-800 hover:bg-surface-container-high border border-amber-800/20 font-semibold'
+                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high border border-outline/15')
+                    }`}
                 >
                   {isNovetats && <Sparkles className={`w-3.5 h-3.5 ${isSelected ? 'text-amber-400' : 'text-amber-700'}`} />}
                   <span>{cat}</span>
@@ -240,8 +239,8 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
               const isEven = index % 2 === 0;
               const title = project.titol || project.title;
               const subtitle = project.subtitol || project.subtitle;
-              const displayBranques = Array.isArray(project.branques) && project.branques.length > 0 
-                ? project.branques 
+              const displayBranques = Array.isArray(project.branques) && project.branques.length > 0
+                ? project.branques
                 : [project.branca || project.category || ''];
               const description = project.encarrec || project.description;
               const projectDataCreacio = project.dataCreacio || project.data || '';
@@ -256,15 +255,15 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
 
               return (
                 <ProjectCardErrorBoundary key={project.id || index}>
-                  <article 
+                  <article
                     className="grid grid-cols-1 md:grid-cols-12 gap-gutter items-center group cursor-pointer animate-fadeIn"
                     onClick={() => onSelectProject(project)}
                   >
                     {/* Image Side */}
                     <div className={`md:col-span-7 ${isEven ? 'order-2 md:order-1' : 'md:col-start-6 order-2'} relative`}>
                       <div className={`absolute inset-0 bg-surface-container-low ${isEven ? 'translate-x-4' : '-translate-x-4'} translate-y-4 rounded transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2`}></div>
-                      <img 
-                        className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]" 
+                      <img
+                        className="relative w-full aspect-[4/3] object-cover rounded shadow-md transition-transform duration-500 group-hover:scale-[1.02]"
                         alt={title}
                         src={mainImage}
                       />
@@ -368,7 +367,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
             <WhatsAppIcon className="w-4 h-4" />
             <span>Parlem per WhatsApp</span>
           </a>
-          <button 
+          <button
             onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
           >
