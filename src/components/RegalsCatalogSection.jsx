@@ -866,7 +866,7 @@ function ProductCard({ product, onAddToCart }) {
               className="w-full sm:w-auto bg-primary text-on-primary px-8 py-3.5 rounded font-body-md text-sm hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4" />
-              <span>Demanar Pressupost (+ Afegir a la Cistella)</span>
+              <span>Demanar pressupost</span>
             </button>
 
             {addedToast && (
