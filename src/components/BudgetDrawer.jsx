@@ -7,7 +7,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { sendTelegramNotification } from '../utils/telegramUtils';
 
 export default function BudgetDrawer() {
-  const { cart, removeFromCart, updateCartItem, clearCart, isDrawerOpen, setIsDrawerOpen, totalItems, recordSentBudget } = useBudget();
+  const { cart, removeFromCart, updateCartItem, clearCart, isDrawerOpen, setIsDrawerOpen, totalItems } = useBudget();
   const [formData, setFormData] = useState({
     name: '',
     contact: '',
@@ -75,13 +75,11 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
       });
 
       setSubmittedRef(refCode);
-      recordSentBudget();
       clearCart();
     } catch (err) {
       console.warn("Nota de Firebase al desar pressupost:", err);
       // Fallback si no hi ha connexió
       setSubmittedRef(refCode);
-      recordSentBudget();
       clearCart();
     } finally {
       setIsSubmitting(false);
