@@ -103,11 +103,11 @@ export default function Header({ activeTab, setActiveTab }) {
           {/* Desktop Budget Cart Icon Button */}
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="relative flex items-center justify-center p-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 ml-2 shadow-xs hover:shadow hover:scale-105"
+            className="relative flex items-center justify-center p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 ml-2 shadow-xs hover:shadow hover:scale-105"
             title="Cistella de Pressupostos"
             aria-label="Cistella de Pressupostos"
           >
-            <ShoppingBag className="w-5 h-5 text-primary" />
+            <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
             {totalItems > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
                 {totalItems}
@@ -123,7 +123,7 @@ export default function Header({ activeTab, setActiveTab }) {
             className="relative flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary transition-all cursor-pointer border border-primary/20"
             title="Obrir Cistella de Pressupostos"
           >
-            <ShoppingBag className="w-4 h-4 text-primary" />
+            <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-4 h-4 object-contain dark:brightness-0 dark:invert shrink-0" />
             {totalItems > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-on-primary font-mono text-[9px] flex items-center justify-center font-bold">
                 {totalItems}

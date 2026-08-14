@@ -106,7 +106,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
           <div className="p-6 bg-surface-container-lowest border-b border-outline/15 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <ShoppingBag className="w-5 h-5" />
+                <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
               </div>
               <div>
                 <h2 className="font-serif text-xl text-primary font-semibold">Cistella de Pressupostos</h2>
