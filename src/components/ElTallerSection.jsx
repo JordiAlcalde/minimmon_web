@@ -1,10 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { STITCH_CRAFTSMAN } from '../data/stitchData';
-import { getRandomPhilosophicalQuote } from '../data/philosophicalQuotes';
+import { getRandomPhilosophicalQuote, PHILOSOPHICAL_QUOTES } from '../data/philosophicalQuotes';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 
 export default function ElTallerSection({ setActiveTab }) {
-  const [currentQuote] = useState(() => getRandomPhilosophicalQuote());
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [isQuoteFading, setIsQuoteFading] = useState(false);
+
+  useEffect(() => {
+    if (!PHILOSOPHICAL_QUOTES || PHILOSOPHICAL_QUOTES.length <= 1) return;
+    const interval = setInterval(() => {
+      setIsQuoteFading(true);
+      setTimeout(() => {
+        setQuoteIndex((prev) => (prev + 1) % PHILOSOPHICAL_QUOTES.length);
+        setIsQuoteFading(false);
+      }, 500);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentQuote = PHILOSOPHICAL_QUOTES[quoteIndex] || PHILOSOPHICAL_QUOTES[0];
 
   return (
     <div className="pt-28 pb-24 animate-fadeIn">
@@ -65,8 +80,8 @@ export default function ElTallerSection({ setActiveTab }) {
               <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-transparent via-primary/40 to-primary"></div>
             </div>
 
-            {/* Contingut Poètic i Explicatiu */}
-            <div className="col-span-1 md:col-span-7 p-8 md:p-12 space-y-6">
+            {/* Contingut Poètic i Explicatiu amb Transició Suau */}
+            <div className={`col-span-1 md:col-span-7 p-8 md:p-12 space-y-6 transition-all duration-700 ease-in-out ${isQuoteFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
               <span className="font-label-sm text-xs text-amber-200 uppercase tracking-[0.25em] font-semibold block">
                 Manifest d'Originalitat
               </span>

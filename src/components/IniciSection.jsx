@@ -3,7 +3,7 @@ import { STITCH_PROJECTS, STITCH_CRAFTSMAN } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
-import { getRandomPhilosophicalQuote } from '../data/philosophicalQuotes';
+import { getRandomPhilosophicalQuote, PHILOSOPHICAL_QUOTES } from '../data/philosophicalQuotes';
 
 function getRandomTriplet(projectsPool, currentTriplet = []) {
   if (!projectsPool || projectsPool.length === 0) {
@@ -63,7 +63,24 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', idea: '' });
   
-  const [currentQuote] = useState(() => getRandomPhilosophicalQuote());
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [isQuoteFading, setIsQuoteFading] = useState(false);
+  const [isQuoteHovered, setIsQuoteHovered] = useState(false);
+
+  // Rotació temporitzada de frases solemnes (cada 7 segons amb fade suau)
+  useEffect(() => {
+    if (isQuoteHovered || !PHILOSOPHICAL_QUOTES || PHILOSOPHICAL_QUOTES.length <= 1) return;
+    const interval = setInterval(() => {
+      setIsQuoteFading(true);
+      setTimeout(() => {
+        setQuoteIndex((prev) => (prev + 1) % PHILOSOPHICAL_QUOTES.length);
+        setIsQuoteFading(false);
+      }, 500);
+    }, 7000);
+    return () => clearInterval(interval);
+  }, [isQuoteHovered]);
+
+  const currentQuote = PHILOSOPHICAL_QUOTES[quoteIndex] || PHILOSOPHICAL_QUOTES[0];
   const [allProjects, setAllProjects] = useState([]);
   const [featuredConfig, setFeaturedConfig] = useState({ mode: 'manual', cadenceSeconds: 8 });
   const [featuredProjects, setFeaturedProjects] = useState(null);
@@ -306,9 +323,13 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
         </div>
       </section>
 
-      {/* Philosophical Quote Banner */}
-      <section className="py-16 bg-[#3D2B1F] text-amber-50 relative overflow-hidden shadow-inner my-2">
-        <div className="max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop text-center relative z-10 space-y-3">
+      {/* Philosophical Quote Banner amb Rotació Dinàmica i Fade */}
+      <section 
+        onMouseEnter={() => setIsQuoteHovered(true)}
+        onMouseLeave={() => setIsQuoteHovered(false)}
+        className="py-16 bg-[#3D2B1F] text-amber-50 relative overflow-hidden shadow-inner my-2 cursor-default"
+      >
+        <div className={`max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop text-center relative z-10 space-y-3 transition-all duration-700 ease-in-out ${isQuoteFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
           <span className="text-amber-200/30 text-5xl font-serif block leading-none select-none font-bold">“</span>
           <blockquote className="font-serif text-2xl md:text-3xl font-light italic leading-relaxed text-amber-100/95 tracking-wide drop-shadow-sm px-4">
             {currentQuote.quote}
