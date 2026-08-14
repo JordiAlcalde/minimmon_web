@@ -11,6 +11,33 @@ import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import CommentsSection from './CommentsSection';
 
+const MOTIVATIONAL_PILLS = [
+  {
+    doubtImg: 'images/noia_dubtes_01.jpg',
+    happyImg: 'images/noia_contenta.jpg',
+    title: "No trobes exactament el que busques?",
+    subtitle: "Si no ho has vist al catàleg, ho podem dissenyar i fabricar exclusivament per a tu."
+  },
+  {
+    doubtImg: 'images/noi_dubtes_01.jpg',
+    happyImg: 'images/noi_content.jpg',
+    title: "Tens una idea al cap que no està a la llista?",
+    subtitle: "Fem realitat peces a mida: des d'un gravat personalitzat fins a una creació des de zero."
+  },
+  {
+    doubtImg: 'images/noia_dubtes_02.jpg',
+    happyImg: 'images/noia_contenta.jpg',
+    title: "Vols un detall 100% únic i personalitzat?",
+    subtitle: "Explica'ns el teu projecte i li donarem forma artesanalment al nostre taller."
+  },
+  {
+    doubtImg: 'images/noi_dubtes_02.jpg',
+    happyImg: 'images/noi_content.jpg',
+    title: "Cerques una mida o disseny diferent?",
+    subtitle: "Adaptem qualsevol model o dissenyem una peça completament nova per a tu."
+  }
+];
+
 export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
   const { addToCart } = useBudget();
   const [dbProducts, setDbProducts] = useState([]);
@@ -24,6 +51,25 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
   const [selectedGamma, setSelectedGamma] = useState('Tots');
 
   const [selectedModalImage, setSelectedModalImage] = useState(null);
+
+  // Estat per a la Píndola Motivadora Dinàmica amb cadència de 5.5 segons
+  const [pillIndex, setPillIndex] = useState(0);
+  const [isPillFading, setIsPillFading] = useState(false);
+  const [isPillHovered, setIsPillHovered] = useState(false);
+
+  useEffect(() => {
+    if (isPillHovered) return;
+    const interval = setInterval(() => {
+      setIsPillFading(true);
+      setTimeout(() => {
+        setPillIndex((prev) => (prev + 1) % MOTIVATIONAL_PILLS.length);
+        setIsPillFading(false);
+      }, 400);
+    }, 5500);
+    return () => clearInterval(interval);
+  }, [isPillHovered]);
+
+  const currentPill = MOTIVATIONAL_PILLS[pillIndex];
 
   // Quan es clica el botó "CATÀLEG DE REGALS" a la navbar, es recarrega la portada principal del catàleg
   useEffect(() => {
@@ -485,18 +531,74 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
         </div>
       )}
 
-      {/* Custom Order Callout */}
-      <div className="mt-20 max-w-xl mx-auto text-center px-6">
-        <h3 className="font-serif text-2xl text-primary mb-3">Busques un detall totalment a mida?</h3>
-        <p className="text-on-surface-variant text-sm mb-6">
-          Tot el catàleg es pot adaptar amb noms, dates, frases o dissenys exclusius en marcatge làser.
-        </p>
-        <button
-          onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-          className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
+      {/* Dynamic Motivational Pill Card (Píndola Motivadora Dinàmica) */}
+      <div className="mt-20 max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop">
+        <div 
+          onMouseEnter={() => setIsPillHovered(true)}
+          onMouseLeave={() => setIsPillHovered(false)}
+          className="bg-surface-container-lowest border border-primary/20 rounded-3xl p-5 md:p-6 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
         >
-          Demana la teva personalització
-        </button>
+          <div className={`transition-all duration-500 ease-in-out ${isPillFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
+            
+            {/* Layout per a Desktop (Flanquejat per les dues cares) i Mòbil (Avatares agrupats a dalt) */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+              
+              {/* Avatares Mòbil (Visibles només en pantalles petites < md, d'almenys 100px de mida) */}
+              <div className="flex md:hidden items-center justify-center gap-4">
+                <img 
+                  src={resolveMediaUrl(currentPill.doubtImg)} 
+                  alt="Dubte" 
+                  className="w-[100px] h-[100px] rounded-full object-cover border-2 border-primary/20 shadow-sm shrink-0"
+                />
+                <span className="text-primary/40 font-serif text-xl font-bold">➔</span>
+                <img 
+                  src={resolveMediaUrl(currentPill.happyImg)} 
+                  alt="Solució" 
+                  className="w-[100px] h-[100px] rounded-full object-cover border-2 border-primary/20 shadow-sm shrink-0"
+                />
+              </div>
+
+              {/* Cara 1 (Dubte) - Visible només en Desktop (md:flex, mida 110px) */}
+              <div className="hidden md:flex flex-col items-center shrink-0">
+                <img 
+                  src={resolveMediaUrl(currentPill.doubtImg)} 
+                  alt="Dubte" 
+                  className="w-[110px] h-[110px] rounded-full object-cover border-2 border-primary/20 shadow-md hover:scale-105 transition-transform"
+                />
+              </div>
+
+              {/* Text Central & Botó CTA */}
+              <div className="flex-1 space-y-2 md:px-6">
+                <h3 className="font-serif text-xl md:text-2xl text-primary font-semibold leading-snug">
+                  {currentPill.title}
+                </h3>
+                <p className="font-body-md text-xs md:text-sm text-on-surface-variant leading-relaxed max-w-xl">
+                  {currentPill.subtitle}
+                </p>
+                <div className="pt-2">
+                  <button 
+                    onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="bg-primary text-on-primary px-7 py-3 rounded-xl text-xs md:text-sm font-semibold hover:bg-primary-container transition-colors shadow-md cursor-pointer inline-flex items-center gap-2"
+                  >
+                    <span>Demana la teva personalització</span>
+                    <span className="material-symbols-outlined text-sm notranslate" translate="no">arrow_forward</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Cara 2 (Solució / Contenta) - Visible només en Desktop (md:flex, mida 110px) */}
+              <div className="hidden md:flex flex-col items-center shrink-0">
+                <img 
+                  src={resolveMediaUrl(currentPill.happyImg)} 
+                  alt="Solució" 
+                  className="w-[110px] h-[110px] rounded-full object-cover border-2 border-primary/20 shadow-md hover:scale-105 transition-transform"
+                />
+              </div>
+
+            </div>
+
+          </div>
+        </div>
       </div>
 
       {/* Modal Lightbox per a la imatge ampliada de la Gamma */}
