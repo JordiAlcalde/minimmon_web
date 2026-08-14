@@ -1,36 +1,150 @@
 import React, { useState, useEffect } from 'react';
 import { STITCH_PROJECTS, STITCH_CRAFTSMAN } from '../data/stitchData';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
+import { getRandomPhilosophicalQuote } from '../data/philosophicalQuotes';
+
+function getRandomTriplet(projectsPool, currentTriplet = []) {
+  if (!projectsPool || projectsPool.length === 0) {
+    return [STITCH_PROJECTS[0], STITCH_PROJECTS[1], STITCH_PROJECTS[2]];
+  }
+  if (projectsPool.length <= 3) {
+    return [
+      projectsPool[0] || STITCH_PROJECTS[0],
+      projectsPool[1] || STITCH_PROJECTS[1] || projectsPool[0],
+      projectsPool[2] || STITCH_PROJECTS[2] || projectsPool[0]
+    ];
+  }
+
+  const prevP1Id = currentTriplet[0]?.id;
+  const prevP2Id = currentTriplet[1]?.id;
+  const prevP3Id = currentTriplet[2]?.id;
+
+  // Cerca fins a 50 intents una combinació on cap projecte repeteixi la mateixa finestra que en la selecció anterior
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const pool = [...projectsPool];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    const cand1 = pool[0];
+    const cand2 = pool[1];
+    const cand3 = pool[2];
+
+    const valid1 = !prevP1Id || cand1.id !== prevP1Id;
+    const valid2 = !prevP2Id || cand2.id !== prevP2Id;
+    const valid3 = !prevP3Id || cand3.id !== prevP3Id;
+
+    if (valid1 && valid2 && valid3) {
+      return [cand1, cand2, cand3];
+    }
+  }
+
+  // Fallback si per algun motiu no es troba
+  const fallbackPool = [...projectsPool].sort(() => Math.random() - 0.5);
+  return [fallbackPool[0], fallbackPool[1], fallbackPool[2]];
+}
+
+function getProjectImage(project, pos) {
+  if (!project) return '';
+  if (Array.isArray(project.media) && project.media.length > 0) {
+    const iniciMatch = project.media.find(m => m.inici === pos);
+    if (iniciMatch && iniciMatch.imatge) return resolveMediaUrl(iniciMatch.imatge);
+    const principalMatch = project.media.find(m => m.principal);
+    if (principalMatch && principalMatch.imatge) return resolveMediaUrl(principalMatch.imatge);
+    if (project.media[0] && project.media[0].imatge) return resolveMediaUrl(project.media[0].imatge);
+  }
+  return resolveMediaUrl(project.image || 'images/hero.jpg');
+}
 
 export default function IniciSection({ setActiveTab, onSelectProject }) {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', idea: '' });
+  
+  const [currentQuote] = useState(() => getRandomPhilosophicalQuote());
+  const [allProjects, setAllProjects] = useState([]);
+  const [featuredConfig, setFeaturedConfig] = useState({ mode: 'manual', cadenceSeconds: 8 });
   const [featuredProjects, setFeaturedProjects] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFading, setIsFading] = useState(false);
 
+  // Listen to config/home_featured
+  useEffect(() => {
+    const unsubConfig = onSnapshot(doc(db, "config", "home_featured"), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setFeaturedConfig({
+          mode: data.mode || 'manual',
+          cadenceSeconds: typeof data.cadenceSeconds === 'number' ? data.cadenceSeconds : 8
+        });
+      }
+    }, (err) => {
+      console.warn("Configuració home_featured no trobada, utilitzant mode per defecte:", err);
+    });
+    return () => unsubConfig();
+  }, []);
+
+  // Listen to projectes collection
   useEffect(() => {
     const qProjects = query(collection(db, "projectes"), orderBy("ordre", "asc"));
     const unsubscribe = onSnapshot(qProjects, (snapshot) => {
       if (!snapshot.empty) {
         const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.actiu !== false);
         if (docs.length > 0) {
-          // Find project with media inici = 1, 2, 3
-          let p1 = docs.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 1)) || docs[0] || STITCH_PROJECTS[0];
-          let p2 = docs.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 2)) || docs[1] || STITCH_PROJECTS[1];
-          let p3 = docs.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 3)) || docs[2] || STITCH_PROJECTS[2];
-          setFeaturedProjects([p1, p2, p3]);
+          setAllProjects(docs);
           return;
         }
       }
-      setFeaturedProjects([STITCH_PROJECTS[0], STITCH_PROJECTS[1], STITCH_PROJECTS[2]]);
+      setAllProjects(STITCH_PROJECTS);
     }, (err) => {
       console.warn("Utilitzant projectes locals d'inici per defecte:", err);
-      setFeaturedProjects([STITCH_PROJECTS[0], STITCH_PROJECTS[1], STITCH_PROJECTS[2]]);
+      setAllProjects(STITCH_PROJECTS);
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Compute initial or updated featured triplet when projects or mode changes
+  useEffect(() => {
+    if (!allProjects || allProjects.length === 0) return;
+
+    if (featuredConfig.mode === 'random') {
+      setFeaturedProjects(prev => getRandomTriplet(allProjects, prev || []));
+    } else {
+      let p1 = allProjects.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 1)) || allProjects[0] || STITCH_PROJECTS[0];
+      let p2 = allProjects.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 2)) || allProjects[1] || STITCH_PROJECTS[1];
+      let p3 = allProjects.find(p => Array.isArray(p.media) && p.media.some(m => m.inici === 3)) || allProjects[2] || STITCH_PROJECTS[2];
+      setFeaturedProjects([p1, p2, p3]);
+    }
+  }, [allProjects, featuredConfig.mode]);
+
+  // Dynamic interval timer for random mode with smooth cross-fade transition
+  useEffect(() => {
+    if (featuredConfig.mode !== 'random') return;
+    if (isHovered) return;
+    if (!allProjects || allProjects.length < 2) return;
+
+    const intervalMs = Math.max(3000, Math.min(15000, (featuredConfig.cadenceSeconds || 8) * 1000));
+    const fadeOutDuration = 600; // 600ms smooth fade out
+
+    const timer = setInterval(() => {
+      // 1. Desvaniment gradual (fade out)
+      setIsFading(true);
+
+      // 2. Canviar dades i tornar a mostrar gradualment (fade in)
+      setTimeout(() => {
+        setFeaturedProjects(prev => getRandomTriplet(allProjects, prev || []));
+        setTimeout(() => {
+          setIsFading(false);
+        }, 50);
+      }, fadeOutDuration);
+
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, [featuredConfig.mode, featuredConfig.cadenceSeconds, isHovered, allProjects]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -192,6 +306,19 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
         </div>
       </section>
 
+      {/* Philosophical Quote Banner */}
+      <section className="py-16 bg-[#3D2B1F] text-amber-50 relative overflow-hidden shadow-inner my-2">
+        <div className="max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop text-center relative z-10 space-y-3">
+          <span className="text-amber-200/30 text-5xl font-serif block leading-none select-none font-bold">“</span>
+          <blockquote className="font-serif text-2xl md:text-3xl font-light italic leading-relaxed text-amber-100/95 tracking-wide drop-shadow-sm px-4">
+            {currentQuote.quote}
+          </blockquote>
+          <cite className="text-xs uppercase tracking-[0.25em] text-amber-200/70 not-italic block font-sans font-semibold pt-3">
+            — {currentQuote.author || "Mínim Món"}
+          </cite>
+        </div>
+      </section>
+
       {/* Featured Projects Bento Grid */}
       <section className="py-24 px-margin-mobile md:px-margin-desktop bg-surface">
         <div className="max-w-container-max mx-auto">
@@ -210,7 +337,11 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
           </div>
 
           {/* Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-unit auto-rows-[300px]">
+          <div 
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="grid grid-cols-1 md:grid-cols-12 gap-unit auto-rows-[300px] relative"
+          >
             {!featuredProjects ? (
               /* Skeletons de Càrrega per evitar parpelleigs d'imatges */
               <>
@@ -240,17 +371,16 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 {/* Project 1 (Large) */}
                 {featuredProjects[0] && (
                   <div 
+                    key={featuredProjects[0].id || 'p1'}
                     onClick={() => onSelectProject(featuredProjects[0])}
-                    className="md:col-span-8 row-span-2 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-md animate-fadeIn"
+                    className={`md:col-span-8 row-span-2 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-md transition-all duration-1000 ease-in-out ${
+                      isFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
+                    }`}
                   >
                     <img 
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                       alt={featuredProjects[0].titol || featuredProjects[0].title}
-                      src={resolveMediaUrl(
-                        (Array.isArray(featuredProjects[0].media) && featuredProjects[0].media.find(m => m.inici === 1)?.imatge) ||
-                        (Array.isArray(featuredProjects[0].media) && featuredProjects[0].media.find(m => m.principal)?.imatge) ||
-                        featuredProjects[0].image
-                      )}
+                      src={getProjectImage(featuredProjects[0], 1)}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/25 to-transparent opacity-70 group-hover:opacity-85 transition-opacity duration-500"></div>
                     <div className="absolute bottom-0 left-0 p-8 w-full">
@@ -269,17 +399,16 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 {/* Project 2 */}
                 {featuredProjects[1] && (
                   <div 
+                    key={featuredProjects[1].id || 'p2'}
                     onClick={() => onSelectProject(featuredProjects[1])}
-                    className="md:col-span-4 row-span-1 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-sm animate-fadeIn"
+                    className={`md:col-span-4 row-span-1 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-sm transition-all duration-1000 ease-in-out ${
+                      isFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
+                    }`}
                   >
                     <img 
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                       alt={featuredProjects[1].titol || featuredProjects[1].title}
-                      src={resolveMediaUrl(
-                        (Array.isArray(featuredProjects[1].media) && featuredProjects[1].media.find(m => m.inici === 2)?.imatge) ||
-                        (Array.isArray(featuredProjects[1].media) && featuredProjects[1].media.find(m => m.principal)?.imatge) ||
-                        featuredProjects[1].image
-                      )}
+                      src={getProjectImage(featuredProjects[1], 2)}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/30 to-transparent opacity-70 group-hover:opacity-85 transition-opacity duration-500"></div>
                     <div className="absolute bottom-0 left-0 p-6 w-full">
@@ -298,17 +427,16 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 {/* Project 3 */}
                 {featuredProjects[2] && (
                   <div 
+                    key={featuredProjects[2].id || 'p3'}
                     onClick={() => onSelectProject(featuredProjects[2])}
-                    className="md:col-span-4 row-span-1 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-sm animate-fadeIn"
+                    className={`md:col-span-4 row-span-1 relative group overflow-hidden rounded-lg bg-surface-container cursor-pointer shadow-sm transition-all duration-1000 ease-in-out ${
+                      isFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'
+                    }`}
                   >
                     <img 
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                       alt={featuredProjects[2].titol || featuredProjects[2].title}
-                      src={resolveMediaUrl(
-                        (Array.isArray(featuredProjects[2].media) && featuredProjects[2].media.find(m => m.inici === 3)?.imatge) ||
-                        (Array.isArray(featuredProjects[2].media) && featuredProjects[2].media.find(m => m.principal)?.imatge) ||
-                        featuredProjects[2].image
-                      )}
+                      src={getProjectImage(featuredProjects[2], 3)}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/30 to-transparent opacity-70 group-hover:opacity-85 transition-opacity duration-500"></div>
                     <div className="absolute bottom-0 left-0 p-6 w-full">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Send, CheckCircle2, MessageSquare, Sparkles, FileText, Paperclip } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Send, CheckCircle2, MessageSquare, Sparkles, FileText, Paperclip, Info, ChevronDown } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { db } from '../firebase';
@@ -15,6 +15,7 @@ export default function BudgetDrawer() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState(null);
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
 
   if (!isDrawerOpen) return null;
 
@@ -277,6 +278,30 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* Acordió Desplegable "Recorda..." d'Avisos Informatius */}
+                <div className="border border-outline/20 rounded-xl bg-surface-container-lowest overflow-hidden transition-all shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setIsNoticeOpen(!isNoticeOpen)}
+                    className="w-full p-3.5 flex items-center justify-between text-xs font-semibold text-primary hover:bg-surface-container/50 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Info className="w-4 h-4 text-primary shrink-0" />
+                      <span>Recorda... (Informació sobre el suport natural)</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isNoticeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isNoticeOpen && (
+                    <div className="px-4 pb-4 pt-1 text-xs text-on-surface-variant leading-relaxed border-t border-outline/10 animate-fadeIn space-y-2">
+                      <p>
+                        <strong className="text-primary block mb-0.5">Vetes i caràcter de la fusta natural:</strong>
+                        Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un suport natural i que es poden apreciar les vetes i els petits nusos propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Form d'Enviament */}

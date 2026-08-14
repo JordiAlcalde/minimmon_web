@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { STITCH_CRAFTSMAN } from '../data/stitchData';
+import { getRandomPhilosophicalQuote } from '../data/philosophicalQuotes';
+import { resolveMediaUrl } from '../utils/mediaUtils';
 
 export default function ElTallerSection({ setActiveTab }) {
+  const [currentQuote] = useState(() => getRandomPhilosophicalQuote());
+
   return (
     <div className="pt-28 pb-24 animate-fadeIn">
       {/* Hero Section */}
@@ -43,6 +47,43 @@ export default function ElTallerSection({ setActiveTab }) {
             <p className="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
               Darrere de cada peça hi ha una conversa, una mirada, una intenció. Parlar amb el client, entendre els seus anhels i traduir-los a la materialitat de la fusta és un acte de profunda connexió humana. La peça final és només el reflex d'aquest vincle poètic.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Secció Vestida de Filosofia i Vetació de la Fusta */}
+      <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mb-24">
+        <div className="relative rounded-3xl overflow-hidden bg-primary text-on-primary shadow-2xl border border-primary/30">
+          <div className="grid grid-cols-1 md:grid-cols-12 items-center">
+            {/* Imatge de Vetes i Textura de Fusta */}
+            <div className="col-span-1 md:col-span-5 h-64 md:h-full relative overflow-hidden">
+              <img 
+                src={resolveMediaUrl('images/vetes_fusta.jpeg')} 
+                alt="Vetes i textura de fusta natural Mínim Món" 
+                className="w-full h-full object-cover object-center scale-105 hover:scale-110 transition-transform duration-1000"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-transparent via-primary/40 to-primary"></div>
+            </div>
+
+            {/* Contingut Poètic i Explicatiu */}
+            <div className="col-span-1 md:col-span-7 p-8 md:p-12 space-y-6">
+              <span className="font-label-sm text-xs text-amber-200 uppercase tracking-[0.25em] font-semibold block">
+                Manifest d'Originalitat
+              </span>
+              
+              <blockquote className="font-serif text-2xl md:text-3xl font-light italic leading-snug text-amber-100 border-l-2 border-amber-200/40 pl-4 py-1">
+                “{currentQuote.quote}”
+              </blockquote>
+
+              <div className="space-y-4 text-sm text-amber-50/85 font-medium leading-relaxed pt-2">
+                <p>
+                  A <em>Mínim Món</em> entenem que cada fusta té la seva pròpia empremta digital. Les vetes, els matisos i els petits nusos naturals no són imperfeccions, sinó la prova irrefutable que cap peça serà mai igual a una altra.
+                </p>
+                <p>
+                  Defugim la producció en massa en sèrie. La nostra filosofia neix del respecte absolut per l'origen del material i la voluntat d'atorgar una identitat irrepetible a cada creació que surt del taller.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

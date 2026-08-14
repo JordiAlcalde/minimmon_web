@@ -55,7 +55,8 @@ import {
   AlertCircle,
   ArrowUpRight,
   HelpCircle,
-  CheckCircle2
+  CheckCircle2,
+  Shuffle
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
 import { StarRating } from './CommentsSection';
@@ -268,6 +269,48 @@ export default function PrivateAreaSection({ setActiveTab }) {
       };
     }
   }, [isAuthenticated]);
+
+  // Config state per a Obres Destacades / Imatges Aleatòries
+  const [featuredConfig, setFeaturedConfig] = useState({ mode: 'manual', cadenceSeconds: 8 });
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      const unsubFeatured = onSnapshot(doc(db, "config", "home_featured"), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setFeaturedConfig({
+            mode: data.mode || 'manual',
+            cadenceSeconds: typeof data.cadenceSeconds === 'number' ? data.cadenceSeconds : 8
+          });
+        }
+      }, (err) => {
+        console.warn("Error carregant configuració d'obres destacades:", err);
+      });
+      return () => unsubFeatured();
+    }
+  }, [isAuthenticated]);
+
+  const handleToggleFeaturedMode = async () => {
+    const newMode = featuredConfig.mode === 'random' ? 'manual' : 'random';
+    const newConfig = { ...featuredConfig, mode: newMode };
+    setFeaturedConfig(newConfig);
+    try {
+      await setDoc(doc(db, "config", "home_featured"), newConfig, { merge: true });
+    } catch (e) {
+      console.error("Error desant mode d'obres destacades:", e);
+    }
+  };
+
+  const handleCadenceChange = async (val) => {
+    const validSecs = Math.max(3, Math.min(15, Number(val) || 8));
+    const newConfig = { ...featuredConfig, cadenceSeconds: validSecs };
+    setFeaturedConfig(newConfig);
+    try {
+      await setDoc(doc(db, "config", "home_featured"), newConfig, { merge: true });
+    } catch (e) {
+      console.error("Error desant cadència d'obres destacades:", e);
+    }
+  };
 
   // Telegram state
   const [telegramToken, setTelegramToken] = useState('');
@@ -998,11 +1041,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
     e.preventDefault();
     if (!editingGamma || !editingGamma.nom) return;
     const docId = editingGamma.id || `gam-${Date.now()}`;
+    const cleanImatges = (editingGamma.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
     try {
       await setDoc(doc(db, "gammes", docId), {
         nom: editingGamma.nom,
         familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || ''),
-        ordre: Number(editingGamma.ordre || 1)
+        ordre: Number(editingGamma.ordre || 1),
+        textInformatiu: editingGamma.textInformatiu || '',
+        imatges: cleanImatges
       }, { merge: true });
       setEditingGamma(null);
     } catch (err) {
@@ -3350,7 +3396,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1 })}
+                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1, textInformatiu: '', imatges: [] })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -3359,48 +3405,188 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
 
             {editingGamma ? (
-              <form onSubmit={handleSaveGamma} className="bg-surface p-5 rounded-lg border border-primary/30 space-y-4 max-w-md">
-                <h3 className="font-serif text-base font-semibold text-primary">
-                  {dbGammes.some(g => g.id === editingGamma.id) ? 'Editar Gamma' : 'Crear Nova Gamma'}
-                </h3>
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Gamma *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editingGamma.nom || ''}
-                    onChange={(e) => setEditingGamma({ ...editingGamma, nom: e.target.value })}
-                    placeholder="Ex: Puzles, Clauers..."
-                    className="w-full px-3 py-2 rounded bg-surface border text-sm text-primary font-semibold"
-                  />
+              <form onSubmit={handleSaveGamma} className="bg-surface p-6 rounded-xl border border-primary/30 shadow-md space-y-6">
+                <div className="flex justify-between items-center pb-3 border-b border-outline/15">
+                  <h3 className="font-serif text-lg font-semibold text-primary">
+                    {dbGammes.some(g => g.id === editingGamma.id) ? `Editar Gamma: ${editingGamma.nom}` : 'Crear Nova Gamma'}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setEditingGamma(null)} className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high border text-xs rounded-md cursor-pointer">Cancel·lar</button>
+                    <button type="submit" className="px-4 py-1.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-md shadow-xs cursor-pointer">Desar Gamma</button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Família a la que pertany *</label>
-                  <select
-                    value={editingGamma.familiaNom || ''}
-                    onChange={(e) => setEditingGamma({ ...editingGamma, familiaNom: e.target.value })}
-                    className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary font-semibold"
-                  >
-                    {dbFamilies.map(fam => (
-                      <option key={fam.id} value={fam.nom}>{fam.nom}</option>
-                    ))}
-                  </select>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                  {/* Columna Esquerra: Nom, Família i Ordre */}
+                  <div className="md:col-span-4 space-y-4 bg-surface-container-lowest p-4 rounded-xl border border-outline/15">
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Gamma *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editingGamma.nom || ''}
+                        onChange={(e) => setEditingGamma({ ...editingGamma, nom: e.target.value })}
+                        placeholder="Ex: Puzles, Clauers..."
+                        className="w-full px-3 py-2 rounded bg-surface border text-sm text-primary font-semibold focus:outline-none focus:border-primary"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Ordre</label>
-                  <input
-                    type="number"
-                    value={editingGamma.ordre || 1}
-                    onChange={(e) => setEditingGamma({ ...editingGamma, ordre: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Família a la que pertany *</label>
+                      <select
+                        value={editingGamma.familiaNom || ''}
+                        onChange={(e) => setEditingGamma({ ...editingGamma, familiaNom: e.target.value })}
+                        className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary font-semibold focus:outline-none focus:border-primary"
+                      >
+                        {dbFamilies.map(fam => (
+                          <option key={fam.id} value={fam.nom}>{fam.nom}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setEditingGamma(null)} className="px-3 py-1.5 bg-surface border text-xs rounded">Cancel·lar</button>
-                  <button type="submit" className="px-4 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded">Desar Gamma</button>
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Ordre</label>
+                      <input
+                        type="number"
+                        value={editingGamma.ordre || 1}
+                        onChange={(e) => setEditingGamma({ ...editingGamma, ordre: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono focus:outline-none focus:border-primary"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Columna Dreta: Caixetins d'Informació Comuna (Caixetí 1, Caixetí 2, Caixetins 3) */}
+                  <div className="md:col-span-8 space-y-5">
+                    
+                    {/* Caixetí 1: Text informatiu */}
+                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-1.5">
+                      <label className="block text-xs uppercase font-semibold text-primary flex items-center justify-between">
+                        <span>Caixetí 1: Text Informatiu Comú (Aparèixerà abans dels productes)</span>
+                        <span className="text-[10px] text-on-surface-variant font-normal">Opcional</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={editingGamma.textInformatiu || ''}
+                        onChange={(e) => setEditingGamma({ ...editingGamma, textInformatiu: e.target.value })}
+                        placeholder="Ex: Totes les peces d'aquesta gamma es fabriquen amb fusta de noguer d'origen sostenible i inclouen..."
+                        className="w-full px-3 py-2 rounded bg-surface border text-xs leading-relaxed text-primary focus:outline-none focus:border-primary font-body-md"
+                      />
+                    </div>
+
+                    {/* Caixetí 2: Entrades d'Imatges (Fins a 5) */}
+                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs uppercase font-semibold text-primary">
+                          Caixetí 2: Imatges Ilustratives de la Gamma (Fins a 5 imatges)
+                        </label>
+                        {(editingGamma.imatges || []).length < 5 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentImgs = editingGamma.imatges || [];
+                              if (currentImgs.length < 5) {
+                                setEditingGamma({ ...editingGamma, imatges: [...currentImgs, ''] });
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-surface-container hover:bg-surface-container-high border text-xs font-semibold rounded cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Afegir Imatge ({(editingGamma.imatges || []).length}/5)</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-on-surface-variant">
+                        Escriu el nom del fitxer (ex: <code className="font-mono bg-surface px-1 rounded font-bold text-primary">vetes_fusta.jpeg</code>) o una URL completa.
+                      </p>
+
+                      <div className="space-y-2">
+                        {(editingGamma.imatges || []).map((imgUrl, idx) => {
+                          const isShort = imgUrl && !imgUrl.startsWith('http://') && !imgUrl.startsWith('https://');
+                          return (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="font-mono text-xs text-outline w-5 text-center shrink-0">{idx + 1}.</span>
+                              <input
+                                type="text"
+                                placeholder={`Imatge ${idx + 1} (ex. vetes_fusta.jpeg o URL)...`}
+                                value={imgUrl || ''}
+                                onBlur={() => {
+                                  if (isShort) {
+                                    const updated = [...(editingGamma.imatges || [])];
+                                    updated[idx] = resolveMediaUrl(imgUrl);
+                                    setEditingGamma({ ...editingGamma, imatges: updated });
+                                  }
+                                }}
+                                onChange={(e) => {
+                                  const updated = [...(editingGamma.imatges || [])];
+                                  updated[idx] = e.target.value;
+                                  setEditingGamma({ ...editingGamma, imatges: updated });
+                                }}
+                                className="flex-1 px-3 py-1.5 rounded bg-surface border text-xs font-mono focus:outline-none focus:border-primary"
+                              />
+                              {isShort && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...(editingGamma.imatges || [])];
+                                    updated[idx] = resolveMediaUrl(imgUrl);
+                                    setEditingGamma({ ...editingGamma, imatges: updated });
+                                  }}
+                                  className="px-2 py-1.5 bg-primary text-on-primary text-[11px] rounded font-semibold whitespace-nowrap cursor-pointer hover:bg-primary-container"
+                                  title="Expandir URL"
+                                >
+                                  ⚡
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = (editingGamma.imatges || []).filter((_, i) => i !== idx);
+                                  setEditingGamma({ ...editingGamma, imatges: updated });
+                                }}
+                                className="p-1.5 text-error hover:bg-error-container/20 rounded cursor-pointer"
+                                title="Eliminar imatge"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Caixetins 3: Miniatures de les imatges previsualitzades */}
+                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-2">
+                      <label className="block text-xs uppercase font-semibold text-primary">
+                        Caixetins 3: Previsualització de Miniatures (Seguint l'ordre de la llista)
+                      </label>
+                      
+                      {(editingGamma.imatges || []).filter(img => Boolean(img)).length === 0 ? (
+                        <p className="text-xs text-on-surface-variant/70 italic py-2">No hi ha imatges afegides per previsualitzar.</p>
+                      ) : (
+                        <div className="flex flex-wrap items-center gap-3 pt-1">
+                          {(editingGamma.imatges || []).map((imgUrl, idx) => {
+                            if (!imgUrl) return null;
+                            const resolved = resolveMediaUrl(imgUrl);
+                            return (
+                              <div key={idx} className="w-24 h-24 rounded-lg bg-surface border border-outline/20 overflow-hidden relative shadow-xs group shrink-0">
+                                <img 
+                                  src={resolved} 
+                                  alt={`Miniatura ${idx + 1}`} 
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                                <div className="absolute top-1 left-1 bg-black/60 text-white font-mono text-[9px] px-1 rounded">
+                                  #{idx + 1}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
                 </div>
               </form>
             ) : (
@@ -3438,7 +3624,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
                           <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
                           <td className="p-3 text-right space-x-2">
-                            <button onClick={() => setEditingGamma(g)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                            <button onClick={() => setEditingGamma({ textInformatiu: '', imatges: [], ...g })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
                             <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
                           </td>
                         </tr>
@@ -3466,13 +3652,38 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <button 
-                onClick={handleSeedDatabase}
-                className="px-4 py-2.5 bg-surface-container hover:bg-surface-container-high text-primary border border-outline/20 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
-              >
-                <Database className="w-4 h-4 text-primary" />
-                <span>Inicialitzar DB amb dades inicials</span>
-              </button>
+              {/* Controls per al mode d'Imatges Aleatòries i Cadència */}
+              <div className="flex items-center gap-2 bg-surface-container px-3 py-1.5 rounded-lg border border-outline/20 shadow-xs">
+                <button
+                  type="button"
+                  onClick={handleToggleFeaturedMode}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 cursor-pointer ${
+                    featuredConfig.mode === 'random' 
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs' 
+                      : 'bg-surface-container-high hover:bg-surface text-on-surface-variant hover:text-primary border border-outline/15'
+                  }`}
+                  title={featuredConfig.mode === 'random' ? 'Mode Aleatori actiu' : 'Prem per activar Mode Aleatori'}
+                >
+                  <Shuffle className="w-3.5 h-3.5" />
+                  <span>{featuredConfig.mode === 'random' ? 'Imatges Aleatòries: ON' : 'Imatges Aleatòries: OFF'}</span>
+                </button>
+
+                {featuredConfig.mode === 'random' && (
+                  <div className="flex items-center gap-1.5 text-xs text-on-surface-variant border-l border-outline/20 pl-2">
+                    <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="text-[11px] text-on-surface-variant font-medium">Cadència:</span>
+                    <input
+                      type="number"
+                      min="3"
+                      max="15"
+                      value={featuredConfig.cadenceSeconds}
+                      onChange={(e) => handleCadenceChange(e.target.value)}
+                      className="w-12 px-1.5 py-0.5 rounded bg-surface border border-outline/25 text-center text-xs font-mono font-bold text-primary outline-none focus:border-primary"
+                    />
+                    <span className="text-[11px] font-medium">seg</span>
+                  </div>
+                )}
+              </div>
 
               <button 
                 onClick={() => setEditingProject({
@@ -3947,8 +4158,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
               ) : dbProjects.length === 0 ? (
                 <div className="p-12 text-center text-on-surface-variant space-y-3">
                   <Database className="w-12 h-12 text-outline/40 mx-auto" />
-                  <p className="font-serif text-lg text-primary">La taula 'projectes' de Firestore està buida</p>
-                  <p className="text-xs text-on-surface-variant">Prem el botó <strong>"Inicialitzar DB amb dades inicials"</strong> per carregar els projectes per defecte.</p>
+                  <p className="font-serif text-lg text-primary">No hi ha cap projecte registrat a Firestore</p>
+                  <p className="text-xs text-on-surface-variant">Prem el botó <strong>"Nou Projecte"</strong> per afegir el primer projecte.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">

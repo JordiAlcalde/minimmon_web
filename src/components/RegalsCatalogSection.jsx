@@ -5,7 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2 } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -22,6 +22,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
   const [currentView, setCurrentView] = useState('catalog');
   const [selectedFamilia, setSelectedFamilia] = useState('Tots');
   const [selectedGamma, setSelectedGamma] = useState('Tots');
+
+  const [selectedModalImage, setSelectedModalImage] = useState(null);
 
   // Quan es clica el botó "CATÀLEG DE REGALS" a la navbar, es recarrega la portada principal del catàleg
   useEffect(() => {
@@ -374,6 +376,92 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
             </div>
           </section>
 
+          {/* Nota Tècnica / Avís d'Artesania sobre Fusta Natural */}
+          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+            <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-semibold text-primary text-sm">És important saber que...</p>
+                <p className="leading-relaxed text-on-surface-variant">
+                  Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un suport natural i que es poden apreciar les vetes i els petits nusos propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {/* Nova Secció d'Informació Comuna de la Gamma (Caixetí 1: Text informatiu, Caixetí 2/3: Fins a 5 imatges) */}
+          {(() => {
+            const activeGammaObj = selectedGamma && selectedGamma !== 'Tots' 
+              ? dbGammes.find(g => g && String(g.nom || '').toLowerCase() === String(selectedGamma || '').toLowerCase())
+              : null;
+
+            const gammaHasText = Boolean(activeGammaObj?.textInformatiu && activeGammaObj.textInformatiu.trim());
+            const validGammaImages = (activeGammaObj?.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
+            const gammaHasImages = validGammaImages.length > 0;
+            const hasGammaInfo = activeGammaObj && (gammaHasText || gammaHasImages);
+
+            if (!hasGammaInfo) return null;
+
+            return (
+              <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop animate-fadeIn">
+                <div className="bg-surface-container-lowest p-6 rounded-2xl border border-primary/25 shadow-md space-y-5">
+                  <div className="flex items-center gap-2.5 pb-3 border-b border-outline/15">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                      <Info className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-primary text-sm">
+                        Aquestes dades són comunes a {activeGammaObj.nom}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Caixetí 1: Text Informatiu Comú */}
+                  {gammaHasText && (
+                    <div className="text-sm text-on-surface-variant leading-relaxed font-body-md bg-surface-container/30 p-4 rounded-xl border border-outline/10">
+                      <p className="whitespace-pre-line">{activeGammaObj.textInformatiu}</p>
+                    </div>
+                  )}
+
+                  {/* Caixetins 2 & 3: Imatges Ilustratives (~200x200px, aliniades per l'esquerra) */}
+                  {gammaHasImages && (
+                    <div className="space-y-2.5 pt-1">
+                      <span className="text-xs uppercase tracking-wider font-semibold text-on-surface-variant block">
+                        Mostra de detalls de la gamma ({validGammaImages.length} {validGammaImages.length === 1 ? 'imatge' : 'imatges'}):
+                      </span>
+                      <div className="flex flex-wrap items-center justify-start gap-4">
+                        {validGammaImages.map((imgUrl, idx) => {
+                          const resolved = resolveMediaUrl(imgUrl);
+                          return (
+                            <div 
+                              key={idx}
+                              onClick={() => setSelectedModalImage(resolved)}
+                              className="w-[200px] h-[200px] rounded-2xl bg-surface border border-outline/20 overflow-hidden relative shadow-md group shrink-0 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
+                              title="Fes clic per ampliar imatge"
+                            >
+                              <img 
+                                src={resolved} 
+                                alt={`${activeGammaObj.nom} - detalls ${idx + 1}`} 
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <span className="opacity-0 group-hover:opacity-100 bg-black/75 text-white text-xs px-3 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium shadow">
+                                  Ampliar 🔍
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })()}
+
           {/* Grid de Productes en Detall */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop space-y-10">
             {filteredProducts.length === 0 ? (
@@ -410,6 +498,29 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
           Demana la teva personalització
         </button>
       </div>
+
+      {/* Modal Lightbox per a la imatge ampliada de la Gamma */}
+      {selectedModalImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setSelectedModalImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-surface rounded-2xl overflow-hidden shadow-2xl p-2 border border-outline/20" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setSelectedModalImage(null)}
+              className="absolute top-4 right-4 bg-black/60 hover:bg-black text-white p-2 rounded-full z-10 transition-colors cursor-pointer"
+              title="Tancar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img 
+              src={selectedModalImage} 
+              alt="Imatge ampliada de la gamma" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
