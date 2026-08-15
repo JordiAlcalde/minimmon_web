@@ -459,7 +459,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                     </div>
                     <div>
                       <p className="font-semibold text-primary text-sm">
-                        Aquestes dades són comunes a {activeGammaObj.nom}
+                        Dades comunes a {activeGammaObj.nom}
                       </p>
                     </div>
                   </div>
@@ -916,7 +916,7 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
             >
               <div className="flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
-                <span>Més informació (Dades comunes a {matchedGammaObj.nom})</span>
+                <span>Dades comunes a {matchedGammaObj.nom}</span>
               </div>
               <ChevronDown className={`w-4 h-4 text-primary transition-transform duration-300 ${isMoreInfoOpen ? 'rotate-180' : ''}`} />
             </button>
