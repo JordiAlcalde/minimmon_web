@@ -473,10 +473,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
                   {/* Caixetins 2 & 3: Imatges Ilustratives (~200x200px, aliniades per l'esquerra) */}
                   {gammaHasImages && (
-                    <div className="space-y-2.5 pt-1">
-                      <span className="text-xs uppercase tracking-wider font-semibold text-on-surface-variant block">
-                        Mostra de detalls de la gamma ({validGammaImages.length} {validGammaImages.length === 1 ? 'imatge' : 'imatges'}):
-                      </span>
+                    <div className="pt-1">
                       <div className="flex flex-wrap items-center justify-start gap-4">
                         {validGammaImages.map((imgUrl, idx) => {
                           const resolved = resolveMediaUrl(imgUrl);

@@ -1,4 +1,5 @@
 export const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/";
+export const GITHUB_RAW_PRODUCTES_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/";
 export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/";
 
 export function isVideoExtension(path = '') {
@@ -65,6 +66,35 @@ export function resolveMediaUrl(url) {
   }
 
   return `${GITHUB_RAW_BASE}${encodedPath}`;
+}
+
+export function resolveProducteMediaUrl(url) {
+  if (!url) return '';
+  const trimmed = url.trim();
+
+  // Handle full HTTP/HTTPS URLs
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return safeEncodeURI(trimmed);
+  }
+  
+  let cleanPath = trimmed;
+  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
+  
+  // Check if cleanPath is a local asset in public/images/
+  if (cleanPath.startsWith('images/')) {
+    const baseUrl = import.meta.env.BASE_URL || './';
+    const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+    return safeEncodeURI(`${prefix}${cleanPath}`);
+  }
+
+  // Remove imatges/productes/ or imatges/ prefix if present
+  if (cleanPath.startsWith('imatges/productes/')) {
+    cleanPath = cleanPath.replace('imatges/productes/', '');
+  } else if (cleanPath.startsWith('imatges/')) {
+    cleanPath = cleanPath.replace('imatges/', '');
+  }
+
+  return `${GITHUB_RAW_PRODUCTES_BASE}${safeEncodeURI(cleanPath)}`;
 }
 
 export function formatVideoEmbedUrl(url) {

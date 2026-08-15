@@ -84,6 +84,10 @@ export default function App() {
 
       if (projectId) {
         setActiveTab('mons');
+        // Netejar hash per evitar que popstate o actualitzacions d'estat posteriors re-executin la navegació
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
         try {
           const docRef = doc(db, "projectes", projectId);
           const docSnap = await getDoc(docRef);
@@ -99,6 +103,9 @@ export default function App() {
         }
       } else if (productId) {
         setActiveTab('regals');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
         setTimeout(() => {
           const el = document.getElementById(`producte-${productId}`);
           if (el) {
@@ -109,6 +116,9 @@ export default function App() {
         }, 600);
       } else if (seccioParam) {
         setActiveTab(seccioParam);
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
       }
     };
 
@@ -118,6 +128,9 @@ export default function App() {
   }, []);
 
   const handleSelectTab = (tabId) => {
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     if (tabId === 'regals' && activeTab === 'regals') {
       setCatalogResetKey(prev => prev + 1);
     } else {

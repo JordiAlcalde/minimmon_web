@@ -80,13 +80,13 @@ export default function ElTallerSection({ setActiveTab }) {
               <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-transparent via-primary/40 to-primary"></div>
             </div>
 
-            {/* Contingut Poètic i Explicatiu amb Transició Suau */}
-            <div className={`col-span-1 md:col-span-7 p-8 md:p-12 space-y-6 transition-all duration-700 ease-in-out ${isQuoteFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
+            {/* Contingut Poètic i Explicatiu */}
+            <div className="col-span-1 md:col-span-7 p-8 md:p-12 space-y-6">
               <span className="font-label-sm text-xs text-amber-200 uppercase tracking-[0.25em] font-semibold block">
-                Manifest d'Originalitat
+                MANIFEST
               </span>
               
-              <blockquote className="font-serif text-2xl md:text-3xl font-light italic leading-snug text-amber-100 border-l-2 border-amber-200/40 pl-4 py-1">
+              <blockquote className={`font-serif text-2xl md:text-3xl font-light italic leading-snug text-amber-100 border-l-2 border-amber-200/40 pl-4 py-1 transition-all duration-700 ease-in-out ${isQuoteFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
                 “{currentQuote.quote}”
               </blockquote>
 

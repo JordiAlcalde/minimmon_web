@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
-import { resolveMediaUrl, GITHUB_RAW_BASE } from '../utils/mediaUtils';
+import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { 
@@ -3496,9 +3496,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         )}
                       </div>
 
-                      <p className="text-[11px] text-on-surface-variant">
-                        Escriu el nom del fitxer (ex: <code className="font-mono bg-surface px-1 rounded font-bold text-primary">vetes_fusta.jpeg</code>) o una URL completa.
-                      </p>
+                      <div className="space-y-1">
+                        <p className="text-[11px] text-on-surface-variant">
+                          Escriu el nom del fitxer (ex: <code className="font-mono bg-surface px-1 rounded font-bold text-primary">puzle_01.jpg</code>) o una URL completa.
+                        </p>
+                        <p className="text-[10px] text-outline">
+                          URL Raw per defecte: <code className="font-mono bg-surface px-1 rounded text-primary font-semibold">https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/</code>
+                        </p>
+                      </div>
 
                       <div className="space-y-2">
                         {(editingGamma.imatges || []).map((imgUrl, idx) => {
@@ -3508,12 +3513,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               <span className="font-mono text-xs text-outline w-5 text-center shrink-0">{idx + 1}.</span>
                               <input
                                 type="text"
-                                placeholder={`Imatge ${idx + 1} (ex. vetes_fusta.jpeg o URL)...`}
+                                placeholder={`Imatge ${idx + 1} (ex. puzle_01.jpg o URL)...`}
                                 value={imgUrl || ''}
                                 onBlur={() => {
                                   if (isShort) {
                                     const updated = [...(editingGamma.imatges || [])];
-                                    updated[idx] = resolveMediaUrl(imgUrl);
+                                    updated[idx] = resolveProducteMediaUrl(imgUrl);
                                     setEditingGamma({ ...editingGamma, imatges: updated });
                                   }
                                 }}
@@ -3529,11 +3534,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   type="button"
                                   onClick={() => {
                                     const updated = [...(editingGamma.imatges || [])];
-                                    updated[idx] = resolveMediaUrl(imgUrl);
+                                    updated[idx] = resolveProducteMediaUrl(imgUrl);
                                     setEditingGamma({ ...editingGamma, imatges: updated });
                                   }}
                                   className="px-2 py-1.5 bg-primary text-on-primary text-[11px] rounded font-semibold whitespace-nowrap cursor-pointer hover:bg-primary-container"
-                                  title="Expandir URL"
+                                  title="Expandir URL de producte"
                                 >
                                   ⚡
                                 </button>
