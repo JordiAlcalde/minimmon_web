@@ -797,7 +797,20 @@ function ProductCard({ product, onAddToCart }) {
   };
 
   return (
-    <article id={`producte-${product.id}`} className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-8 p-6 md:p-8 items-start">
+    <article id={`producte-${product.id}`} className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 p-6 md:p-8 items-start">
+
+      {/* Títol del Producte en vista Mòbil (es mostra A DALT de la imatge com a inici de la fitxa) */}
+      <div className="flex md:hidden justify-between items-start gap-4 w-full border-b border-outline/10 pb-3">
+        <h2 className="font-serif text-2xl text-primary font-semibold leading-snug">{product.nom}</h2>
+        <button
+          type="button"
+          onClick={handleShareProductLink}
+          className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1 text-xs font-medium"
+          title="Copiar enllaç directe d'aquest producte"
+        >
+          {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
+        </button>
+      </div>
 
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
@@ -844,7 +857,8 @@ function ProductCard({ product, onAddToCart }) {
 
       {/* Columna Informació i Formulari de Pressupost (7 cols) */}
       <div className="md:col-span-7 space-y-5">
-        <div className="flex justify-between items-start gap-4">
+        {/* Títol del Producte en vista Desktop (ocult en mòbil per evitar duplicitat) */}
+        <div className="hidden md:flex justify-between items-start gap-4">
           <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
           <button
             type="button"
