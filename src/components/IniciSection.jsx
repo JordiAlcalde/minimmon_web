@@ -181,7 +181,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
           <div className="absolute inset-0 bg-gradient-to-t from-surface via-black/40 to-black/60"></div>
         </div>
 
-        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 py-16">
+        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 pt-28 pb-16 md:py-16">
           <span className="font-label-sm text-xs text-amber-200 uppercase tracking-widest border border-amber-200/30 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-sm font-bold shadow-xs">
             Artesania Digital &amp; Marcatge Làser
           </span>
