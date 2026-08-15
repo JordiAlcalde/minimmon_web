@@ -5,7 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -357,8 +357,8 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                       setSelectedGamma('Tots');
                     }}
                     className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${selectedFamilia === 'Novetats'
-                        ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
-                        : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                      ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
+                      : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
                       }`}
                   >
                     <Sparkles className={`w-3.5 h-3.5 ${selectedFamilia === 'Novetats' ? 'text-amber-400' : 'text-amber-700'}`} />
@@ -439,7 +439,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
           {/* Nova Secció d'Informació Comuna de la Gamma (Caixetí 1: Text informatiu, Caixetí 2/3: Fins a 5 imatges) */}
           {(() => {
-            const activeGammaObj = selectedGamma && selectedGamma !== 'Tots' 
+            const activeGammaObj = selectedGamma && selectedGamma !== 'Tots'
               ? dbGammes.find(g => g && String(g.nom || '').toLowerCase() === String(selectedGamma || '').toLowerCase())
               : null;
 
@@ -478,15 +478,15 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                         {validGammaImages.map((imgUrl, idx) => {
                           const resolved = resolveMediaUrl(imgUrl);
                           return (
-                            <div 
+                            <div
                               key={idx}
                               onClick={() => setSelectedModalImage(resolved)}
                               className="w-[200px] h-[200px] rounded-2xl bg-surface border border-outline/20 overflow-hidden relative shadow-md group shrink-0 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
                               title="Fes clic per ampliar imatge"
                             >
-                              <img 
-                                src={resolved} 
-                                alt={`${activeGammaObj.nom} - detalls ${idx + 1}`} 
+                              <img
+                                src={resolved}
+                                alt={`${activeGammaObj.nom} - detalls ${idx + 1}`}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
                               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -520,7 +520,13 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
             ) : (
               filteredProducts.map((product) => (
                 <ProductCardErrorBoundary key={product.id || product.nom}>
-                  <ProductCard product={product} onAddToCart={addToCart} />
+                  <ProductCard
+                    product={product}
+                    onAddToCart={addToCart}
+                    selectedGamma={selectedGamma}
+                    dbGammes={dbGammes}
+                    onSelectImageModal={setSelectedModalImage}
+                  />
                 </ProductCardErrorBoundary>
               ))
             )}
@@ -530,36 +536,36 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
       {/* Dynamic Motivational Pill Card (Píndola Motivadora Dinàmica) */}
       <div className="mt-20 max-w-4xl mx-auto px-margin-mobile md:px-margin-desktop">
-        <div 
+        <div
           onMouseEnter={() => setIsPillHovered(true)}
           onMouseLeave={() => setIsPillHovered(false)}
           className="bg-surface-container-lowest border border-primary/20 rounded-3xl p-5 md:p-6 shadow-md hover:shadow-lg transition-all duration-300 relative overflow-hidden"
         >
           <div className={`transition-all duration-500 ease-in-out ${isPillFading ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
-            
+
             {/* Layout per a Desktop (Flanquejat per les dues cares) i Mòbil (Avatares agrupats a dalt) */}
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
-              
+
               {/* Avatares Mòbil (Visibles només en pantalles petites < md, d'almenys 100px de mida) */}
               <div className="flex md:hidden items-center justify-center gap-4">
-                <img 
-                  src={resolveMediaUrl(currentPill.doubtImg)} 
-                  alt="Dubte" 
+                <img
+                  src={resolveMediaUrl(currentPill.doubtImg)}
+                  alt="Dubte"
                   className="w-[100px] h-[100px] rounded-full object-cover border-2 border-primary/20 shadow-sm shrink-0"
                 />
                 <span className="text-primary/40 font-serif text-xl font-bold">➔</span>
-                <img 
-                  src={resolveMediaUrl(currentPill.happyImg)} 
-                  alt="Solució" 
+                <img
+                  src={resolveMediaUrl(currentPill.happyImg)}
+                  alt="Solució"
                   className="w-[100px] h-[100px] rounded-full object-cover border-2 border-primary/20 shadow-sm shrink-0"
                 />
               </div>
 
               {/* Cara 1 (Dubte) - Visible només en Desktop (md:flex, mida 110px) */}
               <div className="hidden md:flex flex-col items-center shrink-0">
-                <img 
-                  src={resolveMediaUrl(currentPill.doubtImg)} 
-                  alt="Dubte" 
+                <img
+                  src={resolveMediaUrl(currentPill.doubtImg)}
+                  alt="Dubte"
                   className="w-[110px] h-[110px] rounded-full object-cover border-2 border-primary/20 shadow-md hover:scale-105 transition-transform"
                 />
               </div>
@@ -573,7 +579,7 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
                   {currentPill.subtitle}
                 </p>
                 <div className="pt-2">
-                  <button 
+                  <button
                     onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                     className="bg-primary text-on-primary px-7 py-3 rounded-xl text-xs md:text-sm font-semibold hover:bg-primary-container transition-colors shadow-md cursor-pointer inline-flex items-center gap-2"
                   >
@@ -585,9 +591,9 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
               {/* Cara 2 (Solució / Contenta) - Visible només en Desktop (md:flex, mida 110px) */}
               <div className="hidden md:flex flex-col items-center shrink-0">
-                <img 
-                  src={resolveMediaUrl(currentPill.happyImg)} 
-                  alt="Solució" 
+                <img
+                  src={resolveMediaUrl(currentPill.happyImg)}
+                  alt="Solució"
                   className="w-[110px] h-[110px] rounded-full object-cover border-2 border-primary/20 shadow-md hover:scale-105 transition-transform"
                 />
               </div>
@@ -600,21 +606,21 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
 
       {/* Modal Lightbox per a la imatge ampliada de la Gamma */}
       {selectedModalImage && (
-        <div 
+        <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setSelectedModalImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] bg-surface rounded-2xl overflow-hidden shadow-2xl p-2 border border-outline/20" onClick={(e) => e.stopPropagation()}>
-            <button 
+            <button
               onClick={() => setSelectedModalImage(null)}
               className="absolute top-4 right-4 bg-black/60 hover:bg-black text-white p-2 rounded-full z-10 transition-colors cursor-pointer"
               title="Tancar"
             >
               <X className="w-5 h-5" />
             </button>
-            <img 
-              src={selectedModalImage} 
-              alt="Imatge ampliada de la gamma" 
+            <img
+              src={selectedModalImage}
+              alt="Imatge ampliada de la gamma"
               className="max-w-full max-h-[85vh] object-contain rounded-xl"
             />
           </div>
@@ -672,7 +678,31 @@ class ProductCardErrorBoundary extends React.Component {
 }
 
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
-function ProductCard({ product, onAddToCart }) {
+function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], onSelectImageModal }) {
+  const [isMoreInfoOpen, setIsMoreInfoOpen] = useState(false);
+
+  // Trobar si aquest producte pertany a una Gamma amb dades comunes
+  const matchedGammaObj = React.useMemo(() => {
+    if (!dbGammes || dbGammes.length === 0) return null;
+    const prodGammas = Array.isArray(product.gammaIds)
+      ? product.gammaIds
+      : [product.gammaNom || product.gamma].filter(Boolean);
+
+    if (prodGammas.length === 0) return null;
+
+    return dbGammes.find(g =>
+      g && g.nom && prodGammas.some(pg => String(pg).toLowerCase().trim() === String(g.nom).toLowerCase().trim())
+    ) || null;
+  }, [dbGammes, product]);
+
+  const gammaHasText = Boolean(matchedGammaObj?.textInformatiu && matchedGammaObj.textInformatiu.trim());
+  const validGammaImages = (matchedGammaObj?.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
+  const gammaHasImages = validGammaImages.length > 0;
+  const hasGammaCommonData = matchedGammaObj && (gammaHasText || gammaHasImages);
+
+  // Aquest desplegable només apareix si la llista de productes NO està filtrada per la gamma del producte
+  const shouldShowMoreInfoAccordion = selectedGamma === 'Tots' && hasGammaCommonData;
+
   // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
   const rawImages = Array.isArray(product.imatges)
     ? product.imatges
@@ -876,6 +906,54 @@ function ProductCard({ product, onAddToCart }) {
           {renderFormattedText(product.descripcio)}
         </div>
 
+        {/* Desplegable "Més informació" amb les Dades Comunes de la Gamma (si la llista no està filtrada per aquesta gamma) */}
+        {shouldShowMoreInfoAccordion && (
+          <div className="border-t border-outline/10 pt-3">
+            <button
+              type="button"
+              onClick={() => setIsMoreInfoOpen(!isMoreInfoOpen)}
+              className="w-full flex items-center justify-between text-xs font-semibold text-primary hover:text-primary-container transition-colors py-1.5 cursor-pointer group"
+            >
+              <div className="flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                <span>Més informació (Dades comunes a {matchedGammaObj.nom})</span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-primary transition-transform duration-300 ${isMoreInfoOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isMoreInfoOpen && (
+              <div className="mt-2.5 p-3.5 bg-surface-container/40 rounded-xl border border-primary/15 text-xs text-on-surface-variant space-y-3 animate-fadeIn">
+                {gammaHasText && (
+                  <div className="leading-relaxed font-body-md whitespace-pre-line">
+                    {matchedGammaObj.textInformatiu}
+                  </div>
+                )}
+                {gammaHasImages && (
+                  <div className="flex flex-wrap items-center justify-start gap-2.5 pt-1">
+                    {validGammaImages.map((imgUrl, idx) => {
+                      const resolved = resolveMediaUrl(imgUrl);
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => onSelectImageModal && onSelectImageModal(resolved)}
+                          className="w-20 h-20 rounded-lg bg-surface border border-outline/20 overflow-hidden relative shadow-xs group shrink-0 cursor-pointer hover:scale-105 transition-all"
+                          title="Fes clic per ampliar imatge"
+                        >
+                          <img
+                            src={resolved}
+                            alt={`${matchedGammaObj.nom} - detall ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Especificacions Tècniques (Sense títol de grup, només si tenen contingut) */}
         {(product.material || product.dimensions || product.gruix || product.pes || product.acabat) && (
           <div className="space-y-1.5 border-t border-outline/10 pt-3 text-xs">
@@ -1007,7 +1085,8 @@ function ProductCard({ product, onAddToCart }) {
                       <textarea
                         rows={3}
                         maxLength={80}
-                        placeholder={"Es pitjor apuntar massa baix\ni encertar que apuntar massa\namunt i fallar."}
+                        placeholder={`Escriu aquí el teu missatge.
+Pots deixar-ho en blanc, si ho prefereixes.`}
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
                         onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value.slice(0, 80) })}
                         className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans resize-none"
