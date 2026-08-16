@@ -56,10 +56,11 @@ export default function RegalsCatalogSection({
   const [selectedFamilia, setSelectedFamilia] = useState('Tots');
   const [selectedGamma, setSelectedGamma] = useState('Tots');
 
-  // Commutar automàticament a la vista de productes en escriure una cerca al Header
+  // Commutar automàticament a la vista de productes en escriure una cerca al Header i desplaçar a l'inici
   useEffect(() => {
     if (catalogSearchQuery && catalogSearchQuery.trim()) {
       setCurrentView('products');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [catalogSearchQuery]);
 
@@ -347,212 +348,214 @@ export default function RegalsCatalogSection({
       {/* VISTA 2: LLISTA DETALLADA DE PRODUCTES (Pàgina de peces i pressupost)    */}
       {/* ========================================================================= */}
       {currentView === 'products' && (
-        <div className="space-y-10 animate-fadeIn">
+        <div className="space-y-8 animate-fadeIn">
 
-          {/* BARRA DE FILTRES AMB PALETA PRIMÀRIA (#3D2B1F / #F3ECE4) I VERDA PER A SUB-GAMMES */}
-          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-            <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-sm">
-
-              {/* 1. Botó "Tot el Catàleg" */}
-              <button
-                onClick={() => {
-                  setSelectedFamilia('Tots');
-                  setSelectedGamma('Tots');
-                }}
-                className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${selectedFamilia === 'Tots' && selectedGamma === 'Tots'
-                  ? 'bg-[#3D2B1F] text-white font-semibold shadow-md'
-                  : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
-                  }`}
-              >
-                Tot el<br />Catàleg
-              </button>
-
-              {/* 2. Miniatura de la Família Seleccionada */}
-              <div className="w-16 h-16 rounded-xl overflow-hidden border border-outline/20 shadow-xs shrink-0 bg-surface-container relative">
-                <img
-                  src={activeFamilyImage}
-                  alt={selectedFamilia}
-                  className="w-full h-full object-cover transition-all duration-300"
-                />
-              </div>
-
-              {/* 3. Filera de Botons de Famílies i Sub-Gammes */}
-              <div className="flex-1 space-y-3">
-                {/* Fila 1: Botons de Famílies (Colors Primaris) */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Botó Novetats integrat en el disseny del catàleg */}
-                  <button
-                    onClick={() => {
-                      setSelectedFamilia('Novetats');
-                      setSelectedGamma('Tots');
-                    }}
-                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${selectedFamilia === 'Novetats'
-                      ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
-                      : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
-                      }`}
-                  >
-                    <Sparkles className={`w-3.5 h-3.5 ${selectedFamilia === 'Novetats' ? 'text-amber-400' : 'text-amber-700'}`} />
-                    <span>Novetats</span>
-                  </button>
-
-                  {activeFamilies.map(famObj => {
-                    const fam = famObj.nom;
-                    const isActive = String(selectedFamilia || '').toLowerCase() === String(fam || '').toLowerCase();
-                    return (
-                      <button
-                        key={famObj.id || fam}
-                        onClick={() => {
-                          setSelectedFamilia(fam);
-                          setSelectedGamma('Tots');
-                        }}
-                        className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${isActive
-                          ? 'bg-[#3D2B1F] text-white font-semibold shadow-xs'
-                          : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
-                          }`}
-                      >
-                        {fam}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Fila 2: Sub-Gammes (Només quan s'ha seleccionat una Família) */}
-                {selectedFamilia !== 'Tots' && (
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-outline/10">
-                    {/* Botó "Tot" per a aquesta Família */}
-                    <button
-                      onClick={() => setSelectedGamma('Tots')}
-                      className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${selectedGamma === 'Tots'
-                        ? 'bg-[#404A39] text-white font-semibold shadow-xs'
-                        : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                        }`}
-                    >
-                      Tot
-                    </button>
-
-                    {/* Sub-Gammes individuals */}
-                    {currentSubGammes.map(gam => {
-                      const isGamActive = String(selectedGamma || '').toLowerCase() === String(gam || '').toLowerCase();
-                      return (
-                        <button
-                          key={gam}
-                          onClick={() => setSelectedGamma(gam)}
-                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${isGamActive
-                            ? 'bg-[#404A39] text-white font-semibold shadow-xs'
-                            : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
-                            }`}
-                        >
-                          {gam}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* Nota Tècnica / Avís d'Artesania sobre Fusta Natural */}
-          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-            <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
-                <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-              </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-primary text-sm">És important saber que...</p>
-                <p className="leading-relaxed text-on-surface-variant">
-                  Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un suport natural i que es poden apreciar les vetes i els petits nusos propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Nova Secció d'Informació Comuna de la Gamma (Caixetí 1: Text informatiu, Caixetí 2/3: Fins a 5 imatges) */}
-          {(() => {
-            const activeGammaObj = selectedGamma && selectedGamma !== 'Tots'
-              ? dbGammes.find(g => g && String(g.nom || '').toLowerCase() === String(selectedGamma || '').toLowerCase())
-              : null;
-
-            const gammaHasText = Boolean(activeGammaObj?.textInformatiu && activeGammaObj.textInformatiu.trim());
-            const validGammaImages = (activeGammaObj?.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
-            const gammaHasImages = validGammaImages.length > 0;
-            const hasGammaInfo = activeGammaObj && (gammaHasText || gammaHasImages);
-
-            if (!hasGammaInfo) return null;
-
-            return (
-              <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop animate-fadeIn">
-                <div className="bg-surface-container-lowest p-6 rounded-2xl border border-primary/25 shadow-md space-y-5">
-                  <div className="flex items-center gap-2.5 pb-3 border-b border-outline/15">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                      <Info className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-primary text-sm">
-                        Dades comunes a {activeGammaObj.nom}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Caixetí 1: Text Informatiu Comú */}
-                  {gammaHasText && (
-                    <div className="text-sm text-on-surface-variant leading-relaxed font-body-md bg-surface-container/30 p-4 rounded-xl border border-outline/10">
-                      <p className="whitespace-pre-line">{activeGammaObj.textInformatiu}</p>
-                    </div>
-                  )}
-
-                  {/* Caixetins 2 & 3: Imatges Ilustratives (~200x200px, aliniades per l'esquerra) */}
-                  {gammaHasImages && (
-                    <div className="pt-1">
-                      <div className="flex flex-wrap items-center justify-start gap-4">
-                        {validGammaImages.map((imgUrl, idx) => {
-                          const resolved = resolveMediaUrl(imgUrl);
-                          return (
-                            <div
-                              key={idx}
-                              onClick={() => setSelectedModalImage(resolved)}
-                              className="w-[200px] h-[200px] rounded-2xl bg-surface border border-outline/20 overflow-hidden relative shadow-md group shrink-0 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
-                              title="Fes clic per ampliar imatge"
-                            >
-                              <img
-                                src={resolved}
-                                alt={`${activeGammaObj.nom} - detalls ${idx + 1}`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                              />
-                              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                <span className="opacity-0 group-hover:opacity-100 bg-black/75 text-white text-xs px-3 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium shadow">
-                                  Ampliar 🔍
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            );
-          })()}
-
-          {/* Banner Informatiu de Cerca Activa des del Header */}
-          {catalogSearchQuery && catalogSearchQuery.trim() && (
+          {/* Si hi ha una Cerca Activa des del Header, el Banner de Resultats es mostra A DALT DE TOT */}
+          {catalogSearchQuery && catalogSearchQuery.trim() ? (
             <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-              <div className="bg-surface-container-lowest border border-primary/25 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-fadeIn">
-                <div className="flex items-center gap-2 text-primary font-medium text-xs sm:text-sm">
+              <div className="bg-surface-container-lowest border border-primary/25 rounded-2xl p-4 md:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-fadeIn">
+                <div className="flex items-center gap-2 text-primary font-medium text-xs sm:text-sm text-center sm:text-left">
                   <Search className="w-4 h-4 text-primary shrink-0" />
                   <span>Resultats de cerca per a: <strong>"{catalogSearchQuery}"</strong> ({filteredProducts.length} {filteredProducts.length === 1 ? 'peça trobada' : 'peces trobades'})</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCatalogSearchQuery('')}
-                  className="px-3.5 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
+                  className="px-4 py-2 bg-[#3D2B1F] text-white rounded-full text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs active:scale-95"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Netejar cerca</span>
                 </button>
               </div>
             </section>
+          ) : (
+            <>
+              {/* BARRA DE FILTRES AMB PALETA PRIMÀRIA (#3D2B1F / #F3ECE4) I VERDA PER A SUB-GAMMES */}
+              <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-sm">
+
+                  {/* 1. Botó "Tot el Catàleg" */}
+                  <button
+                    onClick={() => {
+                      setSelectedFamilia('Tots');
+                      setSelectedGamma('Tots');
+                    }}
+                    className={`px-5 py-3 rounded-2xl text-xs sm:text-sm font-medium transition-all cursor-pointer shadow-xs flex items-center justify-center text-center shrink-0 ${selectedFamilia === 'Tots' && selectedGamma === 'Tots'
+                      ? 'bg-[#3D2B1F] text-white font-semibold shadow-md'
+                      : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                      }`}
+                  >
+                    Tot el<br />Catàleg
+                  </button>
+
+                  {/* 2. Miniatura de la Família Seleccionada */}
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-outline/20 shadow-xs shrink-0 bg-surface-container relative">
+                    <img
+                      src={activeFamilyImage}
+                      alt={selectedFamilia}
+                      className="w-full h-full object-cover transition-all duration-300"
+                    />
+                  </div>
+
+                  {/* 3. Filera de Botons de Famílies i Sub-Gammes */}
+                  <div className="flex-1 space-y-3">
+                    {/* Fila 1: Botons de Famílies (Colors Primaris) */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Botó Novetats integrat en el disseny del catàleg */}
+                      <button
+                        onClick={() => {
+                          setSelectedFamilia('Novetats');
+                          setSelectedGamma('Tots');
+                        }}
+                        className={`px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer inline-flex items-center gap-1.5 ${selectedFamilia === 'Novetats'
+                          ? 'bg-[#3D2B1F] text-amber-200 shadow-md border border-amber-200/40'
+                          : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                          }`}
+                      >
+                        <Sparkles className={`w-3.5 h-3.5 ${selectedFamilia === 'Novetats' ? 'text-amber-400' : 'text-amber-700'}`} />
+                        <span>Novetats</span>
+                      </button>
+
+                      {activeFamilies.map(famObj => {
+                        const fam = famObj.nom;
+                        const isActive = String(selectedFamilia || '').toLowerCase() === String(fam || '').toLowerCase();
+                        return (
+                          <button
+                            key={famObj.id || fam}
+                            onClick={() => {
+                              setSelectedFamilia(fam);
+                              setSelectedGamma('Tots');
+                            }}
+                            className={`px-4 py-2 rounded-full text-xs font-medium transition-all cursor-pointer ${isActive
+                              ? 'bg-[#3D2B1F] text-white font-semibold shadow-xs'
+                              : 'bg-[#F3ECE4] text-[#3D2B1F] hover:bg-[#E8DDD0]'
+                              }`}
+                          >
+                            {fam}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Fila 2: Sub-Gammes (Només quan s'ha seleccionat una Família) */}
+                    {selectedFamilia !== 'Tots' && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-outline/10">
+                        {/* Botó "Tot" per a aquesta Família */}
+                        <button
+                          onClick={() => setSelectedGamma('Tots')}
+                          className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${selectedGamma === 'Tots'
+                            ? 'bg-[#404A39] text-white font-semibold shadow-xs'
+                            : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                            }`}
+                        >
+                          Tot
+                        </button>
+
+                        {/* Sub-Gammes individuals */}
+                        {currentSubGammes.map(gam => {
+                          const isGamActive = String(selectedGamma || '').toLowerCase() === String(gam || '').toLowerCase();
+                          return (
+                            <button
+                              key={gam}
+                              onClick={() => setSelectedGamma(gam)}
+                              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ${isGamActive
+                                ? 'bg-[#404A39] text-white font-semibold shadow-xs'
+                                : 'bg-[#DBE6CF] text-[#404A39] hover:bg-[#cddabf]'
+                                }`}
+                            >
+                              {gam}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* Nota Tècnica / Avís d'Artesania sobre Fusta Natural */}
+              <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+                <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-primary text-sm">És important saber que...</p>
+                    <p className="leading-relaxed text-on-surface-variant">
+                      Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un suport natural i que es poden apreciar les vetes i els petits nusos propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Nova Secció d'Informació Comuna de la Gamma (Caixetí 1: Text informatiu, Caixetí 2/3: Fins a 5 imatges) */}
+              {(() => {
+                const activeGammaObj = selectedGamma && selectedGamma !== 'Tots'
+                  ? dbGammes.find(g => g && String(g.nom || '').toLowerCase() === String(selectedGamma || '').toLowerCase())
+                  : null;
+
+                const gammaHasText = Boolean(activeGammaObj?.textInformatiu && activeGammaObj.textInformatiu.trim());
+                const validGammaImages = (activeGammaObj?.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
+                const gammaHasImages = validGammaImages.length > 0;
+                const hasGammaInfo = activeGammaObj && (gammaHasText || gammaHasImages);
+
+                if (!hasGammaInfo) return null;
+
+                return (
+                  <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop animate-fadeIn">
+                    <div className="bg-surface-container-lowest p-6 rounded-2xl border border-primary/25 shadow-md space-y-5">
+                      <div className="flex items-center gap-2.5 pb-3 border-b border-outline/15">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                          <Info className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-primary text-sm">
+                            Dades comunes a {activeGammaObj.nom}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Caixetí 1: Text Informatiu Comú */}
+                      {gammaHasText && (
+                        <div className="text-sm text-on-surface-variant leading-relaxed font-body-md bg-surface-container/30 p-4 rounded-xl border border-outline/10">
+                          <p className="whitespace-pre-line">{activeGammaObj.textInformatiu}</p>
+                        </div>
+                      )}
+
+                      {/* Caixetins 2 & 3: Imatges Ilustratives (~200x200px, aliniades per l'esquerra) */}
+                      {gammaHasImages && (
+                        <div className="pt-1">
+                          <div className="flex flex-wrap items-center justify-start gap-4">
+                            {validGammaImages.map((imgUrl, idx) => {
+                              const resolved = resolveMediaUrl(imgUrl);
+                              return (
+                                <div
+                                  key={idx}
+                                  onClick={() => setSelectedModalImage(resolved)}
+                                  className="w-[200px] h-[200px] rounded-2xl bg-surface border border-outline/20 overflow-hidden relative shadow-md group shrink-0 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
+                                  title="Fes clic per ampliar imatge"
+                                >
+                                  <img
+                                    src={resolved}
+                                    alt={`${activeGammaObj.nom} - detalls ${idx + 1}`}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                    <span className="opacity-0 group-hover:opacity-100 bg-black/75 text-white text-xs px-3 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium shadow">
+                                      Ampliar 🔍
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })()}
+            </>
           )}
 
           {/* Grid de Productes en Detall */}
