@@ -3572,14 +3572,17 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         <div className="flex flex-wrap items-center gap-3 pt-1">
                           {(editingGamma.imatges || []).map((imgUrl, idx) => {
                             if (!imgUrl) return null;
-                            const resolved = resolveMediaUrl(imgUrl);
+                            const resolved = resolveProducteMediaUrl(imgUrl);
                             return (
                               <div key={idx} className="w-24 h-24 rounded-lg bg-surface border border-outline/20 overflow-hidden relative shadow-xs group shrink-0">
                                 <img 
                                   src={resolved} 
                                   alt={`Miniatura ${idx + 1}`} 
                                   className="w-full h-full object-cover"
-                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+                                  }}
                                 />
                                 <div className="absolute top-1 left-1 bg-black/60 text-white font-mono text-[9px] px-1 rounded">
                                   #{idx + 1}
