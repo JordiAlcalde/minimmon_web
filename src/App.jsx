@@ -138,6 +138,8 @@ export default function App() {
     }
   };
 
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+
   return (
     <GlobalErrorBoundary>
       <BudgetProvider>
@@ -146,7 +148,12 @@ export default function App() {
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
         {/* Header */}
-        <Header activeTab={activeTab} setActiveTab={handleSelectTab} />
+        <Header 
+          activeTab={activeTab} 
+          setActiveTab={handleSelectTab} 
+          catalogSearchQuery={catalogSearchQuery}
+          setCatalogSearchQuery={setCatalogSearchQuery}
+        />
 
         {/* Main Content Area */}
         <main className="flex-grow z-10">
@@ -168,6 +175,8 @@ export default function App() {
           <RegalsCatalogSection 
             setActiveTab={handleSelectTab} 
             catalogResetKey={catalogResetKey}
+            catalogSearchQuery={catalogSearchQuery}
+            setCatalogSearchQuery={setCatalogSearchQuery}
           />
         )}
 
@@ -181,7 +190,7 @@ export default function App() {
           <ContacteSection />
         )}
 
-        {activeTab === 'privat' && (
+        {(activeTab === 'privat' || activeTab === 'privada') && (
           <PrivateAreaSection setActiveTab={setActiveTab} />
         )}
       </main>

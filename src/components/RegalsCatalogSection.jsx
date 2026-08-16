@@ -5,7 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -39,7 +39,12 @@ const MOTIVATIONAL_PILLS = [
   }
 ];
 
-export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) {
+export default function RegalsCatalogSection({ 
+  setActiveTab, 
+  catalogResetKey,
+  catalogSearchQuery = '',
+  setCatalogSearchQuery = () => {}
+}) {
   const { addToCart } = useBudget();
   const [dbProducts, setDbProducts] = useState([]);
   const [dbGammes, setDbGammes] = useState([]);
@@ -50,6 +55,13 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
   const [currentView, setCurrentView] = useState('catalog');
   const [selectedFamilia, setSelectedFamilia] = useState('Tots');
   const [selectedGamma, setSelectedGamma] = useState('Tots');
+
+  // Commutar automàticament a la vista de productes en escriure una cerca al Header
+  useEffect(() => {
+    if (catalogSearchQuery && catalogSearchQuery.trim()) {
+      setCurrentView('products');
+    }
+  }, [catalogSearchQuery]);
 
   const [selectedModalImage, setSelectedModalImage] = useState(null);
 
@@ -176,10 +188,27 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre
+  // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre o per la Cerca Activa
   const filteredProducts = dbProducts.filter(p => {
     if (!p) return false;
     if (p.actiu === false) return false;
+
+    // 1. Filtrar per Cerca Activa des del Header (si hi ha text d'usuari)
+    if (catalogSearchQuery && catalogSearchQuery.trim()) {
+      const q = catalogSearchQuery.trim().toLowerCase();
+      const matchNom = String(p.nom || '').toLowerCase().includes(q);
+      const matchDesc = String(p.descripcio || '').toLowerCase().includes(q);
+      const matchConcepte = String(p.concepte || '').toLowerCase().includes(q);
+      const matchMaterials = String(p.materials || '').toLowerCase().includes(q);
+      const matchOpcions = (p.opcionsPersonalitzacio || []).some(o => 
+        String(o?.titol || '').toLowerCase().includes(q) || 
+        String(o?.valors || '').toLowerCase().includes(q)
+      );
+
+      return matchNom || matchDesc || matchConcepte || matchMaterials || matchOpcions;
+    }
+
+    // 2. Filtrar per Filtre de Família / Gamma
     if (selectedFamilia === 'Novetats') {
       return p.novetat === true;
     }
@@ -506,13 +535,41 @@ export default function RegalsCatalogSection({ setActiveTab, catalogResetKey }) 
             );
           })()}
 
+          {/* Banner Informatiu de Cerca Activa des del Header */}
+          {catalogSearchQuery && catalogSearchQuery.trim() && (
+            <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
+              <div className="bg-surface-container-lowest border border-primary/25 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md animate-fadeIn">
+                <div className="flex items-center gap-2 text-primary font-medium text-xs sm:text-sm">
+                  <Search className="w-4 h-4 text-primary shrink-0" />
+                  <span>Resultats de cerca per a: <strong>"{catalogSearchQuery}"</strong> ({filteredProducts.length} {filteredProducts.length === 1 ? 'peça trobada' : 'peces trobades'})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCatalogSearchQuery('')}
+                  className="px-3.5 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-semibold hover:bg-primary-container transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Netejar cerca</span>
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Grid de Productes en Detall */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop space-y-10">
             {filteredProducts.length === 0 ? (
               <div className="py-16 text-center bg-surface-container-lowest rounded-xl border border-outline/15 p-8">
-                <p className="font-serif text-lg text-primary">No s'han trobat peces per al filtre triat.</p>
+                <p className="font-serif text-lg text-primary">
+                  {catalogSearchQuery 
+                    ? `No s'ha trobat cap peça per a "${catalogSearchQuery}".`
+                    : "No s'han trobat peces per al filtre triat."}
+                </p>
                 <button
-                  onClick={() => { setSelectedFamilia('Tots'); setSelectedGamma('Tots'); }}
+                  onClick={() => { 
+                    setCatalogSearchQuery('');
+                    setSelectedFamilia('Tots'); 
+                    setSelectedGamma('Tots'); 
+                  }}
                   className="mt-4 text-xs text-primary underline cursor-pointer font-semibold"
                 >
                   Mostrar tot el catàleg

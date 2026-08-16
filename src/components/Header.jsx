@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag } from 'lucide-react';
+import { ShoppingBag, Lock, Search, X } from 'lucide-react';
 
-export default function Header({ activeTab, setActiveTab }) {
+export default function Header({ 
+  activeTab, 
+  setActiveTab, 
+  catalogSearchQuery = '', 
+  setCatalogSearchQuery = () => {} 
+}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const { totalItems, setIsDrawerOpen } = useBudget();
 
   const handleNavClick = (tabId) => {
@@ -100,20 +106,83 @@ export default function Header({ activeTab, setActiveTab }) {
             )}
           </button>
 
-          {/* Desktop Budget Cart Icon Button */}
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            className="relative flex items-center justify-center p-2 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 ml-2 shadow-xs hover:shadow hover:scale-105"
-            title="Cistella de Pressupostos"
-            aria-label="Cistella de Pressupostos"
-          >
-            <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
-            {totalItems > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
-                {totalItems}
-              </span>
+          {/* Grup de 3 Botons d'Acció (Lupa / Cistella / Privat) */}
+          <div className="flex items-center gap-2 ml-3">
+            
+            {/* 1. Botó i Camp de Cerca Expansible Compacte (Lupa) */}
+            {isSearchExpanded || catalogSearchQuery ? (
+              <div className="relative flex items-center bg-primary/10 border border-primary/30 rounded-full px-2.5 py-1 w-36 sm:w-44 transition-all duration-300 shadow-xs">
+                <Search className="w-3.5 h-3.5 text-primary shrink-0 mr-1.5 opacity-70" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Cerca..."
+                  value={catalogSearchQuery}
+                  onChange={(e) => {
+                    setCatalogSearchQuery(e.target.value);
+                    if (activeTab !== 'regals') handleNavClick('regals');
+                  }}
+                  className="w-full bg-transparent text-xs text-primary font-sans outline-none placeholder-primary/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogSearchQuery('');
+                    setIsSearchExpanded(false);
+                  }}
+                  className="p-0.5 hover:bg-primary/20 rounded-full text-primary transition-colors cursor-pointer shrink-0 ml-1"
+                  title="Esborrar cerca"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchExpanded(true);
+                  if (activeTab !== 'regals') handleNavClick('regals');
+                }}
+                className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 shadow-xs hover:shadow hover:scale-105"
+                title="Cerca de regals i productes"
+                aria-label="Cerca al catàleg"
+              >
+                <Search className="w-4 h-4 shrink-0" />
+              </button>
             )}
-          </button>
+
+            {/* 2. Botó Cistella de Pressupostos */}
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 shadow-xs hover:shadow hover:scale-105"
+              title="Cistella de Pressupostos"
+              aria-label="Cistella de Pressupostos"
+            >
+              <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
+                  {totalItems}
+                </span>
+              )}
+            </button>
+
+            {/* 3. Botó Àrea Privada (Candau) */}
+            <button
+              type="button"
+              onClick={() => handleNavClick('privat')}
+              className={`relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all cursor-pointer border shadow-xs hover:shadow hover:scale-105 ${
+                (activeTab === 'privat' || activeTab === 'privada')
+                  ? 'bg-primary text-on-primary border-primary shadow-md' 
+                  : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/20'
+              }`}
+              title="Accedir a l'Àrea Privada"
+              aria-label="Accedir a l'Àrea Privada"
+            >
+              <Lock className="w-4 h-4 shrink-0" />
+            </button>
+
+          </div>
         </div>
 
         {/* Mobile Menu & Budget Button */}
