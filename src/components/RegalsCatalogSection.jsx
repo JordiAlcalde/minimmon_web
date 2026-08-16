@@ -9,6 +9,7 @@ import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
+import PuzzleSimulator from './PuzzleSimulator';
 import CommentsSection from './CommentsSection';
 
 const MOTIVATIONAL_PILLS = [
@@ -737,8 +738,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const [attachedFiles, setAttachedFiles] = useState({});
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Detectar si el producte és específicament el clauer "Inicial" (té simulador 3D)
+  // Detectar si el producte és específicament el clauer "Inicial" o un Puzle (ex: "Puzle 4x4", "Puzle 5x5", "Puzle 8x8")
   const isInicialKeychain = String(product.nom || '').toLowerCase().includes('inicial');
+  const isPuzzleProduct = String(product.nom || '').toLowerCase().includes('puzle') && /\d+\s*x\s*\d+/i.test(product.nom);
+
+  // Trobar el primer fitxer adjuntat per l'usuari per passar-ho al simulador de puzle
+  const firstUserFile = React.useMemo(() => {
+    const firstKey = Object.keys(attachedFiles)[0];
+    return firstKey ? attachedFiles[firstKey] : null;
+  }, [attachedFiles]);
 
   const initialKey = safeOpcions.find(o => {
     const t = String(o?.titol || '').toLowerCase();
@@ -994,7 +1002,7 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
             <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">
-              {isInicialKeychain ? "PERSONALITZACIÓ - Mira el simulador en temps real:" : "PERSONALITZACIÓ:"}
+              {(isInicialKeychain || isPuzzleProduct) ? "PERSONALITZACIÓ - Mira el simulador en temps real:" : "PERSONALITZACIÓ:"}
             </h4>
 
             <div className="flex flex-col gap-3">
@@ -1107,11 +1115,20 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
           </div>
         )}
 
-        {/* Simulador en Temps Real (ubicat DESPRÉS de les opcions de personalització) */}
+        {/* Simulador de Clauer Inicial en Temps Real */}
         {isInicialKeychain && (
           <ProductSimulator
             initialLetter={selectedOptions[initialKey] || ''}
             phraseText={selectedOptions[phraseKey] || ''}
+          />
+        )}
+
+        {/* Simulador de Puzle en Temps Real */}
+        {isPuzzleProduct && (
+          <PuzzleSimulator
+            productNom={product.nom}
+            selectedOptions={selectedOptions}
+            userAttachedFile={firstUserFile}
           />
         )}
 
