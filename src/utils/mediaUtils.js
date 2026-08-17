@@ -1,5 +1,5 @@
-export const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/";
-export const GITHUB_RAW_PRODUCTES_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/";
+export const GITHUB_RAW_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/";
+export const GITHUB_RAW_PRODUCTES_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/imatges/productes/";
 export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/";
 
 export function isVideoExtension(path = '') {
@@ -26,18 +26,15 @@ export function resolveMediaUrl(url) {
   if (!url) return '';
   const trimmed = url.trim();
 
-  // Handle full HTTP/HTTPS URLs
+  // If it's a full URL pointing to GitHub repo, normalize to local path
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
-    // If it's a raw.githubusercontent.com video link, convert to jsDelivr CDN so the browser receives Content-Type: video/mp4 with streaming support
-    if (trimmed.includes('raw.githubusercontent.com') && isVideoExtension(trimmed)) {
-      const parts = trimmed.replace('https://raw.githubusercontent.com/', '').split('/');
-      if (parts.length >= 3) {
-        const owner = parts[0];
-        const repo = parts[1];
-        const branch = parts[2];
-        const rest = parts.slice(3).join('/');
-        return safeEncodeURI(`https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/${rest}`);
-      }
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/', '');
+      return resolveMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/', '');
+      return resolveMediaUrl(rel);
     }
     return safeEncodeURI(trimmed);
   }
@@ -45,45 +42,59 @@ export function resolveMediaUrl(url) {
   let cleanPath = trimmed;
   if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
   
-  // Check if cleanPath is a local asset in public/images/
+  const baseUrl = import.meta.env.BASE_URL || './';
+  const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+  // Local assets in public/images/
   if (cleanPath.startsWith('images/')) {
-    const baseUrl = import.meta.env.BASE_URL || './';
-    const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     return safeEncodeURI(`${prefix}${cleanPath}`);
   }
 
-  // Support imatges/, images/, and videos/ folders
+  // Handle families, productes and general images
   if (!cleanPath.startsWith('imatges/') && !cleanPath.startsWith('videos/')) {
-    cleanPath = isVideoExtension(cleanPath) ? `videos/${cleanPath}` : `imatges/${cleanPath}`;
+    if (cleanPath.startsWith('productes/')) {
+      cleanPath = `imatges/${cleanPath}`;
+    } else if (cleanPath.startsWith('família_') || cleanPath.startsWith('familia_')) {
+      cleanPath = `imatges/productes/${cleanPath}`;
+    } else {
+      cleanPath = isVideoExtension(cleanPath) ? `videos/${cleanPath}` : `imatges/${cleanPath}`;
+    }
   }
 
-  // Safely URL-encode spaces and special characters without double-encoding
-  const encodedPath = safeEncodeURI(cleanPath);
-
-  // If it's a video file, route through jsDelivr CDN for native HTML5 video streaming headers
-  if (isVideoExtension(cleanPath)) {
-    return `${JSDELIVR_VIDEO_BASE}${encodedPath}`;
-  }
-
-  return `${GITHUB_RAW_BASE}${encodedPath}`;
+  return safeEncodeURI(`${prefix}${cleanPath}`);
 }
 
 export function resolveProducteMediaUrl(url) {
   if (!url) return '';
   const trimmed = url.trim();
 
-  // Handle full HTTP/HTTPS URLs
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/', '');
+      return resolveProducteMediaUrl(rel);
+    }
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/', '');
+      return resolveProducteMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/imatges/productes/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/imatges/productes/', '');
+      return resolveProducteMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/', '');
+      return resolveProducteMediaUrl(rel);
+    }
     return safeEncodeURI(trimmed);
   }
   
   let cleanPath = trimmed;
   if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
   
-  // Check if cleanPath is a local asset in public/images/
+  const baseUrl = import.meta.env.BASE_URL || './';
+  const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
   if (cleanPath.startsWith('images/')) {
-    const baseUrl = import.meta.env.BASE_URL || './';
-    const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     return safeEncodeURI(`${prefix}${cleanPath}`);
   }
 
@@ -94,7 +105,14 @@ export function resolveProducteMediaUrl(url) {
     cleanPath = cleanPath.replace('imatges/', '');
   }
 
-  return `${GITHUB_RAW_PRODUCTES_BASE}${safeEncodeURI(cleanPath)}`;
+  return safeEncodeURI(`${prefix}imatges/productes/${cleanPath}`);
+}
+
+export function handleImageFallback(e, fallbackUrl = 'images/tots_productes.jpg') {
+  if (!e || !e.target) return;
+  if (fallbackUrl) {
+    e.target.src = resolveMediaUrl(fallbackUrl);
+  }
 }
 
 export function formatVideoEmbedUrl(url) {
