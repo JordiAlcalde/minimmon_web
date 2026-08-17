@@ -872,6 +872,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         familaIds: finalFamilaIds,
         gammaIds: selectedGammes,
         titolPersonalitzacio: editingProducte.titolPersonalitzacio || '',
+        requereixPressupost: editingProducte.requereixPressupost === true,
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
@@ -2625,6 +2626,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
                   gammaIds: initialGammas,
                   titolPersonalitzacio: '',
+                  requereixPressupost: false,
                   opcionsPersonalitzacio: [
                     { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
                   ],
@@ -3035,8 +3037,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
-              {/* Switches d'Estat: Actiu / Inactiu i Novetat */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+              {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
                 <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
                   <input
                     type="checkbox"
@@ -3047,6 +3049,21 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <div>
                     <span className="block font-bold">Actiu al Catàleg</span>
                     <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment al públic.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProducte.requereixPressupost === true}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, requereixPressupost: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold text-primary flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-primary" /> Requereix Pressupost
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Mostra preu orientatiu i botó "Demanar pressupost".</span>
                   </div>
                 </label>
 

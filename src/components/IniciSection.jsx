@@ -231,7 +231,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 <img 
                   className="w-full h-full object-cover" 
                   alt="Jordi Alcalde Casalta" 
-                  src={resolveMediaUrl('images/jordi-alcalde.png')} 
+                  src={resolveMediaUrl('images/jordi-alcalde-2.jpg')} 
                 />
               </div>
               <div>

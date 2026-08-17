@@ -781,9 +781,14 @@ function isValidImagePath(str) {
 
 // Subcomponent Mini-Fitxa neta per a la graella de 3 columnes
 function MiniProductCard({ product, onClick, onAddToCart }) {
+  const [qty, setQty] = useState(1);
+  const [addedToast, setAddedToast] = useState(false);
   const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
   const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
-  const price = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
+  const isBudgetRequired = product.requereixPressupost === true;
+  const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
   const deliveryTime = product.terminiLliurament || '3-5 dies';
   const ratingScore = product.rating || 5.0;
   const commentsCount = Array.isArray(product.comentaris) ? product.comentaris.length : (product.numComentaris || 0);
@@ -837,26 +842,116 @@ function MiniProductCard({ product, onClick, onAddToCart }) {
         </div>
       </div>
 
-      {/* Barra Inferior: Preu i Botó d'Acció */}
-      <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex items-center justify-between gap-2">
+      {/* Barra Inferior: Preu, Quantitat i Botó d'Acció */}
+      <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider">Des de</span>
-          <span className="font-serif text-base sm:text-lg font-bold text-primary">
-            {price.toFixed(2).replace('.', ',')} €
+          <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider font-mono font-medium">
+            {isBudgetRequired ? "Preu orientatiu" : "Preu"}
+          </span>
+          <span className="font-sans text-base sm:text-lg font-bold text-primary tracking-tight">
+            {isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`}
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick();
-          }}
-          className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1"
-        >
-          <span>Personalitzar</span>
-          <ArrowRight className="w-3 h-3 ml-0.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Selector de Quantitat a la Mini-Fitxa */}
+          <div 
+            className="flex items-center border border-outline/25 rounded-lg bg-surface overflow-hidden shadow-2xs" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setQty(Math.max(1, qty - 1))}
+              className="px-2 py-1 text-primary hover:bg-surface-container transition-colors cursor-pointer text-xs font-bold leading-none"
+              title="Reduir quantitat"
+              aria-label="Reduir quantitat"
+            >
+              -
+            </button>
+            <span className="px-1.5 text-xs font-mono font-bold text-primary min-w-[16px] text-center">{qty}</span>
+            <button
+              type="button"
+              onClick={() => setQty(qty + 1)}
+              className="px-2 py-1 text-primary hover:bg-surface-container transition-colors cursor-pointer text-xs font-bold leading-none"
+              title="Augmentar quantitat"
+              aria-label="Augmentar quantitat"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Botó segons si té personalització o és compra/pressupost directe */}
+          {hasCustomization ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Personalitzar</span>
+            </button>
+          ) : isBudgetRequired ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onAddToCart) {
+                  onAddToCart({
+                    id: product.id || product.nom,
+                    productNom: product.nom,
+                    nom: product.nom,
+                    preu: rawPrice,
+                    quantitat: qty,
+                    imatge: resolvedImg,
+                    selectedOptions: {},
+                    requereixPressupost: true
+                  });
+                  setAddedToast(true);
+                  setTimeout(() => setAddedToast(false), 2000);
+                }
+              }}
+              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+            >
+              <img src="/images/icon-pressupost.png" alt="" className="w-3.5 h-3.5 object-contain brightness-0 invert shrink-0" />
+              <span>Demanar pressupost</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onAddToCart) {
+                  onAddToCart({
+                    id: product.id || product.nom,
+                    productNom: product.nom,
+                    nom: product.nom,
+                    preu: rawPrice,
+                    quantitat: qty,
+                    imatge: resolvedImg,
+                    selectedOptions: {},
+                    requereixPressupost: false
+                  });
+                  setAddedToast(true);
+                  setTimeout(() => setAddedToast(false), 2000);
+                }
+              }}
+              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span>Afegir a la cistella</span>
+            </button>
+          )}
+        </div>
+
+        {/* Feedback visual si s'afegeix directament */}
+        {addedToast && (
+          <div className="w-full text-right text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-end gap-1 animate-fadeIn">
+            <Check className="w-3.5 h-3.5" /> {isBudgetRequired ? 'Afegit a la sol·licitud!' : 'Afegit a la cistella!'}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -920,6 +1015,11 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   // Desplegable de Dades Comunes de la Gamma (sempre disponible si la gamma té dades comunes)
   const shouldShowMoreInfoAccordion = Boolean(hasGammaCommonData);
+
+  // Preus i Requisit de Pressupost
+  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
+  const isBudgetRequired = product.requereixPressupost === true;
 
   // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
   const rawImages = Array.isArray(product.imatges)
@@ -1221,10 +1321,19 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
         {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
-          <div className="space-y-3 pt-3 border-t border-outline/10">
-            <h4 className="text-xs font-semibold text-primary font-mono">
-              {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Personalització - Mira el simulador en temps real:" : "Personalització:")}
-            </h4>
+          <div className="space-y-2 pt-3 border-t border-outline/10">
+            {/* Títol amb icona i la paraula Personalitzar */}
+            <div className="flex items-center gap-1.5 text-xs text-primary font-mono font-semibold">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span>Personalitzar</span>
+            </div>
+
+            {/* Text explicatiu / Títol personalitzat */}
+            {(product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")) && (
+              <p className="text-xs text-on-surface-variant font-mono">
+                {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")}
+              </p>
+            )}
 
             <div className="flex flex-col gap-3">
               {(product.opcionsPersonalitzacio || []).map((opc, idx) => {
@@ -1361,6 +1470,19 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
           </div>
         )}
 
+        {/* Preu o Preu Orientatiu */}
+        <div className="flex items-baseline gap-3 pt-3 border-t border-outline/10">
+          <span className="text-xs uppercase font-mono tracking-wider text-on-surface-variant font-semibold">
+            {isBudgetRequired ? "Preu orientatiu:" : "Preu:"}
+          </span>
+          <span className="font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight">
+            {isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`}
+          </span>
+          {!isBudgetRequired && !isZeroPrice && (
+            <span className="text-xs text-on-surface-variant/80 font-mono">(IVA inclòs)</span>
+          )}
+        </div>
+
         {/* Quantitat i Observacions */}
         <div className="space-y-3 pt-2">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
@@ -1399,20 +1521,29 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
             </div>
           </div>
 
-          {/* Botó Afegir al Pressupost */}
+          {/* Botó Afegir a la Cistella o Demanar Pressupost */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
             <button
               type="button"
               onClick={handleAdd}
               className="w-full sm:w-auto bg-primary text-on-primary px-8 py-3.5 rounded font-body-md text-sm hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
             >
-              <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
-              <span>Demanar pressupost</span>
+              {isBudgetRequired ? (
+                <>
+                  <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
+                  <span>Demanar pressupost</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-5 h-5 shrink-0" />
+                  <span>Afegir a la cistella</span>
+                </>
+              )}
             </button>
 
             {addedToast && (
               <span className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1 animate-fadeIn">
-                <Check className="w-4 h-4" /> Afegit a la teva cistella!
+                <Check className="w-4 h-4" /> {isBudgetRequired ? 'Afegit a la sol·licitud de pressupost!' : 'Afegit a la teva cistella!'}
               </span>
             )}
           </div>
