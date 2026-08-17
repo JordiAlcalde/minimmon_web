@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { STITCH_GIFTS } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { resolveMediaUrl } from '../utils/mediaUtils';
+import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -65,6 +66,19 @@ export default function RegalsCatalogSection({
   }, [catalogSearchQuery]);
 
   const [selectedModalImage, setSelectedModalImage] = useState(null);
+  const [activeModalProduct, setActiveModalProduct] = useState(null);
+
+  // Bloquejar l'scroll de fons quan el modal o la imatge estiguin oberts
+  useEffect(() => {
+    if (activeModalProduct || selectedModalImage) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [activeModalProduct, selectedModalImage]);
 
   // Estat per a la Píndola Motivadora Dinàmica amb cadència de 5.5 segons
   const [pillIndex, setPillIndex] = useState(0);
@@ -558,8 +572,8 @@ export default function RegalsCatalogSection({
             </>
           )}
 
-          {/* Grid de Productes en Detall */}
-          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop space-y-10">
+          {/* Grid de Mini-Fitxes de Productes (Files de 3 columnes en PC, 2 en Tauleta, 1 en Mòbil) */}
+          <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
             {filteredProducts.length === 0 ? (
               <div className="py-16 text-center bg-surface-container-lowest rounded-xl border border-outline/15 p-8">
                 <p className="font-serif text-lg text-primary">
@@ -579,17 +593,17 @@ export default function RegalsCatalogSection({
                 </button>
               </div>
             ) : (
-              filteredProducts.map((product) => (
-                <ProductCardErrorBoundary key={product.id || product.nom}>
-                  <ProductCard
-                    product={product}
-                    onAddToCart={addToCart}
-                    selectedGamma={selectedGamma}
-                    dbGammes={dbGammes}
-                    onSelectImageModal={setSelectedModalImage}
-                  />
-                </ProductCardErrorBoundary>
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredProducts.map((product) => (
+                  <ProductCardErrorBoundary key={product.id || product.nom}>
+                    <MiniProductCard
+                      product={product}
+                      onClick={() => setActiveModalProduct(product)}
+                      onAddToCart={addToCart}
+                    />
+                  </ProductCardErrorBoundary>
+                ))}
+              </div>
             )}
           </section>
         </div>
@@ -666,9 +680,9 @@ export default function RegalsCatalogSection({
       </div>
 
       {/* Modal Lightbox per a la imatge ampliada de la Gamma */}
-      {selectedModalImage && (
+      {selectedModalImage && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-[1100] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setSelectedModalImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh] bg-surface rounded-2xl overflow-hidden shadow-2xl p-2 border border-outline/20" onClick={(e) => e.stopPropagation()}>
@@ -685,7 +699,67 @@ export default function RegalsCatalogSection({
               className="max-w-full max-h-[85vh] object-contain rounded-xl"
             />
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL FLOTANT: FITXA REAL COMPLETA DEL PRODUCTE SELECCIONAT               */}
+      {/* ========================================================================= */}
+      {activeModalProduct && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xs overflow-y-auto p-0 sm:p-4 md:p-6 flex flex-col items-center justify-start animate-fadeIn"
+          onClick={() => setActiveModalProduct(null)}
+        >
+          <div 
+            className="relative w-full sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl min-h-screen sm:min-h-0 sm:max-h-[92vh] overflow-y-auto bg-surface sm:rounded-3xl border-0 sm:border border-outline/20 shadow-2xl p-0 my-0 sm:my-auto flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Capçalera Fixa Flotant amb Títol, Enllaç i Botó de Tancar */}
+            <div className="sticky top-0 bg-surface/98 backdrop-blur-md z-30 px-4 py-3 sm:px-6 sm:py-4 border-b border-outline/15 flex items-center justify-between gap-3 shadow-xs shrink-0">
+              <h2 className="font-serif text-lg sm:text-2xl font-bold text-primary truncate max-w-[55%] sm:max-w-xl">
+                {activeModalProduct.nom}
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => copyDirectLink(activeModalProduct)}
+                  className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-primary rounded-xl border border-outline/20 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs font-medium"
+                  title="Copiar enllaç directe d'aquest producte"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">Copiar enllaç</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModalProduct(null)}
+                  className="p-2 rounded-full bg-surface-container hover:bg-surface-container-high text-primary border border-outline/20 shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
+                  title="Tancar fitxa"
+                  aria-label="Tancar fitxa"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Fitxa Real Completa (ProductCard) amb màxim aprofitament horitzontal */}
+            <div className="p-3 sm:p-6 md:p-8 flex-1">
+              <ProductCardErrorBoundary key={activeModalProduct.id || activeModalProduct.nom}>
+                <ProductCard
+                  product={activeModalProduct}
+                  onAddToCart={(item) => {
+                    addToCart(item);
+                  }}
+                  selectedGamma={selectedGamma}
+                  dbGammes={dbGammes}
+                  onSelectImageModal={setSelectedModalImage}
+                  isModalView={true}
+                />
+              </ProductCardErrorBoundary>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -703,6 +777,89 @@ function isValidImagePath(str) {
     trimmed.startsWith('images/') ||
     trimmed.startsWith('imatges/') ||
     /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i.test(trimmed);
+}
+
+// Subcomponent Mini-Fitxa neta per a la graella de 3 columnes
+function MiniProductCard({ product, onClick, onAddToCart }) {
+  const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
+  const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
+  const price = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  const deliveryTime = product.terminiLliurament || '3-5 dies';
+  const ratingScore = product.rating || 5.0;
+  const commentsCount = Array.isArray(product.comentaris) ? product.comentaris.length : (product.numComentaris || 0);
+
+  return (
+    <div 
+      onClick={onClick}
+      className="group bg-surface-container-lowest border border-outline/15 hover:border-primary/40 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between h-full relative"
+    >
+      {/* Part Superior: Imatge a l'esquerra + Dades a la dreta */}
+      <div className="flex gap-3.5 items-start">
+        {/* Imatge a l'esquerra */}
+        <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-surface-container border border-outline/10 shrink-0 relative">
+          <img 
+            src={resolvedImg} 
+            alt={product.nom}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            onError={(e) => { e.target.src = resolveMediaUrl('images/tots_productes.jpg'); }}
+          />
+          {product.novetat && (
+            <span className="absolute top-1 left-1 bg-amber-400 text-amber-950 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs">
+              NOU
+            </span>
+          )}
+        </div>
+
+        {/* Text i Detalls a la dreta */}
+        <div className="flex-1 min-w-0 space-y-1">
+          <h3 className="font-serif text-sm sm:text-base font-semibold text-primary group-hover:text-primary-container transition-colors line-clamp-1">
+            {product.nom}
+          </h3>
+
+          <p className="text-[11px] sm:text-xs text-on-surface-variant line-clamp-2 leading-snug">
+            {product.descripcio || product.concepte || 'Peça artesanal elaborada a mà en fusta de primera qualitat.'}
+          </p>
+
+          {/* Valoracions */}
+          <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-0.5">
+            <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
+            <span>{ratingScore.toFixed(1)}</span>
+            {commentsCount > 0 && (
+              <span className="text-on-surface-variant/70 text-[10px]">({commentsCount})</span>
+            )}
+          </div>
+
+          {/* Termini de Lliurament */}
+          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-on-surface-variant/80">
+            <Clock className="w-3 h-3 text-primary/60 shrink-0" />
+            <span>Lliurament: <strong className="text-primary font-medium">{deliveryTime}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Barra Inferior: Preu i Botó d'Acció */}
+      <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex items-center justify-between gap-2">
+        <div>
+          <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider">Des de</span>
+          <span className="font-serif text-base sm:text-lg font-bold text-primary">
+            {price.toFixed(2).replace('.', ',')} €
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+          className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1"
+        >
+          <span>Personalitzar</span>
+          <ArrowRight className="w-3 h-3 ml-0.5" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // Error Boundary per prevenir que un error a la fitxa d'un regal faci caure el catàleg en blanc
@@ -739,7 +896,7 @@ class ProductCardErrorBoundary extends React.Component {
 }
 
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
-function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], onSelectImageModal }) {
+function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], onSelectImageModal, isModalView = false }) {
   const [isMoreInfoOpen, setIsMoreInfoOpen] = useState(false);
 
   // Trobar si aquest producte pertany a una Gamma amb dades comunes
@@ -761,8 +918,8 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const gammaHasImages = validGammaImages.length > 0;
   const hasGammaCommonData = matchedGammaObj && (gammaHasText || gammaHasImages);
 
-  // Aquest desplegable només apareix si la llista de productes NO està filtrada per la gamma del producte
-  const shouldShowMoreInfoAccordion = selectedGamma === 'Tots' && hasGammaCommonData;
+  // Desplegable de Dades Comunes de la Gamma (sempre disponible si la gamma té dades comunes)
+  const shouldShowMoreInfoAccordion = Boolean(hasGammaCommonData);
 
   // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
   const rawImages = Array.isArray(product.imatges)
@@ -895,20 +1052,22 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   };
 
   return (
-    <article id={`producte-${product.id}`} className="bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 p-6 md:p-8 items-start">
+    <article id={`producte-${product.id}`} className={`${isModalView ? 'bg-transparent border-0 shadow-none p-0 w-full' : 'bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm p-6 md:p-8'} overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start`}>
 
-      {/* Títol del Producte en vista Mòbil (es mostra A DALT de la imatge com a inici de la fitxa) */}
-      <div className="flex md:hidden justify-between items-start gap-4 w-full border-b border-outline/10 pb-3">
-        <h2 className="font-serif text-2xl text-primary font-semibold leading-snug">{product.nom}</h2>
-        <button
-          type="button"
-          onClick={handleShareProductLink}
-          className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1 text-xs font-medium"
-          title="Copiar enllaç directe d'aquest producte"
-        >
-          {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
-        </button>
-      </div>
+      {/* Títol del Producte en vista Mòbil (ocult si ja és dins del Modal flotant) */}
+      {!isModalView && (
+        <div className="flex md:hidden justify-between items-start gap-4 w-full border-b border-outline/10 pb-3">
+          <h2 className="font-serif text-2xl text-primary font-semibold leading-snug">{product.nom}</h2>
+          <button
+            type="button"
+            onClick={handleShareProductLink}
+            className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1 text-xs font-medium"
+            title="Copiar enllaç directe d'aquest producte"
+          >
+            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
+          </button>
+        </div>
+      )}
 
       {/* Columna Imatges (5 cols) */}
       <div className="md:col-span-5 space-y-4">
@@ -955,22 +1114,24 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
       {/* Columna Informació i Formulari de Pressupost (7 cols) */}
       <div className="md:col-span-7 space-y-5">
-        {/* Títol del Producte en vista Desktop (ocult en mòbil per evitar duplicitat) */}
-        <div className="hidden md:flex justify-between items-start gap-4">
-          <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
-          <button
-            type="button"
-            onClick={handleShareProductLink}
-            className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1.5 text-xs font-medium"
-            title="Copiar enllaç directe d'aquest producte per a màrqueting"
-          >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
-            <span className="hidden sm:inline">{copiedLink ? 'Copiat!' : 'Copiar enllaç'}</span>
-          </button>
-        </div>
+        {/* Títol del Producte en vista Desktop (ocult si ja és dins del Modal flotant) */}
+        {!isModalView && (
+          <div className="hidden md:flex justify-between items-start gap-4">
+            <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
+            <button
+              type="button"
+              onClick={handleShareProductLink}
+              className="p-2 bg-surface hover:bg-surface-container text-primary rounded-lg border border-outline/20 transition-all cursor-pointer shadow-2xs shrink-0 flex items-center gap-1.5 text-xs font-medium"
+              title="Copiar enllaç directe d'aquest producte per a màrqueting"
+            >
+              {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4 text-primary" />}
+              <span className="hidden sm:inline">{copiedLink ? 'Copiat!' : 'Copiar enllaç'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Descripció Formatada (Rich Text) */}
-        <div className="text-on-surface-variant text-sm leading-relaxed border-t border-outline/10 pt-4">
+        <div className={`text-on-surface-variant text-sm leading-relaxed ${isModalView ? '' : 'border-t border-outline/10 pt-4'}`}>
           {renderFormattedText(product.descripcio)}
         </div>
 
@@ -1061,8 +1222,8 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
         {/* Opcions de Personalització en Vertical */}
         {(product.opcionsPersonalitzacio || []).length > 0 && (
           <div className="space-y-3 pt-3 border-t border-outline/10">
-            <h4 className="text-xs uppercase tracking-wider font-semibold text-primary font-mono">
-              {(isInicialKeychain || isPuzzleProduct) ? "PERSONALITZACIÓ - Mira el simulador en temps real:" : "PERSONALITZACIÓ:"}
+            <h4 className="text-xs font-semibold text-primary font-mono">
+              {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Personalització - Mira el simulador en temps real:" : "Personalització:")}
             </h4>
 
             <div className="flex flex-col gap-3">

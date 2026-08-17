@@ -871,6 +871,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         imatges: resolvedImages,
         familaIds: finalFamilaIds,
         gammaIds: selectedGammes,
+        titolPersonalitzacio: editingProducte.titolPersonalitzacio || '',
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
@@ -2623,6 +2624,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   imatges: [],
                   familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
                   gammaIds: initialGammas,
+                  titolPersonalitzacio: '',
                   opcionsPersonalitzacio: [
                     { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
                   ],
@@ -2844,7 +2846,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               {/* Builder d'Opcions de Personalització */}
-              <div className="space-y-3 p-4 bg-surface rounded-lg border border-outline/15">
+              <div className="space-y-4 p-4 bg-surface rounded-lg border border-outline/15">
                 <div className="flex justify-between items-center">
                   <label className="text-xs uppercase font-semibold text-primary">Opcions de Personalització:</label>
                   <button
@@ -2866,12 +2868,67 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </button>
                 </div>
 
+                {/* Títol Personalitzat de la Secció */}
+                <div className="bg-surface-container/30 p-3 rounded-lg border border-outline/10 space-y-1.5">
+                  <label className="block text-xs uppercase font-semibold text-primary">
+                    Títol de la Secció de Personalització:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder='Per defecte: "PERSONALITZACIÓ:" o "PERSONALITZACIÓ - Mira el simulador en temps real:"'
+                    value={editingProducte.titolPersonalitzacio || ''}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, titolPersonalitzacio: e.target.value })}
+                    className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary font-mono placeholder:text-outline/50 focus:border-primary focus:outline-none"
+                  />
+                  <p className="text-[11px] text-on-surface-variant/70">
+                    Incideix en els punts clau del producte (ex: <em>PERSONALITZACIÓ - ESCULL LA COMBINACIÓ DE FUSTES:</em>). Si es deixa buit, s'utilitzarà el títol automàtic per defecte.
+                  </p>
+                </div>
+
                 {(editingProducte.opcionsPersonalitzacio || []).length === 0 ? (
                   <p className="text-xs text-on-surface-variant italic">Sense opcions de personalització.</p>
                 ) : (
                   <div className="space-y-3">
                     {editingProducte.opcionsPersonalitzacio.map((opc, idx) => (
                       <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 bg-surface-container rounded border border-outline/10">
+                        {/* Botons per reordenar (Pujar / Baixar) */}
+                        <div className="flex items-center gap-0.5 shrink-0 bg-surface border border-outline/20 rounded p-0.5">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              if (idx === 0) return;
+                              const ops = [...editingProducte.opcionsPersonalitzacio];
+                              const temp = ops[idx - 1];
+                              ops[idx - 1] = ops[idx];
+                              ops[idx] = temp;
+                              setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                            }}
+                            className={`p-1 rounded transition-colors ${idx === 0 ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
+                            title="Pujar opció"
+                            aria-label="Pujar opció"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === (editingProducte.opcionsPersonalitzacio.length - 1)}
+                            onClick={() => {
+                              if (idx >= editingProducte.opcionsPersonalitzacio.length - 1) return;
+                              const ops = [...editingProducte.opcionsPersonalitzacio];
+                              const temp = ops[idx + 1];
+                              ops[idx + 1] = ops[idx];
+                              ops[idx] = temp;
+                              setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                            }}
+                            className={`p-1 rounded transition-colors ${idx === (editingProducte.opcionsPersonalitzacio.length - 1) ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
+                            title="Baixar opció"
+                            aria-label="Baixar opció"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
                         <select
                           value={opc.tipus || 'desplegable'}
                           onChange={(e) => {

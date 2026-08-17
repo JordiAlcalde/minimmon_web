@@ -182,10 +182,6 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
         </div>
 
         <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 pt-28 pb-16 md:py-16">
-          <span className="font-label-sm text-xs text-amber-200 uppercase tracking-widest border border-amber-200/30 px-4 py-1.5 rounded-full bg-black/40 backdrop-blur-sm font-bold shadow-xs">
-            Artesania Digital &amp; Marcatge Làser
-          </span>
-
           <h1 className="font-headline-xl text-headline-xl md:text-[60px] md:leading-[68px] text-white font-serif font-semibold drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
             L'essència del que som,<br />
             <span className="inline-block">en miniatura.</span>
