@@ -428,8 +428,8 @@ export default function MaterialsManager({
               <tr className={`border-b text-[11px] uppercase tracking-wider font-semibold ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
                 <th className="py-3.5 px-4">Material</th>
                 <th className="py-3.5 px-4">Grup</th>
-                <th className="py-3.5 px-4">Proveïdor Principal</th>
-                <th className="py-3.5 px-4 text-right">Preu ProPrin</th>
+                <th className="py-3.5 px-4">Proveïdor / Fabricant</th>
+                <th className="py-3.5 px-4 text-right">Preu</th>
                 <th className="py-3.5 px-4 text-center">Estoc</th>
                 <th className="py-3.5 px-4 text-right">Accions</th>
               </tr>
@@ -445,8 +445,14 @@ export default function MaterialsManager({
                 filteredMaterials.map(m => {
                   const grup = grups.find(g => g.id === m.grupId);
                   const prov = proveidors.find(p => p.id === m.proPrinId);
+<<<<<<< Updated upstream
                   const isLow = Number(m.estocActual) <= Number(m.estocMinim);
                   const totalSuppliers = (m.proveidorsMaterial?.length) || (1 + (m.altresProveidors?.length || 0));
+=======
+                  const fab = (fabricants || []).find(f => f.id === m.fabricantId);
+                  const estocActual = Number(m.estocActual ?? 0);
+                  const estocMinim = Number(m.estocMinim ?? 0);
+>>>>>>> Stashed changes
 
                   return (
                     <tr key={m.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
@@ -462,9 +468,14 @@ export default function MaterialsManager({
                           <div>
                             <div className="font-semibold text-slate-200 flex items-center gap-2">
                               {m.material}
-                              {isLow && (
+                              {estocActual < estocMinim && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/30">
                                   <AlertTriangle className="w-2.5 h-2.5" /> Faltant
+                                </span>
+                              )}
+                              {estocActual === estocMinim && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                                  <AlertTriangle className="w-2.5 h-2.5" /> En mínim
                                 </span>
                               )}
                             </div>
@@ -482,16 +493,31 @@ export default function MaterialsManager({
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <div className="font-medium text-slate-300 flex items-center gap-1.5">
+                        <div className="space-y-1">
+                          <div className="font-medium text-slate-200 flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+<<<<<<< Updated upstream
                             <span>{prov ? prov.empresa : m.proPrinId || '-'}</span>
                             {totalSuppliers > 1 && (
                               <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
                                 +{totalSuppliers - 1} alt.
                               </span>
                             )}
+=======
+                            <span>{prov ? prov.empresa : (m.proPrinId || '-')}</span>
+>>>>>>> Stashed changes
                           </div>
+                          {fab ? (
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pl-0.5">
+                              <Factory className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{fab.fabricant}{fab.pais ? ` (${fab.pais})` : ''}</span>
+                            </div>
+                          ) : m.fabricant ? (
+                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pl-0.5">
+                              <Factory className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{m.fabricant}</span>
+                            </div>
+                          ) : null}
                           {m.codiProPrin && (
                             <div className="text-[11px] text-slate-400 font-mono">
                               Codi: {m.codiProPrin}
@@ -520,7 +546,13 @@ export default function MaterialsManager({
                       </td>
 
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className="font-mono font-bold text-slate-200">
+                        <div className={`font-mono font-bold ${
+                          estocActual < estocMinim 
+                            ? 'text-red-500' 
+                            : estocActual === estocMinim 
+                              ? 'text-orange-500' 
+                              : (isDark ? 'text-white' : 'text-slate-900')
+                        }`}>
                           {m.estocActual} <span className="text-[10px] text-slate-400 font-sans">{m.unitat}</span>
                         </div>
                         <div className="text-[10px] text-slate-400">
