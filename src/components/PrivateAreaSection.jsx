@@ -7,6 +7,7 @@ import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from 
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { 
   Lock, 
+  Boxes,
   Key, 
   Mail, 
   Phone, 
@@ -1235,6 +1236,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
         </div>
 
         <div className="flex items-center gap-3 self-stretch md:self-auto justify-end">
+          <button 
+            onClick={() => setActiveTab('producc')}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            title="Accedir a l'aplicació Producc (Gestió de Producció)"
+          >
+            <Boxes className="w-4 h-4" />
+            <span>Producc</span>
+          </button>
+
           <button 
             onClick={handleLogout}
             className="px-4 py-2 bg-surface hover:bg-surface-container text-on-surface border border-outline/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer"

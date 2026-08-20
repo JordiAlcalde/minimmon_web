@@ -7,6 +7,7 @@ import RegalsCatalogSection from './components/RegalsCatalogSection';
 import ElTallerSection from './components/ElTallerSection';
 import ContacteSection from './components/ContacteSection';
 import PrivateAreaSection from './components/PrivateAreaSection';
+import ProduccApp from './components/producc/ProduccApp';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
@@ -81,8 +82,14 @@ export default function App() {
       const projectId = urlParams.get('projecte') || (hash.startsWith('#projecte-') ? hash.replace('#projecte-', '') : null);
       const productId = urlParams.get('producte') || (hash.startsWith('#producte-') ? hash.replace('#producte-', '') : null);
       const seccioParam = urlParams.get('seccio') || (hash.startsWith('#seccio-') ? hash.replace('#seccio-', '') : null);
+      const isProduccDirect = urlParams.get('producc') !== null || seccioParam === 'producc' || hash === '#producc';
 
-      if (projectId) {
+      if (isProduccDirect) {
+        setActiveTab('producc');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (projectId) {
         setActiveTab('mons');
         // Netejar hash per evitar que popstate o actualitzacions d'estat posteriors re-executin la navegació
         if (window.location.hash) {
@@ -147,13 +154,15 @@ export default function App() {
         {/* Texture overlay */}
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-        {/* Header */}
-        <Header 
-          activeTab={activeTab} 
-          setActiveTab={handleSelectTab} 
-          catalogSearchQuery={catalogSearchQuery}
-          setCatalogSearchQuery={setCatalogSearchQuery}
-        />
+        {/* Header (Amagat quan s'està a l'aplicació Producc) */}
+        {activeTab !== 'producc' && (
+          <Header 
+            activeTab={activeTab} 
+            setActiveTab={handleSelectTab} 
+            catalogSearchQuery={catalogSearchQuery}
+            setCatalogSearchQuery={setCatalogSearchQuery}
+          />
+        )}
 
         {/* Main Content Area */}
         <main className="flex-grow z-10">
@@ -193,13 +202,19 @@ export default function App() {
         {(activeTab === 'privat' || activeTab === 'privada') && (
           <PrivateAreaSection setActiveTab={setActiveTab} />
         )}
+
+        {activeTab === 'producc' && (
+          <ProduccApp setActiveTab={setActiveTab} />
+        )}
       </main>
 
-      {/* Footer */}
-      <Footer 
-        setActiveTab={setActiveTab} 
-        onOpenLegal={(title) => setLegalTitle(title)} 
-      />
+      {/* Footer (Amagat quan s'està a l'aplicació Producc) */}
+      {activeTab !== 'producc' && (
+        <Footer 
+          setActiveTab={setActiveTab} 
+          onOpenLegal={(title) => setLegalTitle(title)} 
+        />
+      )}
 
       {/* Modals */}
       <ProjectModal 
@@ -214,7 +229,7 @@ export default function App() {
       />
 
       {/* Floating WhatsApp Button */}
-      <FloatingWhatsApp />
+      {activeTab !== 'producc' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
       <BudgetDrawer />

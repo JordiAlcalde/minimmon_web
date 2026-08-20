@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Lock, Search, X } from 'lucide-react';
+import { ShoppingBag, Lock, Search, X, Boxes } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
