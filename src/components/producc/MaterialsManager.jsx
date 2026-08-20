@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Package, Plus, Search, Filter, Edit2, Trash2, ExternalLink, 
-  AlertTriangle, Image as ImageIcon, Layers, DollarSign, Clock, Building2, Check, X, Save, Box, Factory 
+  AlertTriangle, Image as ImageIcon, Layers, DollarSign, Clock, Building2, Check, X, Save, Box, Factory, Star, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 export default function MaterialsManager({ 
@@ -19,6 +19,7 @@ export default function MaterialsManager({
   const [onlyLowStock, setOnlyLowStock] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
+  const [expandedAltId, setExpandedAltId] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -26,18 +27,73 @@ export default function MaterialsManager({
     descripcio: '',
     imatge: '',
     grupId: '',
-    unitat: 'm²',
-    unitatCompraId: '',
-    fabricantId: '',
+    unitat: 'u',
     estocActual: 0,
     estocMinim: 0,
-    proPrinId: '',
-    codiProPrin: '',
-    enllacProPrin: '',
-    preuProPrin: 0,
-    terminiProPrin: '',
-    altresProveidors: []
+    proveidorsList: []
   });
+
+  // Helper per construir la llista de proveïdors d'un material
+  const parseSuppliersList = (mat) => {
+    if (!mat) {
+      return [{
+        id: `supp-${Date.now()}`,
+        proveidorId: proveidors[0]?.id || '',
+        codi: '',
+        enllac: '',
+        preu: 0,
+        termini: '',
+        fabricantId: fabricants[0]?.id || '',
+        unitatCompraId: unitatsCompra[0]?.id || '',
+        comentaris: '',
+        isPrincipal: true
+      }];
+    }
+
+    if (Array.isArray(mat.proveidorsMaterial) && mat.proveidorsMaterial.length > 0) {
+      const hasPrincipal = mat.proveidorsMaterial.some(x => x.isPrincipal);
+      return mat.proveidorsMaterial.map((s, idx) => ({
+        ...s,
+        id: s.id || `supp-${idx}-${Date.now()}`,
+        isPrincipal: hasPrincipal ? Boolean(s.isPrincipal) : idx === 0
+      }));
+    }
+
+    const list = [];
+    // Proveïdor Principal històric
+    list.push({
+      id: `supp-main-${Date.now()}`,
+      proveidorId: mat.proPrinId || (proveidors[0]?.id || ''),
+      codi: mat.codiProPrin || '',
+      enllac: mat.enllacProPrin || '',
+      preu: Number(mat.preuProPrin || 0),
+      termini: mat.terminiProPrin || '',
+      fabricantId: mat.fabricantId || '',
+      unitatCompraId: mat.unitatCompraId || '',
+      comentaris: mat.comentaris || '',
+      isPrincipal: true
+    });
+
+    // Altres proveïdors històrics
+    if (Array.isArray(mat.altresProveidors)) {
+      mat.altresProveidors.forEach((alt, idx) => {
+        list.push({
+          id: `supp-alt-${idx}-${Date.now()}`,
+          proveidorId: alt.proveidorId || (proveidors[0]?.id || ''),
+          codi: alt.codi || '',
+          enllac: alt.enllac || '',
+          preu: Number(alt.preu || 0),
+          termini: alt.termini || '',
+          fabricantId: alt.fabricantId || '',
+          unitatCompraId: alt.unitatCompraId || '',
+          comentaris: alt.comentaris || '',
+          isPrincipal: false
+        });
+      });
+    }
+
+    return list;
+  };
 
   // Quick Inline Creation Handlers
   const handleQuickAddGrup = () => {
@@ -72,7 +128,7 @@ export default function MaterialsManager({
     }
   };
 
-  const handleQuickAddPackaging = () => {
+  const handleQuickAddPackaging = (suppIndex) => {
     const nom = window.prompt('Format de la nova unitat de compra / packaging (ex: Caixa 100u, Paquet 5 plaques):');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
@@ -81,61 +137,69 @@ export default function MaterialsManager({
       const newId = `ucomp-${Date.now()}`;
       const newPackaging = { id: newId, unitatCompra: trimmed, factorConversio: factor };
       if (setUnitatsCompra) setUnitatsCompra(prev => [...prev, newPackaging]);
-      setFormData(prev => ({ ...prev, unitatCompraId: newId }));
+      
+      if (suppIndex !== undefined) {
+        handleUpdateSupplier(suppIndex, 'unitatCompraId', newId);
+      }
     }
   };
 
-  const handleQuickAddFabricant = () => {
+  const handleQuickAddFabricant = (suppIndex) => {
     const nom = window.prompt('Nom del nou fabricant / marca:');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
       const newId = `fab-${Date.now()}`;
       const newFab = { id: newId, fabricant: trimmed, pais: '', web: '', descripcio: '' };
       if (setFabricants) setFabricants(prev => [...prev, newFab]);
-      setFormData(prev => ({ ...prev, fabricantId: newId }));
+
+      if (suppIndex !== undefined) {
+        handleUpdateSupplier(suppIndex, 'fabricantId', newId);
+      }
     }
   };
 
-  const handleQuickAddProveidor = () => {
+  const handleQuickAddProveidor = (suppIndex) => {
     const nom = window.prompt('Nom de la nova empresa proveïdora:');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
       const newId = `prov-${Date.now()}`;
       const newProv = { id: newId, empresa: trimmed, telefon: '', email: '', web: '' };
       if (setProveidors) setProveidors(prev => [...prev, newProv]);
-      setFormData(prev => ({ ...prev, proPrinId: newId }));
+
+      if (suppIndex !== undefined) {
+        handleUpdateSupplier(suppIndex, 'proveidorId', newId);
+      }
     }
   };
 
   const handleOpenCreate = () => {
     setEditingMaterial(null);
+    setExpandedAltId(null);
     setFormData({
       material: '',
       descripcio: '',
       imatge: '',
       grupId: grups[0]?.id || '',
-      unitat: 'm²',
-      unitatCompraId: unitatsCompra[0]?.id || '',
-      fabricantId: fabricants[0]?.id || '',
+      unitat: unitats[0]?.unitat || 'u',
       estocActual: 0,
       estocMinim: 0,
-      proPrinId: proveidors[0]?.id || '',
-      codiProPrin: '',
-      enllacProPrin: '',
-      preuProPrin: 0,
-      terminiProPrin: '',
-      altresProveidors: []
+      proveidorsList: parseSuppliersList(null)
     });
     setModalOpen(true);
   };
 
   const handleOpenEdit = (mat) => {
     setEditingMaterial(mat);
+    setExpandedAltId(null);
     setFormData({
-      ...mat,
-      unitatCompraId: mat.unitatCompraId || '',
-      fabricantId: mat.fabricantId || '',
-      altresProveidors: mat.altresProveidors ? [...mat.altresProveidors] : []
+      material: mat.material || '',
+      descripcio: mat.descripcio || '',
+      imatge: mat.imatge || '',
+      grupId: mat.grupId || (grups[0]?.id || ''),
+      unitat: mat.unitat || (unitats[0]?.unitat || 'u'),
+      estocActual: mat.estocActual !== undefined ? mat.estocActual : 0,
+      estocMinim: mat.estocMinim !== undefined ? mat.estocMinim : 0,
+      proveidorsList: parseSuppliersList(mat)
     });
     setModalOpen(true);
   };
@@ -146,42 +210,111 @@ export default function MaterialsManager({
     }
   };
 
+  // Gestionar Proveïdors a la fitxa
+  const handleAddNewSupplier = () => {
+    const newId = `supp-${Date.now()}`;
+    const newSupp = {
+      id: newId,
+      proveidorId: proveidors[0]?.id || '',
+      codi: '',
+      enllac: '',
+      preu: 0,
+      termini: '',
+      fabricantId: fabricants[0]?.id || '',
+      unitatCompraId: unitatsCompra[0]?.id || '',
+      comentaris: '',
+      isPrincipal: formData.proveidorsList.length === 0
+    };
+    setFormData(prev => ({
+      ...prev,
+      proveidorsList: [...prev.proveidorsList, newSupp]
+    }));
+    setExpandedAltId(newId);
+  };
+
+  const handleUpdateSupplier = (index, field, value) => {
+    setFormData(prev => {
+      const updated = [...prev.proveidorsList];
+      if (updated[index]) {
+        updated[index] = { ...updated[index], [field]: value };
+      }
+      return { ...prev, proveidorsList: updated };
+    });
+  };
+
+  // Marcar un proveïdor com a Principal (les seves dades passen a la part superior, i l'anterior a la llista)
+  const handleSetPrincipalSupplier = (index) => {
+    setFormData(prev => {
+      const updated = prev.proveidorsList.map((s, idx) => ({
+        ...s,
+        isPrincipal: idx === index
+      }));
+      return { ...prev, proveidorsList: updated };
+    });
+    setExpandedAltId(null);
+  };
+
+  const handleRemoveSupplier = (index) => {
+    setFormData(prev => {
+      const wasPrincipal = prev.proveidorsList[index]?.isPrincipal;
+      const updated = prev.proveidorsList.filter((_, i) => i !== index);
+      if (wasPrincipal && updated.length > 0) {
+        updated[0].isPrincipal = true;
+      }
+      return { ...prev, proveidorsList: updated };
+    });
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
     if (!formData.material.trim()) return;
 
+    const list = formData.proveidorsList.length > 0 
+      ? formData.proveidorsList 
+      : parseSuppliersList(null);
+
+    const mainSupp = list.find(s => s.isPrincipal) || list[0] || {};
+
+    const payload = {
+      material: formData.material.trim(),
+      descripcio: formData.descripcio || '',
+      imatge: formData.imatge || '',
+      grupId: formData.grupId || '',
+      unitat: formData.unitat || 'u',
+      estocActual: Number(formData.estocActual || 0),
+      estocMinim: Number(formData.estocMinim || 0),
+      
+      // Sincronització de les dades del Proveïdor Principal actiu per als escandalls
+      proPrinId: mainSupp.proveidorId || '',
+      preuProPrin: Number(mainSupp.preu || 0),
+      codiProPrin: mainSupp.codi || '',
+      enllacProPrin: mainSupp.enllac || '',
+      terminiProPrin: mainSupp.termini || '',
+      fabricantId: mainSupp.fabricantId || '',
+      unitatCompraId: mainSupp.unitatCompraId || '',
+      comentaris: mainSupp.comentaris || '',
+
+      // Llista completa de proveïdors
+      proveidorsMaterial: list,
+      altresProveidors: list.filter(s => !s.isPrincipal).map(s => ({
+        proveidorId: s.proveidorId,
+        codi: s.codi,
+        enllac: s.enllac,
+        preu: Number(s.preu || 0),
+        termini: s.termini,
+        fabricantId: s.fabricantId,
+        unitatCompraId: s.unitatCompraId,
+        comentaris: s.comentaris
+      }))
+    };
+
     if (editingMaterial) {
-      setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { ...formData, id: m.id } : m));
+      setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { ...payload, id: m.id } : m));
     } else {
       const newId = `mat-${Date.now()}`;
-      setMaterials(prev => [...prev, { ...formData, id: newId }]);
+      setMaterials(prev => [...prev, { ...payload, id: newId }]);
     }
     setModalOpen(false);
-  };
-
-  const handleAddAltSupplier = () => {
-    setFormData(prev => ({
-      ...prev,
-      altresProveidors: [
-        ...prev.altresProveidors,
-        { proveidorId: proveidors[0]?.id || '', codi: '', enllac: '', preu: 0, termini: '' }
-      ]
-    }));
-  };
-
-  const handleUpdateAltSupplier = (index, field, value) => {
-    setFormData(prev => {
-      const updated = [...prev.altresProveidors];
-      updated[index] = { ...updated[index], [field]: value };
-      return { ...prev, altresProveidors: updated };
-    });
-  };
-
-  const handleRemoveAltSupplier = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      altresProveidors: prev.altresProveidors.filter((_, i) => i !== index)
-    }));
   };
 
   const filteredMaterials = materials
@@ -195,6 +328,16 @@ export default function MaterialsManager({
       return matchesSearch && matchesGrup && matchesProv && matchesLowStock;
     })
     .sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca', { sensitivity: 'base' }));
+
+  // Càlcul dels índexs de Proveïdor Principal i Altres Proveïdors
+  const mainSuppIndex = formData.proveidorsList.findIndex(s => s.isPrincipal) !== -1 
+    ? formData.proveidorsList.findIndex(s => s.isPrincipal) 
+    : 0;
+  const mainSupp = formData.proveidorsList[mainSuppIndex] || {};
+
+  const altSuppliersWithIndices = formData.proveidorsList
+    .map((s, idx) => ({ ...s, originalIndex: idx }))
+    .filter((_, idx) => idx !== mainSuppIndex);
 
   return (
     <div className="space-y-6">
@@ -303,6 +446,7 @@ export default function MaterialsManager({
                   const grup = grups.find(g => g.id === m.grupId);
                   const prov = proveidors.find(p => p.id === m.proPrinId);
                   const isLow = Number(m.estocActual) <= Number(m.estocMinim);
+                  const totalSuppliers = (m.proveidorsMaterial?.length) || (1 + (m.altresProveidors?.length || 0));
 
                   return (
                     <tr key={m.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
@@ -341,7 +485,12 @@ export default function MaterialsManager({
                         <div className="space-y-0.5">
                           <div className="font-medium text-slate-300 flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            {prov ? prov.empresa : m.proPrinId || '-'}
+                            <span>{prov ? prov.empresa : m.proPrinId || '-'}</span>
+                            {totalSuppliers > 1 && (
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                +{totalSuppliers - 1} alt.
+                              </span>
+                            )}
                           </div>
                           {m.codiProPrin && (
                             <div className="text-[11px] text-slate-400 font-mono">
@@ -406,10 +555,10 @@ export default function MaterialsManager({
         </div>
       </div>
 
-      {/* Form Modal amb Capçalera Fixa i Màxim Espai d'Edició */}
+      {/* Form Modal amb Capçalera Fixa i Disposició Precisa d'Edició */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm">
-          <div className={`w-full max-w-2xl max-h-[90vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden ${
+          <div className={`w-full max-w-3xl max-h-[92vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden ${
             isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
           }`}>
             {/* Header Fix Superior amb Botó de Guardar i Tancar */}
@@ -421,7 +570,7 @@ export default function MaterialsManager({
                 <span className="truncate">
                   {editingMaterial ? (
                     <>
-                      Editar Material : <span className="text-amber-400 font-semibold">{formData.material || editingMaterial.material || 'Sense nom'}</span>
+                      Editar Material : <span className="text-amber-400 font-semibold">{formData.material || 'Sense nom'}</span>
                     </>
                   ) : (
                     'Crear Nou Material'
@@ -433,8 +582,8 @@ export default function MaterialsManager({
                 <button 
                   type="submit"
                   form="material-modal-form"
-                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
-                  title="Guardar Canvis"
+                  className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
+                  title="Guardar Canvis a Firestore"
                 >
                   <Save className="w-4 h-4" />
                   <span>Guardar</span>
@@ -450,11 +599,13 @@ export default function MaterialsManager({
               </div>
             </div>
 
-            {/* Formulari amb Cos Scrollable (Sense peu per aprofitar tot l'espai) */}
-            <form id="material-modal-form" onSubmit={handleSave} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {/* Cos amb Scroll Intern */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-xs">
-                {/* Nom del Material i Grup amb proporció adaptada */}
+            {/* Contingut Scrollable amb la Disposició Visual Demanada */}
+            <form id="material-modal-form" onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* 1. Dades Generals del Material */}
+              <div className="space-y-4 text-xs">
+                
+                {/* Fila 1: Nom del Material + Grup/Categoria */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                   <div className="md:col-span-8">
                     <label className="block text-slate-400 mb-1 font-medium">Nom del Material *</label>
@@ -463,10 +614,10 @@ export default function MaterialsManager({
                       required
                       value={formData.material}
                       onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
+                      className={`w-full p-2.5 rounded-xl border outline-none font-semibold ${
                         isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                       }`}
-                      placeholder="P. ex. Bedoll Natural 1.5mm"
+                      placeholder="P. ex. Contraxapat Til·ler 2 mm"
                     />
                   </div>
 
@@ -477,7 +628,7 @@ export default function MaterialsManager({
                         type="button"
                         onClick={handleQuickAddGrup}
                         className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
-                        title="Afegir nou grup ràpidament"
+                        title="Afegir nou grup"
                       >
                         <Plus className="w-3 h-3" /> Nou
                       </button>
@@ -491,7 +642,7 @@ export default function MaterialsManager({
                           setFormData({ ...formData, grupId: e.target.value });
                         }
                       }}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
+                      className={`w-full p-2.5 rounded-xl border outline-none cursor-pointer ${
                         isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                       }`}
                     >
@@ -503,20 +654,91 @@ export default function MaterialsManager({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-400 mb-1 font-medium">Descripció</label>
-                  <textarea
-                    rows="2"
-                    value={formData.descripcio}
-                    onChange={(e) => setFormData({ ...formData, descripcio: e.target.value })}
-                    className={`w-full p-2.5 rounded-xl border outline-none ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                    }`}
-                    placeholder="Detalls tècnics del material..."
-                  />
+                {/* Fila 2: Descripció + URL Imatge (esquerra) & Previsualització d'Imatge quadrada (dreta) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+                  {/* Columna Esquerra: Descripció (expandida) + URL Imatge (a la part inferior) */}
+                  <div className="md:col-span-8 flex flex-col justify-between">
+                    <div className="flex-1 flex flex-col min-h-0 mb-3">
+                      <label className="block text-slate-400 mb-1 font-medium">Descripció</label>
+                      <textarea
+                        value={formData.descripcio}
+                        onChange={(e) => setFormData({ ...formData, descripcio: e.target.value })}
+                        className={`w-full flex-1 min-h-[110px] p-2.5 rounded-xl border outline-none resize-none leading-relaxed ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                        }`}
+                        placeholder="Placa de fusta contraxapada de til·ler..."
+                      />
+                    </div>
+
+                    <div className="shrink-0">
+                      <label className="block text-slate-400 mb-1 font-medium">URL Imatge</label>
+                      <input
+                        type="text"
+                        value={formData.imatge}
+                        onChange={(e) => setFormData({ ...formData, imatge: e.target.value })}
+                        className={`w-full p-2.5 rounded-xl border outline-none ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                        }`}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Columna Dreta: Marc de Previsualització Quadrat */}
+                  <div className="md:col-span-4 flex flex-col">
+                    <label className="block text-slate-400 mb-1 font-medium">Previsualització</label>
+                    <div className={`w-full aspect-square rounded-2xl border-2 overflow-hidden flex items-center justify-center relative shadow-sm ${
+                      formData.imatge 
+                        ? 'border-amber-500/40 bg-slate-950' 
+                        : isDark ? 'border-dashed border-slate-800 bg-slate-950/60 text-slate-600' : 'border-dashed border-slate-300 bg-slate-100 text-slate-400'
+                    }`}>
+                      {formData.imatge ? (
+                        <img
+                          src={formData.imatge}
+                          alt={formData.material || 'Material'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="text-center p-3">
+                          <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
+                          <span className="text-[10px] block opacity-70">Sense imatge</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Fila 3: Estoc Actual | Estoc Mínim | Unitat de Mesura */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-medium">Estoc Actual</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.estocActual}
+                      onChange={(e) => setFormData({ ...formData, estocActual: parseFloat(e.target.value) || 0 })}
+                      className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-medium">Estoc Mínim Alertes</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.estocMinim}
+                      onChange={(e) => setFormData({ ...formData, estocMinim: parseFloat(e.target.value) || 0 })}
+                      className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    />
+                  </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-slate-400 font-medium">Unitat de Mesura *</label>
@@ -539,7 +761,7 @@ export default function MaterialsManager({
                             setFormData({ ...formData, unitat: e.target.value });
                           }
                         }}
-                        className={`w-full p-2.5 rounded-xl border outline-none ${
+                        className={`w-full p-2.5 rounded-xl border outline-none cursor-pointer ${
                           isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                         }`}
                       >
@@ -563,173 +785,49 @@ export default function MaterialsManager({
                       />
                     )}
                   </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Estoc Actual</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.estocActual}
-                      onChange={(e) => setFormData({ ...formData, estocActual: parseFloat(e.target.value) || 0 })}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Estoc Mínim Alertes</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.estocMinim}
-                      onChange={(e) => setFormData({ ...formData, estocMinim: parseFloat(e.target.value) || 0 })}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    />
-                  </div>
                 </div>
+              </div>
 
-                {/* Packaging (Unitat de Compra) i Fabricant */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-400 font-medium flex items-center gap-1.5">
-                        <Box className="w-3.5 h-3.5 text-amber-500" />
-                        Unitat de Compra (Packaging)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleQuickAddPackaging}
-                        className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
-                        title="Afegir nou format de packaging"
-                      >
-                        <Plus className="w-3 h-3" /> Nou
-                      </button>
-                    </div>
-                    <select
-                      value={formData.unitatCompraId}
-                      onChange={(e) => {
-                        if (e.target.value === '__new__') {
-                          handleQuickAddPackaging();
-                        } else {
-                          setFormData({ ...formData, unitatCompraId: e.target.value });
-                        }
-                      }}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <option value="">-- Selecciona format de packaging --</option>
-                      {[...unitatsCompra].sort((a, b) => (a.unitatCompra || '').localeCompare(b.unitatCompra || '', 'ca')).map(uc => (
-                        <option key={uc.id} value={uc.id}>{uc.unitatCompra} (×{uc.factorConversio !== undefined ? uc.factorConversio : 1})</option>
-                      ))}
-                      <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou packaging...</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-400 font-medium flex items-center gap-1.5">
-                        <Factory className="w-3.5 h-3.5 text-amber-500" />
-                        Fabricant de la Matèria Prima
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleQuickAddFabricant}
-                        className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
-                        title="Afegir nou fabricant"
-                      >
-                        <Plus className="w-3 h-3" /> Nou
-                      </button>
-                    </div>
-                    <select
-                      value={formData.fabricantId}
-                      onChange={(e) => {
-                        if (e.target.value === '__new__') {
-                          handleQuickAddFabricant();
-                        } else {
-                          setFormData({ ...formData, fabricantId: e.target.value });
-                        }
-                      }}
-                      className={`w-full p-2.5 rounded-xl border outline-none ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <option value="">-- Selecciona fabricant --</option>
-                      {[...fabricants].sort((a, b) => (a.fabricant || '').localeCompare(b.fabricant || '', 'ca')).map(f => (
-                        <option key={f.id} value={f.id}>{f.fabricant} {f.pais ? `(${f.pais})` : ''}</option>
-                      ))}
-                      <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou fabricant...</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* URL Imatge amb miniatura incorporada */}
-                <div>
-                  <label className="block text-slate-400 mb-1 font-medium">URL Imatge</label>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-12 h-12 rounded-xl border overflow-hidden shrink-0 flex items-center justify-center ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-100 border-slate-300 text-slate-400'
-                    }`}>
-                      {formData.imatge ? (
-                        <img
-                          src={formData.imatge}
-                          alt={formData.material || 'Miniatura'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <ImageIcon className="w-5 h-5" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={formData.imatge}
-                        onChange={(e) => setFormData({ ...formData, imatge: e.target.value })}
-                        className={`w-full p-2.5 rounded-xl border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                        }`}
-                        placeholder="https://..."
-                      />
+              {/* 2. SECCIÓ PROVEÏDOR PRINCIPAL */}
+              <div className="pt-2 space-y-4">
+                <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/40 bg-amber-500/[0.05] shadow-sm space-y-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-500/20">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[11px] border border-amber-500/30">
+                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                        Proveïdor Principal (Referència per a Escandalls)
+                      </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Proveïdor Principal */}
-                <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-amber-400 flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4" /> Proveïdor Principal (ProPrin)
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={handleQuickAddProveidor}
-                      className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
-                      title="Afegir nou proveïdor"
-                    >
-                      <Plus className="w-3 h-3" /> Nou Proveïdor
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Fila 1 del Proveïdor Principal: Selector Proveïdor + Codi */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div>
-                      <label className="block text-slate-400 mb-1">Proveïdor Principal</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-slate-400 font-medium">Proveïdor *</label>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddProveidor(mainSuppIndex)}
+                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          title="Crear nou proveïdor"
+                        >
+                          <Plus className="w-3 h-3" /> Nou
+                        </button>
+                      </div>
                       <select
-                        value={formData.proPrinId}
+                        value={mainSupp.proveidorId || ''}
                         onChange={(e) => {
                           if (e.target.value === '__new__') {
-                            handleQuickAddProveidor();
+                            handleQuickAddProveidor(mainSuppIndex);
                           } else {
-                            setFormData({ ...formData, proPrinId: e.target.value });
+                            handleUpdateSupplier(mainSuppIndex, 'proveidorId', e.target.value);
                           }
                         }}
-                        className={`w-full p-2 rounded-lg border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                        className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
                       >
+                        <option value="">-- Selecciona Proveïdor --</option>
                         {[...proveidors].sort((a, b) => (a.empresa || '').localeCompare(b.empresa || '', 'ca')).map(p => (
                           <option key={p.id} value={p.id}>{p.empresa}</option>
                         ))}
@@ -738,125 +836,440 @@ export default function MaterialsManager({
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 mb-1">Codi ProPrin</label>
+                      <label className="block text-slate-400 mb-1 font-medium">Codi Proveïdor</label>
                       <input
                         type="text"
-                        value={formData.codiProPrin}
-                        onChange={(e) => setFormData({ ...formData, codiProPrin: e.target.value })}
-                        className={`w-full p-2 rounded-lg border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                        value={mainSupp.codi || ''}
+                        onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'codi', e.target.value)}
+                        className={`w-full p-2 rounded-xl border outline-none font-mono ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
-                        placeholder="Ref. proveïdor"
+                        placeholder="P. ex. LW-BED-15"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Fila 2 del Proveïdor Principal: Fabricant + Packaging */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div>
-                      <label className="block text-slate-400 mb-1">Preu (€ / {formData.unitat})</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-slate-400 font-medium flex items-center gap-1">
+                          <Factory className="w-3 h-3 text-amber-500" />
+                          Fabricant de la Matèria Prima
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddFabricant(mainSuppIndex)}
+                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          title="Crear nou fabricant"
+                        >
+                          <Plus className="w-3 h-3" /> Nou
+                        </button>
+                      </div>
+                      <select
+                        value={mainSupp.fabricantId || ''}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            handleQuickAddFabricant(mainSuppIndex);
+                          } else {
+                            handleUpdateSupplier(mainSuppIndex, 'fabricantId', e.target.value);
+                          }
+                        }}
+                        className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <option value="">-- Selecciona fabricant --</option>
+                        {[...fabricants].sort((a, b) => (a.fabricant || '').localeCompare(b.fabricant || '', 'ca')).map(f => (
+                          <option key={f.id} value={f.id}>{f.fabricant} {f.pais ? `(${f.pais})` : ''}</option>
+                        ))}
+                        <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou fabricant...</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-slate-400 font-medium flex items-center gap-1">
+                          <Box className="w-3 h-3 text-amber-500" />
+                          Unitat de Compra (Packaging)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickAddPackaging(mainSuppIndex)}
+                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          title="Crear nou packaging"
+                        >
+                          <Plus className="w-3 h-3" /> Nou
+                        </button>
+                      </div>
+                      <select
+                        value={mainSupp.unitatCompraId || ''}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            handleQuickAddPackaging(mainSuppIndex);
+                          } else {
+                            handleUpdateSupplier(mainSuppIndex, 'unitatCompraId', e.target.value);
+                          }
+                        }}
+                        className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                        }`}
+                      >
+                        <option value="">-- Selecciona packaging --</option>
+                        {[...unitatsCompra].sort((a, b) => (a.unitatCompra || '').localeCompare(b.unitatCompra || '', 'ca')).map(uc => (
+                          <option key={uc.id} value={uc.id}>{uc.unitatCompra} (×{uc.factorConversio !== undefined ? uc.factorConversio : 1})</option>
+                        ))}
+                        <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou packaging...</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Fila 3 del Proveïdor Principal: Preu | Termini | Enllaç */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-medium">Preu (€ / {formData.unitat})</label>
                       <input
                         type="number"
                         step="any"
-                        value={formData.preuProPrin}
-                        onChange={(e) => setFormData({ ...formData, preuProPrin: parseFloat(e.target.value) || 0 })}
-                        className={`w-full p-2 rounded-lg border outline-none font-mono ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                        value={mainSupp.preu !== undefined ? mainSupp.preu : 0}
+                        onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'preu', parseFloat(e.target.value) || 0)}
+                        className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 mb-1">Termini Entrega</label>
+                      <label className="block text-slate-400 mb-1 font-medium">Termini Entrega</label>
                       <input
                         type="text"
-                        value={formData.terminiProPrin}
-                        onChange={(e) => setFormData({ ...formData, terminiProPrin: e.target.value })}
-                        className={`w-full p-2 rounded-lg border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                        value={mainSupp.termini || ''}
+                        onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'termini', e.target.value)}
+                        className={`w-full p-2 rounded-xl border outline-none ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
-                        placeholder="P. ex. 24/48h, 5 dies..."
+                        placeholder="2-3 dies feiners"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 mb-1">Enllaç al Producte</label>
+                      <label className="block text-slate-400 mb-1 font-medium">Enllaç al Producte</label>
                       <input
                         type="text"
-                        value={formData.enllacProPrin}
-                        onChange={(e) => setFormData({ ...formData, enllacProPrin: e.target.value })}
-                        className={`w-full p-2 rounded-lg border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-200'
+                        value={mainSupp.enllac || ''}
+                        onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'enllac', e.target.value)}
+                        className={`w-full p-2 rounded-xl border outline-none ${
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
-                        placeholder="https://..."
+                        placeholder="https://www.laserwood..."
                       />
                     </div>
+                  </div>
+
+                  {/* Fila 4 del Proveïdor Principal: Comentaris */}
+                  <div className="text-xs">
+                    <label className="block text-slate-400 mb-1 font-medium">Comentaris</label>
+                    <textarea
+                      rows="2"
+                      value={mainSupp.comentaris || ''}
+                      onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'comentaris', e.target.value)}
+                      className={`w-full p-2 rounded-xl border outline-none resize-none ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                      }`}
+                      placeholder="Condicions especials, descomptes per volum, observacions..."
+                    />
                   </div>
                 </div>
+              </div>
 
-                {/* Altres Proveïdors */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-300">Altres Proveïdors Alternatius</span>
-                    <button
-                      type="button"
-                      onClick={handleAddAltSupplier}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
-                    >
-                      + Afegir Proveïdor
-                    </button>
+              {/* 3. SECCIÓ DE PROVEÏDORS NO PRINCIPALS (FORMAT LLISTA) */}
+              <div className="pt-2 space-y-3">
+                <div className="flex items-center justify-between border-t border-slate-800/80 pt-4">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-200 flex items-center gap-2 font-serif">
+                      <Building2 className="w-4 h-4 text-slate-400" />
+                      Altres Proveïdors (Alternatius)
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Fes clic a qualsevol proveïdor de la llista per veure o editar les seves dades. En marcar-lo com a <strong>Principal</strong>, passarà a dalt.
+                    </p>
                   </div>
 
-                  {formData.altresProveidors.length === 0 && (
-                    <p className="text-[11px] text-slate-500 italic">No hi ha proveïdors alternatius definits.</p>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddNewSupplier}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer shrink-0 border border-slate-700"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Afegir a la Llista</span>
+                  </button>
+                </div>
 
-                  {formData.altresProveidors.map((alt, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-slate-800 bg-slate-950/40 space-y-2">
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                        <select
-                          value={alt.proveidorId}
-                          onChange={(e) => handleUpdateAltSupplier(idx, 'proveidorId', e.target.value)}
-                          className="p-1.5 rounded border border-slate-800 bg-slate-900 text-slate-200"
+                {altSuppliersWithIndices.length === 0 ? (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center text-slate-500 text-xs italic">
+                    No hi ha cap proveïdor alternatiu a la llista. Fes clic a "+ Afegir a la Llista" per crear-ne un.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {altSuppliersWithIndices.map((alt) => {
+                      const provObj = proveidors.find(p => p.id === alt.proveidorId);
+                      const fabObj = fabricants.find(f => f.id === alt.fabricantId);
+                      const provName = provObj ? provObj.empresa : (alt.proveidorId ? 'Proveïdor sense assignar' : '-- Seleccionar --');
+                      const fabName = fabObj ? fabObj.fabricant : (alt.fabricantId ? 'Fabricant assignat' : 'Sense fabricant');
+                      const isExpanded = expandedAltId === alt.id;
+
+                      return (
+                        <div
+                          key={alt.id}
+                          className={`rounded-2xl border transition-all overflow-hidden ${
+                            isExpanded 
+                              ? 'bg-slate-950/80 border-slate-700 shadow-md' 
+                              : isDark ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                          }`}
                         >
-                          {proveidors.map(p => (
-                            <option key={p.id} value={p.id}>{p.empresa}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          placeholder="Codi Ref."
-                          value={alt.codi}
-                          onChange={(e) => handleUpdateAltSupplier(idx, 'codi', e.target.value)}
-                          className="p-1.5 rounded border border-slate-800 bg-slate-900 text-slate-200"
-                        />
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="Preu €"
-                          value={alt.preu}
-                          onChange={(e) => handleUpdateAltSupplier(idx, 'preu', parseFloat(e.target.value) || 0)}
-                          className="p-1.5 rounded border border-slate-800 bg-slate-900 text-slate-200 font-mono"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Termini"
-                          value={alt.termini}
-                          onChange={(e) => handleUpdateAltSupplier(idx, 'termini', e.target.value)}
-                          className="p-1.5 rounded border border-slate-800 bg-slate-900 text-slate-200"
-                        />
-                        <div className="flex items-center justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveAltSupplier(idx)}
-                            className="text-red-400 p-1 hover:bg-slate-800 rounded cursor-pointer"
+                          {/* Fila Principal de la Llista: (Proveïdor / Fabricant) */}
+                          <div
+                            onClick={() => setExpandedAltId(isExpanded ? null : alt.id)}
+                            className="p-3 sm:p-3.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none text-xs"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Building2 className="w-4 h-4 text-amber-500/70 shrink-0" />
+                              <div className="truncate">
+                                <span className="font-bold text-slate-200">{provName}</span>
+                                <span className="text-slate-500 mx-2">/</span>
+                                <span className="text-slate-400 font-medium">{fabName}</span>
+                                {alt.preu > 0 && (
+                                  <span className="ml-2.5 font-mono text-amber-400 font-semibold">
+                                    {Number(alt.preu).toFixed(2)} €
+                                  </span>
+                                )}
+                                {alt.codi && (
+                                  <span className="ml-2 text-[11px] text-slate-500 font-mono">
+                                    ({alt.codi})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Accions de la Fila */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSetPrincipalSupplier(alt.originalIndex);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] font-semibold border border-amber-500/30 transition-all cursor-pointer active:scale-95"
+                                title="Passar aquest proveïdor a Principal"
+                              >
+                                <Star className="w-3.5 h-3.5" />
+                                <span>Marcar com a Principal</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveSupplier(alt.originalIndex);
+                                }}
+                                className="p-1 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Eliminar de la llista"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <div className="p-1 text-slate-400">
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Formulari d'Edició Desplegable per a aquest Proveïdor Alternatiu */}
+                          {isExpanded && (
+                            <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-950/40 space-y-3 text-xs animate-fadeIn">
+                              {/* Fila 1: Selector Proveïdor + Codi */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-slate-400 font-medium">Proveïdor *</label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddProveidor(alt.originalIndex)}
+                                      className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" /> Nou
+                                    </button>
+                                  </div>
+                                  <select
+                                    value={alt.proveidorId}
+                                    onChange={(e) => {
+                                      if (e.target.value === '__new__') {
+                                        handleQuickAddProveidor(alt.originalIndex);
+                                      } else {
+                                        handleUpdateSupplier(alt.originalIndex, 'proveidorId', e.target.value);
+                                      }
+                                    }}
+                                    className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                  >
+                                    <option value="">-- Selecciona Proveïdor --</option>
+                                    {[...proveidors].sort((a, b) => (a.empresa || '').localeCompare(b.empresa || '', 'ca')).map(p => (
+                                      <option key={p.id} value={p.id}>{p.empresa}</option>
+                                    ))}
+                                    <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou proveïdor...</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="block text-slate-400 mb-1 font-medium">Codi Proveïdor</label>
+                                  <input
+                                    type="text"
+                                    value={alt.codi || ''}
+                                    onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'codi', e.target.value)}
+                                    className={`w-full p-2 rounded-xl border outline-none font-mono ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                    placeholder="Ref. proveïdor"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Fila 2: Fabricant + Packaging */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-slate-400 font-medium flex items-center gap-1">
+                                      <Factory className="w-3 h-3 text-amber-500" />
+                                      Fabricant de la Matèria Prima
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddFabricant(alt.originalIndex)}
+                                      className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" /> Nou
+                                    </button>
+                                  </div>
+                                  <select
+                                    value={alt.fabricantId || ''}
+                                    onChange={(e) => {
+                                      if (e.target.value === '__new__') {
+                                        handleQuickAddFabricant(alt.originalIndex);
+                                      } else {
+                                        handleUpdateSupplier(alt.originalIndex, 'fabricantId', e.target.value);
+                                      }
+                                    }}
+                                    className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                  >
+                                    <option value="">-- Selecciona fabricant --</option>
+                                    {[...fabricants].sort((a, b) => (a.fabricant || '').localeCompare(b.fabricant || '', 'ca')).map(f => (
+                                      <option key={f.id} value={f.id}>{f.fabricant} {f.pais ? `(${f.pais})` : ''}</option>
+                                    ))}
+                                    <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou fabricant...</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-slate-400 font-medium flex items-center gap-1">
+                                      <Box className="w-3 h-3 text-amber-500" />
+                                      Unitat de Compra (Packaging)
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickAddPackaging(alt.originalIndex)}
+                                      className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                                    >
+                                      <Plus className="w-3 h-3" /> Nou
+                                    </button>
+                                  </div>
+                                  <select
+                                    value={alt.unitatCompraId || ''}
+                                    onChange={(e) => {
+                                      if (e.target.value === '__new__') {
+                                        handleQuickAddPackaging(alt.originalIndex);
+                                      } else {
+                                        handleUpdateSupplier(alt.originalIndex, 'unitatCompraId', e.target.value);
+                                      }
+                                    }}
+                                    className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                  >
+                                    <option value="">-- Selecciona packaging --</option>
+                                    {[...unitatsCompra].sort((a, b) => (a.unitatCompra || '').localeCompare(b.unitatCompra || '', 'ca')).map(uc => (
+                                      <option key={uc.id} value={uc.id}>{uc.unitatCompra} (×{uc.factorConversio !== undefined ? uc.factorConversio : 1})</option>
+                                    ))}
+                                    <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou packaging...</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* Fila 3: Preu | Termini | Enllaç */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                  <label className="block text-slate-400 mb-1 font-medium">Preu (€ / {formData.unitat})</label>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={alt.preu !== undefined ? alt.preu : 0}
+                                    onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'preu', parseFloat(e.target.value) || 0)}
+                                    className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-slate-400 mb-1 font-medium">Termini Entrega</label>
+                                  <input
+                                    type="text"
+                                    value={alt.termini || ''}
+                                    onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'termini', e.target.value)}
+                                    className={`w-full p-2 rounded-xl border outline-none ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                    placeholder="2-3 dies..."
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-slate-400 mb-1 font-medium">Enllaç al Producte</label>
+                                  <input
+                                    type="text"
+                                    value={alt.enllac || ''}
+                                    onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'enllac', e.target.value)}
+                                    className={`w-full p-2 rounded-xl border outline-none ${
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                    }`}
+                                    placeholder="https://..."
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Fila 4: Comentaris */}
+                              <div>
+                                <label className="block text-slate-400 mb-1 font-medium">Comentaris</label>
+                                <textarea
+                                  rows="2"
+                                  value={alt.comentaris || ''}
+                                  onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'comentaris', e.target.value)}
+                                  className={`w-full p-2 rounded-xl border outline-none resize-none ${
+                                    isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                  }`}
+                                  placeholder="Condicions especials, descomptes..."
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </form>
           </div>

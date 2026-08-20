@@ -226,12 +226,12 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
               Cada peça no és només fusta tallada; és una història traduïda a relleus, ombres i textures. Una combinació íntima de l'escalfor natural i la precisió absoluta de la màquina.
             </p>
 
-            <div className="flex items-center gap-4 mt-4">
-              <div className="w-14 h-14 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline/10 shadow-sm">
+            <div className="flex items-center gap-4 mt-6">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-surface-container flex items-center justify-center overflow-hidden border border-outline/15 shadow-md shrink-0">
                 <img 
-                  className="w-full h-full object-cover" 
+                  className="w-full h-full object-cover object-top" 
                   alt="Jordi Alcalde Casalta" 
-                  src={resolveMediaUrl('images/jordi-alcalde-2.jpg')} 
+                  src={resolveMediaUrl('images/jordi-alcalde-3.jpg')} 
                 />
               </div>
               <div>

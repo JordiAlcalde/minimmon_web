@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown
+  Box, Factory, ClipboardList, ChevronDown, Cloud
 } from 'lucide-react';
+
+import { db } from '../../firebase';
+import { 
+  collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch 
+} from 'firebase/firestore';
 
 import MaterialsManager from './MaterialsManager';
 import ProveidorsManager from './ProveidorsManager';
@@ -23,10 +28,24 @@ import {
   INITIAL_ESCANDALLS, INITIAL_COMPRES 
 } from '../../data/produccInitialData';
 
+// Helper per netejar valors 'undefined' per a Firestore
+function sanitizeData(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj ?? null;
+  if (Array.isArray(obj)) return obj.map(sanitizeData);
+  const clean = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      clean[key] = sanitizeData(value);
+    }
+  }
+  return clean;
+}
+
 export default function ProduccApp({ setActiveTab }) {
   const [activeGroup, setActiveGroup] = useState('principal'); // 'principal' | 'complementaris' | 'produccio'
   const [activeProduccSubtab, setActiveProduccSubtab] = useState('materials');
   const [isDark, setIsDark] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Application Data States
   const [grups, setGrups] = useState(INITIAL_GRUPS);
@@ -39,6 +58,114 @@ export default function ProduccApp({ setActiveTab }) {
   const [operacions, setOperacions] = useState(INITIAL_OPERACIONS);
   const [escandalls, setEscandalls] = useState(INITIAL_ESCANDALLS);
   const [compres, setCompres] = useState(INITIAL_COMPRES);
+
+  // Refs to hold current state without triggering listener re-subscribes
+  const stateRefs = useRef({
+    grups, unitats, unitatsCompra, fabricants, proveidors,
+    materials, maquinaria, operacions, escandalls, compres
+  });
+
+  useEffect(() => {
+    stateRefs.current = {
+      grups, unitats, unitatsCompra, fabricants, proveidors,
+      materials, maquinaria, operacions, escandalls, compres
+    };
+  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres]);
+
+  // Sincronització en temps real amb Firestore per a cadascuna de les col·leccions
+  useEffect(() => {
+    const syncCollection = (collName, setLocal, initialData) => {
+      return onSnapshot(collection(db, collName), async (snapshot) => {
+        if (!snapshot.empty) {
+          const docsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setLocal(docsData);
+        } else if (initialData && initialData.length > 0) {
+          // Inicialitzar Firestore automàticament si la col·lecció és buida
+          try {
+            const batch = writeBatch(db);
+            initialData.forEach(item => {
+              const docRef = doc(db, collName, item.id);
+              const { id, ...itemData } = item;
+              batch.set(docRef, sanitizeData(itemData));
+            });
+            await batch.commit();
+          } catch (e) {
+            console.warn(`Inicialització Firestore per ${collName}:`, e);
+          }
+        }
+      }, (error) => {
+        console.warn(`Error onSnapshot a ${collName}:`, error);
+      });
+    };
+
+    const unsubGrups = syncCollection("producc_grups", setGrups, INITIAL_GRUPS);
+    const unsubUnitats = syncCollection("producc_unitats", setUnitats, INITIAL_UNITATS);
+    const unsubUnitatsCompra = syncCollection("producc_unitats_compra", setUnitatsCompra, INITIAL_UNITATS_COMPRA);
+    const unsubFabricants = syncCollection("producc_fabricants", setFabricants, INITIAL_FABRICANTS);
+    const unsubProveidors = syncCollection("producc_proveidors", setProveidors, INITIAL_PROVEIDORS);
+    const unsubMaterials = syncCollection("producc_materials", setMaterials, INITIAL_MATERIALS);
+    const unsubMaquinaria = syncCollection("producc_maquinaria", setMaquinaria, INITIAL_MAQUINARIA);
+    const unsubOperacions = syncCollection("producc_operacions", setOperacions, INITIAL_OPERACIONS);
+    const unsubEscandalls = syncCollection("producc_escandalls", setEscandalls, INITIAL_ESCANDALLS);
+    const unsubCompres = syncCollection("producc_compres", setCompres, INITIAL_COMPRES);
+
+    return () => {
+      unsubGrups();
+      unsubUnitats();
+      unsubUnitatsCompra();
+      unsubFabricants();
+      unsubProveidors();
+      unsubMaterials();
+      unsubMaquinaria();
+      unsubOperacions();
+      unsubEscandalls();
+      unsubCompres();
+    };
+  }, []);
+
+  // Helper universal de canvi d'estat amb gravació immediata a Firestore
+  const handleUpdateFirestoreCollection = async (collName, updater, currentList, setLocal) => {
+    setIsSyncing(true);
+    const nextList = typeof updater === 'function' ? updater(currentList) : updater;
+    setLocal(nextList);
+
+    try {
+      const currentMap = new Map((currentList || []).map(item => [item.id, item]));
+      const nextMap = new Map((nextList || []).map(item => [item.id, item]));
+
+      // 1. Eliminar documents suprimits
+      for (const [id] of currentMap) {
+        if (!nextMap.has(id)) {
+          await deleteDoc(doc(db, collName, id)).catch(e => console.error(`Error deleting from ${collName}:`, e));
+        }
+      }
+
+      // 2. Afegir o actualitzar documents
+      for (const [id, item] of nextMap) {
+        const oldItem = currentMap.get(id);
+        if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
+          const { id: _, ...itemData } = item;
+          await setDoc(doc(db, collName, id), sanitizeData(itemData), { merge: true }).catch(e => console.error(`Error saving to ${collName}:`, e));
+        }
+      }
+    } catch (e) {
+      console.error(`Error de sincronització Firestore (${collName}):`, e);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 400);
+    }
+  };
+
+  // Setters vinculats directament a Firestore
+  const setGrupsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_grups", updater, stateRefs.current.grups, setGrups);
+  const setUnitatsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_unitats", updater, stateRefs.current.unitats, setUnitats);
+  const setUnitatsCompraWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_unitats_compra", updater, stateRefs.current.unitatsCompra, setUnitatsCompra);
+  const setFabricantsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_fabricants", updater, stateRefs.current.fabricants, setFabricants);
+  const setProveidorsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_proveidors", updater, stateRefs.current.proveidors, setProveidors);
+  const setMaterialsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_materials", updater, stateRefs.current.materials, setMaterials);
+  const setMaquinariaWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_maquinaria", updater, stateRefs.current.maquinaria, setMaquinaria);
+  const setOperacionsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_operacions", updater, stateRefs.current.operacions, setOperacions);
+  const setEscandallsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_escandalls", updater, stateRefs.current.escandalls, setEscandalls);
+  const setCompresWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_compres", updater, stateRefs.current.compres, setCompres);
 
   // Quick stats
   const lowStockCount = materials.filter(m => Number(m.estocActual) <= Number(m.estocMinim)).length;
@@ -60,7 +187,7 @@ export default function ProduccApp({ setActiveTab }) {
     <div className={`min-h-screen transition-colors ${
       isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
-      {/* Dedicated Producc Navbar (Sempre en fons clar constant per a màxima visibilitat del logo) */}
+      {/* Dedicated Producc Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#FAF7F2] shadow-sm backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
           
@@ -88,8 +215,21 @@ export default function ProduccApp({ setActiveTab }) {
             </button>
           </div>
 
-          {/* Right Side: Header Title (2 lines) & Controls */}
-          <div className="flex items-center gap-4">
+          {/* Right Side: Header Title & Controls */}
+          <div className="flex items-center gap-3">
+            {/* Firestore Cloud Sync Badge */}
+            <div 
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all ${
+                isSyncing 
+                  ? 'bg-amber-50 border-amber-300 text-amber-800' 
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              }`}
+              title="Totes les dades es guarden en temps real a Firebase Firestore"
+            >
+              <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></span>
+              <span>{isSyncing ? 'Desant a Firestore...' : 'Firestore Connectat'}</span>
+            </div>
+
             {/* Quick Badges */}
             {lowStockCount > 0 && (
               <button
@@ -158,18 +298,18 @@ export default function ProduccApp({ setActiveTab }) {
                 <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-amber-200">
                   {activeGroup === 'principal' && <Boxes className="w-3.5 h-3.5" />}
                   {activeGroup === 'complementaris' && <Layers className="w-3.5 h-3.5" />}
-                  {activeGroup === 'produccio' && <Cpu className="w-3.5 h-3.5" />}
+                  {activeGroup === 'produccio' && <Factory className="w-3.5 h-3.5" />}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-amber-200" />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-amber-200">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </div>
               </div>
             </div>
 
-            {/* Separador vertical */}
-            <div className="hidden sm:block h-6 w-px bg-slate-300 shrink-0 mx-1" />
-
-            {/* 2. Botons de la Barra Seleccionada */}
-            <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
-              {/* Barra PRINCIPAL: Materials / Operacions / Escandalls / Compres */}
+            {/* 2. Pestanyes Dinàmiques segons el Grup seleccionat */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
+              
+              {/* Barra 1: PRINCIPAL */}
               {activeGroup === 'principal' && (
                 <>
                   <button
@@ -181,7 +321,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Package className="w-4 h-4" />
-                    Materials ({materials.length})
+                    Materials & Estoc
                   </button>
 
                   <button
@@ -193,7 +333,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Wrench className="w-4 h-4" />
-                    Operacions ({operacions.length})
+                    Operacions de Taller
                   </button>
 
                   <button
@@ -205,7 +345,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Calculator className="w-4 h-4" />
-                    Escandalls ({escandalls.length})
+                    Escandalls de Producte
                   </button>
 
                   <button
@@ -217,12 +357,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <ShoppingCart className="w-4 h-4" />
-                    Compres ({compres.length})
+                    Compres & Proveïdors
                   </button>
                 </>
               )}
 
-              {/* Barra COMPLEMENTARIS: Grups / Unitats mesura / Operacions / Proveïdors / Fabricants / Unitats compra / Maquinària */}
+              {/* Barra 2: COMPLEMENTARIS */}
               {activeGroup === 'complementaris' && (
                 <>
                   <button
@@ -234,7 +374,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Layers className="w-4 h-4" />
-                    Grups ({grups.length})
+                    Grups de Materials
                   </button>
 
                   <button
@@ -246,19 +386,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Scale className="w-4 h-4" />
-                    Unitats Mesura ({unitats.length})
-                  </button>
-
-                  <button
-                    onClick={() => setActiveProduccSubtab('operacions')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'operacions'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
-                  >
-                    <Wrench className="w-4 h-4" />
-                    Operacions ({operacions.length})
+                    Unitats de Mesura
                   </button>
 
                   <button
@@ -270,7 +398,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Building2 className="w-4 h-4" />
-                    Proveïdors ({proveidors.length})
+                    Proveïdors
                   </button>
 
                   <button
@@ -282,7 +410,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Factory className="w-4 h-4" />
-                    Fabricants ({fabricants.length})
+                    Fabricants
                   </button>
 
                   <button
@@ -294,7 +422,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Box className="w-4 h-4" />
-                    Unitats Compra ({unitatsCompra.length})
+                    Unitats de Compra
                   </button>
 
                   <button
@@ -306,12 +434,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Cpu className="w-4 h-4" />
-                    Maquinària ({maquinaria.length})
+                    Parc de Maquinària
                   </button>
                 </>
               )}
 
-              {/* Barra PRODUCCIÓ: Ordres de fabricació / Control de producció */}
+              {/* Barra 3: PRODUCCIÓ */}
               {activeGroup === 'produccio' && (
                 <>
                   <button
@@ -349,17 +477,17 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'materials' && (
           <MaterialsManager
             materials={materials}
-            setMaterials={setMaterials}
+            setMaterials={setMaterialsWithFirestore}
             grups={grups}
-            setGrups={setGrups}
+            setGrups={setGrupsWithFirestore}
             unitats={unitats}
-            setUnitats={setUnitats}
+            setUnitats={setUnitatsWithFirestore}
             unitatsCompra={unitatsCompra}
-            setUnitatsCompra={setUnitatsCompra}
+            setUnitatsCompra={setUnitatsCompraWithFirestore}
             fabricants={fabricants}
-            setFabricants={setFabricants}
+            setFabricants={setFabricantsWithFirestore}
             proveidors={proveidors}
-            setProveidors={setProveidors}
+            setProveidors={setProveidorsWithFirestore}
             isDark={isDark}
           />
         )}
@@ -367,7 +495,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'operacions' && (
           <OperacionsManager
             operacions={operacions}
-            setOperacions={setOperacions}
+            setOperacions={setOperacionsWithFirestore}
             isDark={isDark}
           />
         )}
@@ -375,7 +503,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'escandalls' && (
           <EscandallsManager
             escandalls={escandalls}
-            setEscandalls={setEscandalls}
+            setEscandalls={setEscandallsWithFirestore}
             materials={materials}
             operacions={operacions}
             maquinaria={maquinaria}
@@ -386,9 +514,9 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'compres' && (
           <CompresManager
             compres={compres}
-            setCompres={setCompres}
+            setCompres={setCompresWithFirestore}
             materials={materials}
-            setMaterials={setMaterials}
+            setMaterials={setMaterialsWithFirestore}
             proveidors={proveidors}
             isDark={isDark}
           />
@@ -397,7 +525,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'grups' && (
           <GrupsManager
             grups={grups}
-            setGrups={setGrups}
+            setGrups={setGrupsWithFirestore}
             materials={materials}
             isDark={isDark}
           />
@@ -406,7 +534,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'unitats' && (
           <UnitatsManager
             unitats={unitats}
-            setUnitats={setUnitats}
+            setUnitats={setUnitatsWithFirestore}
             materials={materials}
             isDark={isDark}
           />
@@ -415,7 +543,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'proveidors' && (
           <ProveidorsManager
             proveidors={proveidors}
-            setProveidors={setProveidors}
+            setProveidors={setProveidorsWithFirestore}
             isDark={isDark}
           />
         )}
@@ -423,7 +551,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'fabricants' && (
           <FabricantsManager
             fabricants={fabricants}
-            setFabricants={setFabricants}
+            setFabricants={setFabricantsWithFirestore}
             materials={materials}
             isDark={isDark}
           />
@@ -432,7 +560,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'unitats_compra' && (
           <UnitatsCompraManager
             unitatsCompra={unitatsCompra}
-            setUnitatsCompra={setUnitatsCompra}
+            setUnitatsCompra={setUnitatsCompraWithFirestore}
             materials={materials}
             isDark={isDark}
           />
@@ -441,7 +569,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'maquinaria' && (
           <MaquinariaManager
             maquinaria={maquinaria}
-            setMaquinaria={setMaquinaria}
+            setMaquinaria={setMaquinariaWithFirestore}
             isDark={isDark}
           />
         )}
