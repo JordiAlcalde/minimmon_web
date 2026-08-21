@@ -1,16 +1,8 @@
-<<<<<<< Updated upstream
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
   Box, Factory, ClipboardList, ChevronDown, Cloud
-=======
-import React, { useState, useEffect } from 'react';
-import { 
-  Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
-  Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Database
->>>>>>> Stashed changes
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -35,8 +27,8 @@ import {
   INITIAL_PROVEIDORS, INITIAL_MATERIALS, INITIAL_MAQUINARIA, INITIAL_OPERACIONS, 
   INITIAL_ESCANDALLS, INITIAL_COMPRES 
 } from '../../data/produccInitialData';
+import { normalizeEntityIds } from '../../utils/produccIdUtils';
 
-<<<<<<< Updated upstream
 // Helper per netejar valors 'undefined' per a Firestore
 function sanitizeData(obj) {
   if (obj === null || obj === undefined || typeof obj !== 'object') return obj ?? null;
@@ -49,23 +41,12 @@ function sanitizeData(obj) {
   }
   return clean;
 }
-=======
-import { 
-  subscribeProduccCollection, 
-  saveProduccDocument, 
-  deleteProduccDocument 
-} from '../../services/produccFirestoreService';
->>>>>>> Stashed changes
 
 export default function ProduccApp({ setActiveTab }) {
   const [activeGroup, setActiveGroup] = useState('principal'); // 'principal' | 'complementaris' | 'produccio'
   const [activeProduccSubtab, setActiveProduccSubtab] = useState('materials');
   const [isDark, setIsDark] = useState(true);
-<<<<<<< Updated upstream
   const [isSyncing, setIsSyncing] = useState(false);
-=======
-  const [firestoreConnected, setFirestoreConnected] = useState(false);
->>>>>>> Stashed changes
 
   // Application Data States (Sincronitzats amb Cloud Firestore)
   const [grups, setGrups] = useState(INITIAL_GRUPS);
@@ -79,7 +60,11 @@ export default function ProduccApp({ setActiveTab }) {
   const [escandalls, setEscandalls] = useState(INITIAL_ESCANDALLS);
   const [compres, setCompres] = useState(INITIAL_COMPRES);
 
-<<<<<<< Updated upstream
+  // Dades del Catàleg Web per als Escandalls
+  const [productes, setProductes] = useState([]);
+  const [families, setFamilies] = useState([]);
+  const [gammes, setGammes] = useState([]);
+
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
     grups, unitats, unitatsCompra, fabricants, proveidors,
@@ -129,22 +114,19 @@ export default function ProduccApp({ setActiveTab }) {
     const unsubOperacions = syncCollection("producc_operacions", setOperacions, INITIAL_OPERACIONS);
     const unsubEscandalls = syncCollection("producc_escandalls", setEscandalls, INITIAL_ESCANDALLS);
     const unsubCompres = syncCollection("producc_compres", setCompres, INITIAL_COMPRES);
-=======
-  // Subscripció en temps real a Cloud Firestore per a totes les col·leccions
-  useEffect(() => {
-    const unsubGrups = subscribeProduccCollection('producc_grups', INITIAL_GRUPS, setGrups);
-    const unsubUnitats = subscribeProduccCollection('producc_unitats', INITIAL_UNITATS, setUnitats);
-    const unsubUnitatsCompra = subscribeProduccCollection('producc_unitats_compra', INITIAL_UNITATS_COMPRA, setUnitatsCompra);
-    const unsubFabricants = subscribeProduccCollection('producc_fabricants', INITIAL_FABRICANTS, setFabricants);
-    const unsubProveidors = subscribeProduccCollection('producc_proveidors', INITIAL_PROVEIDORS, setProveidors);
-    const unsubMaterials = subscribeProduccCollection('producc_materials', INITIAL_MATERIALS, setMaterials);
-    const unsubMaquinaria = subscribeProduccCollection('producc_maquinaria', INITIAL_MAQUINARIA, setMaquinaria);
-    const unsubOperacions = subscribeProduccCollection('producc_operacions', INITIAL_OPERACIONS, setOperacions);
-    const unsubEscandalls = subscribeProduccCollection('producc_escandalls', INITIAL_ESCANDALLS, setEscandalls);
-    const unsubCompres = subscribeProduccCollection('producc_compres', INITIAL_COMPRES, setCompres);
 
-    setFirestoreConnected(true);
->>>>>>> Stashed changes
+    // Carregar catàleg de la botiga (productes, famílies, gammes)
+    const unsubProductes = onSnapshot(collection(db, "productes"), (snapshot) => {
+      setProductes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot productes:", e));
+
+    const unsubFamilies = onSnapshot(collection(db, "families"), (snapshot) => {
+      setFamilies(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot families:", e));
+
+    const unsubGammes = onSnapshot(collection(db, "gammes"), (snapshot) => {
+      setGammes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot gammes:", e));
 
     return () => {
       unsubGrups();
@@ -157,10 +139,12 @@ export default function ProduccApp({ setActiveTab }) {
       unsubOperacions();
       unsubEscandalls();
       unsubCompres();
+      unsubProductes();
+      unsubFamilies();
+      unsubGammes();
     };
   }, []);
 
-<<<<<<< Updated upstream
   // Helper universal de canvi d'estat amb gravació immediata a Firestore
   const handleUpdateFirestoreCollection = async (collName, updater, currentList, setLocal) => {
     setIsSyncing(true);
@@ -204,46 +188,68 @@ export default function ProduccApp({ setActiveTab }) {
   const setOperacionsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_operacions", updater, stateRefs.current.operacions, setOperacions);
   const setEscandallsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_escandalls", updater, stateRefs.current.escandalls, setEscandalls);
   const setCompresWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_compres", updater, stateRefs.current.compres, setCompres);
-=======
-  // Helper per crear un setter sincronitzat bidireccionalment amb Firestore
-  const createSyncSetter = (collectionName, state, setState) => {
-    return (action) => {
-      if (typeof action === 'function') {
-        const nextState = action(state);
-        // Identify deleted items
-        const currentMap = new Map(state.map(i => [String(i.id), i]));
-        const nextMap = new Map(nextState.map(i => [String(i.id), i]));
 
-        for (const [id] of currentMap.entries()) {
-          if (!nextMap.has(id)) {
-            deleteProduccDocument(collectionName, id).catch(e => console.warn(e));
+  // Auto-normalització de possibles IDs antics amb timestamps llargs cap a IDs seqüencials nets
+  useEffect(() => {
+    // 1. Normalitzar Unitats de Compra
+    const hasLongUcomp = unitatsCompra.some(u => u.id && String(u.id).length > 10);
+    if (hasLongUcomp) {
+      const { updatedItems: cleanUcomp, idMap: ucompMap } = normalizeEntityIds(unitatsCompra, 'ucomp');
+      setUnitatsCompraWithFirestore(cleanUcomp);
+      
+      if (ucompMap.size > 0) {
+        setMaterialsWithFirestore(prevMaterials => prevMaterials.map(m => {
+          let updated = false;
+          let newUnitatCompraId = m.unitatCompraId;
+          if (m.unitatCompraId && ucompMap.has(m.unitatCompraId)) {
+            newUnitatCompraId = ucompMap.get(m.unitatCompraId);
+            updated = true;
           }
-        }
-        // Identify added or modified items
-        for (const [id, item] of nextMap.entries()) {
-          const prev = currentMap.get(id);
-          if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) {
-            saveProduccDocument(collectionName, item).catch(e => console.warn(e));
+          let newSupps = m.proveidorsMaterial;
+          if (Array.isArray(m.proveidorsMaterial)) {
+            newSupps = m.proveidorsMaterial.map(s => {
+              if (s.unitatCompraId && ucompMap.has(s.unitatCompraId)) {
+                updated = true;
+                return { ...s, unitatCompraId: ucompMap.get(s.unitatCompraId) };
+              }
+              return s;
+            });
           }
-        }
-        setState(nextState);
-      } else {
-        setState(action);
+          return updated ? { ...m, unitatCompraId: newUnitatCompraId, proveidorsMaterial: newSupps } : m;
+        }));
       }
-    };
-  };
+    }
 
-  const syncSetGrups = createSyncSetter('producc_grups', grups, setGrups);
-  const syncSetUnitats = createSyncSetter('producc_unitats', unitats, setUnitats);
-  const syncSetUnitatsCompra = createSyncSetter('producc_unitats_compra', unitatsCompra, setUnitatsCompra);
-  const syncSetFabricants = createSyncSetter('producc_fabricants', fabricants, setFabricants);
-  const syncSetProveidors = createSyncSetter('producc_proveidors', proveidors, setProveidors);
-  const syncSetMaterials = createSyncSetter('producc_materials', materials, setMaterials);
-  const syncSetMaquinaria = createSyncSetter('producc_maquinaria', maquinaria, setMaquinaria);
-  const syncSetOperacions = createSyncSetter('producc_operacions', operacions, setOperacions);
-  const syncSetEscandalls = createSyncSetter('producc_escandalls', escandalls, setEscandalls);
-  const syncSetCompres = createSyncSetter('producc_compres', compres, setCompres);
->>>>>>> Stashed changes
+    // 2. Normalitzar Grups
+    const hasLongGrup = grups.some(g => g.id && String(g.id).length > 10);
+    if (hasLongGrup) {
+      const { updatedItems: cleanGrups, idMap: grupMap } = normalizeEntityIds(grups, 'grup');
+      setGrupsWithFirestore(cleanGrups);
+      if (grupMap.size > 0) {
+        setMaterialsWithFirestore(prev => prev.map(m => (m.grupId && grupMap.has(m.grupId)) ? { ...m, grupId: grupMap.get(m.grupId) } : m));
+      }
+    }
+
+    // 3. Normalitzar Fabricants
+    const hasLongFab = fabricants.some(f => f.id && String(f.id).length > 10);
+    if (hasLongFab) {
+      const { updatedItems: cleanFabricants, idMap: fabMap } = normalizeEntityIds(fabricants, 'fab');
+      setFabricantsWithFirestore(cleanFabricants);
+      if (fabMap.size > 0) {
+        setMaterialsWithFirestore(prev => prev.map(m => (m.fabricantId && fabMap.has(m.fabricantId)) ? { ...m, fabricantId: fabMap.get(m.fabricantId) } : m));
+      }
+    }
+
+    // 4. Normalitzar Proveïdors
+    const hasLongProv = proveidors.some(p => p.id && String(p.id).length > 10);
+    if (hasLongProv) {
+      const { updatedItems: cleanProveidors, idMap: provMap } = normalizeEntityIds(proveidors, 'prov');
+      setProveidorsWithFirestore(cleanProveidors);
+      if (provMap.size > 0) {
+        setMaterialsWithFirestore(prev => prev.map(m => (m.proPrinId && provMap.has(m.proPrinId)) ? { ...m, proPrinId: provMap.get(m.proPrinId) } : m));
+      }
+    }
+  }, [unitatsCompra, grups, unitats, fabricants, proveidors]);
 
   // Quick stats
   const lowStockCount = materials.filter(m => Number(m.estocActual) <= Number(m.estocMinim)).length;
@@ -334,11 +340,6 @@ export default function ProduccApp({ setActiveTab }) {
                 <span>{pendingOrdersCount} Comandes en Curs</span>
               </button>
             )}
-                   {/* Firestore Connection Badge */}
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium shadow-xs" title="Sincronització en temps real amb Cloud Firestore">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="font-mono font-semibold">Firestore Online</span>
-            </div>
 
             {/* Dark/Light mode toggle */}
             <button
@@ -389,12 +390,6 @@ export default function ProduccApp({ setActiveTab }) {
               </div>
             </div>
 
-<<<<<<< Updated upstream
-            {/* 2. Pestanyes Dinàmiques segons el Grup seleccionat */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
-              
-              {/* Barra 1: PRINCIPAL */}
-=======
             {/* Separador vertical */}
             <div className="hidden sm:block h-6 w-px bg-slate-300 shrink-0 mx-1" />
 
@@ -402,7 +397,6 @@ export default function ProduccApp({ setActiveTab }) {
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
               
               {/* Barra: PRINCIPAL */}
->>>>>>> Stashed changes
               {activeGroup === 'principal' && (
                 <>
                   <button
@@ -414,16 +408,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Package className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Materials & Estoc
-=======
                     <span>Materials</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'materials' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {materials.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -435,16 +425,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Wrench className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Operacions de Taller
-=======
                     <span>Operacions</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'operacions' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {operacions.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -456,16 +442,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Calculator className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Escandalls de Producte
-=======
                     <span>Escandalls</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'escandalls' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {escandalls.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -477,25 +459,17 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <ShoppingCart className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Compres & Proveïdors
-=======
                     <span>Compres</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'compres' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {compres.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
                 </>
               )}
 
-<<<<<<< Updated upstream
-              {/* Barra 2: COMPLEMENTARIS */}
-=======
               {/* Barra: COMPLEMENTARIS */}
->>>>>>> Stashed changes
               {activeGroup === 'complementaris' && (
                 <>
                   <button
@@ -507,16 +481,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Layers className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Grups de Materials
-=======
                     <span>Grups</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'grups' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {grups.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -528,33 +498,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Scale className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Unitats de Mesura
-=======
                     <span>Unitats mesura</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'unitats' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {unitats.length}
                     </span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveProduccSubtab('operacions')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'operacions'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
-                  >
-                    <Wrench className="w-4 h-4" />
-                    <span>Operacions</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'operacions' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {operacions.length}
-                    </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -566,16 +515,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Building2 className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Proveïdors
-=======
                     <span>Proveïdors</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'proveidors' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {proveidors.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -587,16 +532,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Factory className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Fabricants
-=======
                     <span>Fabricants</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'fabricants' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {fabricants.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -608,16 +549,12 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Box className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Unitats de Compra
-=======
                     <span>Unitats compra</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'unitats_compra' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {unitatsCompra.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
 
                   <button
@@ -629,25 +566,17 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Cpu className="w-4 h-4" />
-<<<<<<< Updated upstream
-                    Parc de Maquinària
-=======
                     <span>Maquinària</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       activeProduccSubtab === 'maquinaria' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
                     }`}>
                       {maquinaria.length}
                     </span>
->>>>>>> Stashed changes
                   </button>
                 </>
               )}
 
-<<<<<<< Updated upstream
-              {/* Barra 3: PRODUCCIÓ */}
-=======
               {/* Barra: PRODUCCIÓ */}
->>>>>>> Stashed changes
               {activeGroup === 'produccio' && (
                 <>
                   <button
@@ -659,7 +588,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <ClipboardList className="w-4 h-4" />
-                    Ordres de Fabricació
+                    <span>Ordres de Fabricació</span>
                   </button>
 
                   <button
@@ -671,7 +600,7 @@ export default function ProduccApp({ setActiveTab }) {
                     }`}
                   >
                     <Activity className="w-4 h-4" />
-                    Control de Producció
+                    <span>Control de Producció</span>
                   </button>
                 </>
               )}
@@ -685,7 +614,6 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'materials' && (
           <MaterialsManager
             materials={materials}
-<<<<<<< Updated upstream
             setMaterials={setMaterialsWithFirestore}
             grups={grups}
             setGrups={setGrupsWithFirestore}
@@ -697,19 +625,6 @@ export default function ProduccApp({ setActiveTab }) {
             setFabricants={setFabricantsWithFirestore}
             proveidors={proveidors}
             setProveidors={setProveidorsWithFirestore}
-=======
-            setMaterials={syncSetMaterials}
-            grups={grups}
-            setGrups={syncSetGrups}
-            unitats={unitats}
-            setUnitats={syncSetUnitats}
-            unitatsCompra={unitatsCompra}
-            setUnitatsCompra={syncSetUnitatsCompra}
-            fabricants={fabricants}
-            setFabricants={syncSetFabricants}
-            proveidors={proveidors}
-            setProveidors={syncSetProveidors}
->>>>>>> Stashed changes
             isDark={isDark}
           />
         )}
@@ -717,11 +632,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'operacions' && (
           <OperacionsManager
             operacions={operacions}
-<<<<<<< Updated upstream
             setOperacions={setOperacionsWithFirestore}
-=======
-            setOperacions={syncSetOperacions}
->>>>>>> Stashed changes
             isDark={isDark}
           />
         )}
@@ -729,14 +640,13 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'escandalls' && (
           <EscandallsManager
             escandalls={escandalls}
-<<<<<<< Updated upstream
             setEscandalls={setEscandallsWithFirestore}
-=======
-            setEscandalls={syncSetEscandalls}
->>>>>>> Stashed changes
             materials={materials}
             operacions={operacions}
             maquinaria={maquinaria}
+            productes={productes}
+            families={families}
+            gammes={gammes}
             isDark={isDark}
           />
         )}
@@ -744,15 +654,9 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'compres' && (
           <CompresManager
             compres={compres}
-<<<<<<< Updated upstream
             setCompres={setCompresWithFirestore}
             materials={materials}
             setMaterials={setMaterialsWithFirestore}
-=======
-            setCompres={syncSetCompres}
-            materials={materials}
-            setMaterials={syncSetMaterials}
->>>>>>> Stashed changes
             proveidors={proveidors}
             isDark={isDark}
           />
@@ -761,11 +665,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'grups' && (
           <GrupsManager
             grups={grups}
-<<<<<<< Updated upstream
             setGrups={setGrupsWithFirestore}
-=======
-            setGrups={syncSetGrups}
->>>>>>> Stashed changes
             materials={materials}
             isDark={isDark}
           />
@@ -774,11 +674,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'unitats' && (
           <UnitatsManager
             unitats={unitats}
-<<<<<<< Updated upstream
             setUnitats={setUnitatsWithFirestore}
-=======
-            setUnitats={syncSetUnitats}
->>>>>>> Stashed changes
             materials={materials}
             isDark={isDark}
           />
@@ -787,11 +683,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'proveidors' && (
           <ProveidorsManager
             proveidors={proveidors}
-<<<<<<< Updated upstream
             setProveidors={setProveidorsWithFirestore}
-=======
-            setProveidors={syncSetProveidors}
->>>>>>> Stashed changes
             isDark={isDark}
           />
         )}
@@ -799,11 +691,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'fabricants' && (
           <FabricantsManager
             fabricants={fabricants}
-<<<<<<< Updated upstream
             setFabricants={setFabricantsWithFirestore}
-=======
-            setFabricants={syncSetFabricants}
->>>>>>> Stashed changes
             materials={materials}
             isDark={isDark}
           />
@@ -812,11 +700,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'unitats_compra' && (
           <UnitatsCompraManager
             unitatsCompra={unitatsCompra}
-<<<<<<< Updated upstream
             setUnitatsCompra={setUnitatsCompraWithFirestore}
-=======
-            setUnitatsCompra={syncSetUnitatsCompra}
->>>>>>> Stashed changes
             materials={materials}
             isDark={isDark}
           />
@@ -825,11 +709,7 @@ export default function ProduccApp({ setActiveTab }) {
         {activeProduccSubtab === 'maquinaria' && (
           <MaquinariaManager
             maquinaria={maquinaria}
-<<<<<<< Updated upstream
             setMaquinaria={setMaquinariaWithFirestore}
-=======
-            setMaquinaria={syncSetMaquinaria}
->>>>>>> Stashed changes
             isDark={isDark}
           />
         )}

@@ -3,6 +3,27 @@ import {
   Package, Plus, Search, Filter, Edit2, Trash2, ExternalLink, 
   AlertTriangle, Image as ImageIcon, Layers, DollarSign, Clock, Building2, Check, X, Save, Box, Factory, Star, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
+
+const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/';
+
+function buildMaterialImageUrl(inputVal) {
+  if (!inputVal) return '';
+  const trimmed = inputVal.trim();
+  if (!trimmed) return '';
+  // Si ja és una URL absoluta (http://, https://, data:, blob:)
+  if (/^(https?:\/\/|data:|blob:|\/\/)/i.test(trimmed)) {
+    return trimmed;
+  }
+  // Neteja barres inicials (ex: /bedoll.jpg -> bedoll.jpg o imatges/materials/bedoll.jpg)
+  let clean = trimmed.replace(/^\/+/, '');
+  if (clean.startsWith('imatges/materials/')) {
+    clean = clean.replace('imatges/materials/', '');
+  } else if (clean.startsWith('materials/')) {
+    clean = clean.replace('materials/', '');
+  }
+  return `${RAW_MATERIALS_BASE_URL}${clean}`;
+}
 
 export default function MaterialsManager({ 
   materials, setMaterials, 
@@ -104,7 +125,7 @@ export default function MaterialsManager({
       if (existing) {
         setFormData(prev => ({ ...prev, grupId: existing.id }));
       } else {
-        const newId = `grup-${Date.now()}`;
+        const newId = getNextSequentialId('grup', grups);
         const newGrup = { id: newId, grup: trimmed };
         if (setGrups) setGrups(prev => [...prev, newGrup]);
         setFormData(prev => ({ ...prev, grupId: newId }));
@@ -120,7 +141,7 @@ export default function MaterialsManager({
       if (existing) {
         setFormData(prev => ({ ...prev, unitat: existing.unitat }));
       } else {
-        const newId = `unit-${Date.now()}`;
+        const newId = getNextSequentialId('unit', unitats);
         const newUnit = { id: newId, unitat: trimmed };
         if (setUnitats) setUnitats(prev => [...prev, newUnit]);
         setFormData(prev => ({ ...prev, unitat: trimmed }));
@@ -134,7 +155,7 @@ export default function MaterialsManager({
       const trimmed = nom.trim();
       const factorStr = window.prompt('Factor de conversió per a l\'estoc (ex: 100, o 1 si s\'estoca el packaging sencer):', '1');
       const factor = Math.max(0.0001, parseFloat(factorStr) || 1);
-      const newId = `ucomp-${Date.now()}`;
+      const newId = getNextSequentialId('ucomp', unitatsCompra);
       const newPackaging = { id: newId, unitatCompra: trimmed, factorConversio: factor };
       if (setUnitatsCompra) setUnitatsCompra(prev => [...prev, newPackaging]);
       
@@ -148,7 +169,7 @@ export default function MaterialsManager({
     const nom = window.prompt('Nom del nou fabricant / marca:');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
-      const newId = `fab-${Date.now()}`;
+      const newId = getNextSequentialId('fab', fabricants);
       const newFab = { id: newId, fabricant: trimmed, pais: '', web: '', descripcio: '' };
       if (setFabricants) setFabricants(prev => [...prev, newFab]);
 
@@ -162,7 +183,7 @@ export default function MaterialsManager({
     const nom = window.prompt('Nom de la nova empresa proveïdora:');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
-      const newId = `prov-${Date.now()}`;
+      const newId = getNextSequentialId('prov', proveidors);
       const newProv = { id: newId, empresa: trimmed, telefon: '', email: '', web: '' };
       if (setProveidors) setProveidors(prev => [...prev, newProv]);
 
@@ -311,7 +332,7 @@ export default function MaterialsManager({
     if (editingMaterial) {
       setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { ...payload, id: m.id } : m));
     } else {
-      const newId = `mat-${Date.now()}`;
+      const newId = getNextSequentialId('mat', materials);
       setMaterials(prev => [...prev, { ...payload, id: newId }]);
     }
     setModalOpen(false);
@@ -443,16 +464,17 @@ export default function MaterialsManager({
                 </tr>
               ) : (
                 filteredMaterials.map(m => {
-                  const grup = grups.find(g => g.id === m.grupId);
-                  const prov = proveidors.find(p => p.id === m.proPrinId);
-<<<<<<< Updated upstream
-                  const isLow = Number(m.estocActual) <= Number(m.estocMinim);
-                  const totalSuppliers = (m.proveidorsMaterial?.length) || (1 + (m.altresProveidors?.length || 0));
-=======
+                  const grup = (grups || []).find(g => g.id === m.grupId);
+                  const prov = (proveidors || []).find(p => p.id === m.proPrinId);
                   const fab = (fabricants || []).find(f => f.id === m.fabricantId);
                   const estocActual = Number(m.estocActual ?? 0);
                   const estocMinim = Number(m.estocMinim ?? 0);
->>>>>>> Stashed changes
+
+                  const provNom = prov ? prov.empresa : (m.proPrinId || '');
+                  const fabNom = fab ? fab.fabricant : (m.fabricant || '');
+                  const provFabText = (provNom && fabNom) 
+                    ? `${provNom} / ${fabNom}` 
+                    : (provNom || fabNom || '-');
 
                   return (
                     <tr key={m.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
@@ -493,31 +515,11 @@ export default function MaterialsManager({
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           <div className="font-medium text-slate-200 flex items-center gap-1.5">
                             <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-<<<<<<< Updated upstream
-                            <span>{prov ? prov.empresa : m.proPrinId || '-'}</span>
-                            {totalSuppliers > 1 && (
-                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                +{totalSuppliers - 1} alt.
-                              </span>
-                            )}
-=======
-                            <span>{prov ? prov.empresa : (m.proPrinId || '-')}</span>
->>>>>>> Stashed changes
+                            <span>{provFabText}</span>
                           </div>
-                          {fab ? (
-                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pl-0.5">
-                              <Factory className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{fab.fabricant}{fab.pais ? ` (${fab.pais})` : ''}</span>
-                            </div>
-                          ) : m.fabricant ? (
-                            <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pl-0.5">
-                              <Factory className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{m.fabricant}</span>
-                            </div>
-                          ) : null}
                           {m.codiProPrin && (
                             <div className="text-[11px] text-slate-400 font-mono">
                               Codi: {m.codiProPrin}
@@ -702,17 +704,45 @@ export default function MaterialsManager({
                       />
                     </div>
 
-                    <div className="shrink-0">
-                      <label className="block text-slate-400 mb-1 font-medium">URL Imatge</label>
-                      <input
-                        type="text"
-                        value={formData.imatge}
-                        onChange={(e) => setFormData({ ...formData, imatge: e.target.value })}
-                        className={`w-full p-2.5 rounded-xl border outline-none ${
-                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                        }`}
-                        placeholder="https://..."
-                      />
+                    <div className="shrink-0 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-slate-400 font-medium">Imatge del Material</label>
+                        <span className="text-[10px] text-amber-500 font-mono hidden sm:inline" title={RAW_MATERIALS_BASE_URL}>
+                          Prefix Raw GitHub actiu
+                        </span>
+                      </div>
+
+                      <div className={`flex rounded-xl border overflow-hidden transition-all ${
+                        isDark ? 'bg-slate-950 border-slate-800 focus-within:border-amber-500/60' : 'bg-slate-50 border-slate-200 focus-within:border-amber-500/60'
+                      }`}>
+                        <span className={`hidden sm:inline-flex items-center px-2.5 text-[10px] font-mono select-none border-r shrink-0 ${
+                          isDark ? 'bg-slate-900 border-slate-800 text-slate-500' : 'bg-slate-200/70 border-slate-300 text-slate-600'
+                        }`} title={RAW_MATERIALS_BASE_URL}>
+                          .../materials/
+                        </span>
+                        <input
+                          type="text"
+                          value={
+                            formData.imatge && formData.imatge.startsWith(RAW_MATERIALS_BASE_URL)
+                              ? formData.imatge.slice(RAW_MATERIALS_BASE_URL.length)
+                              : formData.imatge
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData({ ...formData, imatge: buildMaterialImageUrl(val) });
+                          }}
+                          className={`w-full p-2.5 outline-none text-xs font-mono ${
+                            isDark ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'
+                          }`}
+                          placeholder="nom_fitxer.jpg (o URL completa)"
+                        />
+                      </div>
+
+                      {formData.imatge && (
+                        <p className="text-[10px] text-slate-500 truncate" title={formData.imatge}>
+                          URL completa: <span className="font-mono text-amber-400/90">{formData.imatge}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 

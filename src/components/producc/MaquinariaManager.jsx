@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Cpu, Plus, Search, Edit2, Trash2, Calendar, DollarSign, Clock, Wrench, X, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +50,7 @@ export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark })
     if (editingMaquina) {
       setMaquinaria(prev => prev.map(m => m.id === editingMaquina.id ? { ...formData, id: m.id } : m));
     } else {
-      const newId = `maq-${Date.now()}`;
+      const newId = getNextSequentialId('maq', maquinaria);
       setMaquinaria(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

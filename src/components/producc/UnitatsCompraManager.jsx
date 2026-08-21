@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Plus, Search, Edit2, Trash2, X, Save, ArrowRightLeft, Hash } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, materials = [], isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +48,7 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
     if (editingUnitat) {
       setUnitatsCompra(prev => prev.map(u => u.id === editingUnitat.id ? { ...parsedData, id: u.id } : u));
     } else {
-      const newId = `ucomp-${Date.now()}`;
+      const newId = getNextSequentialId('ucomp', unitatsCompra);
       setUnitatsCompra(prev => [...prev, { ...parsedData, id: newId }]);
     }
     setModalOpen(false);

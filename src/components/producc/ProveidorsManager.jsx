@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Building2, Plus, Search, Edit2, Trash2, Phone, Mail, Globe, ExternalLink, X, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function ProveidorsManager({ proveidors, setProveidors, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,7 +39,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
     if (editingProveidor) {
       setProveidors(prev => prev.map(p => p.id === editingProveidor.id ? { ...formData, id: p.id } : p));
     } else {
-      const newId = `prov-${Date.now()}`;
+      const newId = getNextSequentialId('prov', proveidors);
       setProveidors(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

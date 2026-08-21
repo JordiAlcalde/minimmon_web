@@ -3,6 +3,7 @@ import {
   ShoppingCart, Plus, Search, CheckCircle, Clock, AlertTriangle, 
   Building2, Package, FileText, Copy, ExternalLink, Edit2, Trash2, X, ArrowDownRight, RefreshCw, Save 
 } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function CompresManager({ 
   compres, setCompres, materials, setMaterials, proveidors, isDark 
@@ -67,7 +68,7 @@ export default function CompresManager({
     if (editingComanda) {
       setCompres(prev => prev.map(c => c.id === editingComanda.id ? { ...formData, id: c.id } : c));
     } else {
-      const newId = `com-${Date.now()}`;
+      const newId = getNextSequentialId('com', compres);
       setCompres(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

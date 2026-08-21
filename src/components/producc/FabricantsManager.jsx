@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Factory, Plus, Search, Edit2, Trash2, Globe, ExternalLink, X, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function FabricantsManager({ fabricants, setFabricants, materials = [], isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,7 +50,7 @@ export default function FabricantsManager({ fabricants, setFabricants, materials
     if (editingFabricant) {
       setFabricants(prev => prev.map(f => f.id === editingFabricant.id ? { ...formData, id: f.id } : f));
     } else {
-      const newId = `fab-${Date.now()}`;
+      const newId = getNextSequentialId('fab', fabricants);
       setFabricants(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

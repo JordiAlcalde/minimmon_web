@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Scale, Plus, Search, Edit2, Trash2, X, Package, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function UnitatsManager({ unitats, setUnitats, materials, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,7 +40,7 @@ export default function UnitatsManager({ unitats, setUnitats, materials, isDark 
     if (editingUnitat) {
       setUnitats(prev => prev.map(u => u.id === editingUnitat.id ? { ...formData, id: u.id } : u));
     } else {
-      const newId = `unit-${Date.now()}`;
+      const newId = getNextSequentialId('unit', unitats);
       setUnitats(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

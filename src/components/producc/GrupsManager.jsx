@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Layers, Plus, Edit2, Trash2, X, Package, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function GrupsManager({ grups, setGrups, materials, isDark }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -36,7 +37,7 @@ export default function GrupsManager({ grups, setGrups, materials, isDark }) {
     if (editingGrup) {
       setGrups(prev => prev.map(g => g.id === editingGrup.id ? { ...formData, id: g.id } : g));
     } else {
-      const newId = `grup-${Date.now()}`;
+      const newId = getNextSequentialId('grup', grups);
       setGrups(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);

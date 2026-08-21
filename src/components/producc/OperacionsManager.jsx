@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Wrench, Plus, Search, Edit2, Trash2, Clock, DollarSign, Activity, X, Save } from 'lucide-react';
+import { getNextSequentialId } from '../../utils/produccIdUtils';
 
 export default function OperacionsManager({ operacions, setOperacions, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,7 +38,7 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
     if (editingOperacio) {
       setOperacions(prev => prev.map(o => o.id === editingOperacio.id ? { ...formData, id: o.id } : o));
     } else {
-      const newId = `op-${Date.now()}`;
+      const newId = getNextSequentialId('op', operacions);
       setOperacions(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);
