@@ -1,48 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  Package, Plus, Search, Filter, Edit2, Trash2, ExternalLink, 
-  AlertTriangle, Image as ImageIcon, Layers, DollarSign, Clock, Building2, Check, X, Save, Box, Factory, Star, ChevronDown, ChevronUp
+  Layers, Plus, Search, Edit2, Trash2, ExternalLink, Package, Building2, 
+  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 
-const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/';
+// Base URL estàndard per a les imatges de materials allotjades a GitHub
+const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
 
-function buildMaterialImageUrl(inputVal) {
-  if (!inputVal) return '';
+// Helper per netejar i garantir que la URL té el prefix GitHub complet
+const buildMaterialImageUrl = (inputVal) => {
+  if (!inputVal || !inputVal.trim()) return '';
   const trimmed = inputVal.trim();
-  if (!trimmed) return '';
-  // Si ja és una URL absoluta (http://, https://, data:, blob:)
-  if (/^(https?:\/\/|data:|blob:|\/\/)/i.test(trimmed)) {
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
   }
-  // Neteja barres inicials (ex: /bedoll.jpg -> bedoll.jpg o imatges/materials/bedoll.jpg)
-  let clean = trimmed.replace(/^\/+/, '');
-  if (clean.startsWith('imatges/materials/')) {
-    clean = clean.replace('imatges/materials/', '');
-  } else if (clean.startsWith('materials/')) {
-    clean = clean.replace('materials/', '');
-  }
-  return `${RAW_MATERIALS_BASE_URL}${clean}`;
-}
+  const cleanFilename = trimmed.replace(/^\/+/, '').replace(/^materials\//, '').replace(/^public\/imatges\/materials\//, '');
+  return `${RAW_MATERIALS_BASE_URL}${cleanFilename}`;
+};
 
 export default function MaterialsManager({ 
-  materials, setMaterials, 
-  grups = [], setGrups, 
-  unitats = [], setUnitats, 
-  unitatsCompra = [], setUnitatsCompra, 
-  fabricants = [], setFabricants, 
-  proveidors = [], setProveidors, 
+  materials = [], 
+  setMaterials, 
+  grups = [], 
+  setGrups, 
+  unitats = [], 
+  setUnitats, 
+  proveidors = [], 
+  setProveidors, 
+  fabricants = [], 
+  setFabricants, 
+  unitatsCompra = [], 
+  setUnitatsCompra, 
   isDark 
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrup, setSelectedGrup] = useState('all');
-  const [selectedProveidor, setSelectedProveidor] = useState('all');
-  const [onlyLowStock, setOnlyLowStock] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [expandedAltId, setExpandedAltId] = useState(null);
 
-  // Form state
+  // Estat del Formulari del Material
   const [formData, setFormData] = useState({
     material: '',
     descripcio: '',
@@ -54,15 +52,24 @@ export default function MaterialsManager({
     proveidorsList: []
   });
 
-  // Helper per construir la llista de proveïdors d'un material
+  // Helper per obtenir el factor de conversió del packaging
+  const getSupplierPackagingFactor = (unitatCompraId) => {
+    const uc = unitatsCompra.find(u => u.id === unitatCompraId);
+    if (!uc || uc.factorConversio === undefined || uc.factorConversio === null) return 1;
+    const f = Number(uc.factorConversio);
+    return f > 0 ? f : 1;
+  };
+
+  // Helper per parsejar la llista de proveïdors d'un material
   const parseSuppliersList = (mat) => {
     if (!mat) {
       return [{
-        id: `supp-${Date.now()}`,
+        id: `supp-main-${Date.now()}`,
         proveidorId: proveidors[0]?.id || '',
         codi: '',
         enllac: '',
         preu: 0,
+        preuPack: 0,
         termini: '',
         fabricantId: fabricants[0]?.id || '',
         unitatCompraId: unitatsCompra[0]?.id || '',
@@ -72,22 +79,44 @@ export default function MaterialsManager({
     }
 
     if (Array.isArray(mat.proveidorsMaterial) && mat.proveidorsMaterial.length > 0) {
-      const hasPrincipal = mat.proveidorsMaterial.some(x => x.isPrincipal);
-      return mat.proveidorsMaterial.map((s, idx) => ({
-        ...s,
-        id: s.id || `supp-${idx}-${Date.now()}`,
-        isPrincipal: hasPrincipal ? Boolean(s.isPrincipal) : idx === 0
-      }));
+      return mat.proveidorsMaterial.map((s, idx) => {
+        const factor = getSupplierPackagingFactor(s.unitatCompraId);
+        const unitPrice = Number(s.preu || 0);
+        const packPrice = s.preuPack !== undefined 
+          ? Number(s.preuPack) 
+          : (factor > 1 ? Number((unitPrice * factor).toFixed(4)) : unitPrice);
+
+        return {
+          id: s.id || `supp-${idx}-${Date.now()}`,
+          proveidorId: s.proveidorId || (proveidors[0]?.id || ''),
+          codi: s.codi || '',
+          enllac: s.enllac || '',
+          preu: unitPrice,
+          preuPack: packPrice,
+          termini: s.termini || '',
+          fabricantId: s.fabricantId || '',
+          unitatCompraId: s.unitatCompraId || '',
+          comentaris: s.comentaris || '',
+          isPrincipal: s.isPrincipal !== undefined ? s.isPrincipal : idx === 0
+        };
+      });
     }
 
     const list = [];
+    const mainFactor = getSupplierPackagingFactor(mat.unitatCompraId);
+    const mainPreu = Number(mat.preuProPrin || 0);
+    const mainPreuPack = mat.preuPackProPrin !== undefined 
+      ? Number(mat.preuPackProPrin) 
+      : (mainFactor > 1 ? Number((mainPreu * mainFactor).toFixed(4)) : mainPreu);
+
     // Proveïdor Principal històric
     list.push({
       id: `supp-main-${Date.now()}`,
       proveidorId: mat.proPrinId || (proveidors[0]?.id || ''),
       codi: mat.codiProPrin || '',
       enllac: mat.enllacProPrin || '',
-      preu: Number(mat.preuProPrin || 0),
+      preu: mainPreu,
+      preuPack: mainPreuPack,
       termini: mat.terminiProPrin || '',
       fabricantId: mat.fabricantId || '',
       unitatCompraId: mat.unitatCompraId || '',
@@ -98,12 +127,19 @@ export default function MaterialsManager({
     // Altres proveïdors històrics
     if (Array.isArray(mat.altresProveidors)) {
       mat.altresProveidors.forEach((alt, idx) => {
+        const altFactor = getSupplierPackagingFactor(alt.unitatCompraId);
+        const altPreu = Number(alt.preu || 0);
+        const altPreuPack = alt.preuPack !== undefined
+          ? Number(alt.preuPack)
+          : (altFactor > 1 ? Number((altPreu * altFactor).toFixed(4)) : altPreu);
+
         list.push({
           id: `supp-alt-${idx}-${Date.now()}`,
           proveidorId: alt.proveidorId || (proveidors[0]?.id || ''),
           codi: alt.codi || '',
           enllac: alt.enllac || '',
-          preu: Number(alt.preu || 0),
+          preu: altPreu,
+          preuPack: altPreuPack,
           termini: alt.termini || '',
           fabricantId: alt.fabricantId || '',
           unitatCompraId: alt.unitatCompraId || '',
@@ -150,17 +186,17 @@ export default function MaterialsManager({
   };
 
   const handleQuickAddPackaging = (suppIndex) => {
-    const nom = window.prompt('Format de la nova unitat de compra / packaging (ex: Caixa 100u, Paquet 5 plaques):');
+    const nom = window.prompt('Format de la nova unitat de compra / packaging (ex: Caixa 100u, Paquet 20 unitats):');
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
-      const factorStr = window.prompt('Factor de conversió per a l\'estoc (ex: 100, o 1 si s\'estoca el packaging sencer):', '1');
+      const factorStr = window.prompt('Factor de conversió per a l\'estoc (ex: 20, o 1 si és unitari):', '1');
       const factor = Math.max(0.0001, parseFloat(factorStr) || 1);
       const newId = getNextSequentialId('ucomp', unitatsCompra);
       const newPackaging = { id: newId, unitatCompra: trimmed, factorConversio: factor };
       if (setUnitatsCompra) setUnitatsCompra(prev => [...prev, newPackaging]);
       
       if (suppIndex !== undefined) {
-        handleUpdateSupplier(suppIndex, 'unitatCompraId', newId);
+        handleUpdateSupplierPackaging(suppIndex, newId);
       }
     }
   };
@@ -240,6 +276,7 @@ export default function MaterialsManager({
       codi: '',
       enllac: '',
       preu: 0,
+      preuPack: 0,
       termini: '',
       fabricantId: fabricants[0]?.id || '',
       unitatCompraId: unitatsCompra[0]?.id || '',
@@ -258,6 +295,67 @@ export default function MaterialsManager({
       const updated = [...prev.proveidorsList];
       if (updated[index]) {
         updated[index] = { ...updated[index], [field]: value };
+      }
+      return { ...prev, proveidorsList: updated };
+    });
+  };
+
+  // Actualitzar packaging i recalcular automàticament preu per unitat i preu per pack
+  const handleUpdateSupplierPackaging = (index, newPackagingId) => {
+    setFormData(prev => {
+      const updated = [...prev.proveidorsList];
+      if (updated[index]) {
+        const newFactor = getSupplierPackagingFactor(newPackagingId);
+        let newPreuPack = updated[index].preuPack;
+        let newPreu = updated[index].preu || 0;
+
+        if (newFactor > 1) {
+          if (newPreuPack !== undefined && newPreuPack > 0) {
+            newPreu = newPreuPack / newFactor;
+          } else if (newPreu > 0) {
+            newPreuPack = newPreu * newFactor;
+          }
+        }
+
+        updated[index] = {
+          ...updated[index],
+          unitatCompraId: newPackagingId,
+          preuPack: newPreuPack,
+          preu: Number(newPreu)
+        };
+      }
+      return { ...prev, proveidorsList: updated };
+    });
+  };
+
+  // Actualitzar preu del pack -> calcula automàticament el preu unitari (preuPack / factor)
+  const handleUpdateSupplierPricePack = (index, packPrice) => {
+    setFormData(prev => {
+      const updated = [...prev.proveidorsList];
+      if (updated[index]) {
+        const factor = getSupplierPackagingFactor(updated[index].unitatCompraId);
+        const unitPrice = factor > 0 ? (packPrice / factor) : packPrice;
+        updated[index] = {
+          ...updated[index],
+          preuPack: packPrice,
+          preu: Number(unitPrice)
+        };
+      }
+      return { ...prev, proveidorsList: updated };
+    });
+  };
+
+  // Actualitzar preu unitari
+  const handleUpdateSupplierUnitPrice = (index, unitPrice) => {
+    setFormData(prev => {
+      const updated = [...prev.proveidorsList];
+      if (updated[index]) {
+        const factor = getSupplierPackagingFactor(updated[index].unitatCompraId);
+        updated[index] = {
+          ...updated[index],
+          preu: unitPrice,
+          preuPack: factor > 1 ? Number((unitPrice * factor).toFixed(4)) : unitPrice
+        };
       }
       return { ...prev, proveidorsList: updated };
     });
@@ -308,6 +406,7 @@ export default function MaterialsManager({
       // Sincronització de les dades del Proveïdor Principal actiu per als escandalls
       proPrinId: mainSupp.proveidorId || '',
       preuProPrin: Number(mainSupp.preu || 0),
+      preuPackProPrin: Number(mainSupp.preuPack || 0),
       codiProPrin: mainSupp.codi || '',
       enllacProPrin: mainSupp.enllac || '',
       terminiProPrin: mainSupp.termini || '',
@@ -319,9 +418,10 @@ export default function MaterialsManager({
       proveidorsMaterial: list,
       altresProveidors: list.filter(s => !s.isPrincipal).map(s => ({
         proveidorId: s.proveidorId,
+        preu: s.preu,
+        preuPack: s.preuPack,
         codi: s.codi,
         enllac: s.enllac,
-        preu: Number(s.preu || 0),
         termini: s.termini,
         fabricantId: s.fabricantId,
         unitatCompraId: s.unitatCompraId,
@@ -338,39 +438,46 @@ export default function MaterialsManager({
     setModalOpen(false);
   };
 
-  const filteredMaterials = materials
-    .filter(m => {
+  const filteredMaterials = useMemo(() => {
+    return materials.filter(m => {
       const matchesSearch = (m.material || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            m.descripcio?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            m.codiProPrin?.toLowerCase().includes(searchTerm.toLowerCase());
+                            (m.descripcio || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            (m.codiProPrin || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesGrup = selectedGrup === 'all' || m.grupId === selectedGrup;
-      const matchesProv = selectedProveidor === 'all' || m.proPrinId === selectedProveidor;
-      const matchesLowStock = !onlyLowStock || (Number(m.estocActual) <= Number(m.estocMinim));
-      return matchesSearch && matchesGrup && matchesProv && matchesLowStock;
-    })
-    .sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca', { sensitivity: 'base' }));
+      return matchesSearch && matchesGrup;
+    }).sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca', { sensitivity: 'base' }));
+  }, [materials, searchTerm, selectedGrup]);
 
-  // Càlcul dels índexs de Proveïdor Principal i Altres Proveïdors
-  const mainSuppIndex = formData.proveidorsList.findIndex(s => s.isPrincipal) !== -1 
-    ? formData.proveidorsList.findIndex(s => s.isPrincipal) 
-    : 0;
+  // Index del proveïdor principal dins de proveidorsList
+  const mainSuppIndex = useMemo(() => {
+    const idx = formData.proveidorsList.findIndex(s => s.isPrincipal);
+    return idx >= 0 ? idx : 0;
+  }, [formData.proveidorsList]);
+
   const mainSupp = formData.proveidorsList[mainSuppIndex] || {};
 
-  const altSuppliersWithIndices = formData.proveidorsList
-    .map((s, idx) => ({ ...s, originalIndex: idx }))
-    .filter((_, idx) => idx !== mainSuppIndex);
+  // Proveïdors no principals
+  const altSuppliersWithIndices = useMemo(() => {
+    return formData.proveidorsList
+      .map((s, idx) => ({ ...s, originalIndex: idx }))
+      .filter((_, idx) => idx !== mainSuppIndex);
+  }, [formData.proveidorsList, mainSuppIndex]);
+
+  // Factor de packaging del proveïdor principal
+  const mainPackagingFactor = getSupplierPackagingFactor(mainSupp.unitatCompraId);
+  const mainIsPack = mainPackagingFactor > 1;
 
   return (
     <div className="space-y-6">
-      {/* Header section with search and actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Capçalera Principal */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold font-serif flex items-center gap-2">
-            <Package className="w-6 h-6 text-amber-500" />
-            Materials & Matèries Primes
+            <Layers className="w-6 h-6 text-amber-500" />
+            Catàleg de Materials & Matèries Primes
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Gestió de la matèria prima per a la fabricació de productes i projectes.
+            Gestió d'estocs, proveïdor principal de càlcul i llista de proveïdors alternatius.
           </p>
         </div>
 
@@ -383,9 +490,40 @@ export default function MaterialsManager({
         </button>
       </div>
 
-      {/* Filters Bar */}
-      <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between`}>
-        <div className="relative flex-1">
+      {/* Barra de Filtres i Cerca */}
+      <div className={`p-4 rounded-2xl border flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between ${
+        isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
+      }`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setSelectedGrup('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              selectedGrup === 'all'
+                ? 'bg-amber-600 text-white'
+                : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tots ({materials.length})
+          </button>
+          {[...grups].sort((a, b) => (a.grup || '').localeCompare(b.grup || '', 'ca')).map(g => {
+            const count = materials.filter(m => m.grupId === g.id).length;
+            return (
+              <button
+                key={g.id}
+                onClick={() => setSelectedGrup(g.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  selectedGrup === g.id
+                    ? 'bg-amber-600 text-white'
+                    : isDark ? 'bg-slate-800 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {g.grup} ({count})
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative w-full md:w-72">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -399,225 +537,152 @@ export default function MaterialsManager({
             }`}
           />
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={selectedGrup}
-            onChange={(e) => setSelectedGrup(e.target.value)}
-            className={`px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer ${
-              isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
-            }`}
-          >
-            <option value="all">Tots els Grups</option>
-            {grups.map(g => (
-              <option key={g.id} value={g.id}>{g.grup}</option>
-            ))}
-          </select>
-
-          <select
-            value={selectedProveidor}
-            onChange={(e) => setSelectedProveidor(e.target.value)}
-            className={`px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer ${
-              isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
-            }`}
-          >
-            <option value="all">Tots els Proveïdors</option>
-            {proveidors.map(p => (
-              <option key={p.id} value={p.id}>{p.empresa}</option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => setOnlyLowStock(!onlyLowStock)}
-            className={`px-3 py-2 rounded-xl text-xs font-medium border flex items-center gap-1.5 cursor-pointer transition-all ${
-              onlyLowStock
-                ? 'bg-red-500/20 border-red-500/50 text-red-400'
-                : isDark ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-600'
-            }`}
-          >
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            Faltant Estoc ({materials.filter(m => Number(m.estocActual) <= Number(m.estocMinim)).length})
-          </button>
-        </div>
       </div>
 
-      {/* Table of Materials */}
-      <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className={`border-b text-[11px] uppercase tracking-wider font-semibold ${isDark ? 'bg-slate-900/80 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
-                <th className="py-3.5 px-4">Material</th>
-                <th className="py-3.5 px-4">Grup</th>
-                <th className="py-3.5 px-4">Proveïdor / Fabricant</th>
-                <th className="py-3.5 px-4 text-right">Preu</th>
-                <th className="py-3.5 px-4 text-center">Estoc</th>
-                <th className="py-3.5 px-4 text-right">Accions</th>
-              </tr>
-            </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-slate-800/60' : 'divide-slate-100'}`}>
-              {filteredMaterials.length === 0 ? (
-                <tr>
-                  <td colSpan="6" className="py-10 text-center text-slate-500">
-                    No s'han trobat materials amb els filtres seleccionats.
-                  </td>
-                </tr>
-              ) : (
-                filteredMaterials.map(m => {
-                  const grup = (grups || []).find(g => g.id === m.grupId);
-                  const prov = (proveidors || []).find(p => p.id === m.proPrinId);
-                  const fab = (fabricants || []).find(f => f.id === m.fabricantId);
-                  const estocActual = Number(m.estocActual ?? 0);
-                  const estocMinim = Number(m.estocMinim ?? 0);
+      {/* Llistat de Materials */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredMaterials.map(mat => {
+          const grupObj = grups.find(g => g.id === mat.grupId);
+          const provObj = proveidors.find(p => p.id === mat.proPrinId);
+          const fabObj = fabricants.find(f => f.id === mat.fabricantId);
+          const uCompObj = unitatsCompra.find(u => u.id === mat.unitatCompraId);
+          
+          const isLowStock = mat.estocMinim > 0 && mat.estocActual <= mat.estocMinim;
+          const altCount = Array.isArray(mat.altresProveidors) ? mat.altresProveidors.length : 0;
 
-                  const provNom = prov ? prov.empresa : (m.proPrinId || '');
-                  const fabNom = fab ? fab.fabricant : (m.fabricant || '');
-                  const provFabText = (provNom && fabNom) 
-                    ? `${provNom} / ${fabNom}` 
-                    : (provNom || fabNom || '-');
+          return (
+            <div
+              key={mat.id}
+              className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
+                isDark ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300'
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                      {mat.imatge ? (
+                        <img 
+                          src={mat.imatge} 
+                          alt={mat.material} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <Package className="w-6 h-6 text-amber-500/50" />
+                      )}
+                    </div>
 
-                  return (
-                    <tr key={m.id} className={`transition-colors ${isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50/80'}`}>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          {m.imatge ? (
-                            <img src={m.imatge} alt={m.material} className="w-10 h-10 rounded-lg object-cover border border-slate-700/50 shrink-0" />
-                          ) : (
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${isDark ? 'bg-slate-800 border-slate-700 text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-400'}`}>
-                              <ImageIcon className="w-5 h-5" />
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-semibold text-slate-200 flex items-center gap-2">
-                              {m.material}
-                              {estocActual < estocMinim && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 border border-red-500/30">
-                                  <AlertTriangle className="w-2.5 h-2.5" /> Faltant
-                                </span>
-                              )}
-                              {estocActual === estocMinim && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                                  <AlertTriangle className="w-2.5 h-2.5" /> En mínim
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-400 line-clamp-1 max-w-xs">{m.descripcio}</p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] border font-medium ${
-                          isDark ? 'bg-slate-800/60 border-slate-700/60 text-slate-300' : 'bg-slate-100 border-slate-200 text-slate-700'
-                        }`}>
-                          {grup ? grup.grup : 'Sense Grup'}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          {grupObj ? grupObj.grup : 'Sense Grup'}
                         </span>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="space-y-0.5">
-                          <div className="font-medium text-slate-200 flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                            <span>{provFabText}</span>
-                          </div>
-                          {m.codiProPrin && (
-                            <div className="text-[11px] text-slate-400 font-mono">
-                              Codi: {m.codiProPrin}
-                            </div>
-                          )}
-                          {m.enllacProPrin && (
-                            <a
-                              href={m.enllacProPrin}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[11px] text-amber-400 hover:underline inline-flex items-center gap-1"
-                            >
-                              Veure Enllaç <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4 text-right whitespace-nowrap font-mono font-semibold text-slate-200">
-                        {Number(m.preuProPrin || 0).toFixed(2)} € / {m.unitat || 'u'}
-                        {m.terminiProPrin && (
-                          <div className="text-[10px] text-slate-400 font-sans font-normal">
-                            ⏱️ {m.terminiProPrin}
-                          </div>
+                        {altCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                            +{altCount} alt.
+                          </span>
                         )}
-                      </td>
+                      </div>
+                      <h3 className="font-bold text-slate-100 text-sm truncate mt-0.5 font-serif" title={mat.material}>
+                        {mat.material}
+                      </h3>
+                    </div>
+                  </div>
 
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className={`font-mono font-bold ${
-                          estocActual < estocMinim 
-                            ? 'text-red-500' 
-                            : estocActual === estocMinim 
-                              ? 'text-orange-500' 
-                              : (isDark ? 'text-white' : 'text-slate-900')
-                        }`}>
-                          {m.estocActual} <span className="text-[10px] text-slate-400 font-sans">{m.unitat}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-400">
-                          Mínim: {m.estocMinim} {m.unitat}
-                        </div>
-                      </td>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleOpenEdit(mat)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Editar material"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(mat.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Eliminar material"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
 
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenEdit(m)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                            title="Editar Material"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(m.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                            title="Eliminar Material"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                {mat.descripcio && (
+                  <p className="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">
+                    {mat.descripcio}
+                  </p>
+                )}
+
+                {/* Caixa Proveïdor Principal */}
+                <div className="p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.03] space-y-1 text-xs mb-3">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-amber-400/90 font-semibold flex items-center gap-1">
+                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                      {provObj ? provObj.empresa : 'Sense proveïdor'}
+                    </span>
+                    <span className="font-mono font-bold text-slate-100">
+                      {mat.preuProPrin !== undefined ? `${Number(mat.preuProPrin).toFixed(2)} €` : '0.00 €'} / {mat.unitat}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Fab: {fabObj ? fabObj.fabricant : 'N/A'}</span>
+                    {uCompObj && <span>Pack: {uCompObj.unitatCompra}</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Barra Inferior d'Estoc */}
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400">Estoc:</span>
+                  <span className={`font-mono font-bold ${isLowStock ? 'text-rose-400' : 'text-slate-200'}`}>
+                    {mat.estocActual} {mat.unitat}
+                  </span>
+                  {isLowStock && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-semibold flex items-center gap-0.5">
+                      <AlertTriangle className="w-3 h-3" /> Baix
+                    </span>
+                  )}
+                </div>
+
+                {mat.enllacProPrin && (
+                  <a
+                    href={mat.enllacProPrin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-400 hover:text-amber-300 flex items-center gap-1 text-[11px] font-medium hover:underline"
+                  >
+                    <span>Web</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Form Modal amb Capçalera Fixa i Disposició Precisa d'Edició */}
+      {/* MODAL CREACIÓ / EDICIÓ MATERIAL */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-sm">
           <div className={`w-full max-w-3xl max-h-[92vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden ${
             isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
           }`}>
-            {/* Header Fix Superior amb Botó de Guardar i Tancar */}
-            <div className={`flex items-center justify-between px-6 py-3.5 border-b shrink-0 ${
+            {/* Capçalera Modal */}
+            <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
-              <h3 className="text-lg font-bold font-serif flex items-center gap-2 truncate mr-3">
-                <Package className="w-5 h-5 text-amber-500 shrink-0" />
-                <span className="truncate">
-                  {editingMaterial ? (
-                    <>
-                      Editar Material : <span className="text-amber-400 font-semibold">{formData.material || 'Sense nom'}</span>
-                    </>
-                  ) : (
-                    'Crear Nou Material'
-                  )}
-                </span>
+              <h3 className="text-base sm:text-lg font-bold font-serif flex items-center gap-2">
+                <Layers className="w-5 h-5 text-amber-500" />
+                {editingMaterial ? 'Editar Material' : 'Nou Material'}
               </h3>
-              
-              <div className="flex items-center gap-2 shrink-0">
-                <button 
+              <div className="flex items-center gap-2">
+                <button
                   type="submit"
                   form="material-modal-form"
-                  className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
-                  title="Guardar Canvis a Firestore"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
                   <span>Guardar</span>
@@ -626,17 +691,16 @@ export default function MaterialsManager({
                   type="button"
                   onClick={() => setModalOpen(false)} 
                   className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
-                  title="Tancar"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Contingut Scrollable amb la Disposició Visual Demanada */}
+            {/* Cos del Formulari */}
             <form id="material-modal-form" onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6">
               
-              {/* 1. Dades Generals del Material */}
+              {/* 1. DADES BÀSIQUES DEL MATERIAL */}
               <div className="space-y-4 text-xs">
                 
                 {/* Fila 1: Nom del Material + Grup/Categoria */}
@@ -690,7 +754,6 @@ export default function MaterialsManager({
 
                 {/* Fila 2: Descripció + URL Imatge (esquerra) & Previsualització d'Imatge quadrada (dreta) */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-                  {/* Columna Esquerra: Descripció (expandida) + URL Imatge (a la part inferior) */}
                   <div className="md:col-span-8 flex flex-col justify-between">
                     <div className="flex-1 flex flex-col min-h-0 mb-3">
                       <label className="block text-slate-400 mb-1 font-medium">Descripció</label>
@@ -746,7 +809,6 @@ export default function MaterialsManager({
                     </div>
                   </div>
 
-                  {/* Columna Dreta: Marc de Previsualització Quadrat */}
                   <div className="md:col-span-4 flex flex-col">
                     <label className="block text-slate-400 mb-1 font-medium">Previsualització</label>
                     <div className={`w-full aspect-square rounded-2xl border-2 overflow-hidden flex items-center justify-center relative shadow-sm ${
@@ -970,7 +1032,7 @@ export default function MaterialsManager({
                           if (e.target.value === '__new__') {
                             handleQuickAddPackaging(mainSuppIndex);
                           } else {
-                            handleUpdateSupplier(mainSuppIndex, 'unitatCompraId', e.target.value);
+                            handleUpdateSupplierPackaging(mainSuppIndex, e.target.value);
                           }
                         }}
                         className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
@@ -986,16 +1048,52 @@ export default function MaterialsManager({
                     </div>
                   </div>
 
-                  {/* Fila 3 del Proveïdor Principal: Preu | Termini | Enllaç */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  {/* Fila 3 del Proveïdor Principal: Preu / Pack (si factor > 1) + Preu / u + Termini + Enllaç */}
+                  <div className={`grid grid-cols-1 ${mainIsPack ? 'sm:grid-cols-2 md:grid-cols-4' : 'md:grid-cols-3'} gap-3 text-xs`}>
+                    {/* Textbox Preu / Pack (apareix quan factor > 1) */}
+                    {mainIsPack && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
+                          <span className="text-[10px] text-amber-400 font-mono">×{mainPackagingFactor}</span>
+                        </div>
+                        <input
+                          type="number"
+                          step="any"
+                          value={mainSupp.preuPack !== undefined ? mainSupp.preuPack : ''}
+                          onChange={(e) => handleUpdateSupplierPricePack(mainSuppIndex, parseFloat(e.target.value) || 0)}
+                          className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                            isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                          }`}
+                          placeholder="P. ex. 19.90"
+                        />
+                      </div>
+                    )}
+
+                    {/* Textbox Preu / Unitat (calculat automàticament si factor > 1) */}
                     <div>
-                      <label className="block text-slate-400 mb-1 font-medium">Preu (€ / {formData.unitat})</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-slate-400 font-medium">
+                          {mainIsPack ? `Preu / u (€ / ${formData.unitat})` : `Preu (€ / ${formData.unitat})`}
+                        </label>
+                        {mainIsPack && (
+                          <span className="text-[10px] text-emerald-400 font-mono" title={`Calculat: ${mainSupp.preuPack || 0} € ÷ ${mainPackagingFactor}`}>
+                            ÷{mainPackagingFactor}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="number"
                         step="any"
-                        value={mainSupp.preu !== undefined ? mainSupp.preu : 0}
-                        onChange={(e) => handleUpdateSupplier(mainSuppIndex, 'preu', parseFloat(e.target.value) || 0)}
+                        value={
+                          mainSupp.preu !== undefined 
+                            ? (Number.isInteger(mainSupp.preu) ? mainSupp.preu : Number(mainSupp.preu.toFixed(4))) 
+                            : 0
+                        }
+                        onChange={(e) => handleUpdateSupplierUnitPrice(mainSuppIndex, parseFloat(e.target.value) || 0)}
                         className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                          mainIsPack ? 'border-amber-500/40 text-amber-300' : ''
+                        } ${
                           isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
                       />
@@ -1010,7 +1108,7 @@ export default function MaterialsManager({
                         className={`w-full p-2 rounded-xl border outline-none ${
                           isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
-                        placeholder="2-3 dies feiners"
+                        placeholder="24 hores, 2-3 dies..."
                       />
                     </div>
 
@@ -1023,7 +1121,7 @@ export default function MaterialsManager({
                         className={`w-full p-2 rounded-xl border outline-none ${
                           isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                         }`}
-                        placeholder="https://www.laserwood..."
+                        placeholder="https://www.amazon.es/dp/..."
                       />
                     </div>
                   </div>
@@ -1079,6 +1177,8 @@ export default function MaterialsManager({
                       const provName = provObj ? provObj.empresa : (alt.proveidorId ? 'Proveïdor sense assignar' : '-- Seleccionar --');
                       const fabName = fabObj ? fabObj.fabricant : (alt.fabricantId ? 'Fabricant assignat' : 'Sense fabricant');
                       const isExpanded = expandedAltId === alt.id;
+                      const altFactor = getSupplierPackagingFactor(alt.unitatCompraId);
+                      const altIsPack = altFactor > 1;
 
                       return (
                         <div
@@ -1102,7 +1202,7 @@ export default function MaterialsManager({
                                 <span className="text-slate-400 font-medium">{fabName}</span>
                                 {alt.preu > 0 && (
                                   <span className="ml-2.5 font-mono text-amber-400 font-semibold">
-                                    {Number(alt.preu).toFixed(2)} €
+                                    {Number(alt.preu).toFixed(2)} € / {formData.unitat}
                                   </span>
                                 )}
                                 {alt.codi && (
@@ -1254,7 +1354,7 @@ export default function MaterialsManager({
                                       if (e.target.value === '__new__') {
                                         handleQuickAddPackaging(alt.originalIndex);
                                       } else {
-                                        handleUpdateSupplier(alt.originalIndex, 'unitatCompraId', e.target.value);
+                                        handleUpdateSupplierPackaging(alt.originalIndex, e.target.value);
                                       }
                                     }}
                                     className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
@@ -1270,16 +1370,50 @@ export default function MaterialsManager({
                                 </div>
                               </div>
 
-                              {/* Fila 3: Preu | Termini | Enllaç */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              {/* Fila 3: Preu / Pack (si factor > 1) + Preu / u + Termini + Enllaç */}
+                              <div className={`grid grid-cols-1 ${altIsPack ? 'sm:grid-cols-2 md:grid-cols-4' : 'md:grid-cols-3'} gap-3`}>
+                                {altIsPack && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
+                                      <span className="text-[10px] text-amber-400 font-mono">×{altFactor}</span>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={alt.preuPack !== undefined ? alt.preuPack : ''}
+                                      onChange={(e) => handleUpdateSupplierPricePack(alt.originalIndex, parseFloat(e.target.value) || 0)}
+                                      className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                                        isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                      }`}
+                                      placeholder="P. ex. 19.90"
+                                    />
+                                  </div>
+                                )}
+
                                 <div>
-                                  <label className="block text-slate-400 mb-1 font-medium">Preu (€ / {formData.unitat})</label>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-slate-400 font-medium">
+                                      {altIsPack ? `Preu / u (€ / ${formData.unitat})` : `Preu (€ / ${formData.unitat})`}
+                                    </label>
+                                    {altIsPack && (
+                                      <span className="text-[10px] text-emerald-400 font-mono" title={`Calculat: ${alt.preuPack || 0} € ÷ ${altFactor}`}>
+                                        ÷{altFactor}
+                                      </span>
+                                    )}
+                                  </div>
                                   <input
                                     type="number"
                                     step="any"
-                                    value={alt.preu !== undefined ? alt.preu : 0}
-                                    onChange={(e) => handleUpdateSupplier(alt.originalIndex, 'preu', parseFloat(e.target.value) || 0)}
+                                    value={
+                                      alt.preu !== undefined 
+                                        ? (Number.isInteger(alt.preu) ? alt.preu : Number(alt.preu.toFixed(4))) 
+                                        : 0
+                                    }
+                                    onChange={(e) => handleUpdateSupplierUnitPrice(alt.originalIndex, parseFloat(e.target.value) || 0)}
                                     className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
+                                      altIsPack ? 'border-amber-500/40 text-amber-300' : ''
+                                    } ${
                                       isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                                     }`}
                                   />
@@ -1322,7 +1456,7 @@ export default function MaterialsManager({
                                   className={`w-full p-2 rounded-xl border outline-none resize-none ${
                                     isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                                   }`}
-                                  placeholder="Condicions especials, descomptes..."
+                                  placeholder="Observacions per a aquest proveïdor..."
                                 />
                               </div>
                             </div>
