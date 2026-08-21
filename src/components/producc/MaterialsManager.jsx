@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Layers, Plus, Search, Edit2, Trash2, ExternalLink, Package, Building2, 
-  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon
+  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 
@@ -39,6 +39,7 @@ export default function MaterialsManager({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [expandedAltId, setExpandedAltId] = useState(null);
+  const [enlargedImage, setEnlargedImage] = useState(null);
 
   // Estat del Formulari del Material
   const [formData, setFormData] = useState({
@@ -671,13 +672,26 @@ export default function MaterialsManager({
             isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
           }`}>
             {/* Capçalera Modal */}
-            <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+            <div className={`flex items-center justify-between px-6 py-3.5 border-b shrink-0 ${
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
-              <h3 className="text-base sm:text-lg font-bold font-serif flex items-center gap-2">
-                <Layers className="w-5 h-5 text-amber-500" />
-                {editingMaterial ? 'Editar Material' : 'Nou Material'}
-              </h3>
+              <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
+                <Layers className="w-5 h-5 text-amber-500 shrink-0" />
+                <span className="text-base sm:text-lg font-bold font-serif text-slate-200 shrink-0">
+                  {editingMaterial ? 'Editar Material:' : 'Nou Material:'}
+                </span>
+                <input
+                  type="text"
+                  required
+                  form="material-modal-form"
+                  value={formData.material}
+                  onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                  className={`flex-1 min-w-[180px] max-w-md px-3 py-1.5 rounded-xl border outline-none font-semibold text-sm sm:text-base text-amber-400 transition-all ${
+                    isDark ? 'bg-slate-950/90 border-slate-800 focus:border-amber-500/70' : 'bg-white border-slate-300 focus:border-amber-500'
+                  }`}
+                  placeholder="P. ex. Contraxapat Til·ler 2 mm"
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
@@ -703,71 +717,24 @@ export default function MaterialsManager({
               {/* 1. DADES BÀSIQUES DEL MATERIAL */}
               <div className="space-y-4 text-xs">
                 
-                {/* Fila 1: Nom del Material + Grup/Categoria */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-8">
-                    <label className="block text-slate-400 mb-1 font-medium">Nom del Material *</label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.material}
-                      onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                      className={`w-full p-2.5 rounded-xl border outline-none font-semibold ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                      placeholder="P. ex. Contraxapat Til·ler 2 mm"
-                    />
-                  </div>
-
-                  <div className="md:col-span-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-400 font-medium">Grup / Categoria</label>
-                      <button
-                        type="button"
-                        onClick={handleQuickAddGrup}
-                        className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
-                        title="Afegir nou grup"
-                      >
-                        <Plus className="w-3 h-3" /> Nou
-                      </button>
-                    </div>
-                    <select
-                      value={formData.grupId}
-                      onChange={(e) => {
-                        if (e.target.value === '__new__') {
-                          handleQuickAddGrup();
-                        } else {
-                          setFormData({ ...formData, grupId: e.target.value });
-                        }
-                      }}
-                      className={`w-full p-2.5 rounded-xl border outline-none cursor-pointer ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      {[...grups].sort((a, b) => (a.grup || '').localeCompare(b.grup || '', 'ca')).map(g => (
-                        <option key={g.id} value={g.id}>{g.grup}</option>
-                      ))}
-                      <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou grup...</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Fila 2: Descripció + URL Imatge (esquerra) & Previsualització d'Imatge quadrada (dreta) */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
-                  <div className="md:col-span-8 flex flex-col justify-between">
-                    <div className="flex-1 flex flex-col min-h-0 mb-3">
+                {/* Reorganització: Descripció + URL (Esquerra) i Grup + Imatge Reduïda Clicable (Dreta) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                  
+                  {/* Columna Esquerra (8 col): Descripció i URL Imatge */}
+                  <div className="md:col-span-8 space-y-4">
+                    <div>
                       <label className="block text-slate-400 mb-1 font-medium">Descripció</label>
                       <textarea
                         value={formData.descripcio}
                         onChange={(e) => setFormData({ ...formData, descripcio: e.target.value })}
-                        className={`w-full flex-1 min-h-[110px] p-2.5 rounded-xl border outline-none resize-none leading-relaxed ${
+                        className={`w-full h-24 p-2.5 rounded-xl border outline-none resize-none leading-relaxed ${
                           isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                         }`}
                         placeholder="Placa de fusta contraxapada de til·ler..."
                       />
                     </div>
 
-                    <div className="shrink-0 space-y-1.5">
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="block text-slate-400 font-medium">Imatge del Material</label>
                         <span className="text-[10px] text-amber-500 font-mono hidden sm:inline" title={RAW_MATERIALS_BASE_URL}>
@@ -809,26 +776,69 @@ export default function MaterialsManager({
                     </div>
                   </div>
 
-                  <div className="md:col-span-4 flex flex-col">
-                    <label className="block text-slate-400 mb-1 font-medium">Previsualització</label>
-                    <div className={`w-full aspect-square rounded-2xl border-2 overflow-hidden flex items-center justify-center relative shadow-sm ${
-                      formData.imatge 
-                        ? 'border-amber-500/40 bg-slate-950' 
-                        : isDark ? 'border-dashed border-slate-800 bg-slate-950/60 text-slate-600' : 'border-dashed border-slate-300 bg-slate-100 text-slate-400'
-                    }`}>
+                  {/* Columna Dreta (4 col): Grup / Categoria + Imatge Reduïda Clicable */}
+                  <div className="md:col-span-4 flex flex-col space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-slate-400 font-medium">Grup / Categoria</label>
+                        <button
+                          type="button"
+                          onClick={handleQuickAddGrup}
+                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          title="Afegir nou grup"
+                        >
+                          <Plus className="w-3 h-3" /> Nou
+                        </button>
+                      </div>
+                      <select
+                        value={formData.grupId}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            handleQuickAddGrup();
+                          } else {
+                            setFormData({ ...formData, grupId: e.target.value });
+                          }
+                        }}
+                        className={`w-full p-2.5 rounded-xl border outline-none cursor-pointer ${
+                          isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        {[...grups].sort((a, b) => (a.grup || '').localeCompare(b.grup || '', 'ca')).map(g => (
+                          <option key={g.id} value={g.id}>{g.grup}</option>
+                        ))}
+                        <option value="__new__" className="text-amber-500 font-semibold bg-amber-500/10">➕ Afegir nou grup...</option>
+                      </select>
+                    </div>
+
+                    {/* Previsualització Imatge Reduïda i Clicable */}
+                    <div className="flex justify-center items-center pt-1">
                       {formData.imatge ? (
-                        <img
-                          src={formData.imatge}
-                          alt={formData.material || 'Material'}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
+                        <div 
+                          onClick={() => setEnlargedImage(formData.imatge)}
+                          className="relative group cursor-pointer rounded-xl border-2 border-amber-500/40 overflow-hidden shadow-md transition-all hover:border-amber-400 hover:shadow-xl w-full h-32 flex items-center justify-center bg-slate-950"
+                          title="Fes clic per ampliar la imatge"
+                        >
+                          <img
+                            src={formData.imatge}
+                            alt={formData.material || 'Material'}
+                            className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-200"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-400 text-xs font-semibold gap-1.5 backdrop-blur-[2px]">
+                            <ZoomIn className="w-4 h-4" />
+                            <span>Ampliar</span>
+                          </div>
+                        </div>
                       ) : (
-                        <div className="text-center p-3">
-                          <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
-                          <span className="text-[10px] block opacity-70">Sense imatge</span>
+                        <div className={`w-full h-32 rounded-xl border-2 border-dashed flex items-center justify-center ${
+                          isDark ? 'border-slate-800 bg-slate-950/40 text-slate-600' : 'border-slate-300 bg-slate-100 text-slate-400'
+                        }`}>
+                          <div className="text-center p-2">
+                            <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-40" />
+                            <span className="text-[10px] block opacity-70">Sense imatge</span>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1468,6 +1478,35 @@ export default function MaterialsManager({
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Zoom d'Imatge Ampliada */}
+      {enlargedImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md cursor-pointer animate-fadeIn"
+          onClick={() => setEnlargedImage(null)}
+        >
+          <div 
+            className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl overflow-hidden flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex justify-between items-center pb-2 border-b border-slate-800 mb-2">
+              <span className="text-xs font-semibold text-slate-300 font-mono">{formData.material || 'Imatge del Material'}</span>
+              <button
+                onClick={() => setEnlargedImage(null)}
+                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Tancar (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <img
+              src={enlargedImage}
+              alt="Imatge ampliada"
+              className="w-auto h-auto max-h-[80vh] max-w-full object-contain rounded-xl shadow-lg"
+            />
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors
 } from 'lucide-react';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { STITCH_PROJECTS } from '../../data/stitchData';
@@ -14,6 +14,29 @@ import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils
 const isTextOption = (op) => {
   const t = (op.tipus || '').toLowerCase().trim();
   return t === 'text' || t === 'textarea' || t === 'string' || t === 'camp text' || t === 'camp de text';
+};
+
+// Helper per extreure les dimensions d'un tauler a partir de text (nom o descripció del material)
+const parseBoardDimensionsFromText = (text) => {
+  if (!text) return { length: 300, width: 200 };
+  const regex = /(\d+(?:[.,]\d+)?)\s*(?:x|×|\*)\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i;
+  const match = text.match(regex);
+  if (match) {
+    let l = parseFloat(match[1].replace(',', '.'));
+    let w = parseFloat(match[2].replace(',', '.'));
+    const unit = (match[3] || 'mm').toLowerCase();
+    if (unit === 'cm') {
+      l *= 10;
+      w *= 10;
+    } else if (unit === 'm') {
+      l *= 1000;
+      w *= 1000;
+    }
+    if (l > 0 && w > 0) {
+      return { length: Math.round(l), width: Math.round(w) };
+    }
+  }
+  return { length: 300, width: 200 };
 };
 
 export default function EscandallsManager({ 
@@ -40,6 +63,18 @@ export default function EscandallsManager({
 
   // Estat per a visualitzar la imatge ampliada (Lightbox)
   const [zoomedImage, setZoomedImage] = useState(null);
+
+  // Estat per a la Calculadora Flotant de Taulers de Fusta
+  const [calcModalOpen, setCalcModalOpen] = useState(false);
+  const [calcTargetIndex, setCalcTargetIndex] = useState(null);
+  const [calcBoardLength, setCalcBoardLength] = useState(300);
+  const [calcBoardWidth, setCalcBoardWidth] = useState(200);
+  const [calcPieceLength, setCalcPieceLength] = useState(100);
+  const [calcPieceWidth, setCalcPieceWidth] = useState(50);
+  const [calcMargin, setCalcMargin] = useState(5); // 5 mm per cantó (+10 mm de marge total)
+  const [calcSelectedMaterialNom, setCalcSelectedMaterialNom] = useState('');
+  const [calcSelectedMaterialUnit, setCalcSelectedMaterialUnit] = useState('u');
+  const [calcApplyMode, setCalcApplyMode] = useState('fraction'); // 'fraction' | 'm2' | 'cm2'
 
   // Finestra Flotant de Selecció de Producte (per a Nou Escandall)
   const [productPickerOpen, setProductPickerOpen] = useState(false);
@@ -282,26 +317,29 @@ export default function EscandallsManager({
     setModalOpen(false);
   };
 
-  // Helper càlculs de costos globals d'un escandall
+  // Helper càlculs de costos globals d'un escandall (Preus unitaris amb 3 decimals, totals/margins amb 2 decimals)
   const calculateCosts = (esc) => {
     if (!esc) return { costMat: 0, costOp: 0, costMaq: 0, baseCost: 0, mermeAmount: 0, totalCost: 0, marginAmount: 0, pvpRecomanat: 0 };
 
     const costMat = (esc.materials || []).reduce((acc, item) => {
+      if (!item.materialId) return acc;
       const mat = materials.find(m => m.id === item.materialId);
-      const unitCost = item.costUnitari ?? (mat ? mat.preuProPrin : 0);
-      return acc + (Number(item.quantitat || 0) * Number(unitCost || 0));
+      const unitCost = mat ? (mat.preuProPrin !== undefined ? Number(mat.preuProPrin) : Number(item.costUnitari || 0)) : Number(item.costUnitari || 0);
+      return acc + (Number(item.quantitat || 0) * unitCost);
     }, 0);
 
     const costOp = (esc.operacions || []).reduce((acc, item) => {
+      if (!item.operacioId) return acc;
       const op = operacions.find(o => o.id === item.operacioId);
-      const hourCost = item.costHora ?? (op ? op.preuHora : 0);
-      return acc + ((Number(item.tempsMinuts || 0) / 60) * Number(hourCost || 0));
+      const hourCost = op ? (op.preuHora !== undefined ? Number(op.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+      return acc + ((Number(item.tempsMinuts || 0) / 60) * hourCost);
     }, 0);
 
     const costMaq = (esc.maquinaria || []).reduce((acc, item) => {
+      if (!item.maquinaId) return acc;
       const maq = maquinaria.find(m => m.id === item.maquinaId);
-      const hourCost = item.costHora ?? (maq ? maq.preuHora : 0);
-      return acc + ((Number(item.tempsMinuts || 0) / 60) * Number(hourCost || 0));
+      const hourCost = maq ? (maq.preuHora !== undefined ? Number(maq.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+      return acc + ((Number(item.tempsMinuts || 0) / 60) * hourCost);
     }, 0);
 
     const baseCost = costMat + costOp + costMaq;
@@ -409,6 +447,100 @@ export default function EscandallsManager({
       return { ...prev, opcionsCostos: current };
     });
   };
+
+  // Obrir Calculadora de Taulers per a un material concret de la taula
+  const handleOpenCalculatorForMaterial = (idx) => {
+    const item = formData.materials[idx];
+    if (!item) return;
+    const matObj = materials.find(m => m.id === item.materialId);
+    const combinedText = `${matObj?.material || ''} ${matObj?.descripcio || ''}`;
+    const detected = parseBoardDimensionsFromText(combinedText);
+
+    setCalcTargetIndex(idx);
+    setCalcSelectedMaterialNom(matObj?.material || 'Material seleccionat');
+    setCalcSelectedMaterialUnit(matObj?.unitat || 'u');
+    setCalcBoardLength(detected.length);
+    setCalcBoardWidth(detected.width);
+    setCalcPieceLength(100);
+    setCalcPieceWidth(50);
+    setCalcMargin(5);
+    
+    const isM2 = matObj?.unitat?.toLowerCase() === 'm²' || matObj?.unitat?.toLowerCase() === 'm2';
+    setCalcApplyMode(isM2 ? 'm2' : 'fraction');
+    setCalcModalOpen(true);
+  };
+
+  // Obrir Calculadora de Taulers de forma general
+  const handleOpenCalculatorGeneral = () => {
+    setCalcTargetIndex(null);
+    setCalcSelectedMaterialNom('Calculadora Lliure');
+    setCalcSelectedMaterialUnit('u');
+    setCalcBoardLength(300);
+    setCalcBoardWidth(200);
+    setCalcPieceLength(100);
+    setCalcPieceWidth(50);
+    setCalcMargin(5);
+    setCalcApplyMode('fraction');
+    setCalcModalOpen(true);
+  };
+
+  // Aplicar el valor calculat al camp quantitat del material invocat
+  const handleApplyCalculatorResult = (finalValue) => {
+    if (calcTargetIndex !== null && formData.materials[calcTargetIndex]) {
+      const next = [...formData.materials];
+      next[calcTargetIndex].quantitat = finalValue;
+      setFormData({ ...formData, materials: next });
+    }
+    setCalcModalOpen(false);
+  };
+
+  // Càlculs matemàtics interns de la calculadora de taulers
+  const calcResults = useMemo(() => {
+    const bL = Math.max(1, Number(calcBoardLength) || 1);
+    const bW = Math.max(1, Number(calcBoardWidth) || 1);
+    const pL = Math.max(0, Number(calcPieceLength) || 0);
+    const pW = Math.max(0, Number(calcPieceWidth) || 0);
+    const marg = Math.max(0, Number(calcMargin) || 0);
+
+    // Mida efectiva de tall amb 5 mm de marge per cantó (+10 mm en total)
+    const effLength = pL + (marg * 2);
+    const effWidth = pW + (marg * 2);
+
+    const boardAreaMm2 = bL * bW;
+    const pieceRawAreaMm2 = pL * pW;
+    const pieceEffAreaMm2 = effLength * effWidth;
+
+    const boardAreaCm2 = boardAreaMm2 / 100;
+    const pieceEffAreaCm2 = pieceEffAreaMm2 / 100;
+    const pieceEffAreaM2 = pieceEffAreaMm2 / 1000000;
+
+    // Fracció de tauler exacte i arrodonida a 1 decimal a l'alça
+    const rawBoardFraction = boardAreaMm2 > 0 ? (pieceEffAreaMm2 / boardAreaMm2) : 0;
+    const roundedBoardFraction = Math.ceil(rawBoardFraction * 10) / 10;
+
+    // Superfície en m2 arrodonida a 1 decimal a l'alça (o valor en unitat)
+    const roundedM2 = Math.ceil(pieceEffAreaM2 * 10) / 10;
+    const roundedCm2 = Math.ceil(pieceEffAreaCm2 * 10) / 10;
+
+    // Quantes peces caben teòricament en el tauler (orientació estàndard)
+    const piecesAlongL = Math.floor(bL / effLength);
+    const piecesAlongW = Math.floor(bW / effWidth);
+    const piecesTotal = (piecesAlongL > 0 && piecesAlongW > 0) ? (piecesAlongL * piecesAlongW) : 0;
+
+    return {
+      effLength,
+      effWidth,
+      boardAreaCm2,
+      pieceRawAreaMm2,
+      pieceEffAreaCm2,
+      pieceEffAreaM2,
+      rawBoardFraction,
+      roundedBoardFraction,
+      roundedM2,
+      roundedCm2,
+      piecesTotal
+    };
+  }, [calcBoardLength, calcBoardWidth, calcPieceLength, calcPieceWidth, calcMargin]);
 
   // Recomptes per àmbit
   const countProductes = escandalls.filter(e => !e.tipus || e.tipus === 'Producte Web').length;
@@ -873,7 +1005,7 @@ export default function EscandallsManager({
 
                         <div className="text-right shrink-0">
                           {p.preu ? (
-                            <span className="font-mono font-bold text-xs text-amber-400 block">{p.preu} €</span>
+                            <span className="font-mono font-bold text-xs text-amber-400 block">{Number(p.preu).toFixed(2)} €</span>
                           ) : (
                             <span className="text-[10px] text-slate-500 block">Sense preu</span>
                           )}
@@ -988,7 +1120,7 @@ export default function EscandallsManager({
                       }`}
                     >
                       <div className="min-w-0">
-                        <span className="text-[10px] text-amber-400 font-mono block">{mw.price ? `${mw.price} €` : 'Exposició'}</span>
+                        <span className="text-[10px] text-amber-400 font-mono block">{mw.price ? `${Number(mw.price).toFixed(2)} €` : 'Exposició'}</span>
                         <h4 className="font-bold text-slate-100 text-xs truncate">{mw.title}</h4>
                       </div>
                       <span className="text-xs text-amber-400 font-semibold shrink-0 flex items-center gap-1">
@@ -1181,24 +1313,46 @@ export default function EscandallsManager({
                   })()}
 
                   {/* Taula 1: MATERIALS DE FABRICACIÓ */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                    <div className="flex items-center justify-between pb-1">
                       <span className="font-bold text-slate-200 flex items-center gap-1.5">
                         <Package className="w-4 h-4 text-amber-500" /> 1. Consum de Materials
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            materials: [...prev.materials, { materialId: materials[0]?.id || '', quantitat: 1 }]
-                          }));
-                        }}
-                        className="px-2.5 py-1 bg-amber-600/80 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer"
-                      >
-                        + Afegir Material
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleOpenCalculatorGeneral}
+                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
+                          title="Obrir Calculadora de Mides de Taulers i Peces de Fusta"
+                        >
+                          <Calculator className="w-3.5 h-3.5" />
+                          <span>Calculadora Tauler</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              materials: [...prev.materials, { materialId: '', costUnitari: 0, quantitat: 1 }]
+                            }));
+                          }}
+                          className="px-2.5 py-1 bg-amber-600/80 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors"
+                        >
+                          + Afegir Material
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Capçalera de Columnes per a Materials */}
+                    {formData.materials.length > 0 && (
+                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                        <div className="col-span-5">Material</div>
+                        <div className="col-span-2 text-left">Preu / u</div>
+                        <div className="col-span-3 text-left">Quantitat</div>
+                        <div className="col-span-1 text-left">Cost</div>
+                        <div className="col-span-1 text-right"></div>
+                      </div>
+                    )}
 
                     {formData.materials.length === 0 ? (
                       <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap material encara.</p>
@@ -1206,28 +1360,48 @@ export default function EscandallsManager({
                       <div className="space-y-2">
                         {formData.materials.map((item, idx) => {
                           const matObj = materials.find(m => m.id === item.materialId);
-                          const unitCost = item.costUnitari ?? (matObj ? matObj.preuProPrin : 0);
-                          const subtotal = Number(item.quantitat || 0) * Number(unitCost || 0);
+                          // Preu unitari amb 3 decimals directament del material de catàleg
+                          const unitCost = matObj ? (matObj.preuProPrin !== undefined ? Number(matObj.preuProPrin) : Number(item.costUnitari || 0)) : Number(item.costUnitari || 0);
+                          const subtotal = Number(item.quantitat || 0) * unitCost;
 
                           return (
                             <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                              <div className="col-span-6">
+                              {/* 1. Columna Material (Nom pur sense preu encastat) */}
+                              <div className="col-span-5">
                                 <select
-                                  value={item.materialId}
+                                  value={item.materialId || ''}
                                   onChange={(e) => {
+                                    const newMatId = e.target.value;
+                                    const newMatObj = materials.find(m => m.id === newMatId);
                                     const next = [...formData.materials];
-                                    next[idx].materialId = e.target.value;
+                                    next[idx].materialId = newMatId;
+                                    next[idx].costUnitari = newMatObj ? Number(newMatObj.preuProPrin || 0) : 0;
                                     setFormData({ ...formData, materials: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
                                 >
-                                  {materials.map(m => (
-                                    <option key={m.id} value={m.id}>{m.material} ({m.preuProPrin} € / {m.unitat})</option>
+                                  <option value="">-- Tria un material ... --</option>
+                                  {[...materials].sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca')).map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.material}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
 
-                              <div className="col-span-3 flex items-center gap-1">
+                              {/* 2. Columna Preu / u (Píndola Pròpia amb 3 Decimals) */}
+                              <div className="col-span-2 flex justify-start items-center">
+                                {matObj ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-amber-500/30 text-amber-400 font-mono text-xs font-semibold shadow-xs">
+                                    {unitCost.toFixed(3)} € / {matObj.unitat || 'u'}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                )}
+                              </div>
+
+                              {/* 3. Columna Quantitat */}
+                              <div className="col-span-3 flex items-center gap-1.5">
                                 <input
                                   type="number"
                                   step="any"
@@ -1237,16 +1411,26 @@ export default function EscandallsManager({
                                     next[idx].quantitat = parseFloat(e.target.value) || 0;
                                     setFormData({ ...formData, materials: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
                                   placeholder="Quantitat"
                                 />
-                                <span className="text-[10px] text-slate-400">{matObj?.unitat || 'u'}</span>
+                                <span className="text-[10px] text-slate-400 shrink-0 min-w-[20px]">{matObj?.unitat || 'u'}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCalculatorForMaterial(idx)}
+                                  className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 transition-all cursor-pointer shrink-0"
+                                  title="Calcular quantitat de tauler segons les mides de la peça"
+                                >
+                                  <Calculator className="w-3.5 h-3.5" />
+                                </button>
                               </div>
 
-                              <div className="col-span-2 text-right font-mono text-amber-400 font-semibold">
+                              {/* 4. Columna Cost Subtotal (2 Decimals de cara a clients / total) */}
+                              <div className="col-span-1 text-left font-mono text-amber-400 font-bold text-xs truncate">
                                 {subtotal.toFixed(2)} €
                               </div>
 
+                              {/* 5. Columna Accions */}
                               <div className="col-span-1 text-right">
                                 <button
                                   type="button"
@@ -1269,8 +1453,8 @@ export default function EscandallsManager({
                   </div>
 
                   {/* Taula 2: OPERACIONS DE TALLER */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                    <div className="flex items-center justify-between pb-1">
                       <span className="font-bold text-slate-200 flex items-center gap-1.5">
                         <Wrench className="w-4 h-4 text-emerald-500" /> 2. Operacions de Mà d'Obra (Taller)
                       </span>
@@ -1279,7 +1463,7 @@ export default function EscandallsManager({
                         onClick={() => {
                           setFormData(prev => ({
                             ...prev,
-                            operacions: [...prev.operacions, { operacioId: operacions[0]?.id || '', tempsMinuts: 10 }]
+                            operacions: [...prev.operacions, { operacioId: '', costHora: 0, tempsMinuts: 10 }]
                           }));
                         }}
                         className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer"
@@ -1288,34 +1472,62 @@ export default function EscandallsManager({
                       </button>
                     </div>
 
+                    {/* Capçalera de Columnes per a Operacions */}
+                    {formData.operacions.length > 0 && (
+                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                        <div className="col-span-5">Operació</div>
+                        <div className="col-span-2 text-left">Preu / h</div>
+                        <div className="col-span-3 text-left">Temps (minuts)</div>
+                        <div className="col-span-1 text-left">Cost</div>
+                        <div className="col-span-1 text-right"></div>
+                      </div>
+                    )}
+
                     {formData.operacions.length === 0 ? (
                       <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap operació encara.</p>
                     ) : (
                       <div className="space-y-2">
                         {formData.operacions.map((item, idx) => {
                           const opObj = operacions.find(o => o.id === item.operacioId);
-                          const hourCost = item.costHora ?? (opObj ? opObj.preuHora : 0);
-                          const subtotal = (Number(item.tempsMinuts || 0) / 60) * Number(hourCost || 0);
+                          const hourCost = opObj ? (opObj.preuHora !== undefined ? Number(opObj.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+                          const subtotal = (Number(item.tempsMinuts || 0) / 60) * hourCost;
 
                           return (
                             <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                              <div className="col-span-6">
+                              <div className="col-span-5">
                                 <select
-                                  value={item.operacioId}
+                                  value={item.operacioId || ''}
                                   onChange={(e) => {
+                                    const newOpId = e.target.value;
+                                    const newOpObj = operacions.find(o => o.id === newOpId);
                                     const next = [...formData.operacions];
-                                    next[idx].operacioId = e.target.value;
+                                    next[idx].operacioId = newOpId;
+                                    next[idx].costHora = newOpObj ? Number(newOpObj.preuHora || 0) : 0;
                                     setFormData({ ...formData, operacions: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
                                 >
-                                  {operacions.map(o => (
-                                    <option key={o.id} value={o.id}>{o.operacio} ({o.preuHora} €/h)</option>
+                                  <option value="">-- Tria una operació ... --</option>
+                                  {[...operacions].sort((a, b) => (a.operacio || '').localeCompare(b.operacio || '', 'ca')).map(o => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.operacio}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
 
-                              <div className="col-span-3 flex items-center gap-1">
+                              {/* Píndola de Preu / h amb 3 Decimals */}
+                              <div className="col-span-2 flex justify-start items-center">
+                                {opObj ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold shadow-xs">
+                                    {hourCost.toFixed(3)} €/h
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                )}
+                              </div>
+
+                              <div className="col-span-3 flex items-center gap-1.5">
                                 <input
                                   type="number"
                                   step="any"
@@ -1325,13 +1537,13 @@ export default function EscandallsManager({
                                     next[idx].tempsMinuts = parseFloat(e.target.value) || 0;
                                     setFormData({ ...formData, operacions: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
                                   placeholder="Minuts"
                                 />
-                                <span className="text-[10px] text-slate-400">min</span>
+                                <span className="text-[10px] text-slate-400 shrink-0">min</span>
                               </div>
 
-                              <div className="col-span-2 text-right font-mono text-emerald-400 font-semibold">
+                              <div className="col-span-1 text-left font-mono text-emerald-400 font-semibold text-xs truncate">
                                 {subtotal.toFixed(2)} €
                               </div>
 
@@ -1357,8 +1569,8 @@ export default function EscandallsManager({
                   </div>
 
                   {/* Taula 3: MAQUINÀRIA */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-3">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                    <div className="flex items-center justify-between pb-1">
                       <span className="font-bold text-slate-200 flex items-center gap-1.5">
                         <Cpu className="w-4 h-4 text-sky-500" /> 3. Amortització & Ús de Maquinària
                       </span>
@@ -1367,7 +1579,7 @@ export default function EscandallsManager({
                         onClick={() => {
                           setFormData(prev => ({
                             ...prev,
-                            maquinaria: [...prev.maquinaria, { maquinaId: maquinaria[0]?.id || '', tempsMinuts: 5 }]
+                            maquinaria: [...prev.maquinaria, { maquinaId: '', costHora: 0, tempsMinuts: 5 }]
                           }));
                         }}
                         className="px-2.5 py-1 bg-sky-600/80 hover:bg-sky-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer"
@@ -1376,34 +1588,62 @@ export default function EscandallsManager({
                       </button>
                     </div>
 
+                    {/* Capçalera de Columnes per a Maquinària */}
+                    {formData.maquinaria.length > 0 && (
+                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                        <div className="col-span-5">Màquina</div>
+                        <div className="col-span-2 text-left">Preu / h</div>
+                        <div className="col-span-3 text-left">Temps (minuts)</div>
+                        <div className="col-span-1 text-left">Cost</div>
+                        <div className="col-span-1 text-right"></div>
+                      </div>
+                    )}
+
                     {formData.maquinaria.length === 0 ? (
                       <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap maquinària.</p>
                     ) : (
                       <div className="space-y-2">
                         {formData.maquinaria.map((item, idx) => {
                           const maqObj = maquinaria.find(m => m.id === item.maquinaId);
-                          const hourCost = item.costHora ?? (maqObj ? maqObj.preuHora : 0);
-                          const subtotal = (Number(item.tempsMinuts || 0) / 60) * Number(hourCost || 0);
+                          const hourCost = maqObj ? (maqObj.preuHora !== undefined ? Number(maqObj.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+                          const subtotal = (Number(item.tempsMinuts || 0) / 60) * hourCost;
 
                           return (
                             <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                              <div className="col-span-6">
+                              <div className="col-span-5">
                                 <select
-                                  value={item.maquinaId}
+                                  value={item.maquinaId || ''}
                                   onChange={(e) => {
+                                    const newMaqId = e.target.value;
+                                    const newMaqObj = maquinaria.find(m => m.id === newMaqId);
                                     const next = [...formData.maquinaria];
-                                    next[idx].maquinaId = e.target.value;
+                                    next[idx].maquinaId = newMaqId;
+                                    next[idx].costHora = newMaqObj ? Number(newMaqObj.preuHora || 0) : 0;
                                     setFormData({ ...formData, maquinaria: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
                                 >
-                                  {maquinaria.map(m => (
-                                    <option key={m.id} value={m.id}>{m.maquina} ({m.preuHora} €/h)</option>
+                                  <option value="">-- Tria una màquina ... --</option>
+                                  {[...maquinaria].sort((a, b) => (a.maquina || '').localeCompare(b.maquina || '', 'ca')).map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.maquina}
+                                    </option>
                                   ))}
                                 </select>
                               </div>
 
-                              <div className="col-span-3 flex items-center gap-1">
+                              {/* Píndola de Preu / h amb 3 Decimals */}
+                              <div className="col-span-2 flex justify-start items-center">
+                                {maqObj ? (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-sky-500/30 text-sky-400 font-mono text-xs font-semibold shadow-xs">
+                                    {hourCost.toFixed(3)} €/h
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                )}
+                              </div>
+
+                              <div className="col-span-3 flex items-center gap-1.5">
                                 <input
                                   type="number"
                                   step="any"
@@ -1413,13 +1653,13 @@ export default function EscandallsManager({
                                     next[idx].tempsMinuts = parseFloat(e.target.value) || 0;
                                     setFormData({ ...formData, maquinaria: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono"
+                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
                                   placeholder="Minuts"
                                 />
-                                <span className="text-[10px] text-slate-400">min</span>
+                                <span className="text-[10px] text-slate-400 shrink-0">min</span>
                               </div>
 
-                              <div className="col-span-2 text-right font-mono text-sky-400 font-semibold">
+                              <div className="col-span-1 text-left font-mono text-sky-400 font-semibold text-xs truncate">
                                 {subtotal.toFixed(2)} €
                               </div>
 
@@ -1618,7 +1858,7 @@ export default function EscandallsManager({
                     </div>
                   </div>
 
-                  {/* Quadre Resum Econòmic */}
+                  {/* Quadre Resum Econòmic (Costos amb 2 Decimals per a client/web) */}
                   {(() => {
                     const previewCosts = calculateCosts(formData);
                     return (
@@ -1685,6 +1925,253 @@ export default function EscandallsManager({
                 </div>
               )}
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FINESTRA FLOTANT: CALCULADORA DE TAULERS I PECES DE FUSTA */}
+      {/* ========================================================================= */}
+      {calcModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs text-slate-100">
+            {/* Capçalera de la Calculadora */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <Calculator className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm font-serif text-slate-100 flex items-center gap-1.5">
+                    Calculadora de Tauler
+                  </h3>
+                  <p className="text-[10px] text-slate-400 truncate max-w-[240px]">
+                    {calcSelectedMaterialNom}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCalcModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                title="Tancar calculadora"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Cos de la Calculadora */}
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[80vh]">
+              
+              {/* 1. Mides del Tauler Brut (Tauler) */}
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-amber-400/90 flex items-center gap-1.5 text-[11px]">
+                    <Layers className="w-3.5 h-3.5" /> 1. Mides del Tauler seleccionat (mm)
+                  </label>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {calcResults.boardAreaCm2.toFixed(0)} cm²
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Llargada (mm):</span>
+                    <input
+                      type="number"
+                      value={calcBoardLength}
+                      onChange={(e) => setCalcBoardLength(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
+                      placeholder="Llargada mm"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Amplada (mm):</span>
+                    <input
+                      type="number"
+                      value={calcBoardWidth}
+                      onChange={(e) => setCalcBoardWidth(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
+                      placeholder="Amplada mm"
+                    />
+                  </div>
+                </div>
+
+                {/* Valors predefinits de tauler habituals */}
+                <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                  <span className="text-[9px] text-slate-500">Formats:</span>
+                  {[
+                    { label: '300×200', l: 300, w: 200 },
+                    { label: '300×300', l: 300, w: 300 },
+                    { label: '600×400', l: 600, w: 400 },
+                    { label: '1200×600', l: 1200, w: 600 }
+                  ].map(preset => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setCalcBoardLength(preset.l);
+                        setCalcBoardWidth(preset.w);
+                      }}
+                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] font-mono text-slate-300 border border-slate-800 cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Mides de la Peça a Tallar */}
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-sky-400 flex items-center gap-1.5 text-[11px]">
+                    <Scissors className="w-3.5 h-3.5" /> 2. Mides de la Peça a tallar (mm)
+                  </label>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    Net: {calcPieceLength} × {calcPieceWidth} mm
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Llargada peça (mm):</span>
+                    <input
+                      type="number"
+                      value={calcPieceLength}
+                      onChange={(e) => setCalcPieceLength(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
+                      placeholder="Llargada mm"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Amplada peça (mm):</span>
+                    <input
+                      type="number"
+                      value={calcPieceWidth}
+                      onChange={(e) => setCalcPieceWidth(parseFloat(e.target.value) || 0)}
+                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
+                      placeholder="Amplada mm"
+                    />
+                  </div>
+                </div>
+
+                {/* Marge de Seguretat de 5 mm */}
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-300 font-medium">Marge de seguretat:</span>
+                    <span className="text-[9px] text-slate-500">(+5 mm al voltant de la peça)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={calcMargin}
+                      onChange={(e) => setCalcMargin(parseFloat(e.target.value) || 0)}
+                      className="w-12 p-1 rounded-lg border border-slate-800 bg-slate-900 text-amber-400 font-mono text-center text-xs"
+                    />
+                    <span className="text-[10px] text-slate-400">mm</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Resultat del Càlcul i Arrodoniment */}
+              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/[0.06] space-y-3">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                    <Ruler className="w-3.5 h-3.5" /> Mida de tall efectiva (amb marge)
+                  </span>
+                  <span className="font-mono font-bold text-slate-100">
+                    {calcResults.effLength} × {calcResults.effWidth} mm
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                    <span className="text-[9px] text-slate-400 block uppercase">Superfície Peça</span>
+                    <span className="font-mono font-bold text-slate-200">
+                      {calcResults.pieceEffAreaCm2.toFixed(1)} cm²
+                    </span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                    <span className="text-[9px] text-slate-400 block uppercase">Fracció exacta</span>
+                    <span className="font-mono font-semibold text-slate-300">
+                      {calcResults.rawBoardFraction.toFixed(3)} u
+                    </span>
+                  </div>
+                </div>
+
+                {/* RESULTAT PRINCIPAL ARRODONIT A 1 DECIMAL A L'ALÇA */}
+                <div className="p-3 rounded-xl bg-slate-950 border border-amber-500/50 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block">Quantitat a aplicar:</span>
+                    <span className="text-[11px] font-bold text-amber-300">
+                      Arrodonit a 1 decimal a l'alça
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="font-mono text-xl font-extrabold text-amber-400">
+                      {calcApplyMode === 'fraction' ? calcResults.roundedBoardFraction : 
+                       calcApplyMode === 'm2' ? calcResults.roundedM2 : calcResults.roundedCm2}
+                    </span>
+                    <span className="text-[10px] font-medium text-slate-400 ml-1.5">
+                      {calcApplyMode === 'fraction' ? (calcSelectedMaterialUnit || 'u') : (calcApplyMode === 'm2' ? 'm²' : 'cm²')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tria del mode d'aplicació */}
+                <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setCalcApplyMode('fraction')}
+                    className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer transition-all ${
+                      calcApplyMode === 'fraction' ? 'bg-amber-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Fracció Tauler ({calcResults.roundedBoardFraction})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalcApplyMode('m2')}
+                    className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer transition-all ${
+                      calcApplyMode === 'm2' ? 'bg-amber-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Superfície m² ({calcResults.roundedM2})
+                  </button>
+                </div>
+              </div>
+
+              {/* Botons d'Acció de la Calculadora */}
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalcModalOpen(false)}
+                  className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer text-center"
+                >
+                  Cancel·lar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const finalVal = calcApplyMode === 'fraction' 
+                      ? calcResults.roundedBoardFraction 
+                      : (calcApplyMode === 'm2' ? calcResults.roundedM2 : calcResults.roundedCm2);
+                    handleApplyCalculatorResult(finalVal);
+                  }}
+                  className="flex-1 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {calcTargetIndex !== null ? 'Aplicar a l\'Escandall' : 'Acceptar'}
+                  </span>
+                </button>
+              </div>
+
+            </div>
           </div>
         </div>
       )}
