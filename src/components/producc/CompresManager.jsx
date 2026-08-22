@@ -4,6 +4,8 @@ import {
   Building2, Package, FileText, Copy, ExternalLink, Edit2, Trash2, X, ArrowDownRight, RefreshCw, Save 
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
+import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 export default function CompresManager({ 
   compres, setCompres, materials, setMaterials, proveidors, isDark 
@@ -336,10 +338,10 @@ export default function CompresManager({
                                 {l.quantitatRebuda || 0} {mat?.unitat || 'u'}
                               </td>
                               <td className="py-2 text-right font-mono">
-                                {Number(l.preuPactat || 0).toFixed(2)} €
+                                {formatCurrency(l.preuPactat, 2)}
                               </td>
                               <td className="py-2 text-right font-mono font-semibold text-amber-400">
-                                {(Number(l.quantitatDemanada || 0) * Number(l.preuPactat || 0)).toFixed(2)} €
+                                {formatCurrency(Number(l.quantitatDemanada || 0) * Number(l.preuPactat || 0), 2)}
                               </td>
                             </tr>
                           );
@@ -355,7 +357,7 @@ export default function CompresManager({
                     <div className="text-right">
                       <span className="text-[10px] text-slate-500 mr-2">Total Comanda:</span>
                       <span className="font-mono font-extrabold text-amber-400 text-sm">
-                        {totalComanda.toFixed(2)} €
+                        {formatCurrency(totalComanda, 2)}
                       </span>
                     </div>
                   </div>
@@ -507,13 +509,11 @@ export default function CompresManager({
 
                       <div className="md:col-span-3">
                         <label className="block text-[10px] text-slate-500 mb-1">Quantitat ({mat?.unitat || 'u'})</label>
-                        <input
-                          type="number"
-                          step="any"
+                        <DecimalInput
                           value={l.quantitatDemanada}
-                          onChange={(e) => {
+                          onChange={(e, num) => {
                             const updated = [...formData.linies];
-                            updated[idx].quantitatDemanada = parseFloat(e.target.value) || 0;
+                            updated[idx].quantitatDemanada = num;
                             setFormData({ ...formData, linies: updated });
                           }}
                           className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 text-xs font-mono"
@@ -522,13 +522,11 @@ export default function CompresManager({
 
                       <div className="md:col-span-3">
                         <label className="block text-[10px] text-slate-500 mb-1">Preu Unitari (€)</label>
-                        <input
-                          type="number"
-                          step="any"
+                        <DecimalInput
                           value={l.preuPactat}
-                          onChange={(e) => {
+                          onChange={(e, num) => {
                             const updated = [...formData.linies];
-                            updated[idx].preuPactat = parseFloat(e.target.value) || 0;
+                            updated[idx].preuPactat = num;
                             setFormData({ ...formData, linies: updated });
                           }}
                           className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 text-xs font-mono"
@@ -629,18 +627,16 @@ export default function CompresManager({
                     <div key={idx} className="p-3 rounded-xl border border-slate-800 bg-slate-950/40 flex items-center justify-between gap-4">
                       <div>
                         <h4 className="font-bold text-slate-200">{mat?.material}</h4>
-                        <span className="text-[11px] text-slate-400 font-mono">Demanat: {l.quantitatDemanada} {mat?.unitat} · Preu: {l.preuPactat} €</span>
+                        <span className="text-[11px] text-slate-400 font-mono">Demanat: {l.quantitatDemanada} {mat?.unitat} · Preu: {formatCurrency(l.preuPactat, 2)}</span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <label className="text-[11px] text-slate-400">Rebut:</label>
-                        <input
-                          type="number"
-                          step="any"
+                        <DecimalInput
                           value={l.quantitatRebuda}
-                          onChange={(e) => {
+                          onChange={(e, num) => {
                             const updated = [...receptionData.receivedLines];
-                            updated[idx].quantitatRebuda = parseFloat(e.target.value) || 0;
+                            updated[idx].quantitatRebuda = num;
                             setReceptionData({ ...receptionData, receivedLines: updated });
                           }}
                           className="w-24 p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 font-mono text-center text-xs"

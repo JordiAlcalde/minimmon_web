@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Wrench, Plus, Search, Edit2, Trash2, Clock, DollarSign, Activity, X, Save } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
+import { parseDecimal, formatDecimal, formatCurrency } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 export default function OperacionsManager({ operacions, setOperacions, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -142,7 +144,7 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
                 <div className="text-right">
                   <span className="text-[10px] text-slate-500 block">Preu / Hora</span>
                   <span className="font-mono font-bold text-amber-400 text-sm">
-                    {Number(op.preuHora || 0).toFixed(2)} €/h
+                    {formatDecimal(op.preuHora, 2)} €/h
                   </span>
                 </div>
               </div>
@@ -214,12 +216,10 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
 
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">Preu Hora de Mà d'Obra (€/h)</label>
-                <input
-                  type="number"
-                  step="any"
+                <DecimalInput
                   required
                   value={formData.preuHora}
-                  onChange={(e) => setFormData({ ...formData, preuHora: parseFloat(e.target.value) || 0 })}
+                  onChange={(e, num) => setFormData({ ...formData, preuHora: num })}
                   className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                   }`}

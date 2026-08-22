@@ -9,6 +9,8 @@ import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { STITCH_PROJECTS } from '../../data/stitchData';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
+import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 // Helper per determinar si una opció és de text lliure (gravat, inicial, etc.)
 const isTextOption = (op) => {
@@ -22,8 +24,8 @@ const parseBoardDimensionsFromText = (text) => {
   const regex = /(\d+(?:[.,]\d+)?)\s*(?:x|×|\*)\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i;
   const match = text.match(regex);
   if (match) {
-    let l = parseFloat(match[1].replace(',', '.'));
-    let w = parseFloat(match[2].replace(',', '.'));
+    let l = parseDecimal(match[1]);
+    let w = parseDecimal(match[2]);
     const unit = (match[3] || 'mm').toLowerCase();
     if (unit === 'cm') {
       l *= 10;
@@ -799,16 +801,16 @@ export default function EscandallsManager({
                   {/* 2. Bloc: Desglossament de Costos */}
                   <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[170px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
                     <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Materials ({matPct.toFixed(0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{costs.costMat.toFixed(2)} €</strong>
+                      <span className="text-slate-400">Materials ({formatDecimal(matPct, 0)}%):</span>
+                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costMat, 2)}</strong>
                     </div>
                     <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Mà d'obra ({opPct.toFixed(0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{costs.costOp.toFixed(2)} €</strong>
+                      <span className="text-slate-400">Mà d'obra ({formatDecimal(opPct, 0)}%):</span>
+                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costOp, 2)}</strong>
                     </div>
                     <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Maquinària ({maqPct.toFixed(0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{costs.costMaq.toFixed(2)} €</strong>
+                      <span className="text-slate-400">Maquinària ({formatDecimal(maqPct, 0)}%):</span>
+                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costMaq, 2)}</strong>
                     </div>
                   </div>
 
@@ -816,15 +818,15 @@ export default function EscandallsManager({
                   <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
                     <div className="text-slate-300 flex items-center justify-between">
                       <span className="text-slate-400">Cost de fabricació:</span>
-                      <strong className="font-mono text-slate-200 ml-2">{costs.totalCost.toFixed(2)} €</strong>
+                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.totalCost, 2)}</strong>
                     </div>
                     <div className="text-slate-300 flex items-center justify-between">
                       <span className="text-slate-400">Marge comercial (+{esc.margePercent || 65}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{costs.marginAmount.toFixed(2)} €</strong>
+                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.marginAmount, 2)}</strong>
                     </div>
                     <div className="text-slate-300 flex items-center justify-between">
                       <span className="text-slate-400">PVP suggerit:</span>
-                      <strong className="font-mono text-amber-400 font-bold ml-2">{costs.pvpRecomanat.toFixed(2)} €</strong>
+                      <strong className="font-mono text-amber-400 font-bold ml-2">{formatCurrency(costs.pvpRecomanat, 2)}</strong>
                     </div>
                   </div>
 
@@ -832,7 +834,7 @@ export default function EscandallsManager({
                   <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[110px] text-center flex flex-col justify-center shrink-0">
                     <span className="text-[11px] text-slate-400 font-medium">PVP Web:</span>
                     <span className="text-sm sm:text-base font-bold font-mono text-slate-100 mt-0.5">
-                      {preuWeb > 0 ? `${preuWeb.toFixed(2)} €` : `${costs.pvpRecomanat.toFixed(2)} €`}
+                      {preuWeb > 0 ? formatCurrency(preuWeb, 2) : formatCurrency(costs.pvpRecomanat, 2)}
                     </span>
                   </div>
 
@@ -1393,7 +1395,7 @@ export default function EscandallsManager({
                               <div className="col-span-2 flex justify-start items-center">
                                 {matObj ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-amber-500/30 text-amber-400 font-mono text-xs font-semibold shadow-xs">
-                                    {unitCost.toFixed(3)} € / {matObj.unitat || 'u'}
+                                    {formatDecimal(unitCost, 3)} € / {matObj.unitat || 'u'}
                                   </span>
                                 ) : (
                                   <span className="text-slate-600 font-mono text-xs">-</span>
@@ -1402,13 +1404,11 @@ export default function EscandallsManager({
 
                               {/* 3. Columna Quantitat */}
                               <div className="col-span-3 flex items-center gap-1.5">
-                                <input
-                                  type="number"
-                                  step="any"
+                                <DecimalInput
                                   value={item.quantitat}
-                                  onChange={(e) => {
+                                  onChange={(e, num) => {
                                     const next = [...formData.materials];
-                                    next[idx].quantitat = parseFloat(e.target.value) || 0;
+                                    next[idx].quantitat = num;
                                     setFormData({ ...formData, materials: next });
                                   }}
                                   className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
@@ -1427,7 +1427,7 @@ export default function EscandallsManager({
 
                               {/* 4. Columna Cost Subtotal (2 Decimals de cara a clients / total) */}
                               <div className="col-span-1 text-left font-mono text-amber-400 font-bold text-xs truncate">
-                                {subtotal.toFixed(2)} €
+                                {formatCurrency(subtotal, 2)}
                               </div>
 
                               {/* 5. Columna Accions */}
@@ -1520,7 +1520,7 @@ export default function EscandallsManager({
                               <div className="col-span-2 flex justify-start items-center">
                                 {opObj ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold shadow-xs">
-                                    {hourCost.toFixed(3)} €/h
+                                    {formatDecimal(hourCost, 3)} €/h
                                   </span>
                                 ) : (
                                   <span className="text-slate-600 font-mono text-xs">-</span>
@@ -1528,13 +1528,11 @@ export default function EscandallsManager({
                               </div>
 
                               <div className="col-span-3 flex items-center gap-1.5">
-                                <input
-                                  type="number"
-                                  step="any"
+                                <DecimalInput
                                   value={item.tempsMinuts}
-                                  onChange={(e) => {
+                                  onChange={(e, num) => {
                                     const next = [...formData.operacions];
-                                    next[idx].tempsMinuts = parseFloat(e.target.value) || 0;
+                                    next[idx].tempsMinuts = num;
                                     setFormData({ ...formData, operacions: next });
                                   }}
                                   className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
@@ -1544,7 +1542,7 @@ export default function EscandallsManager({
                               </div>
 
                               <div className="col-span-1 text-left font-mono text-emerald-400 font-semibold text-xs truncate">
-                                {subtotal.toFixed(2)} €
+                                {formatCurrency(subtotal, 2)}
                               </div>
 
                               <div className="col-span-1 text-right">
@@ -1636,7 +1634,7 @@ export default function EscandallsManager({
                               <div className="col-span-2 flex justify-start items-center">
                                 {maqObj ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-sky-500/30 text-sky-400 font-mono text-xs font-semibold shadow-xs">
-                                    {hourCost.toFixed(3)} €/h
+                                    {formatDecimal(hourCost, 3)} €/h
                                   </span>
                                 ) : (
                                   <span className="text-slate-600 font-mono text-xs">-</span>
@@ -1644,13 +1642,11 @@ export default function EscandallsManager({
                               </div>
 
                               <div className="col-span-3 flex items-center gap-1.5">
-                                <input
-                                  type="number"
-                                  step="any"
+                                <DecimalInput
                                   value={item.tempsMinuts}
-                                  onChange={(e) => {
+                                  onChange={(e, num) => {
                                     const next = [...formData.maquinaria];
-                                    next[idx].tempsMinuts = parseFloat(e.target.value) || 0;
+                                    next[idx].tempsMinuts = num;
                                     setFormData({ ...formData, maquinaria: next });
                                   }}
                                   className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
@@ -1660,7 +1656,7 @@ export default function EscandallsManager({
                               </div>
 
                               <div className="col-span-1 text-left font-mono text-sky-400 font-semibold text-xs truncate">
-                                {subtotal.toFixed(2)} €
+                                {formatCurrency(subtotal, 2)}
                               </div>
 
                               <div className="col-span-1 text-right">
@@ -1835,11 +1831,9 @@ export default function EscandallsManager({
                   <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-slate-400 mb-1 font-medium">Percentatge de Mermes / Desperdici (%)</label>
-                      <input
-                        type="number"
-                        step="any"
+                      <DecimalInput
                         value={formData.mermePercent}
-                        onChange={(e) => setFormData({ ...formData, mermePercent: parseFloat(e.target.value) || 0 })}
+                        onChange={(e, num) => setFormData({ ...formData, mermePercent: num })}
                         className="w-full p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-200 font-mono"
                         placeholder="Ex: 8"
                       />
@@ -1847,11 +1841,9 @@ export default function EscandallsManager({
 
                     <div>
                       <label className="block text-slate-400 mb-1 font-medium">Marge Comercial Desitjat (%)</label>
-                      <input
-                        type="number"
-                        step="any"
+                      <DecimalInput
                         value={formData.margePercent}
-                        onChange={(e) => setFormData({ ...formData, margePercent: parseFloat(e.target.value) || 0 })}
+                        onChange={(e, num) => setFormData({ ...formData, margePercent: num })}
                         className="w-full p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-200 font-mono"
                         placeholder="Ex: 65"
                       />
@@ -1870,40 +1862,40 @@ export default function EscandallsManager({
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
                           <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-[10px] text-slate-400 uppercase block">Cost Materials</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{previewCosts.costMat.toFixed(2)} €</span>
+                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costMat, 2)}</span>
                           </div>
 
                           <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-[10px] text-slate-400 uppercase block">Cost Mà d'Obra</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{previewCosts.costOp.toFixed(2)} €</span>
+                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costOp, 2)}</span>
                           </div>
 
                           <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
                             <span className="text-[10px] text-slate-400 uppercase block">Cost Maquinària</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{previewCosts.costMaq.toFixed(2)} €</span>
+                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costMaq, 2)}</span>
                           </div>
 
                           <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Mermes (+{formData.mermePercent}%)</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{previewCosts.mermeAmount.toFixed(2)} €</span>
+                            <span className="text-[10px] text-slate-400 uppercase block">Mermes (+{formatDecimal(formData.mermePercent, 1)}%)</span>
+                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.mermeAmount, 2)}</span>
                           </div>
                         </div>
 
                         <div className="pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
                           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                             <span className="text-[10px] text-slate-400 uppercase block">Cost Total de Fabricació</span>
-                            <span className="font-mono font-extrabold text-base text-slate-100">{previewCosts.totalCost.toFixed(2)} €</span>
+                            <span className="font-mono font-extrabold text-base text-slate-100">{formatCurrency(previewCosts.totalCost, 2)}</span>
                           </div>
 
                           <div className="p-3 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300">
-                            <span className="text-[10px] uppercase block font-semibold">PVP Recomanat (+{formData.margePercent}% marge)</span>
-                            <span className="font-mono font-extrabold text-lg block">{previewCosts.pvpRecomanat.toFixed(2)} €</span>
+                            <span className="text-[10px] uppercase block font-semibold">PVP Recomanat (+{formatDecimal(formData.margePercent, 1)}% marge)</span>
+                            <span className="font-mono font-extrabold text-lg block">{formatCurrency(previewCosts.pvpRecomanat, 2)}</span>
                           </div>
 
                           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
                             <span className="text-[10px] text-slate-400 uppercase block">Preu Actual a la Botiga Web</span>
                             <span className="font-mono font-bold text-base text-slate-200">
-                              {formData.preuWebActual > 0 ? `${Number(formData.preuWebActual).toFixed(2)} €` : 'No vinculat'}
+                              {formData.preuWebActual > 0 ? formatCurrency(formData.preuWebActual, 2) : 'No vinculat'}
                             </span>
                           </div>
                         </div>
@@ -1978,20 +1970,18 @@ export default function EscandallsManager({
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <span className="text-[10px] text-slate-400 block mb-1">Llargada (mm):</span>
-                    <input
-                      type="number"
+                    <DecimalInput
                       value={calcBoardLength}
-                      onChange={(e) => setCalcBoardLength(parseFloat(e.target.value) || 0)}
+                      onChange={(e, num) => setCalcBoardLength(num)}
                       className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
                       placeholder="Llargada mm"
                     />
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block mb-1">Amplada (mm):</span>
-                    <input
-                      type="number"
+                    <DecimalInput
                       value={calcBoardWidth}
-                      onChange={(e) => setCalcBoardWidth(parseFloat(e.target.value) || 0)}
+                      onChange={(e, num) => setCalcBoardWidth(num)}
                       className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
                       placeholder="Amplada mm"
                     />
@@ -2029,27 +2019,25 @@ export default function EscandallsManager({
                     <Scissors className="w-3.5 h-3.5" /> 2. Mides de la Peça a tallar (mm)
                   </label>
                   <span className="text-[10px] font-mono text-slate-400">
-                    Net: {calcPieceLength} × {calcPieceWidth} mm
+                    Net: {formatDecimal(calcPieceLength, 0)} × {formatDecimal(calcPieceWidth, 0)} mm
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
                     <span className="text-[10px] text-slate-400 block mb-1">Llargada peça (mm):</span>
-                    <input
-                      type="number"
+                    <DecimalInput
                       value={calcPieceLength}
-                      onChange={(e) => setCalcPieceLength(parseFloat(e.target.value) || 0)}
+                      onChange={(e, num) => setCalcPieceLength(num)}
                       className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
                       placeholder="Llargada mm"
                     />
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 block mb-1">Amplada peça (mm):</span>
-                    <input
-                      type="number"
+                    <DecimalInput
                       value={calcPieceWidth}
-                      onChange={(e) => setCalcPieceWidth(parseFloat(e.target.value) || 0)}
+                      onChange={(e, num) => setCalcPieceWidth(num)}
                       className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
                       placeholder="Amplada mm"
                     />
@@ -2063,10 +2051,9 @@ export default function EscandallsManager({
                     <span className="text-[9px] text-slate-500">(+5 mm al voltant de la peça)</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <input
-                      type="number"
+                    <DecimalInput
                       value={calcMargin}
-                      onChange={(e) => setCalcMargin(parseFloat(e.target.value) || 0)}
+                      onChange={(e, num) => setCalcMargin(num)}
                       className="w-12 p-1 rounded-lg border border-slate-800 bg-slate-900 text-amber-400 font-mono text-center text-xs"
                     />
                     <span className="text-[10px] text-slate-400">mm</span>
@@ -2089,14 +2076,14 @@ export default function EscandallsManager({
                   <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
                     <span className="text-[9px] text-slate-400 block uppercase">Superfície Peça</span>
                     <span className="font-mono font-bold text-slate-200">
-                      {calcResults.pieceEffAreaCm2.toFixed(1)} cm²
+                      {formatDecimal(calcResults.pieceEffAreaCm2, 1)} cm²
                     </span>
                   </div>
 
                   <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
                     <span className="text-[9px] text-slate-400 block uppercase">Fracció exacta</span>
                     <span className="font-mono font-semibold text-slate-300">
-                      {calcResults.rawBoardFraction.toFixed(3)} u
+                      {formatDecimal(calcResults.rawBoardFraction, 3)} u
                     </span>
                   </div>
                 </div>

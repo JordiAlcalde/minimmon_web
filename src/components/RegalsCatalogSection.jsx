@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
+import { formatDecimal, formatCurrency } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
@@ -828,7 +829,7 @@ function MiniProductCard({ product, onClick, onAddToCart }) {
           {/* Valoracions */}
           <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium pt-0.5">
             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 shrink-0" />
-            <span>{ratingScore.toFixed(1)}</span>
+            <span>{formatDecimal(ratingScore, 1)}</span>
             {commentsCount > 0 && (
               <span className="text-on-surface-variant/70 text-[10px]">({commentsCount})</span>
             )}
@@ -1098,7 +1099,7 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
       const dataUrl = event.target.result;
       const isImg = file.type.startsWith('image/');
       const formattedSize = file.size > 1024 * 1024
-        ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        ? `${formatDecimal(file.size / (1024 * 1024), 1)} MB`
         : `${Math.round(file.size / 1024)} KB`;
 
       const fileObj = {

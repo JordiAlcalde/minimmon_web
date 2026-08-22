@@ -5,6 +5,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
 import { Sparkles } from 'lucide-react';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
+import { formatDecimal } from '../utils/numberUtils';
 import { StarRating } from './CommentsSection';
 
 // Error Boundary per protegir la galeria de Móns Mínims davant dades inusuals
@@ -316,7 +317,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                         {(() => {
                           const projId = project.id || project.titol;
                           const rData = ratingsMap[projId] || ratingsMap[project.id] || { total: 0, sum: 0 };
-                          const avg = rData.total > 0 ? (rData.sum / rData.total).toFixed(1) : 0;
+                          const avg = rData.total > 0 ? formatDecimal(rData.sum / rData.total, 1) : 0;
 
                           return (
                             <button

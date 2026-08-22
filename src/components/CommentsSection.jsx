@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { Star, MessageSquare, Send, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { sendTelegramCommentNotification } from '../utils/telegramUtils';
+import { formatDecimal } from '../utils/numberUtils';
 
 export function StarRating({ rating = 5, size = "w-4 h-4", interactive = false, onSelect = () => {} }) {
   const [hoverRating, setHoverRating] = useState(0);
@@ -84,7 +85,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
 
   const totalReviews = comments.length;
   const avgRating = totalReviews > 0
-    ? (comments.reduce((acc, c) => acc + (Number(c.puntuacio) || 5), 0) / totalReviews).toFixed(1)
+    ? formatDecimal(comments.reduce((acc, c) => acc + (Number(c.puntuacio) || 5), 0) / totalReviews, 1)
     : 0;
 
   const handleSubmit = async (e) => {

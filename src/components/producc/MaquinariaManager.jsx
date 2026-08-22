@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Cpu, Plus, Search, Edit2, Trash2, Calendar, DollarSign, Clock, Wrench, X, Save } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
+import { parseDecimal, formatDecimal, formatCurrency } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -166,7 +168,7 @@ export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark })
                 <div className="text-right">
                   <span className="text-[10px] text-slate-500 block">Cost / Hora</span>
                   <span className="font-mono font-bold text-amber-400 text-sm">
-                    {Number(m.preuHora || 0).toFixed(2)} €/h
+                    {formatDecimal(m.preuHora, 2)} €/h
                   </span>
                 </div>
               </div>
@@ -288,11 +290,9 @@ export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark })
                 </div>
                 <div>
                   <label className="block text-slate-400 mb-1 font-medium">Preu / Hora (€/h)</label>
-                  <input
-                    type="number"
-                    step="any"
+                  <DecimalInput
                     value={formData.preuHora}
-                    onChange={(e) => setFormData({ ...formData, preuHora: parseFloat(e.target.value) || 0 })}
+                    onChange={(e, num) => setFormData({ ...formData, preuHora: num })}
                     className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
                       isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                     }`}

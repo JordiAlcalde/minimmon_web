@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Plus, Search, Edit2, Trash2, X, Save, ArrowRightLeft, Hash } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
+import { parseDecimal, formatDecimal } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, materials = [], isDark }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,7 +44,7 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
 
     const parsedData = {
       unitatCompra: formData.unitatCompra.trim(),
-      factorConversio: Math.max(0.0001, parseFloat(formData.factorConversio) || 1)
+      factorConversio: Math.max(0.0001, parseDecimal(formData.factorConversio, 1))
     };
 
     if (editingUnitat) {
@@ -233,13 +235,10 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
                   <span className="text-[11px] text-amber-400 font-normal">Ex: 10 per paquet de 10u / 1 per estocar paquet</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0.0001"
+                  <DecimalInput
                     required
                     value={formData.factorConversio}
-                    onChange={(e) => setFormData({ ...formData, factorConversio: e.target.value })}
+                    onChange={(e, num) => setFormData({ ...formData, factorConversio: e.target.value })}
                     className={`w-full p-2.5 pl-9 rounded-xl border outline-none font-mono text-amber-400 font-bold ${
                       isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                     }`}

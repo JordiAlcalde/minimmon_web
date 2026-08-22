@@ -4,6 +4,8 @@ import {
   Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
+import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
+import DecimalInput from '../common/DecimalInput';
 
 // Base URL estàndard per a les imatges de materials allotjades a GitHub
 const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
@@ -228,7 +230,7 @@ export default function MaterialsManager({
     if (nom && nom.trim()) {
       const trimmed = nom.trim();
       const factorStr = window.prompt('Factor de conversió per a l\'estoc (ex: 20, o 1 si és unitari):', '1');
-      const factor = Math.max(0.0001, parseFloat(factorStr) || 1);
+      const factor = Math.max(0.0001, parseDecimal(factorStr, 1));
       const newId = getNextSequentialId('ucomp', unitatsCompra);
       const newPackaging = { id: newId, unitatCompra: trimmed, factorConversio: factor };
       if (setUnitatsCompra) setUnitatsCompra(prev => [...prev, newPackaging]);
@@ -656,7 +658,7 @@ export default function MaterialsManager({
                       {provObj ? provObj.empresa : 'Sense proveïdor'}
                     </span>
                     <span className="font-mono font-bold text-slate-100">
-                      {mat.preuProPrin !== undefined ? `${Number(mat.preuProPrin).toFixed(2)} €` : '0.00 €'} / {mat.unitat}
+                      {formatCurrency(mat.preuProPrin, 2)} / {mat.unitat}
                     </span>
                   </div>
 
@@ -869,11 +871,9 @@ export default function MaterialsManager({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                   <div>
                     <label className="block text-slate-400 mb-1 font-medium">Estoc Actual</label>
-                    <input
-                      type="number"
-                      step="any"
+                    <DecimalInput
                       value={formData.estocActual}
-                      onChange={(e) => setFormData({ ...formData, estocActual: parseFloat(e.target.value) || 0 })}
+                      onChange={(e, num) => setFormData({ ...formData, estocActual: num })}
                       className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
                         isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                       }`}
@@ -882,11 +882,9 @@ export default function MaterialsManager({
 
                   <div>
                     <label className="block text-slate-400 mb-1 font-medium">Estoc Mínim Alertes</label>
-                    <input
-                      type="number"
-                      step="any"
+                    <DecimalInput
                       value={formData.estocMinim}
-                      onChange={(e) => setFormData({ ...formData, estocMinim: parseFloat(e.target.value) || 0 })}
+                      onChange={(e, num) => setFormData({ ...formData, estocMinim: num })}
                       className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
                         isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                       }`}
@@ -1087,15 +1085,13 @@ export default function MaterialsManager({
                           <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
                           <span className="text-[10px] text-amber-400 font-mono">×{mainPackagingFactor}</span>
                         </div>
-                        <input
-                          type="number"
-                          step="any"
+                        <DecimalInput
                           value={mainSupp.preuPack !== undefined ? mainSupp.preuPack : ''}
-                          onChange={(e) => handleUpdateSupplierPricePack(mainSuppIndex, parseFloat(e.target.value) || 0)}
+                          onChange={(e, num) => handleUpdateSupplierPricePack(mainSuppIndex, num)}
                           className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
                             isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                           }`}
-                          placeholder="P. ex. 19.90"
+                          placeholder="P. ex. 19,90"
                         />
                       </div>
                     )}
@@ -1112,15 +1108,13 @@ export default function MaterialsManager({
                           </span>
                         )}
                       </div>
-                      <input
-                        type="number"
-                        step="any"
+                      <DecimalInput
                         value={
                           mainSupp.preu !== undefined 
                             ? (Number.isInteger(mainSupp.preu) ? mainSupp.preu : Number(mainSupp.preu.toFixed(4))) 
                             : 0
                         }
-                        onChange={(e) => handleUpdateSupplierUnitPrice(mainSuppIndex, parseFloat(e.target.value) || 0)}
+                        onChange={(e, num) => handleUpdateSupplierUnitPrice(mainSuppIndex, num)}
                         className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
                           mainIsPack ? 'border-amber-500/40 text-amber-300' : ''
                         } ${
@@ -1408,15 +1402,13 @@ export default function MaterialsManager({
                                       <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
                                       <span className="text-[10px] text-amber-400 font-mono">×{altFactor}</span>
                                     </div>
-                                    <input
-                                      type="number"
-                                      step="any"
+                                    <DecimalInput
                                       value={alt.preuPack !== undefined ? alt.preuPack : ''}
-                                      onChange={(e) => handleUpdateSupplierPricePack(alt.originalIndex, parseFloat(e.target.value) || 0)}
+                                      onChange={(e, num) => handleUpdateSupplierPricePack(alt.originalIndex, num)}
                                       className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
                                         isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
                                       }`}
-                                      placeholder="P. ex. 19.90"
+                                      placeholder="P. ex. 19,90"
                                     />
                                   </div>
                                 )}
@@ -1432,15 +1424,13 @@ export default function MaterialsManager({
                                       </span>
                                     )}
                                   </div>
-                                  <input
-                                    type="number"
-                                    step="any"
+                                  <DecimalInput
                                     value={
                                       alt.preu !== undefined 
                                         ? (Number.isInteger(alt.preu) ? alt.preu : Number(alt.preu.toFixed(4))) 
                                         : 0
                                     }
-                                    onChange={(e) => handleUpdateSupplierUnitPrice(alt.originalIndex, parseFloat(e.target.value) || 0)}
+                                    onChange={(e, num) => handleUpdateSupplierUnitPrice(alt.originalIndex, num)}
                                     className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
                                       altIsPack ? 'border-amber-500/40 text-amber-300' : ''
                                     } ${

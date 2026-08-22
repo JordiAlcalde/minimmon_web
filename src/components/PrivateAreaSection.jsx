@@ -5,6 +5,8 @@ import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchD
 import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
+import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../utils/numberUtils';
+import DecimalInput from './common/DecimalInput';
 import { 
   Lock, 
   Boxes,
@@ -567,12 +569,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   // --- HELPERS CÀLCUL DE PRESSUPOSTOS ---
   const computeCalculatedPrice = () => {
-    const cost = parseFloat(calcPreuCost);
+    const cost = parseDecimal(calcPreuCost);
     if (isNaN(cost) || cost <= 0) return { unitari: 0, total: 0 };
-    const fGuany = 1 + ((parseFloat(calcPercentGuany) || 0) / 100);
-    const fQuantitat = 1 + ((parseFloat(calcPercentQuantitat) || 0) / 100);
-    const fEstacional = 1 + ((parseFloat(calcPercentEstacional) || 0) / 100);
-    const fUrgent = 1 + ((parseFloat(calcPercentUrgent) || 0) / 100);
+    const fGuany = 1 + (parseDecimal(calcPercentGuany) / 100);
+    const fQuantitat = 1 + (parseDecimal(calcPercentQuantitat) / 100);
+    const fEstacional = 1 + (parseDecimal(calcPercentEstacional) / 100);
+    const fUrgent = 1 + (parseDecimal(calcPercentUrgent) / 100);
 
     const unitari = cost * fGuany * fQuantitat * fEstacional * fUrgent;
     const units = Math.max(1, parseInt(calcQuantitatUnits) || 1);
@@ -590,9 +592,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
     const { unitari, total } = computeCalculatedPrice();
     if (total > 0) {
       if (mode === 'unitari') {
-        setCalcPreuVendaFinal(unitari.toFixed(2));
+        setCalcPreuVendaFinal(formatDecimalInput(unitari.toFixed(2)));
       } else {
-        setCalcPreuVendaFinal(total.toFixed(2));
+        setCalcPreuVendaFinal(formatDecimalInput(total.toFixed(2)));
       }
     } else {
       alert("Primer introdueix un preu de cost vàlid per fer el càlcul.");
@@ -625,12 +627,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
       alert("El nom o concepte de l'article és obligatori.");
       return;
     }
-    const costNum = parseFloat(calcPreuCost);
+    const costNum = parseDecimal(calcPreuCost);
     if (isNaN(costNum) || costNum <= 0) {
       alert("S'ha d'introduir un preu de cost vàlid extraït d'Odoo.");
       return;
     }
-    const finalVendaNum = parseFloat(calcPreuVendaFinal);
+    const finalVendaNum = parseDecimal(calcPreuVendaFinal);
     if (isNaN(finalVendaNum) || finalVendaNum <= 0) {
       alert("S'ha d'introduir un preu de venda final vàlid (o prémer 'Transmetre al Preu de Venda').");
       return;
@@ -652,10 +654,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
         resenyaManual: calcResenyaManual.trim(),
         preuCost: costNum,
         percentatges: {
-          guany: parseFloat(calcPercentGuany) || 0,
-          quantitat: parseFloat(calcPercentQuantitat) || 0,
-          estacional: parseFloat(calcPercentEstacional) || 0,
-          urgent: parseFloat(calcPercentUrgent) || 0,
+          guany: parseDecimal(calcPercentGuany),
+          quantitat: parseDecimal(calcPercentQuantitat),
+          estacional: parseDecimal(calcPercentEstacional),
+          urgent: parseDecimal(calcPercentUrgent),
         },
         preuCalculatUnitari: preuCalculatUnitari,
         preuCalculatTotal: preuCalculatTotal,
@@ -2204,10 +2206,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <div className="flex items-center gap-3 self-end md:self-auto">
                             <div className="text-right">
                               <div className="text-xs text-on-surface-variant">
-                                Preu Venda Previ: <strong className="text-emerald-700 dark:text-emerald-300 text-sm font-mono">{Number(match.preuVendaFinal).toFixed(2)} €</strong>
+                                Preu Venda Previ: <strong className="text-emerald-700 dark:text-emerald-300 text-sm font-mono">{formatCurrency(match.preuVendaFinal, 2)}</strong>
                               </div>
                               <div className="text-[10px] font-mono text-on-surface-variant">
-                                Cost base Odoo: {Number(match.preuCost).toFixed(2)} €
+                                Cost base Odoo: {formatCurrency(match.preuCost, 2)}
                               </div>
                             </div>
 
@@ -2244,13 +2246,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         </span>
                       </div>
                       <div className="relative">
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                        <DecimalInput
                           value={calcPreuCost}
                           onChange={(e) => setCalcPreuCost(e.target.value)}
-                          placeholder="0.00"
+                          placeholder="0,00"
                           className="w-full pl-10 pr-12 py-3 rounded-lg bg-surface border border-primary/30 text-lg font-mono font-bold text-primary focus:outline-none focus:border-primary"
                           required
                         />
@@ -2301,9 +2300,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <span>📈 Guany Comercial (%)</span>
                           <span className="font-mono text-primary">{calcPercentGuany}%</span>
                         </div>
-                        <input
-                          type="number"
-                          step="0.5"
+                        <DecimalInput
                           value={calcPercentGuany}
                           onChange={(e) => setCalcPercentGuany(e.target.value)}
                           className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
@@ -2318,9 +2315,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <span>📦 Quantitat de Compra (%)</span>
                           <span className="font-mono text-primary">{calcPercentQuantitat}%</span>
                         </div>
-                        <input
-                          type="number"
-                          step="0.5"
+                        <DecimalInput
                           value={calcPercentQuantitat}
                           onChange={(e) => setCalcPercentQuantitat(e.target.value)}
                           className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
@@ -2335,9 +2330,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <span>☀️ Recàrreg Estacional (%)</span>
                           <span className="font-mono text-primary">{calcPercentEstacional}%</span>
                         </div>
-                        <input
-                          type="number"
-                          step="0.5"
+                        <DecimalInput
                           value={calcPercentEstacional}
                           onChange={(e) => setCalcPercentEstacional(e.target.value)}
                           className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
@@ -2352,9 +2345,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <span>⚡ Demanda Urgent (%)</span>
                           <span className="font-mono text-primary">{calcPercentUrgent}%</span>
                         </div>
-                        <input
-                          type="number"
-                          step="0.5"
+                        <DecimalInput
                           value={calcPercentUrgent}
                           onChange={(e) => setCalcPercentUrgent(e.target.value)}
                           className="w-full px-3 py-1.5 rounded bg-surface-container border border-outline/20 text-xs font-mono text-primary font-bold"
@@ -2389,7 +2380,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                         <div className="my-2">
                           <div className="text-3xl font-mono font-extrabold text-emerald-700 dark:text-emerald-300">
-                            {preuCalculatTotal > 0 ? `${preuCalculatTotal.toFixed(2)} €` : '0.00 €'}
+                            {preuCalculatTotal > 0 ? formatCurrency(preuCalculatTotal, 2) : '0,00 €'}
                           </div>
                           <div className="text-xs font-mono font-semibold text-emerald-800 dark:text-emerald-200 mt-0.5">
                             Preu Total Comanda ({calcQuantitatUnits} {calcQuantitatUnits === 1 ? 'unitat' : 'unitats'})
@@ -2398,14 +2389,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                         {calcQuantitatUnits > 1 && (
                           <div className="p-2 bg-emerald-600/10 rounded border border-emerald-500/20 text-xs font-mono text-emerald-900 dark:text-emerald-200 mb-2">
-                            Preu Unitari: <strong>{preuCalculatUnitari.toFixed(2)} €</strong> / unitat
+                            Preu Unitari: <strong>{formatCurrency(preuCalculatUnitari, 2)}</strong> / unitat
                           </div>
                         )}
 
                         <div className="text-[11px] text-on-surface-variant leading-tight space-y-0.5">
                           <div>Fórmula acumulativa sobre cost:</div>
                           <div className="font-mono text-[10px] text-primary">
-                            Unitari ({preuCalculatUnitari.toFixed(2)}€) = Cost ({parseFloat(calcPreuCost) || 0}€) × (1+{calcPercentGuany}%) × (1+{calcPercentQuantitat}%) × (1+{calcPercentEstacional}%) × (1+{calcPercentUrgent}%)
+                            Unitari ({formatCurrency(preuCalculatUnitari, 2)}) = Cost ({formatCurrency(parseDecimal(calcPreuCost), 2)}) × (1+{calcPercentGuany}%) × (1+{calcPercentQuantitat}%) × (1+{calcPercentEstacional}%) × (1+{calcPercentUrgent}%)
                           </div>
                         </div>
                       </div>
@@ -2416,7 +2407,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           onClick={() => handleTransmitPreuVenda('total')}
                           className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs transition-colors shadow flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          <span>Transmetre Preu Total ({preuCalculatTotal.toFixed(2)} €)</span>
+                          <span>Transmetre Preu Total ({formatCurrency(preuCalculatTotal, 2)})</span>
                           <ArrowRight className="w-4 h-4" />
                         </button>
                         {calcQuantitatUnits > 1 && (
@@ -2425,7 +2416,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             onClick={() => handleTransmitPreuVenda('unitari')}
                             className="w-full py-1.5 bg-surface hover:bg-surface-container border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-semibold rounded text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                           >
-                            <span>Transmetre Preu Unitari ({preuCalculatUnitari.toFixed(2)} €)</span>
+                            <span>Transmetre Preu Unitari ({formatCurrency(preuCalculatUnitari, 2)})</span>
                           </button>
                         )}
                       </div>
@@ -2444,13 +2435,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         </div>
 
                         <div className="relative my-2">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
+                          <DecimalInput
                             value={calcPreuVendaFinal}
                             onChange={(e) => setCalcPreuVendaFinal(e.target.value)}
-                            placeholder="0.00"
+                            placeholder="0,00"
                             className="w-full pl-10 pr-12 py-2.5 rounded-lg bg-surface border border-primary text-2xl font-mono font-extrabold text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                             required
                           />
@@ -2570,7 +2558,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             </div>
                             <div className="text-right">
                               <span className="text-on-surface-variant">Preu Venda: </span>
-                              <strong className="text-emerald-700 dark:text-emerald-300 font-mono text-xs">{Number(item.preuVendaFinal).toFixed(2)} €</strong>
+                              <strong className="text-emerald-700 dark:text-emerald-300 font-mono text-xs">{formatCurrency(item.preuVendaFinal, 2)}</strong>
                             </div>
                           </div>
 
