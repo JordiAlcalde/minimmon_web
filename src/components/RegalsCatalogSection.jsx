@@ -41,6 +41,48 @@ const MOTIVATIONAL_PILLS = [
   }
 ];
 
+// Helper per calcular els sobrecostos de personalització dinàmics en temps real
+export function computeOptionSurcharges(product, selectedOptions = {}, dbEscandalls = []) {
+  if (!product) return 0;
+
+  // Trobar escandall associat
+  const escandallObj = dbEscandalls.find(e => 
+    (e.producteId && String(e.producteId) === String(product.id)) ||
+    (product.codi && e.producteCodi === product.codi) ||
+    (product.nom && String(e.producteNom).toLowerCase().trim() === String(product.nom).toLowerCase().trim())
+  );
+
+  const opcionsCostosMap = escandallObj?.opcionsCostos || product.opcionsCostos || {};
+  let totalSurcharge = 0;
+
+  Object.entries(selectedOptions || {}).forEach(([opKey, val]) => {
+    if (val === undefined || val === null) return;
+    const configForOp = opcionsCostosMap[opKey];
+
+    if (configForOp && typeof configForOp === 'object') {
+      if (typeof val === 'string') {
+        const trimmedVal = val.trim();
+        if (trimmedVal.length > 0) {
+          if (configForOp[trimmedVal]) {
+            const sur = Number(configForOp[trimmedVal].sobrecost || 0);
+            if (!isNaN(sur)) totalSurcharge += sur;
+          } else {
+            const textConfig = configForOp['Text Personalitzat'] || configForOp[Object.keys(configForOp)[0]];
+            const sur = Number(textConfig?.sobrecost || 0);
+            if (!isNaN(sur)) totalSurcharge += sur;
+          }
+        }
+      } else if (typeof val === 'object' && val.fileName) {
+        const textConfig = configForOp['Text Personalitzat'] || configForOp[Object.keys(configForOp)[0]];
+        const sur = Number(textConfig?.sobrecost || 0);
+        if (!isNaN(sur)) totalSurcharge += sur;
+      }
+    }
+  });
+
+  return totalSurcharge;
+}
+
 export default function RegalsCatalogSection({ 
   setActiveTab, 
   catalogResetKey,
@@ -51,6 +93,7 @@ export default function RegalsCatalogSection({
   const [dbProducts, setDbProducts] = useState([]);
   const [dbGammes, setDbGammes] = useState([]);
   const [dbFamilies, setDbFamilies] = useState([]);
+  const [dbEscandalls, setDbEscandalls] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Navegació de dues pàgines: 'catalog' (Vista principal de blocs de famílies) | 'products' (Vista detallada de productes)
@@ -178,10 +221,18 @@ export default function RegalsCatalogSection({
       }
     });
 
+    const qEsc = query(collection(db, "producc_escandalls"));
+    const unsubEsc = onSnapshot(qEsc, (snapshot) => {
+      if (!snapshot.empty) {
+        setDbEscandalls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    }, () => {});
+
     return () => {
       unsubProd();
       unsubGam();
       unsubFam();
+      unsubEsc();
     };
   }, []);
 
@@ -753,6 +804,7 @@ export default function RegalsCatalogSection({
                   }}
                   selectedGamma={selectedGamma}
                   dbGammes={dbGammes}
+                  dbEscandalls={dbEscandalls}
                   onSelectImageModal={setSelectedModalImage}
                   isModalView={true}
                 />
@@ -992,7 +1044,7 @@ class ProductCardErrorBoundary extends React.Component {
 }
 
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
-function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], onSelectImageModal, isModalView = false }) {
+function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], dbEscandalls = [], onSelectImageModal, isModalView = false }) {
   const [isMoreInfoOpen, setIsMoreInfoOpen] = useState(false);
 
   // Trobar si aquest producte pertany a una Gamma amb dades comunes
@@ -1137,6 +1189,11 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const currentDisplayImg = selectedImg || defaultMainImage;
 
+  // Sobrecostos dinàmics de personalització segons la configuració dels escandalls
+  const currentSurcharge = computeOptionSurcharges(product, selectedOptions, dbEscandalls);
+  const baseUnitPrice = rawPrice;
+  const finalUnitPrice = baseUnitPrice + currentSurcharge;
+
   const handleAdd = () => {
     onAddToCart({
       producteId: product.id,
@@ -1145,6 +1202,9 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
       quantitat: quantity,
       observacions: notes,
       opcionsTriades: selectedOptions,
+      preuUnitari: finalUnitPrice,
+      preuBase: baseUnitPrice,
+      sobrecost: currentSurcharge,
       terminiFabricacio: product.terminiFabricacio || ''
     });
 
@@ -1472,13 +1532,18 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
         )}
 
         {/* Preu o Preu Orientatiu */}
-        <div className="flex items-baseline gap-3 pt-3 border-t border-outline/10">
+        <div className="flex items-baseline gap-3 pt-3 border-t border-outline/10 flex-wrap">
           <span className="text-xs uppercase font-mono tracking-wider text-on-surface-variant font-semibold">
             {isBudgetRequired ? "Preu orientatiu:" : "Preu:"}
           </span>
           <span className="font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight">
-            {isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`}
+            {isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`}
           </span>
+          {currentSurcharge > 0 && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold font-mono flex items-center gap-1">
+              <span>(+{currentSurcharge.toFixed(2).replace('.', ',')} € sobrecost de personalització)</span>
+            </span>
+          )}
           {!isBudgetRequired && !isZeroPrice && (
             <span className="text-xs text-on-surface-variant/80 font-mono">(IVA inclòs)</span>
           )}

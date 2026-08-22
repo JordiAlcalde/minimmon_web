@@ -524,10 +524,10 @@ export default function EscandallsManager({
     const rawBoardFractionSingle = boardAreaMm2 > 0 ? (pieceEffAreaMm2Single / boardAreaMm2) : 0;
     const rawBoardFraction = rawBoardFractionSingle * rep;
 
-    // Arrodoniments a 1 decimal a l'alça sobre el resultat total (multiplicat per Repeticions)
-    const roundedBoardFraction = Math.ceil(rawBoardFraction * 10) / 10;
-    const roundedM2 = Math.ceil(pieceEffAreaM2Val * 10) / 10;
-    const roundedCm2 = Math.ceil(pieceEffAreaCm2Val * 10) / 10;
+    // Arrodoniments a 2 decimals a l'alça sobre el resultat total (multiplicat per Repeticions)
+    const roundedBoardFraction = Math.ceil(rawBoardFraction * 100) / 100;
+    const roundedM2 = Math.ceil(pieceEffAreaM2Val * 100) / 100;
+    const roundedCm2 = Math.ceil(pieceEffAreaCm2Val * 100) / 100;
 
     // Quantes peces d'1 sola capa caben teòricament en el tauler
     const singlePiecesAlongL = Math.floor(bL / effLength);
@@ -2123,7 +2123,7 @@ export default function EscandallsManager({
                           A TRASPASSAR
                         </span>
                         <span className={`font-mono font-extrabold text-sm ${isCalcExceeded ? 'text-rose-200' : 'text-amber-400'}`}>
-                          {formatDecimal(calcResults.roundedBoardFraction, 1)} {calcSelectedMaterialUnit || 'u'}
+                          {formatDecimal(calcResults.roundedBoardFraction, 2)} {calcSelectedMaterialUnit || 'u'}
                         </span>
                       </div>
                     </div>
