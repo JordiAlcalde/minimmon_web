@@ -8,13 +8,17 @@ import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from 
 import DecimalInput from '../common/DecimalInput';
 
 // Base URL estàndard per a les imatges de materials allotjades a GitHub
-const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
+const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/';
+const OLD_RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
 
 // Helper per netejar i garantir que la URL té el prefix GitHub complet
 const buildMaterialImageUrl = (inputVal) => {
   if (!inputVal || typeof inputVal !== 'string' || !inputVal.trim()) return '';
   const trimmed = inputVal.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.startsWith(OLD_RAW_MATERIALS_BASE_URL)) {
+      return `${RAW_MATERIALS_BASE_URL}${trimmed.slice(OLD_RAW_MATERIALS_BASE_URL.length)}`;
+    }
     return trimmed;
   }
   const cleanFilename = trimmed
@@ -25,11 +29,14 @@ const buildMaterialImageUrl = (inputVal) => {
   return `${RAW_MATERIALS_BASE_URL}${cleanFilename}`;
 };
 
-// Helper per obtenir el nom del fitxer si comença amb RAW_MATERIALS_BASE_URL
+// Helper per obtenir el nom del fitxer si comença amb RAW_MATERIALS_BASE_URL o l'antic prefix
 const getFilenameFromUrl = (imgUrl) => {
   if (!imgUrl || typeof imgUrl !== 'string') return '';
   if (imgUrl.startsWith(RAW_MATERIALS_BASE_URL)) {
     return imgUrl.slice(RAW_MATERIALS_BASE_URL.length);
+  }
+  if (imgUrl.startsWith(OLD_RAW_MATERIALS_BASE_URL)) {
+    return imgUrl.slice(OLD_RAW_MATERIALS_BASE_URL.length);
   }
   return imgUrl;
 };
@@ -79,6 +86,7 @@ export default function MaterialsManager({
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [expandedAltId, setExpandedAltId] = useState(null);
   const [enlargedImage, setEnlargedImage] = useState(null);
+  const [enlargedImageTitle, setEnlargedImageTitle] = useState('');
 
   // Estat del Formulari del Material
   const [formData, setFormData] = useState({
@@ -600,13 +608,32 @@ export default function MaterialsManager({
               <div>
                 <div className="flex items-start justify-between gap-3 mb-2.5">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div 
+                      onClick={(e) => {
+                        if (mat.imatge) {
+                          e.stopPropagation();
+                          setEnlargedImage(buildMaterialImageUrl(mat.imatge));
+                          setEnlargedImageTitle(mat.material);
+                        }
+                      }}
+                      className={`w-12 h-12 rounded-xl bg-slate-950 border overflow-hidden shrink-0 flex items-center justify-center relative group transition-all ${
+                        mat.imatge 
+                          ? 'cursor-pointer border-slate-800 hover:border-amber-400 hover:shadow-md' 
+                          : 'border-slate-800'
+                      }`}
+                      title={mat.imatge ? "Ampliar imatge del material" : mat.material}
+                    >
                       <MaterialImage 
                         src={mat.imatge} 
                         alt={mat.material} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
                         fallbackIconClass="w-6 h-6 text-amber-500/50"
                       />
+                      {mat.imatge && (
+                        <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-400 backdrop-blur-[1px]">
+                          <ZoomIn className="w-4 h-4" />
+                        </div>
+                      )}
                     </div>
 
                     <div className="min-w-0">
@@ -844,7 +871,12 @@ export default function MaterialsManager({
                     {/* Previsualització Imatge Reduïda i Clicable */}
                     <div className="flex justify-center items-center pt-1">
                       <div 
-                        onClick={() => formData.imatge && setEnlargedImage(buildMaterialImageUrl(formData.imatge))}
+                        onClick={() => {
+                          if (formData.imatge) {
+                            setEnlargedImage(buildMaterialImageUrl(formData.imatge));
+                            setEnlargedImageTitle(formData.material);
+                          }
+                        }}
                         className={`relative group rounded-xl border-2 overflow-hidden shadow-md transition-all w-full h-32 flex items-center justify-center bg-slate-950 ${
                           formData.imatge ? 'border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-xl' : 'border-dashed border-slate-800'
                         }`}
@@ -1496,16 +1528,22 @@ export default function MaterialsManager({
       {enlargedImage && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md cursor-pointer animate-fadeIn"
-          onClick={() => setEnlargedImage(null)}
+          onClick={() => {
+            setEnlargedImage(null);
+            setEnlargedImageTitle('');
+          }}
         >
           <div 
             className="relative max-w-4xl max-h-[90vh] bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-2xl overflow-hidden flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-full flex justify-between items-center pb-2 border-b border-slate-800 mb-2">
-              <span className="text-xs font-semibold text-slate-300 font-mono">{formData.material || 'Imatge del Material'}</span>
+              <span className="text-xs font-semibold text-slate-300 font-mono">{enlargedImageTitle || formData.material || 'Imatge del Material'}</span>
               <button
-                onClick={() => setEnlargedImage(null)}
+                onClick={() => {
+                  setEnlargedImage(null);
+                  setEnlargedImageTitle('');
+                }}
                 className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Tancar (Esc)"
               >
@@ -1514,7 +1552,7 @@ export default function MaterialsManager({
             </div>
             <img
               src={enlargedImage}
-              alt="Imatge ampliada"
+              alt={enlargedImageTitle || "Imatge ampliada"}
               className="w-auto h-auto max-h-[80vh] max-w-full object-contain rounded-xl shadow-lg"
             />
           </div>

@@ -3,7 +3,7 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle
 } from 'lucide-react';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { STITCH_PROJECTS } from '../../data/stitchData';
@@ -74,6 +74,7 @@ export default function EscandallsManager({
   const [calcPieceLength, setCalcPieceLength] = useState(100);
   const [calcPieceWidth, setCalcPieceWidth] = useState(50);
   const [calcMargin, setCalcMargin] = useState(5); // 5 mm per cantó (+10 mm de marge total)
+  const [calcRepeticions, setCalcRepeticions] = useState(1); // Repeticions per peces superposades/enganxades
   const [calcSelectedMaterialNom, setCalcSelectedMaterialNom] = useState('');
   const [calcSelectedMaterialUnit, setCalcSelectedMaterialUnit] = useState('u');
   const [calcApplyMode, setCalcApplyMode] = useState('fraction'); // 'fraction' | 'm2' | 'cm2'
@@ -466,6 +467,7 @@ export default function EscandallsManager({
     setCalcPieceLength(100);
     setCalcPieceWidth(50);
     setCalcMargin(5);
+    setCalcRepeticions(1);
     
     const isM2 = matObj?.unitat?.toLowerCase() === 'm²' || matObj?.unitat?.toLowerCase() === 'm2';
     setCalcApplyMode(isM2 ? 'm2' : 'fraction');
@@ -482,6 +484,7 @@ export default function EscandallsManager({
     setCalcPieceLength(100);
     setCalcPieceWidth(50);
     setCalcMargin(5);
+    setCalcRepeticions(1);
     setCalcApplyMode('fraction');
     setCalcModalOpen(true);
   };
@@ -503,46 +506,51 @@ export default function EscandallsManager({
     const pL = Math.max(0, Number(calcPieceLength) || 0);
     const pW = Math.max(0, Number(calcPieceWidth) || 0);
     const marg = Math.max(0, Number(calcMargin) || 0);
+    const rep = Math.max(1, parseDecimal(calcRepeticions, 1));
 
-    // Mida efectiva de tall amb 5 mm de marge per cantó (+10 mm en total)
+    // Mida efectiva de tall d'una peça amb marge (+2*marg mm en total)
     const effLength = pL + (marg * 2);
     const effWidth = pW + (marg * 2);
 
     const boardAreaMm2 = bL * bW;
-    const pieceRawAreaMm2 = pL * pW;
-    const pieceEffAreaMm2 = effLength * effWidth;
+    const pieceEffAreaMm2Single = effLength * effWidth;
+    const pieceEffAreaMm2 = pieceEffAreaMm2Single * rep;
 
     const boardAreaCm2 = boardAreaMm2 / 100;
-    const pieceEffAreaCm2 = pieceEffAreaMm2 / 100;
-    const pieceEffAreaM2 = pieceEffAreaMm2 / 1000000;
+    const pieceEffAreaCm2Val = pieceEffAreaMm2 / 100;
+    const pieceEffAreaM2Val = pieceEffAreaMm2 / 1000000;
 
-    // Fracció de tauler exacte i arrodonida a 1 decimal a l'alça
-    const rawBoardFraction = boardAreaMm2 > 0 ? (pieceEffAreaMm2 / boardAreaMm2) : 0;
+    // Fracció de tauler d'una peça multiplicada per Repeticions
+    const rawBoardFractionSingle = boardAreaMm2 > 0 ? (pieceEffAreaMm2Single / boardAreaMm2) : 0;
+    const rawBoardFraction = rawBoardFractionSingle * rep;
+
+    // Arrodoniments a 1 decimal a l'alça sobre el resultat total (multiplicat per Repeticions)
     const roundedBoardFraction = Math.ceil(rawBoardFraction * 10) / 10;
+    const roundedM2 = Math.ceil(pieceEffAreaM2Val * 10) / 10;
+    const roundedCm2 = Math.ceil(pieceEffAreaCm2Val * 10) / 10;
 
-    // Superfície en m2 arrodonida a 1 decimal a l'alça (o valor en unitat)
-    const roundedM2 = Math.ceil(pieceEffAreaM2 * 10) / 10;
-    const roundedCm2 = Math.ceil(pieceEffAreaCm2 * 10) / 10;
-
-    // Quantes peces caben teòricament en el tauler (orientació estàndard)
-    const piecesAlongL = Math.floor(bL / effLength);
-    const piecesAlongW = Math.floor(bW / effWidth);
-    const piecesTotal = (piecesAlongL > 0 && piecesAlongW > 0) ? (piecesAlongL * piecesAlongW) : 0;
+    // Quantes peces d'1 sola capa caben teòricament en el tauler
+    const singlePiecesAlongL = Math.floor(bL / effLength);
+    const singlePiecesAlongW = Math.floor(bW / effWidth);
+    const singlePiecesTotal = (singlePiecesAlongL > 0 && singlePiecesAlongW > 0) ? (singlePiecesAlongL * singlePiecesAlongW) : 0;
+    const piecesTotal = Math.floor(singlePiecesTotal / rep);
 
     return {
+      rep,
       effLength,
       effWidth,
       boardAreaCm2,
-      pieceRawAreaMm2,
-      pieceEffAreaCm2,
-      pieceEffAreaM2,
+      pieceRawAreaMm2: pL * pW * rep,
+      pieceEffAreaCm2: pieceEffAreaCm2Val,
+      pieceEffAreaM2: pieceEffAreaM2Val,
+      rawBoardFractionSingle,
       rawBoardFraction,
       roundedBoardFraction,
       roundedM2,
       roundedCm2,
       piecesTotal
     };
-  }, [calcBoardLength, calcBoardWidth, calcPieceLength, calcPieceWidth, calcMargin]);
+  }, [calcBoardLength, calcBoardWidth, calcPieceLength, calcPieceWidth, calcMargin, calcRepeticions]);
 
   // Recomptes per àmbit
   const countProductes = escandalls.filter(e => !e.tipus || e.tipus === 'Producte Web').length;
@@ -2044,119 +2052,129 @@ export default function EscandallsManager({
                   </div>
                 </div>
 
-                {/* Marge de Seguretat de 5 mm */}
-                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-slate-300 font-medium">Marge de seguretat:</span>
-                    <span className="text-[9px] text-slate-500">(+5 mm al voltant de la peça)</span>
+                {/* Marge de Seguretat i Repeticions */}
+                <div className="pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center justify-between bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/30">
+                    <span className="text-[10px] text-amber-300 font-bold">Marge seguretat:</span>
+                    <div className="flex items-center gap-1">
+                      <DecimalInput
+                        value={calcMargin}
+                        onChange={(e, num) => setCalcMargin(num)}
+                        className="w-12 p-1 rounded-lg border border-amber-500/50 bg-slate-950 text-amber-300 font-mono font-extrabold text-center text-xs"
+                      />
+                      <span className="text-[10px] text-amber-400 font-bold">mm</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <DecimalInput
-                      value={calcMargin}
-                      onChange={(e, num) => setCalcMargin(num)}
-                      className="w-12 p-1 rounded-lg border border-slate-800 bg-slate-900 text-amber-400 font-mono text-center text-xs"
-                    />
-                    <span className="text-[10px] text-slate-400">mm</span>
+
+                  <div className="flex items-center justify-between bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/30">
+                    <span className="text-[10px] text-amber-300 font-bold">Repeticions:</span>
+                    <div className="flex items-center gap-1">
+                      <DecimalInput
+                        value={calcRepeticions}
+                        onChange={(e, num) => setCalcRepeticions(Math.max(1, num))}
+                        className="w-12 p-1 rounded-lg border border-amber-500/50 bg-slate-950 text-amber-300 font-mono font-extrabold text-center text-xs"
+                        placeholder="1"
+                      />
+                      <span className="text-[10px] text-amber-400 font-bold">×</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 3. Resultat del Càlcul i Arrodoniment */}
-              <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/[0.06] space-y-3">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                    <Ruler className="w-3.5 h-3.5" /> Mida de tall efectiva (amb marge)
-                  </span>
-                  <span className="font-mono font-bold text-slate-100">
-                    {calcResults.effLength} × {calcResults.effWidth} mm
-                  </span>
-                </div>
+              {/* 3. Resultat del Càlcul i Píndoles Informatives */}
+              {(() => {
+                const isCalcExceeded = calcResults.rawBoardFraction > 1;
 
-                <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
-                    <span className="text-[9px] text-slate-400 block uppercase">Superfície Peça</span>
-                    <span className="font-mono font-bold text-slate-200">
-                      {formatDecimal(calcResults.pieceEffAreaCm2, 1)} cm²
-                    </span>
+                return (
+                  <div className={`p-4 rounded-xl border space-y-3 transition-all ${
+                    isCalcExceeded ? 'border-rose-500/60 bg-rose-500/[0.08]' : 'border-amber-500/40 bg-amber-500/[0.06]'
+                  }`}>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-amber-400 font-bold flex items-center gap-1.5">
+                        <Ruler className="w-3.5 h-3.5" /> Mida de tall efectiva {calcRepeticions > 1 ? `(${calcRepeticions} repeticions)` : ''}
+                      </span>
+                      <span className="font-mono font-bold text-slate-100">
+                        {calcResults.effLength} × {calcResults.effWidth} mm {calcRepeticions > 1 && <span className="text-amber-400 font-extrabold">({calcRepeticions}×)</span>}
+                      </span>
+                    </div>
+
+                    {/* Píndoles informatives de Resultats */}
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                        <span className="text-[9px] text-slate-400 block uppercase font-medium">Superfície Peça</span>
+                        <span className="font-mono font-bold text-slate-200 text-xs">
+                          {formatDecimal(calcResults.pieceEffAreaCm2, 1)} cm²
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
+                        <span className="text-[9px] text-slate-400 block uppercase font-medium">Fracció exacta</span>
+                        <span className="font-mono font-semibold text-slate-300 text-xs">
+                          {formatDecimal(calcResults.rawBoardFraction, 3)} u
+                        </span>
+                      </div>
+
+                      <div className={`p-2 rounded-lg border transition-colors ${
+                        isCalcExceeded 
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-200 shadow-lg shadow-rose-950/50' 
+                          : 'bg-amber-500/10 border-amber-500/40'
+                      }`}>
+                        <span className={`text-[9px] block uppercase font-bold ${isCalcExceeded ? 'text-rose-300' : 'text-amber-300'}`}>
+                          A TRASPASSAR
+                        </span>
+                        <span className={`font-mono font-extrabold text-sm ${isCalcExceeded ? 'text-rose-200' : 'text-amber-400'}`}>
+                          {formatDecimal(calcResults.roundedBoardFraction, 1)} {calcSelectedMaterialUnit || 'u'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isCalcExceeded && (
+                      <p className="text-[10px] text-rose-400 font-semibold text-center flex items-center justify-center gap-1 pt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                        <span>La superfície requerida excedeix la mida del tauler brut (1 u). Redueix les mides o les repeticions.</span>
+                      </p>
+                    )}
                   </div>
-
-                  <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
-                    <span className="text-[9px] text-slate-400 block uppercase">Fracció exacta</span>
-                    <span className="font-mono font-semibold text-slate-300">
-                      {formatDecimal(calcResults.rawBoardFraction, 3)} u
-                    </span>
-                  </div>
-                </div>
-
-                {/* RESULTAT PRINCIPAL ARRODONIT A 1 DECIMAL A L'ALÇA */}
-                <div className="p-3 rounded-xl bg-slate-950 border border-amber-500/50 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Quantitat a aplicar:</span>
-                    <span className="text-[11px] font-bold text-amber-300">
-                      Arrodonit a 1 decimal a l'alça
-                    </span>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="font-mono text-xl font-extrabold text-amber-400">
-                      {calcApplyMode === 'fraction' ? calcResults.roundedBoardFraction : 
-                       calcApplyMode === 'm2' ? calcResults.roundedM2 : calcResults.roundedCm2}
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-400 ml-1.5">
-                      {calcApplyMode === 'fraction' ? (calcSelectedMaterialUnit || 'u') : (calcApplyMode === 'm2' ? 'm²' : 'cm²')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tria del mode d'aplicació */}
-                <div className="flex items-center justify-center gap-1.5 pt-1 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setCalcApplyMode('fraction')}
-                    className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer transition-all ${
-                      calcApplyMode === 'fraction' ? 'bg-amber-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Fracció Tauler ({calcResults.roundedBoardFraction})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCalcApplyMode('m2')}
-                    className={`px-2.5 py-1 rounded-lg font-medium cursor-pointer transition-all ${
-                      calcApplyMode === 'm2' ? 'bg-amber-600 text-white' : 'bg-slate-950 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Superfície m² ({calcResults.roundedM2})
-                  </button>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Botons d'Acció de la Calculadora */}
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCalcModalOpen(false)}
-                  className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer text-center"
-                >
-                  Cancel·lar
-                </button>
+              {(() => {
+                const isCalcExceeded = calcResults.rawBoardFraction > 1;
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    const finalVal = calcApplyMode === 'fraction' 
-                      ? calcResults.roundedBoardFraction 
-                      : (calcApplyMode === 'm2' ? calcResults.roundedM2 : calcResults.roundedCm2);
-                    handleApplyCalculatorResult(finalVal);
-                  }}
-                  className="flex-1 py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>
-                    {calcTargetIndex !== null ? 'Aplicar a l\'Escandall' : 'Acceptar'}
-                  </span>
-                </button>
-              </div>
+                return (
+                  <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCalcModalOpen(false)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer text-center"
+                    >
+                      Cancel·lar
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isCalcExceeded}
+                      onClick={() => {
+                        if (!isCalcExceeded) {
+                          handleApplyCalculatorResult(calcResults.roundedBoardFraction);
+                        }
+                      }}
+                      className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 ${
+                        isCalcExceeded 
+                          ? 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-60' 
+                          : 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                      }`}
+                      title={isCalcExceeded ? 'No es pot aplicar: la fracció de tauler supera 1 unitat' : ''}
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {calcTargetIndex !== null ? 'Aplicar a l\'Escandall' : 'Acceptar'}
+                      </span>
+                    </button>
+                  </div>
+                );
+              })()}
 
             </div>
           </div>
