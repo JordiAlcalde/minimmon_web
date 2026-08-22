@@ -17,6 +17,7 @@ export function DecimalInput({
   min,
   max,
   step,
+  decimals = null,
   ...props
 }) {
   const [isFocused, setIsFocused] = useState(false);
@@ -28,10 +29,10 @@ export function DecimalInput({
       if (value === undefined || value === null || value === '') {
         setLocalValue('');
       } else {
-        setLocalValue(formatDecimalInput(value));
+        setLocalValue(formatDecimalInput(value, decimals));
       }
     }
-  }, [value, isFocused]);
+  }, [value, isFocused, decimals]);
 
   const handleChange = (e) => {
     let rawStr = e.target.value;
@@ -77,7 +78,7 @@ export function DecimalInput({
       if (min !== undefined && num < Number(min)) num = Number(min);
       if (max !== undefined && num > Number(max)) num = Number(max);
       
-      const formatted = formatDecimalInput(num);
+      const formatted = formatDecimalInput(num, decimals);
       setLocalValue(formatted);
     }
 
@@ -89,11 +90,11 @@ export function DecimalInput({
       {...props}
       type="text"
       inputMode="decimal"
-      value={isFocused ? localValue : (value !== undefined && value !== null && value !== '' ? formatDecimalInput(value) : localValue)}
+      value={isFocused ? localValue : (value !== undefined && value !== null && value !== '' ? formatDecimalInput(value, decimals) : localValue)}
       onChange={handleChange}
       onFocus={handleFocus}
       onBlur={handleBlur}
-      placeholder={placeholder ? formatDecimalInput(placeholder) : ''}
+      placeholder={placeholder ? formatDecimalInput(placeholder, decimals) : ''}
       className={className}
       disabled={disabled}
       readOnly={readOnly}

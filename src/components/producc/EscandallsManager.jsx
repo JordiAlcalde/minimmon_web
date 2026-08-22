@@ -15,7 +15,7 @@ import DecimalInput from '../common/DecimalInput';
 // Helper per determinar si una opció és de text lliure (gravat, inicial, etc.)
 const isTextOption = (op) => {
   const t = (op.tipus || '').toLowerCase().trim();
-  return t === 'text' || t === 'textarea' || t === 'string' || t === 'camp text' || t === 'camp de text';
+  return t === 'text' || t === 'memo' || t === 'textarea' || t === 'textllarg' || t === 'string' || t === 'camp text' || t === 'camp de text';
 };
 
 // Helper per extreure les dimensions d'un tauler a partir de text (nom o descripció del material)
@@ -89,6 +89,14 @@ export default function EscandallsManager({
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectPickerType, setProjectPickerType] = useState('stitch'); // 'stitch' | 'worlds' | 'custom'
 
+  // Finestra Flotant de Duplicació d'Escandall (Triar producte destí sense escandall)
+  const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
+  const [duplicatingSourceEsc, setDuplicatingSourceEsc] = useState(null);
+  const [duplicateMode, setDuplicateMode] = useState('unlinked'); // 'unlinked' | 'custom'
+  const [duplicateSelectedProductId, setDuplicateSelectedProductId] = useState('');
+  const [duplicateCustomName, setDuplicateCustomName] = useState('');
+  const [duplicateSearchQuery, setDuplicateSearchQuery] = useState('');
+
   // Estat del formulari de l'escandall
   const [formData, setFormData] = useState({
     producteNom: '',
@@ -118,6 +126,28 @@ export default function EscandallsManager({
       opcionsPersonalitzacio: g.customOptions || []
     }));
   }, [productes]);
+
+  // Productes del catàleg que ENCARA NO tenen cap escandall creat
+  const unlinkedProducts = useMemo(() => {
+    return allCatalogProducts.filter(p => {
+      const hasEsc = escandalls.some(e => 
+        (e.producteId && String(e.producteId) === String(p.id)) ||
+        (p.codi && e.producteCodi === p.codi) ||
+        (p.nom && String(e.producteNom).toLowerCase().trim() === String(p.nom).toLowerCase().trim())
+      );
+      return !hasEsc;
+    });
+  }, [allCatalogProducts, escandalls]);
+
+  // Productes no vinculats filtrats segons la cerca del modal de duplicació
+  const filteredUnlinkedProducts = useMemo(() => {
+    if (!duplicateSearchQuery.trim()) return unlinkedProducts;
+    const q = duplicateSearchQuery.toLowerCase().trim();
+    return unlinkedProducts.filter(p => 
+      (p.nom || p.title || '').toLowerCase().includes(q) ||
+      (p.codi || p.code || '').toLowerCase().includes(q)
+    );
+  }, [unlinkedProducts, duplicateSearchQuery]);
 
   // Gammes disponibles per al filtre de la barra superior
   const availableGammesForMain = useMemo(() => {
@@ -281,19 +311,105 @@ export default function EscandallsManager({
     setModalOpen(true);
   };
 
-  // Duplicar / Clonar Escandall
-  const handleDuplicate = (esc) => {
+  // Iniciar la Duplicació d'un Escandall (Obre el modal per triar producte o còpia lliure)
+  const handleStartDuplicate = (esc) => {
+    setDuplicatingSourceEsc(esc);
+    setDuplicateSearchQuery('');
+    const defaultCustom = `${esc.producteNom || 'Producte'} (Còpia)`;
+    setDuplicateCustomName(defaultCustom);
+
+    if (unlinkedProducts.length > 0) {
+      setDuplicateMode('unlinked');
+      setDuplicateSelectedProductId(unlinkedProducts[0].id);
+    } else {
+      setDuplicateMode('custom');
+      setDuplicateSelectedProductId('');
+    }
+    setDuplicateModalOpen(true);
+  };
+
+  // Confirmar i Executar la Duplicació sobre el producte triat
+  const handleConfirmDuplicate = () => {
+    if (!duplicatingSourceEsc) return;
+
+    let targetProduct = null;
+    let targetName = '';
+
+    if (duplicateMode === 'unlinked') {
+      targetProduct = unlinkedProducts.find(p => p.id === duplicateSelectedProductId);
+      if (!targetProduct) {
+        alert('Si us plau, selecciona un producte del catàleg que encara no tingui escandall.');
+        return;
+      }
+      targetName = targetProduct.nom || targetProduct.title || 'Producte Sense Nom';
+    } else {
+      targetName = duplicateCustomName.trim();
+      if (!targetName) {
+        alert('Si us plau, introdueix el nom del nou escandall duplicat.');
+        return;
+      }
+    }
+
     const newId = getNextSequentialId('esc', escandalls);
+    const rawImage = targetProduct
+      ? (targetProduct.imatgePrincipal || (Array.isArray(targetProduct.imatges) && targetProduct.imatges[0]) || targetProduct.image || targetProduct.imatge || '')
+      : (duplicatingSourceEsc.producteImatge || '');
+
+    // Inicialitzar / adaptar les opcions de personalització segons el producte destí
+    let newOpcionsCostos = {};
+    if (targetProduct && Array.isArray(targetProduct.opcionsPersonalitzacio) && targetProduct.opcionsPersonalitzacio.length > 0) {
+      targetProduct.opcionsPersonalitzacio.forEach(op => {
+        const titol = op.titol || 'Opció';
+        newOpcionsCostos[titol] = {};
+        
+        const sourceOpMap = duplicatingSourceEsc.opcionsCostos ? duplicatingSourceEsc.opcionsCostos[titol] : null;
+
+        if (isTextOption(op)) {
+          newOpcionsCostos[titol]['Text Personalitzat'] = sourceOpMap?.['Text Personalitzat']
+            ? { ...sourceOpMap['Text Personalitzat'] }
+            : { sobrecost: 0, tempsMinuts: 0, isBase: true };
+        } else {
+          let vList = [];
+          if (typeof op.valors === 'string') {
+            vList = op.valors.split(',').map(v => v.trim()).filter(v => v && v !== '...');
+          } else if (Array.isArray(op.valors)) {
+            vList = op.valors.filter(v => v && v !== '...');
+          }
+          if (vList.length === 0) vList = ['Opció Estàndard'];
+
+          vList.forEach((val, idx) => {
+            newOpcionsCostos[titol][val] = sourceOpMap?.[val]
+              ? { ...sourceOpMap[val] }
+              : { sobrecost: 0, tempsMinuts: 0, isBase: idx === 0 };
+          });
+        }
+      });
+    } else if (duplicatingSourceEsc.opcionsCostos) {
+      newOpcionsCostos = JSON.parse(JSON.stringify(duplicatingSourceEsc.opcionsCostos));
+    }
+
     const cloned = {
-      ...esc,
       id: newId,
-      producteNom: `${esc.producteNom} (Còpia)`,
-      materials: esc.materials ? esc.materials.map(m => ({ ...m })) : [],
-      operacions: esc.operacions ? esc.operacions.map(o => ({ ...o })) : [],
-      maquinaria: esc.maquinaria ? esc.maquinaria.map(mq => ({ ...mq })) : [],
-      opcionsCostos: esc.opcionsCostos ? JSON.parse(JSON.stringify(esc.opcionsCostos)) : {}
+      producteNom: targetName,
+      producteId: targetProduct ? targetProduct.id : `proj-${Date.now()}`,
+      producteCodi: targetProduct ? (targetProduct.codi || targetProduct.code || '') : (duplicatingSourceEsc.producteCodi || ''),
+      producteImatge: rawImage,
+      preuWebActual: targetProduct ? Number(targetProduct.preuBase !== undefined ? targetProduct.preuBase : targetProduct.preu || 0) : Number(duplicatingSourceEsc.preuWebActual || 0),
+      tipus: targetProduct ? 'Producte Web' : duplicatingSourceEsc.tipus,
+      mermePercent: duplicatingSourceEsc.mermePercent !== undefined ? duplicatingSourceEsc.mermePercent : 8,
+      margePercent: duplicatingSourceEsc.margePercent !== undefined ? duplicatingSourceEsc.margePercent : 65,
+      notes: duplicatingSourceEsc.notes || '',
+      materials: duplicatingSourceEsc.materials ? duplicatingSourceEsc.materials.map(m => ({ ...m })) : [],
+      operacions: duplicatingSourceEsc.operacions ? duplicatingSourceEsc.operacions.map(o => ({ ...o })) : [],
+      maquinaria: duplicatingSourceEsc.maquinaria ? duplicatingSourceEsc.maquinaria.map(mq => ({ ...mq })) : [],
+      opcionsCostos: newOpcionsCostos
     };
+
     setEscandalls(prev => [...prev, cloned]);
+    setDuplicateModalOpen(false);
+
+    // Obrir directament l'escandall nou duplicat per revisar/editar
+    handleOpenEdit(cloned);
   };
 
   // Eliminar escandall
@@ -318,6 +434,19 @@ export default function EscandallsManager({
       setEscandalls(prev => [...prev, { ...formData, id: newId }]);
     }
     setModalOpen(false);
+  };
+
+  // Reordenar línies (Materials, Operacions, Maquinària) amunt / avall
+  const handleMoveArrayItem = (listKey, index, direction) => {
+    setFormData(prev => {
+      const list = [...(prev[listKey] || [])];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= list.length) return prev;
+      const temp = list[index];
+      list[index] = list[targetIndex];
+      list[targetIndex] = temp;
+      return { ...prev, [listKey]: list };
+    });
   };
 
   // Helper càlculs de costos globals d'un escandall (Preus unitaris amb 3 decimals, totals/margins amb 2 decimals)
@@ -858,9 +987,9 @@ export default function EscandallsManager({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDuplicate(esc)}
+                      onClick={() => handleStartDuplicate(esc)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                      title="Duplicar / Clonar Escandall"
+                      title="Duplicar escandall a un altre producte o còpia"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
@@ -1438,8 +1567,30 @@ export default function EscandallsManager({
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
-                              {/* 5. Columna Accions */}
-                              <div className="col-span-1 text-right">
+                              {/* 5. Columna Accions (Moure Amunt, Moure Avall, Eliminar) */}
+                              <div className="col-span-1 flex items-center justify-end gap-0.5">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveArrayItem('materials', idx, -1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia amunt"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === formData.materials.length - 1}
+                                  onClick={() => handleMoveArrayItem('materials', idx, 1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === formData.materials.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia avall"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1448,7 +1599,8 @@ export default function EscandallsManager({
                                       materials: formData.materials.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1553,7 +1705,30 @@ export default function EscandallsManager({
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
-                              <div className="col-span-1 text-right">
+                              {/* Accions Operació */}
+                              <div className="col-span-1 flex items-center justify-end gap-0.5">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveArrayItem('operacions', idx, -1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia amunt"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === formData.operacions.length - 1}
+                                  onClick={() => handleMoveArrayItem('operacions', idx, 1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === formData.operacions.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia avall"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1562,7 +1737,8 @@ export default function EscandallsManager({
                                       operacions: formData.operacions.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1667,7 +1843,30 @@ export default function EscandallsManager({
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
-                              <div className="col-span-1 text-right">
+                              {/* Accions Maquinària */}
+                              <div className="col-span-1 flex items-center justify-end gap-0.5">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveArrayItem('maquinaria', idx, -1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-sky-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia amunt"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === formData.maquinaria.length - 1}
+                                  onClick={() => handleMoveArrayItem('maquinaria', idx, 1)}
+                                  className={`p-1 rounded transition-colors ${
+                                    idx === formData.maquinaria.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-sky-400 hover:bg-slate-800 cursor-pointer'
+                                  }`}
+                                  title="Moure línia avall"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1676,7 +1875,8 @@ export default function EscandallsManager({
                                       maquinaria: formData.maquinaria.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer"
+                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -1889,22 +2089,38 @@ export default function EscandallsManager({
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
-                          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Cost Total de Fabricació</span>
+                        <div className="pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center items-stretch">
+                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-center items-center">
+                            <span className="text-[10px] text-slate-400 uppercase block mb-0.5">Cost Total de Fabricació</span>
                             <span className="font-mono font-extrabold text-base text-slate-100">{formatCurrency(previewCosts.totalCost, 2)}</span>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300">
-                            <span className="text-[10px] uppercase block font-semibold">PVP Recomanat (+{formatDecimal(formData.margePercent, 1)}% marge)</span>
-                            <span className="font-mono font-extrabold text-lg block">{formatCurrency(previewCosts.pvpRecomanat, 2)}</span>
+                          <div className="p-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 flex flex-col justify-center items-center">
+                            <span className="text-[10px] uppercase block font-semibold mb-0.5">PVP Recomanat (+{formatDecimal(formData.margePercent, 1)}% marge)</span>
+                            <span className="font-mono font-extrabold text-base text-amber-300">{formatCurrency(previewCosts.pvpRecomanat, 2)}</span>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Preu Actual a la Botiga Web</span>
-                            <span className="font-mono font-bold text-base text-slate-200">
-                              {formData.preuWebActual > 0 ? formatCurrency(formData.preuWebActual, 2) : 'No vinculat'}
-                            </span>
+                          <div className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col justify-between space-y-1">
+                            <div className="flex items-center justify-between gap-1 w-full">
+                              <span className="text-[10px] text-amber-400 uppercase font-bold block">Preu Actual Botiga Web (€)</span>
+                              {previewCosts.pvpRecomanat > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData({ ...formData, preuWebActual: Math.round(previewCosts.pvpRecomanat * 100) / 100 })}
+                                  className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold cursor-pointer border border-amber-500/30 transition-colors shrink-0"
+                                  title="Copiar el PVP Recomanat al Preu Web"
+                                >
+                                  Copiar PVP
+                                </button>
+                              )}
+                            </div>
+                            <DecimalInput
+                              decimals={2}
+                              value={formData.preuWebActual}
+                              onChange={(e, num) => setFormData({ ...formData, preuWebActual: num })}
+                              className="w-full py-1 px-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono font-extrabold text-base text-center outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50"
+                              placeholder="0,00"
+                            />
                           </div>
                         </div>
                       </div>
@@ -2207,6 +2423,244 @@ export default function EscandallsManager({
               alt="Imatge ampliada"
               className="max-h-[82vh] w-auto max-w-full object-contain rounded-xl shadow-md"
             />
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FINESTRA FLOTANT: DUPLICAR ESCANDALL I TRIAR PRODUCTE DESTÍ */}
+      {/* ========================================================================= */}
+      {duplicateModalOpen && duplicatingSourceEsc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs text-slate-100">
+            {/* Capçalera */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 shrink-0">
+              <h3 className="font-bold text-base font-serif text-slate-100 flex items-center gap-2">
+                <Copy className="w-5 h-5 text-amber-500" />
+                <span>Duplicar Escandall de Fabricació</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDuplicateModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                title="Tancar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Cos del Modal */}
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+              {/* Informació de l'Escandall Origen */}
+              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] flex items-center gap-3">
+                <div className="w-11 h-11 rounded-lg bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                  {duplicatingSourceEsc.producteImatge ? (
+                    <img
+                      src={resolveProducteMediaUrl(duplicatingSourceEsc.producteImatge) || resolveMediaUrl(duplicatingSourceEsc.producteImatge)}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="w-5 h-5 text-amber-500/60" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] text-amber-400 font-mono uppercase font-semibold block">Escandall d'origen a duplicar:</span>
+                  <h4 className="font-bold text-slate-100 text-sm font-serif truncate">{duplicatingSourceEsc.producteNom}</h4>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {duplicatingSourceEsc.materials?.length || 0} materials · {duplicatingSourceEsc.operacions?.length || 0} operacions · {duplicatingSourceEsc.maquinaria?.length || 0} maquinàries
+                  </p>
+                </div>
+              </div>
+
+              {/* Selector de Pestanyes de Mode de Duplicació */}
+              <div className="space-y-3">
+                <label className="font-bold text-slate-200 text-xs block">
+                  A quin producte o destí vols aplicar aquesta duplicitat?
+                </label>
+
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuplicateMode('unlinked');
+                      if (unlinkedProducts.length > 0 && !duplicateSelectedProductId) {
+                        setDuplicateSelectedProductId(unlinkedProducts[0].id);
+                      }
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      duplicateMode === 'unlinked'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    }`}
+                  >
+                    <Package className="w-4 h-4" />
+                    <span>Producte sense escandall</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      duplicateMode === 'unlinked' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {unlinkedProducts.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateMode('custom')}
+                    className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                      duplicateMode === 'custom'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    }`}
+                  >
+                    <Palette className="w-4 h-4" />
+                    <span>Còpia lliure / Nou Projecte</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* OPCIÓ 1: Producte del catàleg que ENCARA NO té escandall */}
+              {duplicateMode === 'unlinked' && (
+                <div className="space-y-3">
+                  {unlinkedProducts.length === 0 ? (
+                    <div className="p-6 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-amber-400 mx-auto" />
+                      <p className="font-bold text-slate-200 text-xs">Tots els productes del catàleg ja tenen escandall assignat!</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed max-w-md mx-auto">
+                        No hi ha cap producte pendent a la botiga. Pots utilitzar la pestanya <strong>"Còpia lliure / Nou Projecte"</strong> per generar un escandall duplicat amb un nom personalitzat.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Cercador d'unlinked products */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Cerca un producte sense escandall per nom o codi..."
+                          value={duplicateSearchQuery}
+                          onChange={(e) => setDuplicateSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-200 outline-none focus:border-amber-500/50 text-xs"
+                        />
+                      </div>
+
+                      {/* Llista Seleccionable de Productes Sense Escandall */}
+                      <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                        {filteredUnlinkedProducts.length === 0 ? (
+                          <div className="py-6 text-center text-slate-500 text-xs italic">
+                            No s'ha trobat cap producte sense escandall que coincideixi amb la cerca.
+                          </div>
+                        ) : (
+                          filteredUnlinkedProducts.map((p) => {
+                            const isSelected = duplicateSelectedProductId === p.id;
+                            const pImg = p.imatgePrincipal || (Array.isArray(p.imatges) && p.imatges[0]) || p.image || p.imatge || '';
+                            const resolvedImg = resolveProducteMediaUrl(pImg) || resolveMediaUrl(pImg);
+                            const pPrice = Number(p.preuBase !== undefined ? p.preuBase : p.preu || 0);
+
+                            return (
+                              <div
+                                key={p.id}
+                                onClick={() => setDuplicateSelectedProductId(p.id)}
+                                onDoubleClick={() => {
+                                  setDuplicateSelectedProductId(p.id);
+                                  setTimeout(handleConfirmDuplicate, 50);
+                                }}
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'bg-amber-600/15 border-amber-500/80 text-white shadow-md'
+                                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                                    isSelected ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-700 bg-slate-900'
+                                  }`}>
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                                  </div>
+
+                                  <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {resolvedImg ? (
+                                      <img src={resolvedImg} alt={p.nom} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Package className="w-5 h-5 text-amber-500/50" />
+                                    )}
+                                  </div>
+
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <h4 className="font-bold text-xs text-slate-100 truncate" title={p.nom}>{p.nom}</h4>
+                                      {p.codi && (
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono text-slate-400 bg-slate-900 border border-slate-800">
+                                          {p.codi}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] text-slate-400 truncate">
+                                      {p.descripcio || (Array.isArray(p.opcionsPersonalitzacio) ? `${p.opcionsPersonalitzacio.length} opcions de personalització` : 'Sense descripció')}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span className="text-[10px] text-slate-400 block font-mono">PVP Web</span>
+                                  <span className="font-mono font-bold text-xs text-amber-400">
+                                    {pPrice > 0 ? formatCurrency(pPrice, 2) : '- - -'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* OPCIÓ 2: Nom personalitzat per a còpia lliure / projecte */}
+              {duplicateMode === 'custom' && (
+                <div className="space-y-3 p-4 rounded-xl border border-slate-800 bg-slate-950/60">
+                  <label className="block text-slate-300 font-semibold text-xs mb-1">
+                    Nom del nou escandall duplicat *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={duplicateCustomName}
+                    onChange={(e) => setDuplicateCustomName(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-100 font-serif text-sm outline-none focus:border-amber-500/50"
+                    placeholder="Ex: Clauer Inicial Edició Especial (Còpia)"
+                  />
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Es crearà una nova plantilla d'escandall independent amb tots els materials, temps d'operacions, maquinària i percentatges de merme/marge duplicats de l'original.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Botons d'Acció Inferiors del Modal */}
+            <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setDuplicateModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Cancel·lar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDuplicate}
+                disabled={duplicateMode === 'unlinked' && unlinkedProducts.length === 0}
+                className={`px-5 py-2 rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2 ${
+                  duplicateMode === 'unlinked' && unlinkedProducts.length === 0
+                    ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
+                }`}
+              >
+                <Copy className="w-4 h-4" />
+                <span>Duplicar i Editar Escandall</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

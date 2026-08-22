@@ -5,10 +5,10 @@ import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
-import { formatDecimal, formatCurrency } from '../utils/numberUtils';
+import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star } from 'lucide-react';
-import { DEFAULT_FAMILIES, getEffectiveProductOrder } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
@@ -256,7 +256,7 @@ export default function RegalsCatalogSection({
   };
 
   // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre o per la Cerca Activa
-  const filteredProducts = dbProducts.filter(p => {
+  const rawFilteredProducts = dbProducts.filter(p => {
     if (!p) return false;
     if (p.actiu === false) return false;
 
@@ -295,14 +295,9 @@ export default function RegalsCatalogSection({
       if (matchFam && selectedGamma === 'Tots') return true;
     }
     return false;
-  }).sort((a, b) => {
-    const gamFilter = selectedGamma !== 'Tots' ? selectedGamma : null;
-    const ordA = getEffectiveProductOrder(a, gamFilter);
-    const ordB = getEffectiveProductOrder(b, gamFilter);
-    if (ordA !== ordB) return ordA - ordB;
-
-    return String(a?.codi || '').localeCompare(String(b?.codi || ''));
   });
+
+  const filteredProducts = sortProductsWithGammaOrder(rawFilteredProducts, selectedGamma, dbGammes);
 
   // Obtenir la imatge activa per a la miniatura del filtre (amb fallback a images/tots_productes.jpg)
   const currentFamObj = activeFamilies.find(f => f && String(f.nom || '').toLowerCase() === String(selectedFamilia || '').toLowerCase());
@@ -838,11 +833,13 @@ function MiniProductCard({ product, onClick, onAddToCart }) {
   const [addedToast, setAddedToast] = useState(false);
   const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
   const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
-  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  const hasTextPrice = typeof product.preu === 'string' && isNaN(parseFloat(product.preu.replace(',', '.'))) && product.preu.trim() !== '';
+  const textPriceValue = hasTextPrice ? product.preu.trim() : (product.preuOrientatiu && isNaN(parseFloat(product.preuOrientatiu.replace(',', '.'))) ? product.preuOrientatiu.trim() : null);
+  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0);
   const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
-  const deliveryTime = product.terminiLliurament || '3-5 dies';
+  const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
   const ratingScore = product.rating || 5.0;
   const commentsCount = Array.isArray(product.comentaris) ? product.comentaris.length : (product.numComentaris || 0);
 
@@ -901,8 +898,8 @@ function MiniProductCard({ product, onClick, onAddToCart }) {
           <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider font-mono font-medium">
             {isBudgetRequired ? "Preu orientatiu" : "Preu"}
           </span>
-          <span className="font-sans text-base sm:text-lg font-bold text-primary tracking-tight">
-            {isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`}
+          <span className={textPriceValue ? "font-sans text-xs sm:text-sm font-semibold text-primary" : "font-sans text-base sm:text-lg font-bold text-primary tracking-tight"}>
+            {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`)}
           </span>
         </div>
 
@@ -1069,8 +1066,13 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   // Desplegable de Dades Comunes de la Gamma (sempre disponible si la gamma té dades comunes)
   const shouldShowMoreInfoAccordion = Boolean(hasGammaCommonData);
 
-  // Preus i Requisit de Pressupost
-  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+  // Preus i Requisit de Pressupost (Si té escandall actiu, utilitza el preu calculat de l'escandall)
+  const escData = getProductEscandallData(product, dbEscandalls);
+  const hasTextPrice = typeof product.preu === 'string' && isNaN(parseFloat(product.preu.replace(',', '.'))) && product.preu.trim() !== '';
+  const textPriceValue = hasTextPrice ? product.preu.trim() : (product.preuOrientatiu && isNaN(parseFloat(product.preuOrientatiu.replace(',', '.'))) ? product.preuOrientatiu.trim() : null);
+  const rawPrice = (escData.hasEscandall && escData.preu > 0)
+    ? escData.preu
+    : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
   const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
 
@@ -1480,15 +1482,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                         }}
                         className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-sm text-primary font-bold tracking-widest outline-none focus:border-primary uppercase"
                       />
-                    ) : isPhraseField ? (
+                    ) : (opcType === 'memo' || opcType === 'textarea' || opcType === 'textllarg' || isPhraseField) ? (
                       <textarea
                         rows={3}
-                        maxLength={80}
-                        placeholder={`Escriu aquí el teu missatge.
-Pots deixar-ho en blanc, si ho prefereixes.`}
+                        maxLength={isPhraseField ? 80 : 500}
+                        placeholder={valorsStr || `Escriu aquí el teu text o observacions.
+Pots deixar-ho en blanc si ho prefereixes.`}
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
-                        onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value.slice(0, 80) })}
-                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans resize-none"
+                        onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: isPhraseField ? e.target.value.slice(0, 80) : e.target.value })}
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans resize-y min-h-[70px]"
                       />
                     ) : (
                       <input
@@ -1524,10 +1526,10 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
         )}
 
         {/* Termini de fabricació estimat (Ubicat just abans de la quantitat) */}
-        {product.terminiFabricacio && (
+        {(product.terminiFabricacio || product.terminiLliurament) && (
           <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono pt-3 border-t border-outline/10">
             <Clock className="w-3.5 h-3.5 text-primary" />
-            <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio}</strong></span>
+            <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio || product.terminiLliurament}</strong></span>
           </div>
         )}
 
@@ -1536,8 +1538,8 @@ Pots deixar-ho en blanc, si ho prefereixes.`}
           <span className="text-xs uppercase font-mono tracking-wider text-on-surface-variant font-semibold">
             {isBudgetRequired ? "Preu orientatiu:" : "Preu:"}
           </span>
-          <span className="font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight">
-            {isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`}
+          <span className={textPriceValue ? "font-sans text-sm sm:text-base font-semibold text-primary" : "font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight"}>
+            {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`)}
           </span>
           {currentSurcharge > 0 && (
             <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold font-mono flex items-center gap-1">

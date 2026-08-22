@@ -69,10 +69,108 @@ export const DEFAULT_GAMMES = [];
 
 export const getEffectiveProductOrder = (product, gammaNom) => {
   if (!product) return 1;
-  if (gammaNom && gammaNom !== 'Totes' && gammaNom !== 'Tots' && product.ordrePerGamma && product.ordrePerGamma[gammaNom] !== undefined) {
-    return Number(product.ordrePerGamma[gammaNom]);
+  // Si hi ha una gamma específica triada (que no sigui 'Totes' / 'Tots')
+  if (gammaNom && gammaNom !== 'Totes' && gammaNom !== 'Tots') {
+    if (product.ordrePerGamma && product.ordrePerGamma[gammaNom] !== undefined) {
+      return Number(product.ordrePerGamma[gammaNom]);
+    }
   }
+
+  // Si gammaNom és null, 'Totes' o 'Tots':
+  // Utilitzem la gamma principal del producte (la primera de gammaIds) com a referència d'ordre per gamma
+  const primaryGamma = (Array.isArray(product.gammaIds) && product.gammaIds.length > 0) ? product.gammaIds[0] : null;
+  if (primaryGamma && product.ordrePerGamma && product.ordrePerGamma[primaryGamma] !== undefined) {
+    return Number(product.ordrePerGamma[primaryGamma]);
+  }
+
   return Number(product.ordre || 1);
+};
+
+export const sortProductsWithGammaOrder = (productsList, activeGamFilter, dbGammes = []) => {
+  const gamFilter = (activeGamFilter && activeGamFilter !== 'Totes' && activeGamFilter !== 'Tots') ? activeGamFilter : null;
+
+  return [...productsList].sort((a, b) => {
+    if (!gamFilter) {
+      // Quan es consulta 'Totes' / 'Tots', agrupem primer per l'ordre de la Gamma a dbGammes
+      const primaryGamA = (Array.isArray(a.gammaIds) && a.gammaIds[0]) || '';
+      const primaryGamB = (Array.isArray(b.gammaIds) && b.gammaIds[0]) || '';
+
+      if (primaryGamA !== primaryGamB) {
+        const objGamA = dbGammes.find(g => g && (g.nom || '').toLowerCase() === primaryGamA.toLowerCase());
+        const objGamB = dbGammes.find(g => g && (g.nom || '').toLowerCase() === primaryGamB.toLowerCase());
+
+        const ordGamA = objGamA ? Number(objGamA.ordre || 999) : 999;
+        const ordGamB = objGamB ? Number(objGamB.ordre || 999) : 999;
+
+        if (ordGamA !== ordGamB) return ordGamA - ordGamB;
+        return primaryGamA.localeCompare(primaryGamB, 'ca');
+      }
+    }
+
+    const ordA = getEffectiveProductOrder(a, gamFilter);
+    const ordB = getEffectiveProductOrder(b, gamFilter);
+    if (ordA !== ordB) return ordA - ordB;
+
+    return String(a?.codi || '').localeCompare(String(b?.codi || ''));
+  });
+};
+
+export const getProductEscandallData = (product, dbEscandalls = [], dbMaterials = [], dbOperacions = [], dbMaquinaria = []) => {
+  if (!product) return { hasEscandall: false, cost: 0, preu: 0, escandallObj: null };
+
+  const esc = dbEscandalls.find(e => 
+    (e.producteId && String(e.producteId) === String(product.id)) ||
+    (product.codi && e.producteCodi === product.codi) ||
+    (product.nom && String(e.producteNom).toLowerCase().trim() === String(product.nom).toLowerCase().trim())
+  );
+
+  if (!esc) {
+    const rawCost = product.cost !== undefined ? Number(product.cost) : 0;
+    const rawPreu = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? Number(product.preu) : 0);
+    return { hasEscandall: false, cost: rawCost, preu: rawPreu, escandallObj: null };
+  }
+
+  // Càlcul de costos de materials
+  const costMat = (esc.materials || []).reduce((acc, item) => {
+    if (!item.materialId) return acc;
+    const mat = dbMaterials.find(m => m.id === item.materialId);
+    const unitCost = mat ? (mat.preuProPrin !== undefined ? Number(mat.preuProPrin) : Number(item.costUnitari || 0)) : Number(item.costUnitari || 0);
+    return acc + (Number(item.quantitat || 0) * unitCost);
+  }, 0);
+
+  // Càlcul de costos d'operacions
+  const costOp = (esc.operacions || []).reduce((acc, item) => {
+    if (!item.operacioId) return acc;
+    const op = dbOperacions.find(o => o.id === item.operacioId);
+    const hourCost = op ? (op.preuHora !== undefined ? Number(op.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+    return acc + ((Number(item.tempsMinuts || 0) / 60) * hourCost);
+  }, 0);
+
+  // Càlcul de costos de maquinària
+  const costMaq = (esc.maquinaria || []).reduce((acc, item) => {
+    if (!item.maquinaId) return acc;
+    const maq = dbMaquinaria.find(m => m.id === item.maquinaId);
+    const hourCost = maq ? (maq.preuHora !== undefined ? Number(maq.preuHora) : Number(item.costHora || 0)) : Number(item.costHora || 0);
+    return acc + ((Number(item.tempsMinuts || 0) / 60) * hourCost);
+  }, 0);
+
+  const baseCost = costMat + costOp + costMaq;
+  const mermeAmount = baseCost * ((esc.mermePercent !== undefined ? Number(esc.mermePercent) : 8) / 100);
+  const totalCost = baseCost + mermeAmount;
+
+  const marginAmount = totalCost * ((esc.margePercent !== undefined ? Number(esc.margePercent) : 65) / 100);
+  const pvpRecomanat = totalCost + marginAmount;
+
+  const finalPreu = esc.preuWebActual && Number(esc.preuWebActual) > 0 
+    ? Number(esc.preuWebActual) 
+    : (pvpRecomanat > 0 ? pvpRecomanat : Number(product.preuBase || product.preu || 0));
+
+  return {
+    hasEscandall: true,
+    cost: totalCost,
+    preu: finalPreu,
+    escandallObj: esc
+  };
 };
 
 export const calculateSmartNextProductOrder = (selectedGammes, allProducts) => {
@@ -187,6 +285,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [adminFamFilter, setAdminFamFilter] = useState('Totes');
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const descTextAreaRef = useRef(null);
+
+  // Dades de producció (Escandalls, Materials, Operacions, Maquinària)
+  const [dbEscandalls, setDbEscandalls] = useState([]);
+  const [dbMaterials, setDbMaterials] = useState([]);
+  const [dbOperacions, setDbOperacions] = useState([]);
+  const [dbMaquinaria, setDbMaquinaria] = useState([]);
 
   // Valoracions state
   const [valoracionsAdmin, setValoracionsAdmin] = useState([]);
@@ -483,6 +587,34 @@ export default function PrivateAreaSection({ setActiveTab }) {
     });
 
     return () => unsubscribe();
+  }, [isAuthenticated]);
+
+  // Listen to Firestore real-time updates for 'producc_escandalls', 'producc_materials', etc.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const unsubEsc = onSnapshot(query(collection(db, "producc_escandalls")), (snapshot) => {
+      setDbEscandalls(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error producc_escandalls:", err));
+
+    const unsubMat = onSnapshot(query(collection(db, "producc_materials")), (snapshot) => {
+      setDbMaterials(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error producc_materials:", err));
+
+    const unsubOp = onSnapshot(query(collection(db, "producc_operacions")), (snapshot) => {
+      setDbOperacions(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error producc_operacions:", err));
+
+    const unsubMaq = onSnapshot(query(collection(db, "producc_maquinaria")), (snapshot) => {
+      setDbMaquinaria(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error producc_maquinaria:", err));
+
+    return () => {
+      unsubEsc();
+      unsubMat();
+      unsubOp();
+      unsubMaq();
+    };
   }, [isAuthenticated]);
 
   // Toggle status ('llegit' / 'pendent')
@@ -974,41 +1106,44 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const handleMoveProductOrder = async (currProd, targetProd) => {
     if (!currProd || !targetProd) return;
 
-    if (adminGamFilter && adminGamFilter !== 'Totes') {
-      const currOrdre = getEffectiveProductOrder(currProd, adminGamFilter);
-      const targetOrdre = getEffectiveProductOrder(targetProd, adminGamFilter);
+    const activeGam = (adminGamFilter && adminGamFilter !== 'Totes' && adminGamFilter !== 'Tots') 
+      ? adminGamFilter 
+      : ((Array.isArray(currProd.gammaIds) && currProd.gammaIds[0]) || null);
 
-      let newCurrOrdre = targetOrdre;
-      let newTargetOrdre = currOrdre;
-      if (newCurrOrdre === newTargetOrdre) {
-        newCurrOrdre = Math.max(1, targetOrdre - 1);
+    const currOrdre = getEffectiveProductOrder(currProd, activeGam);
+    const targetOrdre = getEffectiveProductOrder(targetProd, activeGam);
+
+    let newCurrOrdre = targetOrdre;
+    let newTargetOrdre = currOrdre;
+    if (newCurrOrdre === newTargetOrdre) {
+      newCurrOrdre = Math.max(1, targetOrdre - 1);
+    }
+
+    const buildUpdates = (prod, newOrd) => {
+      const updates = { ordre: newOrd };
+      const newPerGam = { ...(prod.ordrePerGamma || {}) };
+
+      if (activeGam) {
+        newPerGam[activeGam] = newOrd;
       }
 
-      const currPerGam = { ...(currProd.ordrePerGamma || {}), [adminGamFilter]: newCurrOrdre };
-      const targetPerGam = { ...(targetProd.ordrePerGamma || {}), [adminGamFilter]: newTargetOrdre };
-
-      try {
-        await updateDoc(doc(db, "productes", currProd.id), { ordrePerGamma: currPerGam });
-        await updateDoc(doc(db, "productes", targetProd.id), { ordrePerGamma: targetPerGam });
-      } catch (err) {
-        alert("Error reordenant productes: " + err.message);
-      }
-    } else {
-      const currOrdre = currProd.ordre || 1;
-      const targetOrdre = targetProd.ordre || 1;
-
-      let newCurrOrdre = targetOrdre;
-      let newTargetOrdre = currOrdre;
-      if (newCurrOrdre === newTargetOrdre) {
-        newCurrOrdre = Math.max(1, targetOrdre - 1);
+      if (Array.isArray(prod.gammaIds)) {
+        prod.gammaIds.forEach(g => {
+          newPerGam[g] = newOrd;
+        });
       }
 
-      try {
-        await updateDoc(doc(db, "productes", currProd.id), { ordre: newCurrOrdre });
-        await updateDoc(doc(db, "productes", targetProd.id), { ordre: newTargetOrdre });
-      } catch (err) {
-        alert("Error reordenant productes: " + err.message);
+      if (Object.keys(newPerGam).length > 0) {
+        updates.ordrePerGamma = newPerGam;
       }
+      return updates;
+    };
+
+    try {
+      await updateDoc(doc(db, "productes", currProd.id), buildUpdates(currProd, newCurrOrdre));
+      await updateDoc(doc(db, "productes", targetProd.id), buildUpdates(targetProd, newTargetOrdre));
+    } catch (err) {
+      alert("Error reordenant productes: " + err.message);
     }
   };
 
@@ -2939,7 +3074,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           className="bg-surface border border-outline/25 rounded px-2 py-1.5 text-xs text-primary font-mono"
                         >
                           <option value="desplegable">Desplegable</option>
-                          <option value="text">Text</option>
+                          <option value="text">Text (línia única)</option>
+                          <option value="memo">Memo / Textàrea (multilínia)</option>
                           <option value="quantitat">Quantitat</option>
                           <option value="fitxer">Fitxer</option>
                           <option value="colors">Colors</option>
@@ -2959,7 +3095,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                         <input
                           type="text"
-                          placeholder={opc.tipus === 'desplegable' ? "Valors: Noguer, Roure, Bedoll" : "Placeholder de text..."}
+                          placeholder={
+                            opc.tipus === 'desplegable'
+                              ? "Valors: Noguer, Roure, Bedoll"
+                              : opc.tipus === 'memo'
+                              ? "Text d'ajuda (ex: Escriu la teva dedicatoria...)"
+                              : "Placeholder de text..."
+                          }
                           value={opc.valors || ''}
                           onChange={(e) => {
                             const ops = [...editingProducte.opcionsPersonalitzacio];
@@ -3176,26 +3318,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </thead>
                     <tbody className="divide-y divide-outline/10">
                       {(() => {
-                        const filteredAdminProducts = dbProductesAdmin.filter(p => {
-                          if (adminFamFilter !== 'Totes') {
-                            const matchFam = (p.familaIds || []).some(f => f.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
-                              (p.gammaIds || []).some(g => g.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
-                              p.nom.toLowerCase().includes(adminFamFilter.toLowerCase());
-                            if (!matchFam) return false;
-                          }
-                          if (adminGamFilter !== 'Totes') {
-                            const matchGam = (p.gammaIds || []).some(g => g.toLowerCase().includes(adminGamFilter.toLowerCase()));
-                            if (!matchGam) return false;
-                          }
-                          return true;
-                        }).sort((a, b) => {
-                          const gamFilter = adminGamFilter !== 'Totes' ? adminGamFilter : null;
-                          const ordA = getEffectiveProductOrder(a, gamFilter);
-                          const ordB = getEffectiveProductOrder(b, gamFilter);
-                          if (ordA !== ordB) return ordA - ordB;
-
-                          return (a.codi || '').localeCompare(b.codi || '');
-                        });
+                        const filteredAdminProducts = sortProductsWithGammaOrder(
+                          dbProductesAdmin.filter(p => {
+                            if (adminFamFilter !== 'Totes') {
+                              const matchFam = (p.familaIds || []).some(f => f.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
+                                (p.gammaIds || []).some(g => g.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
+                                p.nom.toLowerCase().includes(adminFamFilter.toLowerCase());
+                              if (!matchFam) return false;
+                            }
+                            if (adminGamFilter !== 'Totes') {
+                              const matchGam = (p.gammaIds || []).some(g => g.toLowerCase().includes(adminGamFilter.toLowerCase()));
+                              if (!matchGam) return false;
+                            }
+                            return true;
+                          }),
+                          adminGamFilter,
+                          dbGammes
+                        );
 
                         if (filteredAdminProducts.length === 0) {
                           return (
@@ -3295,8 +3434,47 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               })()}
                             </td>
                             <td className="p-4 text-xs text-on-surface-variant font-medium">{(p.gammaIds || []).join(', ') || '-'}</td>
-                            <td className="p-4 font-mono text-xs text-outline">{p.cost ? `${p.cost}€` : '-'}</td>
-                            <td className="p-4 font-mono text-xs text-outline">{p.preu ? `${p.preu}€` : '-'}</td>
+                             {(() => {
+                               const escData = getProductEscandallData(p, dbEscandalls, dbMaterials, dbOperacions, dbMaquinaria);
+                               return (
+                                 <>
+                                   <td className="p-4 font-mono text-xs">
+                                     {escData.hasEscandall ? (
+                                       <div className="flex flex-col">
+                                         <span className="font-bold text-emerald-800 dark:text-emerald-300">
+                                           {formatCurrency(escData.cost, 2)}
+                                         </span>
+                                         <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-0.5">
+                                           ✓ Escandall
+                                         </span>
+                                       </div>
+                                     ) : (
+                                       <span className="text-outline">
+                                         {p.cost ? formatCurrency(p.cost, 2) : '- - -'}
+                                       </span>
+                                     )}
+                                   </td>
+                                   <td className="p-4 font-mono text-xs">
+                                     {escData.hasEscandall ? (
+                                       <div className="flex flex-col">
+                                         <span className="font-bold text-amber-800 dark:text-amber-300">
+                                           {formatCurrency(escData.preu, 2)}
+                                         </span>
+                                         <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono flex items-center gap-0.5">
+                                           ✓ Escandall
+                                         </span>
+                                       </div>
+                                     ) : (
+                                       <span className="text-outline">
+                                         {(p.preuBase !== undefined && Number(p.preuBase) > 0)
+                                           ? formatCurrency(p.preuBase, 2)
+                                           : (p.preu ? formatCurrency(p.preu, 2) : '- - -')}
+                                       </span>
+                                     )}
+                                   </td>
+                                 </>
+                               );
+                             })()}
                             <td className="p-4 text-right space-x-2">
                               <button
                                 onClick={async () => {

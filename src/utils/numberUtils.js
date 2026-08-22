@@ -52,11 +52,19 @@ export function formatCurrency(val, decimals = 2) {
 
 /**
  * Formateja un valor per al camp d'entrada (input), substituint punts per comes.
+ * Si s'especifica el nombre de decimals, arrodoneix i manté els zeros a la dreta (p. ex., 3 -> "3,00").
  * 
  * @param {string|number} val - Valor de l'input
+ * @param {number|null} decimals - Decimals a formatar (opcional)
  * @returns {string}
  */
-export function formatDecimalInput(val) {
+export function formatDecimalInput(val, decimals = null) {
   if (val === null || val === undefined || val === '') return '';
+  if (decimals !== null && decimals !== undefined && decimals >= 0) {
+    const num = parseDecimal(val, null);
+    if (num !== null && !isNaN(num)) {
+      return num.toFixed(decimals).replace('.', ',');
+    }
+  }
   return String(val).replace('.', ',');
 }
