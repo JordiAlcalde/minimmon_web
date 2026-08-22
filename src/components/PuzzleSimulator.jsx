@@ -15,7 +15,7 @@ function parsePuzzleDimensions(productNom = '') {
       return { cols: Math.min(d1, 16), rows: Math.min(d2, 16) };
     }
   }
-  return { cols: 5, rows: 5 }; // Fallback per defecte (5x5 quadrat)
+  return { cols: 4, rows: 4 }; // Fallback per defecte (4x4 quadrat)
 }
 
 /**
@@ -244,45 +244,53 @@ export default function PuzzleSimulator({
             {/* Ranures i Marcs de Fusta Cremada Làser */}
             <div className="absolute inset-0 pointer-events-none shadow-inner border border-amber-950/20"></div>
 
-            {/* Capa Retícula Vectorial Realista (SVG Jigsaw Cut Lines que cobreix el 100% de la imatge d'extrem a extrem) */}
-            <svg 
-              viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
-              className="absolute inset-0 w-full h-full pointer-events-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)]"
-            >
-              <defs>
-                {/* Filtre de Vectorització Suau Làser per a imatges que pugi l'usuari */}
-                <filter id="laserVectorizeFilter">
-                  <feColorMatrix type="saturate" values="0" result="gray" />
-                  <feComponentTransfer in="gray" result="posterized">
-                    <feFuncR type="discrete" tableValues="0.12 0.40 0.75 0.98" />
-                    <feFuncG type="discrete" tableValues="0.12 0.40 0.75 0.98" />
-                    <feFuncB type="discrete" tableValues="0.12 0.40 0.75 0.98" />
-                  </feComponentTransfer>
-                </filter>
+            {/* Capa Retícula de tall del Puzle (PNG d'alta fidelitat per a 4x4 o SVG vectorial per a altres mides) */}
+            {(cols === 4 && rows === 4) ? (
+              <img 
+                src={resolveMediaUrl('images/puzle_overlay_4x4.png')} 
+                alt="Tall Puzle 4x4" 
+                className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-90 mix-blend-multiply drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] z-10"
+              />
+            ) : (
+              <svg 
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
+                className="absolute inset-0 w-full h-full pointer-events-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] z-10"
+              >
+                <defs>
+                  {/* Filtre de Vectorització Suau Làser per a imatges que pugi l'usuari */}
+                  <filter id="laserVectorizeFilter">
+                    <feColorMatrix type="saturate" values="0" result="gray" />
+                    <feComponentTransfer in="gray" result="posterized">
+                      <feFuncR type="discrete" tableValues="0.12 0.40 0.75 0.98" />
+                      <feFuncG type="discrete" tableValues="0.12 0.40 0.75 0.98" />
+                      <feFuncB type="discrete" tableValues="0.12 0.40 0.75 0.98" />
+                    </feComponentTransfer>
+                  </filter>
 
-                <filter id="puzzleCutShadow" x="-10%" y="-10%" width="120%" height="120%">
-                  <feDropShadow dx="0.3" dy="0.4" stdDeviation="0.4" floodColor="#1A0D05" floodOpacity="0.5" />
-                </filter>
-              </defs>
+                  <filter id="puzzleCutShadow" x="-10%" y="-10%" width="120%" height="120%">
+                    <feDropShadow dx="0.3" dy="0.4" stdDeviation="0.4" floodColor="#1A0D05" floodOpacity="0.5" />
+                  </filter>
+                </defs>
 
-              {/* Dibuix de cada línia de tall interna amb nòduls rodons i traçat prim */}
-              {svgPaths.map((dPath, idx) => (
-                <path 
-                  key={idx} 
-                  d={dPath} 
-                  fill="none" 
-                  stroke="#28170D" 
-                  strokeWidth="1.2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  filter="url(#puzzleCutShadow)"
-                  opacity="0.82"
-                />
-              ))}
+                {/* Dibuix de cada línia de tall interna amb nòduls rodons i traçat prim */}
+                {svgPaths.map((dPath, idx) => (
+                  <path 
+                    key={idx} 
+                    d={dPath} 
+                    fill="none" 
+                    stroke="#28170D" 
+                    strokeWidth="1.2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    filter="url(#puzzleCutShadow)"
+                    opacity="0.82"
+                  />
+                ))}
 
-              {/* Marc de bisellat exterior */}
-              <rect x="1" y="1" width={svgWidth - 2} height={svgHeight - 2} fill="none" stroke="#28170D" strokeWidth="1.8" opacity="0.85" />
-            </svg>
+                {/* Marc de bisellat exterior */}
+                <rect x="1" y="1" width={svgWidth - 2} height={svgHeight - 2} fill="none" stroke="#28170D" strokeWidth="1.8" opacity="0.85" />
+              </svg>
+            )}
           </div>
         )}
 
