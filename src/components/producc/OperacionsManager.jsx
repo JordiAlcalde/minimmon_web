@@ -92,60 +92,60 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Llistat d'Operacions (Format Llista Horitzontal) */}
+      <div className="space-y-3">
         {filteredOperacions.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-slate-500 text-xs">
+          <div className="p-12 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs">
             No s'ha trobat cap operació registrada.
           </div>
         ) : (
           filteredOperacions.map(op => (
             <div 
               key={op.id}
-              className={`p-5 rounded-2xl border flex flex-col justify-between space-y-4 transition-all ${
-                isDark ? 'bg-slate-900/50 border-slate-800 hover:border-amber-500/40' : 'bg-white border-slate-200 shadow-sm hover:border-amber-500/40'
+              className={`w-full p-3 sm:p-4 rounded-2xl border flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 transition-all ${
+                isDark ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300'
               }`}
             >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
-                      <Wrench className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-slate-200 text-sm font-serif">{op.operacio}</h3>
-                      <span className="text-[10px] text-slate-400 font-mono">ID: {op.id}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenEdit(op)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(op.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+              {/* 1. Bloc Esquerre: Icona + Nom + Descripció */}
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+                  <Wrench className="w-5 h-5" />
                 </div>
-
-                <p className="text-xs text-slate-400 line-clamp-3">{op.descripcio}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="font-bold text-slate-200 text-sm sm:text-base font-serif truncate">{op.operacio}</h3>
+                    <span className="text-[10px] text-slate-400 font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">ID: {op.id}</span>
+                  </div>
+                  {op.descripcio && (
+                    <p className="text-xs text-slate-400 line-clamp-1" title={op.descripcio}>{op.descripcio}</p>
+                  )}
+                </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <div className="text-[11px] text-slate-400 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Mà d'obra artesana</span>
-                </div>
-                <div className="text-right">
+              {/* 2. Blocs Numèrics i Accions */}
+              <div className="flex items-center gap-2 shrink-0 text-xs">
+                <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[140px] text-right flex flex-col justify-center">
                   <span className="text-[10px] text-slate-500 block">Preu / Hora</span>
                   <span className="font-mono font-bold text-amber-400 text-sm">
                     {formatDecimal(op.preuHora, 2)} €/h
                   </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleOpenEdit(op)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Editar operació"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(op.id)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    title="Eliminar operació"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </div>

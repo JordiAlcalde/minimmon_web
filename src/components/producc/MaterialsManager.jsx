@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Layers, Plus, Search, Edit2, Trash2, ExternalLink, Package, Building2, 
-  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn
+  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn, Copy
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
@@ -315,6 +315,27 @@ export default function MaterialsManager({
     }
   };
 
+  const handleDuplicate = (mat) => {
+    const newId = getNextSequentialId('mat', materials);
+    const newMaterialName = `${mat.material || 'Material'} (Còpia)`;
+
+    const duplicatedSuppliers = Array.isArray(mat.proveidorsMaterial)
+      ? mat.proveidorsMaterial.map((s, idx) => ({
+          ...s,
+          id: `supp-dup-${idx}-${Date.now()}`
+        }))
+      : [];
+
+    const duplicatedItem = {
+      ...mat,
+      id: newId,
+      material: newMaterialName,
+      proveidorsMaterial: duplicatedSuppliers
+    };
+
+    setMaterials(prev => [...prev, duplicatedItem]);
+  };
+
   // Gestionar Proveïdors a la fitxa
   const handleAddNewSupplier = () => {
     const newId = `supp-${Date.now()}`;
@@ -587,73 +608,142 @@ export default function MaterialsManager({
         </div>
       </div>
 
-      {/* Llistat de Materials */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredMaterials.map(mat => {
-          const grupObj = grups.find(g => g.id === mat.grupId);
-          const provObj = proveidors.find(p => p.id === mat.proPrinId);
-          const fabObj = fabricants.find(f => f.id === mat.fabricantId);
-          const uCompObj = unitatsCompra.find(u => u.id === mat.unitatCompraId);
-          
-          const isLowStock = mat.estocMinim > 0 && mat.estocActual <= mat.estocMinim;
-          const altCount = Array.isArray(mat.altresProveidors) ? mat.altresProveidors.length : 0;
+      {/* Llistat de Materials (Format Llista Horitzontal) */}
+      <div className="space-y-3">
+        {filteredMaterials.length === 0 ? (
+          <div className="p-12 rounded-2xl border border-slate-800 text-center text-slate-500 text-xs">
+            No s'ha trobat cap material registrat.
+          </div>
+        ) : (
+          filteredMaterials.map(mat => {
+            const grupObj = grups.find(g => g.id === mat.grupId);
+            const provObj = proveidors.find(p => p.id === mat.proPrinId);
+            const fabObj = fabricants.find(f => f.id === mat.fabricantId);
+            const uCompObj = unitatsCompra.find(u => u.id === mat.unitatCompraId);
+            
+            const isLowStock = mat.estocMinim > 0 && mat.estocActual <= mat.estocMinim;
+            const altCount = Array.isArray(mat.altresProveidors) ? mat.altresProveidors.length : 0;
 
-          return (
-            <div
-              key={mat.id}
-              className={`p-4 rounded-2xl border flex flex-col justify-between transition-all ${
-                isDark ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300'
-              }`}
-            >
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-2.5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div 
-                      onClick={(e) => {
-                        if (mat.imatge) {
-                          e.stopPropagation();
-                          setEnlargedImage(buildMaterialImageUrl(mat.imatge));
-                          setEnlargedImageTitle(mat.material);
-                        }
-                      }}
-                      className={`w-12 h-12 rounded-xl bg-slate-950 border overflow-hidden shrink-0 flex items-center justify-center relative group transition-all ${
-                        mat.imatge 
-                          ? 'cursor-pointer border-slate-800 hover:border-amber-400 hover:shadow-md' 
-                          : 'border-slate-800'
-                      }`}
-                      title={mat.imatge ? "Ampliar imatge del material" : mat.material}
-                    >
-                      <MaterialImage 
-                        src={mat.imatge} 
-                        alt={mat.material} 
-                        className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                        fallbackIconClass="w-6 h-6 text-amber-500/50"
-                      />
-                      {mat.imatge && (
-                        <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-400 backdrop-blur-[1px]">
-                          <ZoomIn className="w-4 h-4" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                          {grupObj ? grupObj.grup : 'Sense Grup'}
-                        </span>
-                        {altCount > 0 && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
-                            +{altCount} alt.
-                          </span>
-                        )}
+            return (
+              <div
+                key={mat.id}
+                className={`w-full p-3 sm:p-4 rounded-2xl border flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 transition-all ${
+                  isDark ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:border-slate-300'
+                }`}
+              >
+                {/* 1. Bloc Esquerre: Imatge + Nom + Grup + Descripció */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div 
+                    onClick={(e) => {
+                      if (mat.imatge) {
+                        e.stopPropagation();
+                        setEnlargedImage(buildMaterialImageUrl(mat.imatge));
+                        setEnlargedImageTitle(mat.material);
+                      }
+                    }}
+                    className={`w-12 h-12 rounded-xl bg-slate-950 border overflow-hidden shrink-0 flex items-center justify-center relative group transition-all ${
+                      mat.imatge 
+                        ? 'cursor-pointer border-slate-800 hover:border-amber-400 hover:shadow-md' 
+                        : 'border-slate-800'
+                    }`}
+                    title={mat.imatge ? "Ampliar imatge del material" : mat.material}
+                  >
+                    <MaterialImage 
+                      src={mat.imatge} 
+                      alt={mat.material} 
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
+                      fallbackIconClass="w-6 h-6 text-amber-500/50"
+                    />
+                    {mat.imatge && (
+                      <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-400 backdrop-blur-[1px]">
+                        <ZoomIn className="w-4 h-4" />
                       </div>
-                      <h3 className="font-bold text-slate-100 text-sm truncate mt-0.5 font-serif" title={mat.material}>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <h3 className="font-bold text-slate-100 text-sm sm:text-base font-serif truncate mr-1" title={mat.material}>
                         {mat.material}
                       </h3>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                        {grupObj ? grupObj.grup : 'Sense Grup'}
+                      </span>
+                      {altCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                          +{altCount} alt.
+                        </span>
+                      )}
+                    </div>
+                    {mat.descripcio && (
+                      <p className="text-[11px] text-slate-400 line-clamp-1" title={mat.descripcio}>
+                        {mat.descripcio}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Blocs Numèrics i Detalls a la dreta */}
+                <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-2 shrink-0 text-xs">
+                  {/* Proveïdor Principal & Preu Unitari */}
+                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-amber-400/90 font-semibold flex items-center gap-1 truncate max-w-[130px]" title={provObj?.empresa || 'Sense proveïdor'}>
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                        {provObj ? provObj.empresa : 'Sense proveïdor'}
+                      </span>
+                      <strong className="font-mono text-slate-200 ml-2 font-bold">
+                        {formatCurrency(mat.preuProPrin, 2)} / {mat.unitat}
+                      </strong>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                      <span>Fab: {fabObj ? fabObj.fabricant : 'N/A'}</span>
+                      {uCompObj && <span>Pack: {uCompObj.unitatCompra}</span>}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  {/* Estoc Actual */}
+                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[130px] flex flex-col justify-center items-center shrink-0">
+                    <span className="text-[10px] text-slate-400 font-medium">Estoc:</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`font-mono text-sm font-bold ${isLowStock ? 'text-rose-400' : 'text-slate-200'}`}>
+                        {mat.estocActual} {mat.unitat}
+                      </span>
+                      {isLowStock && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-semibold flex items-center gap-0.5">
+                          <AlertTriangle className="w-3 h-3" /> Baix
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Botons d'Acció (Sempre 3 icones per garantir una alineació perfecta) */}
+                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1 shrink-0">
+                    {mat.enllacProPrin ? (
+                      <a
+                        href={mat.enllacProPrin}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Obrir web del proveïdor"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    ) : (
+                      <span
+                        className="p-1.5 rounded-lg text-slate-600 dark:text-slate-600 opacity-40 cursor-not-allowed select-none"
+                        title="Sense enllaç a pàgina web"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </span>
+                    )}
+                    <button
+                      onClick={() => handleDuplicate(mat)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      title="Duplicar material"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={() => handleOpenEdit(mat)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
@@ -670,61 +760,10 @@ export default function MaterialsManager({
                     </button>
                   </div>
                 </div>
-
-                {mat.descripcio && (
-                  <p className="text-xs text-slate-400 whitespace-pre-line mb-3 leading-relaxed">
-                    {mat.descripcio}
-                  </p>
-                )}
-
-                {/* Caixa Proveïdor Principal */}
-                <div className="p-2.5 rounded-xl border border-amber-500/20 bg-amber-500/[0.03] space-y-1 text-xs mb-3">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-amber-400/90 font-semibold flex items-center gap-1">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                      {provObj ? provObj.empresa : 'Sense proveïdor'}
-                    </span>
-                    <span className="font-mono font-bold text-slate-100">
-                      {formatCurrency(mat.preuProPrin, 2)} / {mat.unitat}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-400">
-                    <span>Fab: {fabObj ? fabObj.fabricant : 'N/A'}</span>
-                    {uCompObj && <span>Pack: {uCompObj.unitatCompra}</span>}
-                  </div>
-                </div>
               </div>
-
-              {/* Barra Inferior d'Estoc */}
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400">Estoc:</span>
-                  <span className={`font-mono font-bold ${isLowStock ? 'text-rose-400' : 'text-slate-200'}`}>
-                    {mat.estocActual} {mat.unitat}
-                  </span>
-                  {isLowStock && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-semibold flex items-center gap-0.5">
-                      <AlertTriangle className="w-3 h-3" /> Baix
-                    </span>
-                  )}
-                </div>
-
-                {mat.enllacProPrin && (
-                  <a
-                    href={mat.enllacProPrin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-400 hover:text-amber-300 flex items-center gap-1 text-[11px] font-medium hover:underline"
-                  >
-                    <span>Web</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* MODAL CREACIÓ / EDICIÓ MATERIAL */}
