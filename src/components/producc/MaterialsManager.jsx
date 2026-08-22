@@ -10,14 +10,51 @@ const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/m
 
 // Helper per netejar i garantir que la URL té el prefix GitHub complet
 const buildMaterialImageUrl = (inputVal) => {
-  if (!inputVal || !inputVal.trim()) return '';
+  if (!inputVal || typeof inputVal !== 'string' || !inputVal.trim()) return '';
   const trimmed = inputVal.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     return trimmed;
   }
-  const cleanFilename = trimmed.replace(/^\/+/, '').replace(/^materials\//, '').replace(/^public\/imatges\/materials\//, '');
+  const cleanFilename = trimmed
+    .replace(/^\/+/, '')
+    .replace(/^public\//, '')
+    .replace(/^imatges\//, '')
+    .replace(/^materials\//, '');
   return `${RAW_MATERIALS_BASE_URL}${cleanFilename}`;
 };
+
+// Helper per obtenir el nom del fitxer si comença amb RAW_MATERIALS_BASE_URL
+const getFilenameFromUrl = (imgUrl) => {
+  if (!imgUrl || typeof imgUrl !== 'string') return '';
+  if (imgUrl.startsWith(RAW_MATERIALS_BASE_URL)) {
+    return imgUrl.slice(RAW_MATERIALS_BASE_URL.length);
+  }
+  return imgUrl;
+};
+
+// Component robust per renderitzar la imatge d'un material amb fallback automàtic
+function MaterialImage({ src, alt, className = "w-full h-full object-cover", fallbackIconClass = "w-6 h-6 text-amber-500/50" }) {
+  const [hasError, setHasError] = useState(false);
+  const fullUrl = buildMaterialImageUrl(src);
+
+  React.useEffect(() => {
+    setHasError(false);
+  }, [fullUrl]);
+
+  if (!fullUrl || hasError) {
+    return <Package className={fallbackIconClass} />;
+  }
+
+  return (
+    <img 
+      key={fullUrl}
+      src={fullUrl} 
+      alt={alt || 'Material'} 
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 export default function MaterialsManager({ 
   materials = [], 
@@ -252,7 +289,7 @@ export default function MaterialsManager({
     setFormData({
       material: mat.material || '',
       descripcio: mat.descripcio || '',
-      imatge: mat.imatge || '',
+      imatge: mat.imatge ? buildMaterialImageUrl(mat.imatge) : '',
       grupId: mat.grupId || (grups[0]?.id || ''),
       unitat: mat.unitat || (unitats[0]?.unitat || 'u'),
       estocActual: mat.estocActual !== undefined ? mat.estocActual : 0,
@@ -398,7 +435,7 @@ export default function MaterialsManager({
     const payload = {
       material: formData.material.trim(),
       descripcio: formData.descripcio || '',
-      imatge: formData.imatge || '',
+      imatge: formData.imatge ? buildMaterialImageUrl(formData.imatge) : '',
       grupId: formData.grupId || '',
       unitat: formData.unitat || 'u',
       estocActual: Number(formData.estocActual || 0),
@@ -562,16 +599,12 @@ export default function MaterialsManager({
                 <div className="flex items-start justify-between gap-3 mb-2.5">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
-                      {mat.imatge ? (
-                        <img 
-                          src={mat.imatge} 
-                          alt={mat.material} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => { e.target.style.display = 'none'; }}
-                        />
-                      ) : (
-                        <Package className="w-6 h-6 text-amber-500/50" />
-                      )}
+                      <MaterialImage 
+                        src={mat.imatge} 
+                        alt={mat.material} 
+                        className="w-full h-full object-cover"
+                        fallbackIconClass="w-6 h-6 text-amber-500/50"
+                      />
                     </div>
 
                     <div className="min-w-0">
@@ -610,7 +643,7 @@ export default function MaterialsManager({
                 </div>
 
                 {mat.descripcio && (
-                  <p className="text-xs text-slate-400 line-clamp-2 mb-3 leading-relaxed">
+                  <p className="text-xs text-slate-400 whitespace-pre-line mb-3 leading-relaxed">
                     {mat.descripcio}
                   </p>
                 )}
@@ -752,11 +785,7 @@ export default function MaterialsManager({
                         </span>
                         <input
                           type="text"
-                          value={
-                            formData.imatge && formData.imatge.startsWith(RAW_MATERIALS_BASE_URL)
-                              ? formData.imatge.slice(RAW_MATERIALS_BASE_URL.length)
-                              : formData.imatge
-                          }
+                          value={getFilenameFromUrl(formData.imatge)}
                           onChange={(e) => {
                             const val = e.target.value;
                             setFormData({ ...formData, imatge: buildMaterialImageUrl(val) });
@@ -769,8 +798,8 @@ export default function MaterialsManager({
                       </div>
 
                       {formData.imatge && (
-                        <p className="text-[10px] text-slate-500 truncate" title={formData.imatge}>
-                          URL completa: <span className="font-mono text-amber-400/90">{formData.imatge}</span>
+                        <p className="text-[10px] text-slate-500 truncate" title={buildMaterialImageUrl(formData.imatge)}>
+                          URL completa: <span className="font-mono text-amber-400/90">{buildMaterialImageUrl(formData.imatge)}</span>
                         </p>
                       )}
                     </div>
@@ -812,35 +841,26 @@ export default function MaterialsManager({
 
                     {/* Previsualització Imatge Reduïda i Clicable */}
                     <div className="flex justify-center items-center pt-1">
-                      {formData.imatge ? (
-                        <div 
-                          onClick={() => setEnlargedImage(formData.imatge)}
-                          className="relative group cursor-pointer rounded-xl border-2 border-amber-500/40 overflow-hidden shadow-md transition-all hover:border-amber-400 hover:shadow-xl w-full h-32 flex items-center justify-center bg-slate-950"
-                          title="Fes clic per ampliar la imatge"
-                        >
-                          <img
-                            src={formData.imatge}
-                            alt={formData.material || 'Material'}
-                            className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-200"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                          />
+                      <div 
+                        onClick={() => formData.imatge && setEnlargedImage(buildMaterialImageUrl(formData.imatge))}
+                        className={`relative group rounded-xl border-2 overflow-hidden shadow-md transition-all w-full h-32 flex items-center justify-center bg-slate-950 ${
+                          formData.imatge ? 'border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-xl' : 'border-dashed border-slate-800'
+                        }`}
+                        title={formData.imatge ? "Fes clic per ampliar la imatge" : "Sense imatge"}
+                      >
+                        <MaterialImage 
+                          src={formData.imatge}
+                          alt={formData.material || 'Material'}
+                          className="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-200"
+                          fallbackIconClass="w-8 h-8 text-slate-600 opacity-50"
+                        />
+                        {formData.imatge && (
                           <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-amber-400 text-xs font-semibold gap-1.5 backdrop-blur-[2px]">
                             <ZoomIn className="w-4 h-4" />
                             <span>Ampliar</span>
                           </div>
-                        </div>
-                      ) : (
-                        <div className={`w-full h-32 rounded-xl border-2 border-dashed flex items-center justify-center ${
-                          isDark ? 'border-slate-800 bg-slate-950/40 text-slate-600' : 'border-slate-300 bg-slate-100 text-slate-400'
-                        }`}>
-                          <div className="text-center p-2">
-                            <ImageIcon className="w-6 h-6 mx-auto mb-1 opacity-40" />
-                            <span className="text-[10px] block opacity-70">Sense imatge</span>
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
