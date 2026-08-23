@@ -83,8 +83,8 @@ export default function GrupsManager({ grups, setGrups, materials, isDark }) {
                   <Layers className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-200 text-sm font-serif">{g.grup}</h3>
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
+                  <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{g.grup}</h3>
+                  <div className={`flex items-center gap-1.5 text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     <Package className="w-3 h-3 text-amber-500" />
                     <span>{count} material{count !== 1 ? 's' : ''}</span>
                   </div>
@@ -94,13 +94,13 @@ export default function GrupsManager({ grups, setGrups, materials, isDark }) {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => handleOpenEdit(g)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => handleDelete(g.id)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>

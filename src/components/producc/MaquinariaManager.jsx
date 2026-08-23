@@ -125,49 +125,49 @@ export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark })
                       <Cpu className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-200 text-sm font-serif">{m.maquina}</h3>
-                      <p className="text-[11px] text-amber-400 font-medium">{m.fabricant || 'Fabricant no especificat'}</p>
+                      <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{m.maquina}</h3>
+                      <p className={`text-[11px] font-medium ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>{m.fabricant || 'Fabricant no especificat'}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEdit(m)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(m.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-400 line-clamp-2">{m.descripcio}</p>
+                <p className={`text-xs line-clamp-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{m.descripcio}</p>
 
-                <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-800/60">
+                <div className={`grid grid-cols-2 gap-2 text-[11px] pt-2 border-t ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
                   <div>
-                    <span className="text-slate-500 block">Codi Fabricant</span>
-                    <span className="font-mono text-slate-300 font-semibold">{m.codiFabricant || '-'}</span>
+                    <span className={`block ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Codi Fabricant</span>
+                    <span className={`font-mono font-semibold ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>{m.codiFabricant || '-'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 block">Núm. Sèrie</span>
-                    <span className="font-mono text-slate-300">{m.numSerie || '-'}</span>
+                    <span className={`block ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Núm. Sèrie</span>
+                    <span className={`font-mono ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>{m.numSerie || '-'}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-                <div className="text-[11px] text-slate-400 flex items-center gap-1">
+              <div className={`pt-3 border-t flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                <div className={`text-[11px] flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   <Calendar className="w-3 h-3 text-amber-500" />
                   <span>{m.dataCompra || 'Data desconnectada'}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-500 block">Cost / Hora</span>
-                  <span className="font-mono font-bold text-amber-400 text-sm">
+                  <span className={`text-[10px] block ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Cost / Hora</span>
+                  <span className={`font-mono font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                     {formatDecimal(m.preuHora, 2)} €/h
                   </span>
                 </div>

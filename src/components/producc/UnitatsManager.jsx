@@ -113,11 +113,11 @@ export default function UnitatsManager({ unitats, setUnitats, materials, isDark 
                     {u.unitat}
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-200 text-sm font-serif">{u.unitat}</h3>
-                    <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 font-mono">
+                    <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{u.unitat}</h3>
+                    <div className={`flex items-center gap-1 text-[11px] mt-0.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       <span>ID: {u.id}</span>
                       <span>·</span>
-                      <span className="text-slate-400">{count} mat</span>
+                      <span>{count} mat</span>
                     </div>
                   </div>
                 </div>
@@ -125,14 +125,14 @@ export default function UnitatsManager({ unitats, setUnitats, materials, isDark 
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleOpenEdit(u)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                     title="Editar"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDelete(u.id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                     title="Eliminar"
                   >
                     <Trash2 className="w-3.5 h-3.5" />

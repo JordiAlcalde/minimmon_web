@@ -113,35 +113,35 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="font-bold text-slate-200 text-sm sm:text-base font-serif truncate">{op.operacio}</h3>
-                    <span className="text-[10px] text-slate-400 font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">ID: {op.id}</span>
+                    <h3 className={`font-bold text-sm sm:text-base font-serif truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{op.operacio}</h3>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${isDark ? 'text-slate-400 bg-slate-950 border-slate-800' : 'text-slate-600 bg-slate-100 border-slate-300'}`}>ID: {op.id}</span>
                   </div>
                   {op.descripcio && (
-                    <p className="text-xs text-slate-400 line-clamp-1" title={op.descripcio}>{op.descripcio}</p>
+                    <p className={`text-xs line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} title={op.descripcio}>{op.descripcio}</p>
                   )}
                 </div>
               </div>
 
               {/* 2. Blocs Numèrics i Accions */}
               <div className="flex items-center gap-2 shrink-0 text-xs">
-                <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[140px] text-right flex flex-col justify-center">
-                  <span className="text-[10px] text-slate-500 block">Preu / Hora</span>
-                  <span className="font-mono font-bold text-amber-400 text-sm">
+                <div className={`p-2.5 rounded-xl border min-w-[140px] text-right flex flex-col justify-center ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+                  <span className={`text-[10px] block ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Preu / Hora</span>
+                  <span className={`font-mono font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                     {formatDecimal(op.preuHora, 2)} €/h
                   </span>
                 </div>
 
-                <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1 shrink-0">
+                <div className={`p-2.5 rounded-xl border flex items-center justify-center gap-1 shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
                   <button
                     onClick={() => handleOpenEdit(op)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                     title="Editar operació"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(op.id)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                     title="Eliminar operació"
                   >
                     <Trash2 className="w-4 h-4" />

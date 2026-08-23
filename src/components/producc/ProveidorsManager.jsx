@@ -114,22 +114,22 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
                       <Building2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-200 text-sm font-serif">{p.empresa}</h3>
-                      <span className="text-[10px] text-slate-400 font-mono">ID: {p.id}</span>
+                      <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{p.empresa}</h3>
+                      <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>ID: {p.id}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleOpenEdit(p)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                       title="Editar"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDelete(p.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                       title="Eliminar"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -139,21 +139,21 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
 
                 <div className="space-y-2 text-xs pt-1">
                   {p.telefon && (
-                    <div className="flex items-center gap-2 text-slate-300">
+                    <div className={`flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                       <Phone className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       <a href={`tel:${p.telefon}`} className="hover:underline">{p.telefon}</a>
                     </div>
                   )}
 
                   {p.email && (
-                    <div className="flex items-center gap-2 text-slate-300">
+                    <div className={`flex items-center gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                       <Mail className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                       <a href={`mailto:${p.email}`} className="hover:underline truncate">{p.email}</a>
                     </div>
                   )}
 
                   {p.web && (
-                    <div className="flex items-center gap-2 text-amber-400 font-medium">
+                    <div className={`flex items-center gap-2 font-medium ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                       <Globe className="w-3.5 h-3.5 shrink-0" />
                       <a 
                         href={p.web.startsWith('http') ? p.web : `https://${p.web}`} 

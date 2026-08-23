@@ -249,27 +249,27 @@ export default function CompresManager({
                   isDark ? 'bg-slate-900/60 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm'
                 }`}
               >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+                <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
                       <ShoppingCart className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-100 text-sm font-serif">{prov ? prov.empresa : 'Proveïdor'}</h3>
+                        <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{prov ? prov.empresa : 'Proveïdor'}</h3>
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                          com.estat === 'Rebut' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                          com.estat === 'Demanat' ? 'bg-sky-500/20 text-sky-400 border-sky-500/30' :
-                          com.estat === 'Cancel·lat' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
-                          'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          com.estat === 'Rebut' ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30' :
+                          com.estat === 'Demanat' ? 'bg-sky-500/20 text-sky-600 border-sky-500/30' :
+                          com.estat === 'Cancel·lat' ? 'bg-red-500/20 text-red-600 border-red-500/30' :
+                          'bg-amber-500/20 text-amber-700 border-amber-500/30'
                         }`}>
                           {com.estat}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-400 flex items-center gap-3 mt-0.5">
+                      <div className={`text-[11px] flex items-center gap-3 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                         <span className="font-mono">Ref: {com.id}</span>
-                        <span className="flex items-center gap-1 font-mono text-slate-400"><Calendar className="w-3.5 h-3.5 text-amber-500/80 shrink-0" /> {com.dataCreacio}</span>
-                        {com.numAlbara && <span className="font-mono text-amber-400 flex items-center gap-1"><FileText className="w-3.5 h-3.5 shrink-0" /> Albarà: {com.numAlbara}</span>}
+                        <span className="flex items-center gap-1 font-mono"><Calendar className="w-3.5 h-3.5 text-amber-500/80 shrink-0" /> {com.dataCreacio}</span>
+                        {com.numAlbara && <span className={`font-mono flex items-center gap-1 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}><FileText className="w-3.5 h-3.5 shrink-0" /> Albarà: {com.numAlbara}</span>}
                       </div>
                     </div>
                   </div>
@@ -286,7 +286,7 @@ export default function CompresManager({
 
                     <button
                       onClick={() => handleCopyOrderText(com)}
-                      className="p-2 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-amber-400 transition-colors cursor-pointer"
+                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-amber-400' : 'border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-amber-800'}`}
                       title="Copiar format text per enviar al proveïdor"
                     >
                       <Copy className="w-3.5 h-3.5" />
@@ -294,14 +294,14 @@ export default function CompresManager({
 
                     <button
                       onClick={() => handleOpenEdit(com)}
-                      className="p-2 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-amber-400 transition-colors cursor-pointer"
+                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-amber-400' : 'border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-amber-800'}`}
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
 
                     <button
                       onClick={() => handleDelete(com.id)}
-                      className="p-2 rounded-xl border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-red-400 transition-colors cursor-pointer"
+                      className={`p-2 rounded-xl border transition-colors cursor-pointer ${isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-red-400' : 'border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-red-600'}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -313,7 +313,7 @@ export default function CompresManager({
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="text-[10px] text-slate-500 uppercase border-b border-slate-800/60">
+                        <tr className={`text-[10px] uppercase border-b ${isDark ? 'text-slate-500 border-slate-800/60' : 'text-slate-600 border-slate-200'}`}>
                           <th className="py-2">Material</th>
                           <th className="py-2 text-center">Qty Demanada</th>
                           <th className="py-2 text-center">Qty Rebuda</th>
@@ -321,15 +321,15 @@ export default function CompresManager({
                           <th className="py-2 text-right">Subtotal</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/40">
+                      <tbody className={`divide-y ${isDark ? 'divide-slate-800/40' : 'divide-slate-200'}`}>
                         {(com.linies || []).map((l, i) => {
                           const mat = materials.find(m => m.id === l.materialId);
 
                           return (
-                            <tr key={i} className="text-slate-300">
+                            <tr key={i} className={isDark ? 'text-slate-300' : 'text-slate-800'}>
                               <td className="py-2">
-                                <div className="font-medium text-slate-200">{mat ? mat.material : 'Material'}</div>
-                                {mat?.codiProPrin && <span className="text-[10px] font-mono text-slate-500">Ref: {mat.codiProPrin}</span>}
+                                <div className={`font-medium ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{mat ? mat.material : 'Material'}</div>
+                                {mat?.codiProPrin && <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Ref: {mat.codiProPrin}</span>}
                               </td>
                               <td className="py-2 text-center font-mono">
                                 {l.quantitatDemanada} {mat?.unitat || 'u'}
@@ -340,7 +340,7 @@ export default function CompresManager({
                               <td className="py-2 text-right font-mono">
                                 {formatCurrency(l.preuPactat, 2)}
                               </td>
-                              <td className="py-2 text-right font-mono font-semibold text-amber-400">
+                              <td className={`py-2 text-right font-mono font-semibold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                                 {formatCurrency(Number(l.quantitatDemanada || 0) * Number(l.preuPactat || 0), 2)}
                               </td>
                             </tr>

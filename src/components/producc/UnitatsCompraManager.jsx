@@ -126,13 +126,13 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
                         <Box className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-200 text-sm font-serif">{u.unitatCompra}</h3>
-                        <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5 font-mono">
+                        <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{u.unitatCompra}</h3>
+                        <div className={`flex items-center gap-1 text-[11px] mt-0.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                           <span>ID: {u.id}</span>
                           {count > 0 && (
                             <>
                               <span>·</span>
-                              <span className="text-amber-400">{count} materials</span>
+                              <span className={isDark ? 'text-amber-400' : 'text-amber-800'}>{count} materials</span>
                             </>
                           )}
                         </div>
@@ -142,14 +142,14 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(u)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                         title="Editar"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(u.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                         title="Eliminar"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -158,18 +158,18 @@ export default function UnitatsCompraManager({ unitatsCompra, setUnitatsCompra, 
                   </div>
 
                   {/* Factor de Conversió Badge */}
-                  <div className="mt-4 p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-center justify-between">
+                  <div className={`mt-4 p-3 rounded-xl border flex items-center justify-between ${isDark ? 'border-amber-500/20 bg-amber-500/5' : 'border-amber-300 bg-amber-50'}`}>
                     <div className="flex items-center gap-2 text-xs">
-                      <ArrowRightLeft className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span className="text-slate-300 font-medium">Factor conversió estoc:</span>
+                      <ArrowRightLeft className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span className={`font-medium ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>Factor conversió estoc:</span>
                     </div>
-                    <span className="font-mono font-bold text-amber-400 text-sm bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                    <span className={`font-mono font-bold text-sm px-2 py-0.5 rounded-md border ${isDark ? 'text-amber-400 bg-amber-500/10 border-amber-500/30' : 'text-amber-900 bg-amber-100 border-amber-300'}`}>
                       ×{u.factorConversio !== undefined ? u.factorConversio : 1}
                     </span>
                   </div>
                 </div>
 
-                <p className="text-[11px] text-slate-500 mt-3 italic">
+                <p className={`text-[11px] mt-3 italic ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
                   {u.factorConversio > 1 
                     ? `1 embalatge = ${u.factorConversio} unitats d'estoc.` 
                     : `S'estoca directament com a 1 unitat.`}

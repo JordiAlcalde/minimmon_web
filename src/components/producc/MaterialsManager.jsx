@@ -663,20 +663,20 @@ export default function MaterialsManager({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                      <h3 className="font-bold text-slate-100 text-sm sm:text-base font-serif truncate mr-1" title={mat.material}>
+                      <h3 className={`font-bold text-sm sm:text-base font-serif truncate mr-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={mat.material}>
                         {mat.material}
                       </h3>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-100 text-amber-900 border border-amber-300'}`}>
                         {grupObj ? grupObj.grup : 'Sense Grup'}
                       </span>
                       {altCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
                           +{altCount} alt.
                         </span>
                       )}
                     </div>
                     {mat.descripcio && (
-                      <p className="text-[11px] text-slate-400 line-clamp-1" title={mat.descripcio}>
+                      <p className={`text-[11px] line-clamp-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`} title={mat.descripcio}>
                         {mat.descripcio}
                       </p>
                     )}
@@ -686,52 +686,52 @@ export default function MaterialsManager({
                 {/* 2. Blocs Numèrics i Detalls a la dreta */}
                 <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-2 shrink-0 text-xs">
                   {/* Proveïdor Principal & Preu Unitari */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
+                  <div className={`p-2.5 rounded-xl border min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-amber-400/90 font-semibold flex items-center gap-1 truncate max-w-[130px]" title={provObj?.empresa || 'Sense proveïdor'}>
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                      <span className={`font-semibold flex items-center gap-1 truncate max-w-[130px] ${isDark ? 'text-amber-400/90' : 'text-amber-800'}`} title={provObj?.empresa || 'Sense proveïdor'}>
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-500 shrink-0" />
                         {provObj ? provObj.empresa : 'Sense proveïdor'}
                       </span>
-                      <strong className="font-mono text-slate-200 ml-2 font-bold">
+                      <strong className={`font-mono ml-2 font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         {formatCurrency(mat.preuProPrin, 2)} / {mat.unitat}
                       </strong>
                     </div>
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                    <div className={`flex items-center justify-between text-[10px] pt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       <span>Fab: {fabObj ? fabObj.fabricant : 'N/A'}</span>
                       {uCompObj && <span>Pack: {uCompObj.unitatCompra}</span>}
                     </div>
                   </div>
 
                   {/* Estoc Actual */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[130px] flex flex-col justify-center items-center shrink-0">
-                    <span className="text-[10px] text-slate-400 font-medium">Estoc:</span>
+                  <div className={`p-2.5 rounded-xl border min-w-[130px] flex flex-col justify-center items-center shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+                    <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Estoc:</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`font-mono text-sm font-bold ${isLowStock ? 'text-rose-400' : 'text-slate-200'}`}>
+                      <span className={`font-mono text-sm font-bold ${isLowStock ? 'text-rose-500 font-bold' : isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         {mat.estocActual} {mat.unitat}
                       </span>
                       {isLowStock && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-semibold flex items-center gap-0.5">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-600 font-semibold flex items-center gap-0.5">
                           <AlertTriangle className="w-3 h-3" /> Baix
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Botons d'Acció (Sempre 3 icones per garantir una alineació perfecta) */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1 shrink-0">
+                  {/* Botons d'Acció */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-center gap-1 shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
                     {mat.enllacProPrin ? (
                       <a
                         href={mat.enllacProPrin}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-amber-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-amber-400 hover:text-amber-300 hover:bg-slate-800' : 'text-amber-800 hover:text-amber-900 hover:bg-slate-200'}`}
                         title="Obrir web del proveïdor"
                       >
                         <ExternalLink className="w-4 h-4" />
                       </a>
                     ) : (
                       <span
-                        className="p-1.5 rounded-lg text-slate-600 dark:text-slate-600 opacity-40 cursor-not-allowed select-none"
+                        className="p-1.5 rounded-lg text-slate-400 opacity-40 cursor-not-allowed select-none"
                         title="Sense enllaç a pàgina web"
                       >
                         <ExternalLink className="w-4 h-4" />
@@ -739,21 +739,21 @@ export default function MaterialsManager({
                     )}
                     <button
                       onClick={() => handleDuplicate(mat)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                       title="Duplicar material"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleOpenEdit(mat)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                       title="Editar material"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(mat.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                       title="Eliminar material"
                     >
                       <Trash2 className="w-4 h-4" />

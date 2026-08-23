@@ -127,9 +127,9 @@ export default function FabricantsManager({ fabricants, setFabricants, materials
                         <Factory className="w-5 h-5" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-slate-200 text-sm font-serif">{f.fabricant}</h3>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-0.5">
-                          {f.pais && <span className="text-amber-400 font-medium">{f.pais}</span>}
+                        <h3 className={`font-bold text-sm font-serif ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{f.fabricant}</h3>
+                        <div className={`flex items-center gap-1.5 text-[11px] mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                          {f.pais && <span className={`font-medium ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>{f.pais}</span>}
                           {f.pais && count > 0 && <span>·</span>}
                           {count > 0 && <span>{count} materials</span>}
                         </div>
@@ -139,14 +139,14 @@ export default function FabricantsManager({ fabricants, setFabricants, materials
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenEdit(f)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-200'}`}
                         title="Editar"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => handleDelete(f.id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'}`}
                         title="Eliminar"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
