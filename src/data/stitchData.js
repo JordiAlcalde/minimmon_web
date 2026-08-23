@@ -184,7 +184,7 @@ export const STITCH_GIFTS = [
 
 export const STITCH_CRAFTSMAN = {
   name: "Jordi Alcalde",
-  brandName: "Mínim Món de Jordi Alcalde",
+  brandName: "Mínim Món",
   tagline: "L'essència del que som, en miniatura.",
   subtitle: "Capturant la memòria, l'espai i l'emoció a través de la calidesa de la fusta i la precisió de la llum.",
   emails: ["minimmon58@gmail.com"],

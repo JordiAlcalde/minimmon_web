@@ -159,28 +159,28 @@ export default function ElTallerSection({ setActiveTab }) {
 
       {/* Technical Precision */}
       <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-        <div className="border-t border-outline/20 pt-16 grid grid-cols-1 md:grid-cols-12 gap-gutter items-center">
-          <div className="col-span-1 md:col-span-5 space-y-6">
+        <div className="border-t border-outline/20 pt-16 flex flex-col md:flex-row items-center gap-8 lg:gap-12">
+          <div className="shrink-0 space-y-6 w-full md:w-auto">
             <h2 className="font-headline-lg text-headline-lg text-primary font-serif text-3xl md:text-4xl leading-tight">
               68 Anys<br /><span className="text-outline">d'Experiència</span>
             </h2>
-            <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden shadow-xl border border-outline/15 group">
+            <div className="relative w-full sm:w-[340px] h-[430px] rounded-2xl overflow-hidden shadow-xl border border-outline/15 group">
               <img 
                 src={resolveMediaUrl('images/jordi-alcalde-5.jpg')} 
                 alt="Jordi Alcalde Casalta - 68 Anys d'Experiència" 
-                className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-transparent"></div>
             </div>
           </div>
-          <div className="col-span-1 md:col-span-7 space-y-6 md:pl-6">
+          <div className="flex-1 space-y-6">
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed text-base">
               La mestria tècnica no és un fi en si mateix, sinó el llenguatge a través del qual s'expressa la visió artística. Dècades de dedicació al disseny industrial atorguen la capacitat de resoldre problemes complexos amb solucions aparentment senzilles.
             </p>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed text-base">
               Cada decisió, des de la selecció del tall de la fusta fins a l'aplicació del vernís final, està guiada per una perspectiva suau i respectuosa amb el material, cercant sempre l'harmonia i la bellesa funcional.
             </p>
-            <div className="pt-4">
+            <div className="pt-2">
               <button 
                 onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                 className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer inline-flex items-center gap-2"
