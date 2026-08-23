@@ -1183,6 +1183,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         acabat: editingProducte.acabat || '',
         ordre: mainOrdre,
         ordrePerGamma: updatedOrdrePerGamma,
+        simulador: editingProducte.simulador || 'auto',
         actiu: editingProducte.actiu !== false,
         novetat: editingProducte.novetat === true,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
@@ -1353,7 +1354,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || ''),
         ordre: Number(editingGamma.ordre || 1),
         textInformatiu: editingGamma.textInformatiu || '',
-        imatges: cleanImatges
+        imatges: cleanImatges,
+        actiu: editingGamma.actiu !== false
       }, { merge: true });
       setEditingGamma(null);
     } catch (err) {
@@ -3007,6 +3009,28 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* CAIXETÍ DESTACAT: SIMULADOR INTERACTIU DE FITXA PÚBLICA */}
+              <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-2">
+                <label className="block text-xs uppercase font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>Simulador Interactiu Assignat a la Fitxa Pública</span>
+                </label>
+                <select
+                  value={editingProducte.simulador || 'auto'}
+                  onChange={(e) => setEditingProducte({ ...editingProducte, simulador: e.target.value })}
+                  className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
+                >
+                  <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
+                  <option value="etiqueta">🏷️ Simulador d'Etiquetes i Forats (A - I)</option>
+                  <option value="inicial">🔤 Simulador de Clauer Inicial</option>
+                  <option value="puzle">🧩 Simulador de Puzle</option>
+                  <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
+                </select>
+                <p className="text-[11px] text-on-surface-variant leading-tight">
+                  Tria quin simulador 2D interactiu en temps real s'activarà quan el client obri aquest regal al web.
+                </p>
+              </div>
+
               {/* Descripció amb Barra d'Eines Rich Text */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -3856,7 +3880,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1, textInformatiu: '', imatges: [] })}
+                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1, textInformatiu: '', imatges: [], actiu: true })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -3877,7 +3901,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                  {/* Columna Esquerra: Nom, Família i Ordre */}
+                  {/* Columna Esquerra: Nom, Família, Ordre i Estat Activa/Inactiva */}
                   <div className="md:col-span-4 space-y-4 bg-surface-container-lowest p-4 rounded-xl border border-outline/15">
                     <div>
                       <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom de la Gamma *</label>
@@ -3912,6 +3936,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         onChange={(e) => setEditingGamma({ ...editingGamma, ordre: Number(e.target.value) })}
                         className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono focus:outline-none focus:border-primary"
                       />
+                    </div>
+
+                    <div className="pt-2 border-t border-outline/10">
+                      <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={editingGamma.actiu !== false}
+                          onChange={(e) => setEditingGamma({ ...editingGamma, actiu: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
+                        />
+                        <div>
+                          <span className="block font-bold">Gamma Activa al web</span>
+                          <span className="text-[11px] text-on-surface-variant font-normal block leading-tight">
+                            Si es desmarca, s'oculta temporalment del catàleg públic.
+                          </span>
+                        </div>
+                      </label>
                     </div>
                   </div>
 
@@ -4065,6 +4106,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       <th className="p-3 font-mono">Ordre</th>
                       <th className="p-3">Nom de la Gamma</th>
                       <th className="p-3">Família Pare</th>
+                      <th className="p-3 font-mono">Estat</th>
                       <th className="p-3 font-mono">ID</th>
                       <th className="p-3 text-right">Accions</th>
                     </tr>
@@ -4090,9 +4132,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
                           <td className="p-3 font-semibold text-primary">{g.nom}</td>
                           <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
+                          <td className="p-3">
+                            <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full ${g.actiu !== false ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'}`}>
+                              {g.actiu !== false ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </td>
                           <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
                           <td className="p-3 text-right space-x-2">
-                            <button onClick={() => setEditingGamma({ textInformatiu: '', imatges: [], ...g })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                            <button onClick={() => setEditingGamma({ textInformatiu: '', imatges: [], actiu: g.actiu !== false, ...g })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
                             <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
                           </td>
                         </tr>

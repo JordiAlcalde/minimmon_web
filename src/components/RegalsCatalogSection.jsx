@@ -12,6 +12,7 @@ import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder,
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
+import EtiquetaSimulator from './EtiquetaSimulator';
 import CommentsSection from './CommentsSection';
 
 const MOTIVATIONAL_PILLS = [
@@ -210,7 +211,7 @@ export default function RegalsCatalogSection({
     const qGam = query(collection(db, "gammes"), orderBy("ordre", "asc"));
     const unsubGam = onSnapshot(qGam, (snapshot) => {
       if (!snapshot.empty) {
-        setDbGammes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setDbGammes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(g => g.actiu !== false));
       }
     });
 
@@ -259,6 +260,14 @@ export default function RegalsCatalogSection({
   const rawFilteredProducts = dbProducts.filter(p => {
     if (!p) return false;
     if (p.actiu === false) return false;
+
+    // Si el producte pertany a gammes i cap d'elles és activa al web, s'oculta temporalment
+    if (Array.isArray(p.gammaIds) && p.gammaIds.length > 0 && dbGammes.length > 0) {
+      const hasAnyActiveGamma = p.gammaIds.some(gName => 
+        dbGammes.some(g => (g.nom || '').toLowerCase() === gName.toLowerCase())
+      );
+      if (!hasAnyActiveGamma) return false;
+    }
 
     // 1. Filtrar per Cerca Activa des del Header (si hi ha text d'usuari)
     if (catalogSearchQuery && catalogSearchQuery.trim()) {
@@ -1114,9 +1123,18 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const [attachedFiles, setAttachedFiles] = useState({});
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // Detectar si el producte és específicament el clauer "Inicial" o un Puzle (ex: "Puzle 4x4", "Puzle 5x5", "Puzle 8x8")
-  const isInicialKeychain = String(product.nom || '').toLowerCase().includes('inicial');
-  const isPuzzleProduct = String(product.nom || '').toLowerCase().includes('puzle') && /\d+\s*x\s*\d+/i.test(product.nom);
+  // Detectar el simulador assignat (configurat manualment a l'àrea privada o per detecció automàtica)
+  const simType = product.simulador || 'auto';
+
+  const isInicialKeychain = simType === 'inicial' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('inicial'));
+  const isPuzzleProduct = simType === 'puzle' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('puzle') && /\d+\s*x\s*\d+/i.test(product.nom));
+  const isEtiquetaProduct = simType === 'etiqueta' || simType === 'xapa' || (simType === 'auto' && (
+    String(product.nom || '').toLowerCase().includes('etiquet') ||
+    String(product.nom || '').toLowerCase().includes('xap') ||
+    String(product.nom || '').toLowerCase().includes('medall') ||
+    (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('etiquet') || String(f).toLowerCase().includes('xap'))) ||
+    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('etiquet') || String(g).toLowerCase().includes('xap')))
+  ));
 
   // Trobar el primer fitxer adjuntat per l'usuari per passar-ho al simulador de puzle
   const firstUserFile = React.useMemo(() => {
@@ -1526,6 +1544,24 @@ Pots deixar-ho en blanc si ho prefereixes.`}
             productNom={product.nom}
             selectedOptions={selectedOptions}
             userAttachedFile={firstUserFile}
+          />
+        )}
+
+        {/* Simulador d'Etiqueta i Forats Interactiu */}
+        {isEtiquetaProduct && (
+          <EtiquetaSimulator
+            productNom={product.nom}
+            productCodi={product.codi || 'XR'}
+            midesDisponibles={(() => {
+              const opMida = safeOpcions.find(o => String(o?.titol || '').toLowerCase().includes('mida'));
+              if (opMida && typeof opMida.valors === 'string') {
+                return opMida.valors.split(',').map(s => s.trim()).filter(Boolean);
+              }
+              return ['15 x 50 mm', '15 x 60 mm', '25 x 60 mm'];
+            })()}
+            selectedOptions={selectedOptions}
+            setSelectedOptions={setSelectedOptions}
+            phraseText={simPhrase}
           />
         )}
 
