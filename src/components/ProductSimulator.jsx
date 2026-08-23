@@ -45,16 +45,6 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
             </button>
           </div>
 
-          {/* Icona de llum/lluminositat central (Bombeta en blau) */}
-          <button
-            type="button"
-            onClick={() => setIsLit(!isLit)}
-            className={`p-1.5 rounded-full transition-all cursor-pointer ${isLit ? 'bg-amber-500/20 text-amber-600 ring-1 ring-amber-500/40' : 'bg-surface/80 text-outline border border-outline/20'}`}
-            title="Commutar llum ambiental"
-          >
-            <Sun className="w-3.5 h-3.5" />
-          </button>
-
           {/* Botó de girar (Icona de gir en blau) */}
           <button
             type="button"
@@ -209,7 +199,8 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
 
       {/* Llegenda explicativa del simulador */}
       <p className="text-[10px] text-on-surface-variant/70 font-mono text-center pt-1 px-1">
-        Aquesta imatge és una simulació que pot no concordar exactament amb com es veurà la peça física. Qualsevol canvi serà en benefici del resultat final.
+        Simulació del resultat, que pot no coincidir amb la peça real.<br />
+        La imatge s'ajustarà al espai disponible.
       </p>
     </div>
   );

@@ -216,20 +216,11 @@ export default function PuzzleSimulator({
             </button>
           </div>
 
-          {/* Badge de to d'impressió i Icona de Llum */}
+          {/* Badge de to d'impressió */}
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-block text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
               {printType === 'laser' ? '🔥 Gravat làser' : printType === 'bn' ? '🏁 Blanc i Negre' : '🎨 Color Natural'}
             </span>
-
-            <button
-              type="button"
-              onClick={() => setIsLit(!isLit)}
-              className={`p-1.5 rounded-full transition-all cursor-pointer ${isLit ? 'bg-amber-500/20 text-amber-600 ring-1 ring-amber-500/40' : 'bg-surface/80 text-outline border border-outline/20'}`}
-              title="Commutar llum ambiental"
-            >
-              <Sun className="w-3.5 h-3.5" />
-            </button>
           </div>
 
         </div>
@@ -353,8 +344,8 @@ export default function PuzzleSimulator({
 
       {/* Llegenda Explicativa del Simulador de Puzle */}
       <p className="text-[10px] text-on-surface-variant/75 font-mono text-center pt-0.5 px-1 leading-snug">
-        Simulació del puzle {cols}x{rows} ({printType === 'laser' ? 'gravat làser en fusta clara' : printType === 'bn' ? 'impressió B/N' : 'impressió en color'}).
-        {userAttachedFile ? ' Mostrant el teu fitxer adjunt.' : ' Carrega la teva imatge per veure-la aplicada.'}
+        Simulació del resultat, que pot no coincidir amb la peça real.<br />
+        La imatge s'ajustarà al espai disponible.
       </p>
     </div>
   );

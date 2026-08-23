@@ -1545,11 +1545,6 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           <span className={textPriceValue ? "font-sans text-sm sm:text-base font-semibold text-primary" : "font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight"}>
             {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`)}
           </span>
-          {currentSurcharge > 0 && (
-            <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold font-mono flex items-center gap-1">
-              <span>(+{currentSurcharge.toFixed(2).replace('.', ',')} € sobrecost de personalització)</span>
-            </span>
-          )}
           {!isBudgetRequired && !isZeroPrice && (
             <span className="text-xs text-on-surface-variant/80 font-mono">(IVA inclòs)</span>
           )}
