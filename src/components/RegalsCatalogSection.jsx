@@ -645,6 +645,7 @@ export default function RegalsCatalogSection({
                   <ProductCardErrorBoundary key={product.id || product.nom}>
                     <MiniProductCard
                       product={product}
+                      dbEscandalls={dbEscandalls}
                       onClick={() => setActiveModalProduct(product)}
                       onAddToCart={addToCart}
                     />
@@ -828,14 +829,17 @@ function isValidImagePath(str) {
 }
 
 // Subcomponent Mini-Fitxa neta per a la graella de 3 columnes
-function MiniProductCard({ product, onClick, onAddToCart }) {
+function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
   const [qty, setQty] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
   const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
   const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
+  const escData = getProductEscandallData(product, dbEscandalls);
   const hasTextPrice = typeof product.preu === 'string' && isNaN(parseFloat(product.preu.replace(',', '.'))) && product.preu.trim() !== '';
   const textPriceValue = hasTextPrice ? product.preu.trim() : (product.preuOrientatiu && isNaN(parseFloat(product.preuOrientatiu.replace(',', '.'))) ? product.preuOrientatiu.trim() : null);
-  const rawPrice = product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0);
+  const rawPrice = (escData.hasEscandall && escData.preu > 0)
+    ? escData.preu
+    : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
   const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;

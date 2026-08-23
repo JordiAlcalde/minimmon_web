@@ -147,6 +147,16 @@ export default function PuzzleSimulator({
     return resolveMediaUrl('images/puzle_exemple_quadrat.png');
   }, [userAttachedFile, cols, rows]);
 
+  // Obtenir la imatge d'overlay PNG de retícula segons les columnes i files (${cols}x${rows})
+  const puzzleOverlayImage = useMemo(() => {
+    const key = `${cols}x${rows}`;
+    const supportedOverlays = ['4x4', '5x5', '6x6', '8x8', '10x6', '6x10'];
+    if (supportedOverlays.includes(key)) {
+      return resolveMediaUrl(`images/puzle_overlay_${key}.png`);
+    }
+    return null;
+  }, [cols, rows]);
+
   // Dimensions virtuals SVG segons matriu (cols x 50, rows x 50)
   const svgWidth = cols * 50;
   const svgHeight = rows * 50;
@@ -244,11 +254,11 @@ export default function PuzzleSimulator({
             {/* Ranures i Marcs de Fusta Cremada Làser */}
             <div className="absolute inset-0 pointer-events-none shadow-inner border border-amber-950/20"></div>
 
-            {/* Capa Retícula de tall del Puzle (PNG d'alta fidelitat per a 4x4 o SVG vectorial per a altres mides) */}
-            {(cols === 4 && rows === 4) ? (
+            {/* Capa Retícula de tall del Puzle (PNG d'alta fidelitat per a mides suportades o SVG vectorial com a fallback) */}
+            {puzzleOverlayImage ? (
               <img 
-                src={resolveMediaUrl('images/puzle_overlay_4x4.png')} 
-                alt="Tall Puzle 4x4" 
+                src={puzzleOverlayImage} 
+                alt={`Tall Puzle ${cols}x${rows}`} 
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none opacity-90 mix-blend-multiply drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] z-10"
               />
             ) : (
