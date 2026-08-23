@@ -541,11 +541,11 @@ export default function MaterialsManager({
       {/* Capçalera Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold font-serif flex items-center gap-2">
+          <h2 className={`text-xl font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             <Layers className="w-6 h-6 text-amber-500" />
             Catàleg de Materials & Matèries Primes
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Gestió d'estocs, proveïdor principal de càlcul i llista de proveïdors alternatius.
           </p>
         </div>

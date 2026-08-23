@@ -70,12 +70,12 @@ export default function MaquinariaManager({ maquinaria, setMaquinaria, isDark })
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold font-serif flex items-center gap-2">
+          <h2 className={`text-xl font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             <Cpu className="w-6 h-6 text-amber-500" />
             Maquinària & Equipament del Taller
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Gestió de la maquinària, cost amortitzat per hora i registres tècnics.
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+            Càlcul d'amortització, consum elèctric, manteniment i cost d'hora màquina.
           </p>
         </div>
 

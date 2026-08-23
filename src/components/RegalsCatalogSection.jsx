@@ -842,6 +842,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
     : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
   const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
+  const isPreuDesDe = product.preuDesDe === true || product.isPreuDesDe === true;
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
   const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
   const ratingScore = product.rating || 5.0;
@@ -900,7 +901,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
       <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider font-mono font-medium">
-            {isBudgetRequired ? "Preu orientatiu" : "Preu"}
+            {isPreuDesDe ? "PREU DES DE" : (isBudgetRequired ? "Preu orientatiu" : "Preu")}
           </span>
           <span className={textPriceValue ? "font-sans text-xs sm:text-sm font-semibold text-primary" : "font-sans text-base sm:text-lg font-bold text-primary tracking-tight"}>
             {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`)}

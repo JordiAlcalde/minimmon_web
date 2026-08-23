@@ -3,7 +3,7 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare
 } from 'lucide-react';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { STITCH_PROJECTS } from '../../data/stitchData';
@@ -65,6 +65,9 @@ export default function EscandallsManager({
 
   // Estat per a visualitzar la imatge ampliada (Lightbox)
   const [zoomedImage, setZoomedImage] = useState(null);
+
+  // Estat per a mostrar o ocultar comentaris aclaratoris de línia
+  const [showLineComments, setShowLineComments] = useState(true);
 
   // Estat per a la Calculadora Flotant de Taulers de Fusta
   const [calcModalOpen, setCalcModalOpen] = useState(false);
@@ -734,11 +737,11 @@ export default function EscandallsManager({
       {/* Capçalera Principal */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold font-serif flex items-center gap-2">
+          <h2 className={`text-xl font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             <Calculator className="w-6 h-6 text-amber-500" />
             Escandalls & Càlcul de Costos i Preus
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Desglossament tècnic de materials, hores de taller, maquinària i sobrecostos de personalització.
           </p>
         </div>
@@ -757,7 +760,9 @@ export default function EscandallsManager({
         isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
       }`}>
         {/* 1. Botons de Selecció: Productes vs Projectes */}
-        <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 shrink-0">
+        <div className={`flex items-center p-1 rounded-xl border shrink-0 ${
+          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+        }`}>
           <button
             type="button"
             onClick={() => {
@@ -766,13 +771,13 @@ export default function EscandallsManager({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeScope === 'productes'
                 ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200')
             }`}
           >
             <Package className="w-4 h-4" />
             <span>Productes</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-              activeScope === 'productes' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+              activeScope === 'productes' ? 'bg-amber-800 text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700')
             }`}>
               {countProductes}
             </span>
@@ -788,13 +793,13 @@ export default function EscandallsManager({
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeScope === 'projectes'
                 ? 'bg-amber-600 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200')
             }`}
           >
             <Palette className="w-4 h-4" />
             <span>Projectes</span>
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-              activeScope === 'projectes' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+              activeScope === 'projectes' ? 'bg-amber-800 text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700')
             }`}>
               {countProjectes}
             </span>
@@ -889,9 +894,9 @@ export default function EscandallsManager({
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div 
                     onClick={() => displayImage && setZoomedImage(displayImage)}
-                    className={`w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center relative group ${
-                      displayImage ? 'cursor-pointer hover:border-amber-500/60 transition-all' : ''
-                    }`}
+                    className={`w-12 h-12 rounded-xl border overflow-hidden shrink-0 flex items-center justify-center relative group ${
+                      isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                    } ${displayImage ? 'cursor-pointer hover:border-amber-500/60 transition-all' : ''}`}
                     title={displayImage ? "Clica per ampliar la imatge" : ""}
                   >
                     {displayImage ? (
@@ -913,22 +918,32 @@ export default function EscandallsManager({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                      <h3 className="font-bold text-slate-100 text-sm sm:text-base font-serif truncate mr-1" title={esc.producteNom}>
+                      <h3 className={`font-bold text-sm sm:text-base font-serif truncate mr-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={esc.producteNom}>
                         {esc.producteNom}
                       </h3>
                       {esc.producteCodi && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-mono text-slate-400 bg-slate-800 border border-slate-700">
+                        <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>
                           {esc.producteCodi}
                         </span>
                       )}
-                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
                         {esc.tipus || 'Producte Web'}
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-400 line-clamp-1" title={esc.notes || 'Sense descripció addicional'}>
-                      {esc.notes || (esc.materials?.length ? `${esc.materials.length} materials, ${esc.operacions?.length || 0} operacions` : 'Sense descripció')}
+                    <p className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {esc.materials?.length || 0} materials, {esc.operacions?.length || 0} operacions{esc.maquinaria?.length ? `, ${esc.maquinaria.length} màquines` : ''}
                     </p>
+
+                    {/* Notes generals de fabricació (esc.notes) */}
+                    {esc.notes && esc.notes.trim() && (
+                      <div className={`mt-1.5 pt-1.5 border-t flex items-start gap-1.5 text-[11px] ${isDark ? 'border-slate-800/60 text-slate-300' : 'border-slate-200 text-slate-700'}`}>
+                        <FileText className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                        <p className="italic font-sans line-clamp-2" title={esc.notes}>
+                          {esc.notes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -936,51 +951,61 @@ export default function EscandallsManager({
                 <div className="flex flex-wrap sm:flex-nowrap items-stretch gap-2 shrink-0 text-xs">
                   
                   {/* 2. Bloc: Desglossament de Costos */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[170px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Materials ({formatDecimal(matPct, 0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costMat, 2)}</strong>
+                  <div className={`p-2.5 rounded-xl border min-w-[170px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5 ${
+                    isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Materials ({formatDecimal(matPct, 0)}%):</span>
+                      <strong className={`font-mono ml-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(costs.costMat, 2)}</strong>
                     </div>
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Mà d'obra ({formatDecimal(opPct, 0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costOp, 2)}</strong>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Mà d'obra ({formatDecimal(opPct, 0)}%):</span>
+                      <strong className={`font-mono ml-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(costs.costOp, 2)}</strong>
                     </div>
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Maquinària ({formatDecimal(maqPct, 0)}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.costMaq, 2)}</strong>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Maquinària ({formatDecimal(maqPct, 0)}%):</span>
+                      <strong className={`font-mono ml-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(costs.costMaq, 2)}</strong>
                     </div>
                   </div>
 
                   {/* 3. Bloc: Cost de Fabricació & Marges */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5">
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Cost de fabricació:</span>
-                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.totalCost, 2)}</strong>
+                  <div className={`p-2.5 rounded-xl border min-w-[210px] flex-1 sm:flex-none flex flex-col justify-center space-y-0.5 ${
+                    isDark ? 'bg-slate-950/60 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Cost de fabricació:</span>
+                      <strong className={`font-mono ml-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(costs.totalCost, 2)}</strong>
                     </div>
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">Marge comercial (+{esc.margePercent || 65}%):</span>
-                      <strong className="font-mono text-slate-200 ml-2">{formatCurrency(costs.marginAmount, 2)}</strong>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Marge comercial (+{esc.margePercent || 65}%):</span>
+                      <strong className={`font-mono ml-2 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(costs.marginAmount, 2)}</strong>
                     </div>
-                    <div className="text-slate-300 flex items-center justify-between">
-                      <span className="text-slate-400">PVP suggerit:</span>
-                      <strong className="font-mono text-amber-400 font-bold ml-2">{formatCurrency(costs.pvpRecomanat, 2)}</strong>
+                    <div className="flex items-center justify-between">
+                      <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>PVP suggerit:</span>
+                      <strong className={`font-mono font-bold ml-2 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>{formatCurrency(costs.pvpRecomanat, 2)}</strong>
                     </div>
                   </div>
 
                   {/* 4. Bloc: PVP Web / Venda */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 min-w-[110px] text-center flex flex-col justify-center shrink-0">
-                    <span className="text-[11px] text-slate-400 font-medium">PVP Web:</span>
-                    <span className="text-sm sm:text-base font-bold font-mono text-slate-100 mt-0.5">
+                  <div className={`p-2.5 rounded-xl border min-w-[110px] text-center flex flex-col justify-center shrink-0 ${
+                    isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <span className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>PVP Web:</span>
+                    <span className={`text-sm sm:text-base font-bold font-mono mt-0.5 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                       {preuWeb > 0 ? formatCurrency(preuWeb, 2) : formatCurrency(costs.pvpRecomanat, 2)}
                     </span>
                   </div>
 
                   {/* 5. Bloc: Botons d'Acció */}
-                  <div className="p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-center gap-1.5 shrink-0">
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-center gap-1.5 shrink-0 ${
+                    isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(esc)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-700 hover:bg-slate-200'
+                      }`}
                       title="Editar Escandall"
                     >
                       <Edit2 className="w-4 h-4" />
@@ -988,7 +1013,9 @@ export default function EscandallsManager({
                     <button
                       type="button"
                       onClick={() => handleStartDuplicate(esc)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-700 hover:bg-slate-200'
+                      }`}
                       title="Duplicar escandall a un altre producte o còpia"
                     >
                       <Copy className="w-4 h-4" />
@@ -996,7 +1023,9 @@ export default function EscandallsManager({
                     <button
                       type="button"
                       onClick={() => handleDelete(esc.id)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-600 hover:text-red-600 hover:bg-slate-200'
+                      }`}
                       title="Eliminar Escandall"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1306,7 +1335,7 @@ export default function EscandallsManager({
                 <span className="truncate">
                   {editingEscandall ? (
                     <>
-                      Editar Escandall : <span className="text-amber-400 font-semibold">{formData.producteNom || 'Sense nom'}</span>
+                      Editar Escandall : <span className={`font-semibold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>{formData.producteNom || 'Sense nom'}</span>
                     </>
                   ) : (
                     activeScope === 'productes' ? 'Nou Escandall de Producte' : 'Nou Escandall de Projecte'
@@ -1327,7 +1356,9 @@ export default function EscandallsManager({
                 <button 
                   type="button"
                   onClick={() => setModalOpen(false)} 
-                  className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                  className={`p-1.5 cursor-pointer rounded-xl transition-colors ${
+                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                  }`}
                   title="Tancar"
                 >
                   <X className="w-5 h-5" />
@@ -1336,14 +1367,16 @@ export default function EscandallsManager({
             </div>
 
             {/* Selector de Pestanyes del Modal */}
-            <div className="flex items-center border-b border-slate-800 bg-slate-950 px-6 gap-2 shrink-0 overflow-x-auto">
+            <div className={`flex items-center border-b px-6 gap-2 shrink-0 overflow-x-auto ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100/70'
+            }`}>
               <button
                 type="button"
                 onClick={() => setActiveModalTab('base')}
                 className={`py-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeModalTab === 'base'
-                    ? 'border-amber-500 text-amber-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? (isDark ? 'border-amber-500 text-amber-400 font-bold' : 'border-amber-600 text-amber-800 font-extrabold')
+                    : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
                 }`}
               >
                 <Package className="w-3.5 h-3.5" />
@@ -1355,8 +1388,8 @@ export default function EscandallsManager({
                 onClick={() => setActiveModalTab('personalitzacio')}
                 className={`py-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeModalTab === 'personalitzacio'
-                    ? 'border-amber-500 text-amber-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? (isDark ? 'border-amber-500 text-amber-400 font-bold' : 'border-amber-600 text-amber-800 font-extrabold')
+                    : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
                 }`}
               >
                 <Sliders className="w-3.5 h-3.5" />
@@ -1368,8 +1401,8 @@ export default function EscandallsManager({
                 onClick={() => setActiveModalTab('resum')}
                 className={`py-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
                   activeModalTab === 'resum'
-                    ? 'border-amber-500 text-amber-400'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                    ? (isDark ? 'border-amber-500 text-amber-400 font-bold' : 'border-amber-600 text-amber-800 font-extrabold')
+                    : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
                 }`}
               >
                 <TrendingUp className="w-3.5 h-3.5" />
@@ -1390,14 +1423,16 @@ export default function EscandallsManager({
                       : '';
 
                     return (
-                      <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/70 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs ${
+                        isDark ? 'border-slate-800 bg-slate-950/70' : 'border-slate-200 bg-slate-50/90'
+                      }`}>
                         <div className="flex items-center gap-3.5 min-w-0">
                           {/* Miniatura amb clic per ampliar (Lightbox) */}
                           <div 
                             onClick={() => displayModalImage && setZoomedImage(displayModalImage)}
-                            className={`w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center relative group ${
-                              displayModalImage ? 'cursor-pointer hover:border-amber-500/60 transition-all' : ''
-                            }`}
+                            className={`w-14 h-14 rounded-xl border overflow-hidden shrink-0 flex items-center justify-center relative group ${
+                              isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                            } ${displayModalImage ? 'cursor-pointer hover:border-amber-500/60 transition-all' : ''}`}
                             title={displayModalImage ? "Clica per ampliar la imatge" : ""}
                           >
                             {displayModalImage ? (
@@ -1420,71 +1455,104 @@ export default function EscandallsManager({
                           <div className="min-w-0">
                             {/* Píndoles: Tipus + Família + Gamma */}
                             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                              <span className="text-[10px] px-2.5 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold border ${
+                                isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                              }`}>
                                 {formData.tipus || 'Producte Web'}
                               </span>
                               {currentFamiliaNom && (
-                                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border ${
+                                  isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300'
+                                }`}>
                                   {currentFamiliaNom}
                                 </span>
                               )}
                               {currentGammaNom && (
-                                <span className="text-[10px] px-2.5 py-0.5 rounded-full font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border ${
+                                  isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300'
+                                }`}>
                                   {currentGammaNom}
                                 </span>
                               )}
                             </div>
 
-                            <h4 className="font-bold text-slate-100 text-sm sm:text-base font-serif truncate">
+                            <h4 className={`font-bold text-sm sm:text-base font-serif truncate ${
+                              isDark ? 'text-slate-100' : 'text-slate-900'
+                            }`}>
                               {formData.producteNom || 'Sense nom'}
                             </h4>
                           </div>
                         </div>
 
-                        {formData.preuWebActual > 0 && (
-                          <div className="text-left sm:text-right shrink-0 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800">
-                            <span className="text-[10px] text-slate-400 block font-medium">PVP Botiga Web</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{Number(formData.preuWebActual).toFixed(2)} €</span>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setShowLineComments(!showLineComments)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer border flex items-center gap-1.5 transition-all shadow-xs ${
+                              showLineComments
+                                ? (isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-amber-500/10' : 'bg-amber-100 text-amber-900 border-amber-400 font-bold')
+                                : (isDark ? 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300')
+                            }`}
+                            title="Mostrar / Ocultar comentaris aclaratoris a totes les línies"
+                          >
+                            <MessageSquare className={`w-3.5 h-3.5 ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
+                            <span>{showLineComments ? 'Notes: Visibles' : 'Mostrar notes'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenCalculatorGeneral}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer border flex items-center gap-1.5 transition-all shadow-xs ${
+                              isDark 
+                                ? 'bg-slate-900 hover:bg-slate-800 text-amber-400 border-amber-500/30' 
+                                : 'bg-white hover:bg-slate-100 text-amber-800 border-amber-300 font-bold'
+                            }`}
+                            title="Obrir Calculadora de Mides de Taulers i Peces de Fusta"
+                          >
+                            <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Calculadora Tauler</span>
+                          </button>
+
+                          {formData.preuWebActual > 0 && (
+                            <div className={`text-left sm:text-right shrink-0 p-2.5 rounded-xl border ${
+                              isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                            }`}>
+                              <span className={`text-[10px] block font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>PVP Botiga Web</span>
+                              <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{Number(formData.preuWebActual).toFixed(2)} €</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })()}
 
                   {/* Taula 1: MATERIALS DE FABRICACIÓ */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                  <div className={`p-4 rounded-2xl border space-y-2.5 ${
+                    isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50/70'
+                  }`}>
                     <div className="flex items-center justify-between pb-1">
-                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                      <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         <Package className="w-4 h-4 text-amber-500" /> 1. Consum de Materials
                       </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleOpenCalculatorGeneral}
-                          className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/30 rounded-lg text-[11px] font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
-                          title="Obrir Calculadora de Mides de Taulers i Peces de Fusta"
-                        >
-                          <Calculator className="w-3.5 h-3.5" />
-                          <span>Calculadora Tauler</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              materials: [...prev.materials, { materialId: '', costUnitari: 0, quantitat: 1 }]
-                            }));
-                          }}
-                          className="px-2.5 py-1 bg-amber-600/80 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors"
-                        >
-                          + Afegir Material
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            materials: [...prev.materials, { materialId: '', costUnitari: 0, quantitat: 1 }]
+                          }));
+                        }}
+                        className="px-2.5 py-1 bg-amber-600/80 hover:bg-amber-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer transition-colors"
+                      >
+                        + Afegir Material
+                      </button>
                     </div>
 
                     {/* Capçalera de Columnes per a Materials */}
                     {formData.materials.length > 0 && (
-                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                      <div className={`grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider select-none ${
+                        isDark ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
                         <div className="col-span-5">Material</div>
                         <div className="col-span-2 text-left">Preu / u</div>
                         <div className="col-span-3 text-left">Quantitat</div>
@@ -1494,7 +1562,7 @@ export default function EscandallsManager({
                     )}
 
                     {formData.materials.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap material encara.</p>
+                      <p className={`text-[11px] italic py-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>No s'ha assignat cap material encara.</p>
                     ) : (
                       <div className="space-y-2">
                         {formData.materials.map((item, idx) => {
@@ -1504,7 +1572,9 @@ export default function EscandallsManager({
                           const subtotal = Number(item.quantitat || 0) * unitCost;
 
                           return (
-                            <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <div key={idx} className={`grid grid-cols-12 gap-2 items-center p-2 rounded-xl border ${
+                              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                            }`}>
                               {/* 1. Columna Material (Nom pur sense preu encastat) */}
                               <div className="col-span-5">
                                 <select
@@ -1517,7 +1587,9 @@ export default function EscandallsManager({
                                     next[idx].costUnitari = newMatObj ? Number(newMatObj.preuProPrin || 0) : 0;
                                     setFormData({ ...formData, materials: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
+                                  className={`w-full p-1.5 rounded-lg border text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-medium'
+                                  }`}
                                 >
                                   <option value="">-- Tria un material ... --</option>
                                   {[...materials].sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca')).map(m => (
@@ -1531,11 +1603,13 @@ export default function EscandallsManager({
                               {/* 2. Columna Preu / u (Píndola Pròpia amb 3 Decimals) */}
                               <div className="col-span-2 flex justify-start items-center">
                                 {matObj ? (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-amber-500/30 text-amber-400 font-mono text-xs font-semibold shadow-xs">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-lg border font-mono text-xs font-semibold shadow-2xs ${
+                                    isDark ? 'bg-slate-950 border-amber-500/30 text-amber-400' : 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                                  }`}>
                                     {formatDecimal(unitCost, 3)} € / {matObj.unitat || 'u'}
                                   </span>
                                 ) : (
-                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                  <span className={`font-mono text-xs ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>-</span>
                                 )}
                               </div>
 
@@ -1548,14 +1622,18 @@ export default function EscandallsManager({
                                     next[idx].quantitat = num;
                                     setFormData({ ...formData, materials: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
+                                  className={`w-full p-1.5 rounded-lg border font-mono text-center text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                  }`}
                                   placeholder="Quantitat"
                                 />
-                                <span className="text-[10px] text-slate-400 shrink-0 min-w-[20px]">{matObj?.unitat || 'u'}</span>
+                                <span className={`text-[10px] shrink-0 min-w-[20px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{matObj?.unitat || 'u'}</span>
                                 <button
                                   type="button"
                                   onClick={() => handleOpenCalculatorForMaterial(idx)}
-                                  className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 transition-all cursor-pointer shrink-0"
+                                  className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                                    isDark ? 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-400 border-amber-500/30' : 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
+                                  }`}
                                   title="Calcular quantitat de tauler segons les mides de la peça"
                                 >
                                   <Calculator className="w-3.5 h-3.5" />
@@ -1563,7 +1641,9 @@ export default function EscandallsManager({
                               </div>
 
                               {/* 4. Columna Cost Subtotal (2 Decimals de cara a clients / total) */}
-                              <div className="col-span-1 text-left font-mono text-amber-400 font-bold text-xs truncate">
+                              <div className={`col-span-1 text-left font-mono font-bold text-xs truncate ${
+                                isDark ? 'text-amber-400' : 'text-amber-800'
+                              }`}>
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
@@ -1574,7 +1654,7 @@ export default function EscandallsManager({
                                   disabled={idx === 0}
                                   onClick={() => handleMoveArrayItem('materials', idx, -1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === 0 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:text-amber-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia amunt"
                                 >
@@ -1585,7 +1665,7 @@ export default function EscandallsManager({
                                   disabled={idx === formData.materials.length - 1}
                                   onClick={() => handleMoveArrayItem('materials', idx, 1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === formData.materials.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-amber-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === formData.materials.length - 1 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:text-amber-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia avall"
                                 >
@@ -1599,12 +1679,40 @@ export default function EscandallsManager({
                                       materials: formData.materials.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  className={`p-1 cursor-pointer rounded transition-colors ${
+                                    isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                  }`}
                                   title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
+                                
+                                {/* Sub-Fila: Comentari aclaratori per a aquesta línia */}
+                                {showLineComments && (
+                                  <div className={`col-span-12 pt-1.5 flex items-center gap-2 border-t mt-1 ${
+                                    isDark ? 'border-slate-800/60' : 'border-slate-200'
+                                  }`}>
+                                    <span className={`text-[10px] font-mono font-medium shrink-0 flex items-center gap-1 ${
+                                      isDark ? 'text-amber-400' : 'text-amber-800 font-bold'
+                                    }`}>
+                                      <MessageSquare className="w-3 h-3" /> Nota:
+                                    </span>
+                                    <input
+                                      type="text"
+                                      value={item.comentari || ''}
+                                      onChange={(e) => {
+                                        const next = [...formData.materials];
+                                        next[idx].comentari = e.target.value;
+                                        setFormData({ ...formData, materials: next });
+                                      }}
+                                      placeholder="Comentari aclaratori (ex: Marge de tall 3mm, color de fusta roure...)..."
+                                      className={`w-full text-xs px-2.5 py-1 rounded-lg italic outline-none border ${
+                                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/60' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-amber-500'
+                                      }`}
+                                    />
+                                  </div>
+                                )}
                             </div>
                           );
                         })}
@@ -1613,9 +1721,11 @@ export default function EscandallsManager({
                   </div>
 
                   {/* Taula 2: OPERACIONS DE TALLER */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                  <div className={`p-4 rounded-2xl border space-y-2.5 ${
+                    isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50/70'
+                  }`}>
                     <div className="flex items-center justify-between pb-1">
-                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                      <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         <Wrench className="w-4 h-4 text-emerald-500" /> 2. Operacions de Mà d'Obra (Taller)
                       </span>
                       <button
@@ -1634,7 +1744,9 @@ export default function EscandallsManager({
 
                     {/* Capçalera de Columnes per a Operacions */}
                     {formData.operacions.length > 0 && (
-                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                      <div className={`grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider select-none ${
+                        isDark ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
                         <div className="col-span-5">Operació</div>
                         <div className="col-span-2 text-left">Preu / h</div>
                         <div className="col-span-3 text-left">Temps (minuts)</div>
@@ -1644,7 +1756,7 @@ export default function EscandallsManager({
                     )}
 
                     {formData.operacions.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap operació encara.</p>
+                      <p className={`text-[11px] italic py-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>No s'ha assignat cap operació encara.</p>
                     ) : (
                       <div className="space-y-2">
                         {formData.operacions.map((item, idx) => {
@@ -1653,7 +1765,9 @@ export default function EscandallsManager({
                           const subtotal = (Number(item.tempsMinuts || 0) / 60) * hourCost;
 
                           return (
-                            <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <div key={idx} className={`grid grid-cols-12 gap-2 items-center p-2 rounded-xl border ${
+                              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                            }`}>
                               <div className="col-span-5">
                                 <select
                                   value={item.operacioId || ''}
@@ -1665,7 +1779,9 @@ export default function EscandallsManager({
                                     next[idx].costHora = newOpObj ? Number(newOpObj.preuHora || 0) : 0;
                                     setFormData({ ...formData, operacions: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
+                                  className={`w-full p-1.5 rounded-lg border text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-medium'
+                                  }`}
                                 >
                                   <option value="">-- Tria una operació ... --</option>
                                   {[...operacions].sort((a, b) => (a.operacio || '').localeCompare(b.operacio || '', 'ca')).map(o => (
@@ -1679,11 +1795,13 @@ export default function EscandallsManager({
                               {/* Píndola de Preu / h amb 3 Decimals */}
                               <div className="col-span-2 flex justify-start items-center">
                                 {opObj ? (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold shadow-xs">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-lg border font-mono text-xs font-semibold shadow-2xs ${
+                                    isDark ? 'bg-slate-950 border-emerald-500/30 text-emerald-400' : 'bg-emerald-100 border-emerald-300 text-emerald-900 font-bold'
+                                  }`}>
                                     {formatDecimal(hourCost, 3)} €/h
                                   </span>
                                 ) : (
-                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                  <span className={`font-mono text-xs ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>-</span>
                                 )}
                               </div>
 
@@ -1695,13 +1813,17 @@ export default function EscandallsManager({
                                     next[idx].tempsMinuts = num;
                                     setFormData({ ...formData, operacions: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
+                                  className={`w-full p-1.5 rounded-lg border font-mono text-center text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                  }`}
                                   placeholder="Minuts"
                                 />
-                                <span className="text-[10px] text-slate-400 shrink-0">min</span>
+                                <span className={`text-[10px] shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>min</span>
                               </div>
 
-                              <div className="col-span-1 text-left font-mono text-emerald-400 font-semibold text-xs truncate">
+                              <div className={`col-span-1 text-left font-mono font-semibold text-xs truncate ${
+                                isDark ? 'text-emerald-400' : 'text-emerald-800 font-bold'
+                              }`}>
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
@@ -1712,7 +1834,7 @@ export default function EscandallsManager({
                                   disabled={idx === 0}
                                   onClick={() => handleMoveArrayItem('operacions', idx, -1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === 0 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia amunt"
                                 >
@@ -1723,7 +1845,7 @@ export default function EscandallsManager({
                                   disabled={idx === formData.operacions.length - 1}
                                   onClick={() => handleMoveArrayItem('operacions', idx, 1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === formData.operacions.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === formData.operacions.length - 1 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia avall"
                                 >
@@ -1737,12 +1859,40 @@ export default function EscandallsManager({
                                       operacions: formData.operacions.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  className={`p-1 cursor-pointer rounded transition-colors ${
+                                    isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                  }`}
                                   title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
+
+                              {/* Sub-Fila: Comentari aclaratori per a aquesta línia */}
+                              {showLineComments && (
+                                <div className={`col-span-12 pt-1.5 flex items-center gap-2 border-t mt-1 ${
+                                  isDark ? 'border-slate-800/60' : 'border-slate-200'
+                                }`}>
+                                  <span className={`text-[10px] font-mono font-medium shrink-0 flex items-center gap-1 ${
+                                    isDark ? 'text-emerald-400' : 'text-emerald-800 font-bold'
+                                  }`}>
+                                    <MessageSquare className="w-3 h-3" /> Nota:
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={item.comentari || ''}
+                                    onChange={(e) => {
+                                      const next = [...formData.operacions];
+                                      next[idx].comentari = e.target.value;
+                                      setFormData({ ...formData, operacions: next });
+                                    }}
+                                    placeholder="Comentari aclaratori (ex: Polit manual amb gra 240, muntatge delicat...)..."
+                                    className={`w-full text-xs px-2.5 py-1 rounded-lg italic outline-none border ${
+                                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200 focus:border-emerald-500/60' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-emerald-500'
+                                    }`}
+                                  />
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1751,9 +1901,11 @@ export default function EscandallsManager({
                   </div>
 
                   {/* Taula 3: MAQUINÀRIA */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/40 space-y-2.5">
+                  <div className={`p-4 rounded-2xl border space-y-2.5 ${
+                    isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50/70'
+                  }`}>
                     <div className="flex items-center justify-between pb-1">
-                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                      <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         <Cpu className="w-4 h-4 text-sky-500" /> 3. Amortització & Ús de Maquinària
                       </span>
                       <button
@@ -1772,7 +1924,9 @@ export default function EscandallsManager({
 
                     {/* Capçalera de Columnes per a Maquinària */}
                     {formData.maquinaria.length > 0 && (
-                      <div className="grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider select-none">
+                      <div className={`grid grid-cols-12 gap-2 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider select-none ${
+                        isDark ? 'text-slate-400' : 'text-slate-600'
+                      }`}>
                         <div className="col-span-5">Màquina</div>
                         <div className="col-span-2 text-left">Preu / h</div>
                         <div className="col-span-3 text-left">Temps (minuts)</div>
@@ -1782,7 +1936,7 @@ export default function EscandallsManager({
                     )}
 
                     {formData.maquinaria.length === 0 ? (
-                      <p className="text-[11px] text-slate-500 italic py-2">No s'ha assignat cap maquinària.</p>
+                      <p className={`text-[11px] italic py-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>No s'ha assignat cap maquinària.</p>
                     ) : (
                       <div className="space-y-2">
                         {formData.maquinaria.map((item, idx) => {
@@ -1791,7 +1945,9 @@ export default function EscandallsManager({
                           const subtotal = (Number(item.tempsMinuts || 0) / 60) * hourCost;
 
                           return (
-                            <div key={idx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <div key={idx} className={`grid grid-cols-12 gap-2 items-center p-2 rounded-xl border ${
+                              isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                            }`}>
                               <div className="col-span-5">
                                 <select
                                   value={item.maquinaId || ''}
@@ -1803,7 +1959,9 @@ export default function EscandallsManager({
                                     next[idx].costHora = newMaqObj ? Number(newMaqObj.preuHora || 0) : 0;
                                     setFormData({ ...formData, maquinaria: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 text-xs"
+                                  className={`w-full p-1.5 rounded-lg border text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-medium'
+                                  }`}
                                 >
                                   <option value="">-- Tria una màquina ... --</option>
                                   {[...maquinaria].sort((a, b) => (a.maquina || '').localeCompare(b.maquina || '', 'ca')).map(m => (
@@ -1817,11 +1975,13 @@ export default function EscandallsManager({
                               {/* Píndola de Preu / h amb 3 Decimals */}
                               <div className="col-span-2 flex justify-start items-center">
                                 {maqObj ? (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-950 border border-sky-500/30 text-sky-400 font-mono text-xs font-semibold shadow-xs">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-lg border font-mono text-xs font-semibold shadow-2xs ${
+                                    isDark ? 'bg-slate-950 border-sky-500/30 text-sky-400' : 'bg-sky-100 border-sky-300 text-sky-900 font-bold'
+                                  }`}>
                                     {formatDecimal(hourCost, 3)} €/h
                                   </span>
                                 ) : (
-                                  <span className="text-slate-600 font-mono text-xs">-</span>
+                                  <span className={`font-mono text-xs ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>-</span>
                                 )}
                               </div>
 
@@ -1833,13 +1993,17 @@ export default function EscandallsManager({
                                     next[idx].tempsMinuts = num;
                                     setFormData({ ...formData, maquinaria: next });
                                   }}
-                                  className="w-full p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-center text-xs"
+                                  className={`w-full p-1.5 rounded-lg border font-mono text-center text-xs ${
+                                    isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                  }`}
                                   placeholder="Minuts"
                                 />
-                                <span className="text-[10px] text-slate-400 shrink-0">min</span>
+                                <span className={`text-[10px] shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>min</span>
                               </div>
 
-                              <div className="col-span-1 text-left font-mono text-sky-400 font-semibold text-xs truncate">
+                              <div className={`col-span-1 text-left font-mono font-semibold text-xs truncate ${
+                                isDark ? 'text-sky-400' : 'text-sky-800 font-bold'
+                              }`}>
                                 {formatCurrency(subtotal, 2)}
                               </div>
 
@@ -1850,7 +2014,7 @@ export default function EscandallsManager({
                                   disabled={idx === 0}
                                   onClick={() => handleMoveArrayItem('maquinaria', idx, -1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === 0 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-sky-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === 0 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-sky-400 hover:bg-slate-800' : 'text-slate-500 hover:text-sky-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia amunt"
                                 >
@@ -1861,7 +2025,7 @@ export default function EscandallsManager({
                                   disabled={idx === formData.maquinaria.length - 1}
                                   onClick={() => handleMoveArrayItem('maquinaria', idx, 1)}
                                   className={`p-1 rounded transition-colors ${
-                                    idx === formData.maquinaria.length - 1 ? 'text-slate-700 cursor-not-allowed opacity-30' : 'text-slate-400 hover:text-sky-400 hover:bg-slate-800 cursor-pointer'
+                                    idx === formData.maquinaria.length - 1 ? 'text-slate-300 cursor-not-allowed opacity-30' : (isDark ? 'text-slate-400 hover:text-sky-400 hover:bg-slate-800' : 'text-slate-500 hover:text-sky-700 hover:bg-slate-100')
                                   }`}
                                   title="Moure línia avall"
                                 >
@@ -1875,12 +2039,40 @@ export default function EscandallsManager({
                                       maquinaria: formData.maquinaria.filter((_, i) => i !== idx)
                                     });
                                   }}
-                                  className="p-1 text-slate-400 hover:text-red-400 cursor-pointer rounded hover:bg-slate-800 transition-colors"
+                                  className={`p-1 cursor-pointer rounded transition-colors ${
+                                    isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-100'
+                                  }`}
                                   title="Eliminar línia"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
+
+                              {/* Sub-Fila: Comentari aclaratori per a aquesta línia */}
+                              {showLineComments && (
+                                <div className={`col-span-12 pt-1.5 flex items-center gap-2 border-t mt-1 ${
+                                  isDark ? 'border-slate-800/60' : 'border-slate-200'
+                                }`}>
+                                  <span className={`text-[10px] font-mono font-medium shrink-0 flex items-center gap-1 ${
+                                    isDark ? 'text-sky-400' : 'text-sky-800 font-bold'
+                                  }`}>
+                                    <MessageSquare className="w-3 h-3" /> Nota:
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={item.comentari || ''}
+                                    onChange={(e) => {
+                                      const next = [...formData.maquinaria];
+                                      next[idx].comentari = e.target.value;
+                                      setFormData({ ...formData, maquinaria: next });
+                                    }}
+                                    placeholder="Comentari aclaratori (ex: Lent 2.5 polzades, potència 45%, gravat vectorial...)..."
+                                    className={`w-full text-xs px-2.5 py-1 rounded-lg italic outline-none border ${
+                                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200 focus:border-sky-500/60' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-sky-500'
+                                    }`}
+                                  />
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1893,17 +2085,23 @@ export default function EscandallsManager({
               {/* ================= PESTANYA 2: OPCIONS DE PERSONALITZACIÓ ================= */}
               {activeModalTab === 'personalitzacio' && (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60">
-                    <h4 className="font-bold text-amber-400 flex items-center gap-1.5 text-xs mb-1">
+                  <div className={`p-4 rounded-2xl border ${
+                    isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                  }`}>
+                    <h4 className={`font-bold flex items-center gap-1.5 text-xs mb-1 ${
+                      isDark ? 'text-amber-400' : 'text-amber-900 font-extrabold'
+                    }`}>
                       <Sliders className="w-4 h-4" /> Sobrecostos de Personalització segons Variants del Catàleg
                     </h4>
-                    <p className="text-[11px] text-slate-400">
+                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       Configura el sobrecost directe o minuts addicionals de taller que requereix cadascuna de les opcions que el client pot triar o escriure a la botiga web.
                     </p>
                   </div>
 
                   {detectedCustomizationOptions.length === 0 ? (
-                    <div className="p-8 rounded-2xl border border-dashed border-slate-800 text-center text-slate-500">
+                    <div className={`p-8 rounded-2xl border border-dashed text-center ${
+                      isDark ? 'border-slate-800 text-slate-500' : 'border-slate-300 text-slate-600'
+                    }`}>
                       Aquest producte no té opcions de personalització definides al catàleg de la botiga.
                     </div>
                   ) : (
@@ -1913,31 +2111,39 @@ export default function EscandallsManager({
                         const currentValObj = formData.opcionsCostos[op.titol] || {};
 
                         return (
-                          <div key={op.titol} className="rounded-2xl border border-slate-800 bg-slate-950/40 overflow-hidden">
+                          <div key={op.titol} className={`rounded-2xl border overflow-hidden ${
+                            isDark ? 'border-slate-800 bg-slate-950/40' : 'border-slate-200 bg-slate-50/70'
+                          }`}>
                             <div
                               onClick={() => setExpandedOptionKey(isExpanded ? null : op.titol)}
-                              className="p-3.5 flex items-center justify-between cursor-pointer hover:bg-slate-900/60 select-none"
+                              className={`p-3.5 flex items-center justify-between cursor-pointer select-none transition-colors ${
+                                isDark ? 'hover:bg-slate-900/60' : 'hover:bg-slate-100'
+                              }`}
                             >
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-200">{op.titol}</span>
+                                <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{op.titol}</span>
                                 {op.isText ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold flex items-center gap-1">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold flex items-center gap-1 ${
+                                    isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-100 text-blue-900 border-blue-300 font-bold'
+                                  }`}>
                                     <Type className="w-3 h-3" /> Camp de Text Lliure
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                                    isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300 font-medium'
+                                  }`}>
                                     {op.valors.length} valors seleccionables
                                   </span>
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-2 text-slate-400">
+                              <div className={`flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                 {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </div>
                             </div>
 
                             {isExpanded && (
-                              <div className="p-4 pt-2 border-t border-slate-800 space-y-3">
+                              <div className={`p-4 pt-2 border-t space-y-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                                 {op.isText ? (
                                   // OPCIÓ DE TEXT LLIURE (1 ÚNICA FILA PER ASSIGNAR COST DE GRAVAT/TEXT)
                                   (() => {
@@ -1946,37 +2152,41 @@ export default function EscandallsManager({
                                                       { sobrecost: 0, tempsMinuts: 0 };
 
                                     return (
-                                      <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                      <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                        isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white shadow-2xs'
+                                      }`}>
                                         <div>
-                                          <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-                                            <Type className="w-3.5 h-3.5 text-blue-400" />
+                                          <div className={`font-semibold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                                            <Type className="w-3.5 h-3.5 text-blue-500" />
                                             <span>Personalització de Text / Gravat</span>
                                           </div>
-                                          <div className="text-[10px] text-slate-500">
+                                          <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
                                             El client introdueix el text/inicial a la botiga web. Defineix el cost fix o temps extra si s'aplica.
                                           </div>
                                         </div>
 
                                         <div className="flex items-center gap-3">
                                           <div className="flex items-center gap-1.5">
-                                            <label className="text-[10px] text-slate-400">Sobrecost directe (€):</label>
-                                            <input
-                                              type="number"
-                                              step="any"
+                                            <label className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>Sobrecost directe (€):</label>
+                                            <DecimalInput
+                                              step={0.5}
                                               value={valConfig.sobrecost || 0}
-                                              onChange={(e) => handleUpdateOptionSurcharge(op.titol, 'Text Personalitzat', 'sobrecost', parseFloat(e.target.value) || 0)}
-                                              className="w-20 p-1 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-right"
+                                              onChange={(e, num) => handleUpdateOptionSurcharge(op.titol, 'Text Personalitzat', 'sobrecost', num)}
+                                              className={`w-20 p-1 rounded-lg border font-mono text-right ${
+                                                isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                              }`}
                                             />
                                           </div>
 
                                           <div className="flex items-center gap-1.5">
-                                            <label className="text-[10px] text-slate-400">Minuts extra:</label>
-                                            <input
-                                              type="number"
-                                              step="any"
+                                            <label className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>Minuts extra:</label>
+                                            <DecimalInput
+                                              step={0.5}
                                               value={valConfig.tempsMinuts || 0}
-                                              onChange={(e) => handleUpdateOptionSurcharge(op.titol, 'Text Personalitzat', 'tempsMinuts', parseFloat(e.target.value) || 0)}
-                                              className="w-16 p-1 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-right"
+                                              onChange={(e, num) => handleUpdateOptionSurcharge(op.titol, 'Text Personalitzat', 'tempsMinuts', num)}
+                                              className={`w-16 p-1 rounded-lg border font-mono text-right ${
+                                                isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                              }`}
                                             />
                                           </div>
                                         </div>
@@ -1989,32 +2199,36 @@ export default function EscandallsManager({
                                     const valConfig = currentValObj[valName] || { sobrecost: 0, tempsMinuts: 0 };
 
                                     return (
-                                      <div key={valName} className="p-3 rounded-xl border border-slate-800 bg-slate-900/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                      <div key={valName} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                                        isDark ? 'border-slate-800 bg-slate-900/70' : 'border-slate-200 bg-white shadow-2xs'
+                                      }`}>
                                         <div>
-                                          <div className="font-semibold text-slate-200">{valName}</div>
-                                          <div className="text-[10px] text-slate-500">Opció: {op.titol}</div>
+                                          <div className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{valName}</div>
+                                          <div className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Opció: {op.titol}</div>
                                         </div>
 
                                         <div className="flex items-center gap-3">
                                           <div className="flex items-center gap-1.5">
-                                            <label className="text-[10px] text-slate-400">Sobrecost directe (€):</label>
-                                            <input
-                                              type="number"
-                                              step="any"
+                                            <label className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>Sobrecost directe (€):</label>
+                                            <DecimalInput
+                                              step={0.5}
                                               value={valConfig.sobrecost || 0}
-                                              onChange={(e) => handleUpdateOptionSurcharge(op.titol, valName, 'sobrecost', parseFloat(e.target.value) || 0)}
-                                              className="w-20 p-1 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-right"
+                                              onChange={(e, num) => handleUpdateOptionSurcharge(op.titol, valName, 'sobrecost', num)}
+                                              className={`w-20 p-1 rounded-lg border font-mono text-right ${
+                                                isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                              }`}
                                             />
                                           </div>
 
                                           <div className="flex items-center gap-1.5">
-                                            <label className="text-[10px] text-slate-400">Minuts extra:</label>
-                                            <input
-                                              type="number"
-                                              step="any"
+                                            <label className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-600 font-medium'}`}>Minuts extra:</label>
+                                            <DecimalInput
+                                              step={0.5}
                                               value={valConfig.tempsMinuts || 0}
-                                              onChange={(e) => handleUpdateOptionSurcharge(op.titol, valName, 'tempsMinuts', parseFloat(e.target.value) || 0)}
-                                              className="w-16 p-1 rounded-lg border border-slate-800 bg-slate-950 text-slate-200 font-mono text-right"
+                                              onChange={(e, num) => handleUpdateOptionSurcharge(op.titol, valName, 'tempsMinuts', num)}
+                                              className={`w-16 p-1 rounded-lg border font-mono text-right ${
+                                                isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                                              }`}
                                             />
                                           </div>
                                         </div>
@@ -2036,23 +2250,29 @@ export default function EscandallsManager({
               {activeModalTab === 'resum' && (
                 <div className="space-y-6">
                   {/* Paràmetres Econòmics Globals */}
-                  <div className="p-4 rounded-2xl border border-slate-800 bg-slate-950/60 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`p-4 rounded-2xl border grid grid-cols-1 md:grid-cols-2 gap-4 ${
+                    isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                  }`}>
                     <div>
-                      <label className="block text-slate-400 mb-1 font-medium">Percentatge de Mermes / Desperdici (%)</label>
+                      <label className={`block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Percentatge de Mermes / Desperdici (%)</label>
                       <DecimalInput
                         value={formData.mermePercent}
                         onChange={(e, num) => setFormData({ ...formData, mermePercent: num })}
-                        className="w-full p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-200 font-mono"
+                        className={`w-full p-2 rounded-xl border font-mono ${
+                          isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                        }`}
                         placeholder="Ex: 8"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-400 mb-1 font-medium">Marge Comercial Desitjat (%)</label>
+                      <label className={`block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Marge Comercial Desitjat (%)</label>
                       <DecimalInput
                         value={formData.margePercent}
                         onChange={(e, num) => setFormData({ ...formData, margePercent: num })}
-                        className="w-full p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-200 font-mono"
+                        className={`w-full p-2 rounded-xl border font-mono ${
+                          isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-bold'
+                        }`}
                         placeholder="Ex: 65"
                       />
                     </div>
@@ -2062,52 +2282,74 @@ export default function EscandallsManager({
                   {(() => {
                     const previewCosts = calculateCosts(formData);
                     return (
-                      <div className="p-5 rounded-2xl border border-amber-500/30 bg-amber-500/5 space-y-4">
-                        <h4 className="font-bold text-amber-400 text-sm font-serif flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4" /> Resultat del Càlcul Tècnic d'Escandall
+                      <div className={`p-5 rounded-2xl border space-y-4 ${
+                        isDark ? 'border-amber-500/30 bg-amber-500/5' : 'border-amber-300/80 bg-amber-50/60 shadow-xs'
+                      }`}>
+                        <h4 className={`font-bold text-sm font-serif flex items-center gap-2 ${
+                          isDark ? 'text-amber-400' : 'text-amber-900 font-extrabold'
+                        }`}>
+                          <TrendingUp className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-amber-800'}`} /> Resultat del Càlcul Tècnic d'Escandall
                         </h4>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Cost Materials</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costMat, 2)}</span>
+                          <div className={`p-3 rounded-xl border ${
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Cost Materials</span>
+                            <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(previewCosts.costMat, 2)}</span>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Cost Mà d'Obra</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costOp, 2)}</span>
+                          <div className={`p-3 rounded-xl border ${
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Cost Mà d'Obra</span>
+                            <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(previewCosts.costOp, 2)}</span>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Cost Maquinària</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.costMaq, 2)}</span>
+                          <div className={`p-3 rounded-xl border ${
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Cost Maquinària</span>
+                            <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(previewCosts.costMaq, 2)}</span>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-                            <span className="text-[10px] text-slate-400 uppercase block">Mermes (+{formatDecimal(formData.mermePercent, 1)}%)</span>
-                            <span className="font-mono font-bold text-sm text-slate-200">{formatCurrency(previewCosts.mermeAmount, 2)}</span>
+                          <div className={`p-3 rounded-xl border ${
+                            isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-semibold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Mermes (+{formatDecimal(formData.mermePercent, 1)}%)</span>
+                            <span className={`font-mono font-bold text-sm ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{formatCurrency(previewCosts.mermeAmount, 2)}</span>
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-amber-500/20 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center items-stretch">
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-col justify-center items-center">
-                            <span className="text-[10px] text-slate-400 uppercase block mb-0.5">Cost Total de Fabricació</span>
-                            <span className="font-mono font-extrabold text-base text-slate-100">{formatCurrency(previewCosts.totalCost, 2)}</span>
+                        <div className={`pt-3 border-t grid grid-cols-1 sm:grid-cols-3 gap-3 text-center items-stretch ${
+                          isDark ? 'border-amber-500/20' : 'border-amber-200'
+                        }`}>
+                          <div className={`p-2.5 rounded-xl border flex flex-col justify-center items-center ${
+                            isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-semibold mb-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Cost Total de Fabricació</span>
+                            <span className={`font-mono font-extrabold text-base ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{formatCurrency(previewCosts.totalCost, 2)}</span>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 flex flex-col justify-center items-center">
-                            <span className="text-[10px] uppercase block font-semibold mb-0.5">PVP Recomanat (+{formatDecimal(formData.margePercent, 1)}% marge)</span>
-                            <span className="font-mono font-extrabold text-base text-amber-300">{formatCurrency(previewCosts.pvpRecomanat, 2)}</span>
+                          <div className={`p-2.5 rounded-xl border flex flex-col justify-center items-center ${
+                            isDark ? 'bg-amber-600/20 border-amber-500/40 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-950 font-bold shadow-2xs'
+                          }`}>
+                            <span className={`text-[10px] uppercase block font-bold mb-0.5 ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>PVP Recomanat (+{formatDecimal(formData.margePercent, 1)}% marge)</span>
+                            <span className={`font-mono font-extrabold text-base ${isDark ? 'text-amber-300' : 'text-amber-900'}`}>{formatCurrency(previewCosts.pvpRecomanat, 2)}</span>
                           </div>
 
-                          <div className="p-2.5 rounded-xl bg-slate-950 border border-amber-500/30 flex flex-col justify-between space-y-1">
+                          <div className={`p-2.5 rounded-xl border flex flex-col justify-between space-y-1 ${
+                            isDark ? 'bg-slate-950 border-amber-500/30' : 'bg-white border-amber-300/80 shadow-2xs'
+                          }`}>
                             <div className="flex items-center justify-between gap-1 w-full">
-                              <span className="text-[10px] text-amber-400 uppercase font-bold block">Preu Actual Botiga Web (€)</span>
+                              <span className={`text-[10px] uppercase font-bold block ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>Preu Actual Botiga Web (€)</span>
                               {previewCosts.pvpRecomanat > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => setFormData({ ...formData, preuWebActual: Math.round(previewCosts.pvpRecomanat * 100) / 100 })}
-                                  className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold cursor-pointer border border-amber-500/30 transition-colors shrink-0"
+                                  className={`text-[9px] px-1.5 py-0.5 rounded font-semibold cursor-pointer border transition-colors shrink-0 ${
+                                    isDark ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/30' : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 font-bold'
+                                  }`}
                                   title="Copiar el PVP Recomanat al Preu Web"
                                 >
                                   Copiar PVP
@@ -2118,7 +2360,9 @@ export default function EscandallsManager({
                               decimals={2}
                               value={formData.preuWebActual}
                               onChange={(e, num) => setFormData({ ...formData, preuWebActual: num })}
-                              className="w-full py-1 px-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono font-extrabold text-base text-center outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50"
+                              className={`w-full py-1 px-2 rounded-lg border font-mono font-extrabold text-base text-center outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 ${
+                                isDark ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-slate-300 bg-slate-50 text-slate-900'
+                              }`}
                               placeholder="0,00"
                             />
                           </div>
@@ -2129,12 +2373,14 @@ export default function EscandallsManager({
 
                   {/* Notes Internes */}
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Notes i Observacions Tècniques de Fabricació</label>
+                    <label className={`block mb-1 font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Notes i Observacions Tècniques de Fabricació</label>
                     <textarea
                       rows="3"
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-200 outline-none resize-none"
+                      className={`w-full p-2.5 rounded-xl border outline-none resize-none ${
+                        isDark ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-900 font-medium'
+                      }`}
                       placeholder="Observacions del procés de fabricació, consells de muntatge..."
                     />
                   </div>
@@ -2146,22 +2392,28 @@ export default function EscandallsManager({
       )}
 
       {/* ========================================================================= */}
-      {/* FINESTRA FLOTANT: CALCULADORA DE TAULERS I PECES DE FUSTA */}
+      {/* MODAL CALCULADORA DE TAULERS I MIDES DE FUSTA */}
       {/* ========================================================================= */}
       {calcModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs text-slate-100">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs transition-all ${
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
             {/* Capçalera de la Calculadora */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950 shrink-0">
+            <div className={`flex items-center justify-between px-5 py-3.5 border-b shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-200 bg-slate-50 text-slate-900'
+            }`}>
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <div className={`p-1.5 rounded-lg border ${
+                  isDark ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'
+                }`}>
                   <Calculator className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm font-serif text-slate-100 flex items-center gap-1.5">
+                  <h3 className={`font-bold text-sm font-serif flex items-center gap-1.5 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                     Calculadora de Tauler
                   </h3>
-                  <p className="text-[10px] text-slate-400 truncate max-w-[240px]">
+                  <p className={`text-[10px] truncate max-w-[240px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     {calcSelectedMaterialNom}
                   </p>
                 </div>
@@ -2170,7 +2422,9 @@ export default function EscandallsManager({
               <button
                 type="button"
                 onClick={() => setCalcModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                className={`p-1.5 cursor-pointer rounded-xl transition-colors ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                }`}
                 title="Tancar calculadora"
               >
                 <X className="w-4 h-4" />
@@ -2181,32 +2435,38 @@ export default function EscandallsManager({
             <div className="p-5 space-y-4 overflow-y-auto max-h-[80vh]">
               
               {/* 1. Mides del Tauler Brut (Tauler) */}
-              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+              <div className={`p-3 rounded-xl border space-y-2 ${
+                isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-amber-400/90 flex items-center gap-1.5 text-[11px]">
+                  <label className={`font-bold flex items-center gap-1.5 text-[11px] ${isDark ? 'text-amber-400/90' : 'text-amber-700'}`}>
                     <Layers className="w-3.5 h-3.5" /> 1. Mides del Tauler seleccionat (mm)
                   </label>
-                  <span className="text-[10px] font-mono text-slate-400">
+                  <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     {calcResults.boardAreaCm2.toFixed(0)} cm²
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Llargada (mm):</span>
+                    <span className={`text-[10px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Llargada (mm):</span>
                     <DecimalInput
                       value={calcBoardLength}
                       onChange={(e, num) => setCalcBoardLength(num)}
-                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
+                      className={`w-full p-2 rounded-lg border font-mono text-center outline-none transition-all ${
+                        isDark ? 'border-slate-800 bg-slate-900 text-slate-100 focus:border-amber-500/50' : 'border-slate-300 bg-white text-slate-900 focus:border-amber-500'
+                      }`}
                       placeholder="Llargada mm"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Amplada (mm):</span>
+                    <span className={`text-[10px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Amplada (mm):</span>
                     <DecimalInput
                       value={calcBoardWidth}
                       onChange={(e, num) => setCalcBoardWidth(num)}
-                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-amber-500/50"
+                      className={`w-full p-2 rounded-lg border font-mono text-center outline-none transition-all ${
+                        isDark ? 'border-slate-800 bg-slate-900 text-slate-100 focus:border-amber-500/50' : 'border-slate-300 bg-white text-slate-900 focus:border-amber-500'
+                      }`}
                       placeholder="Amplada mm"
                     />
                   </div>
@@ -2214,7 +2474,7 @@ export default function EscandallsManager({
 
                 {/* Valors predefinits de tauler habituals */}
                 <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                  <span className="text-[9px] text-slate-500">Formats:</span>
+                  <span className={`text-[9px] ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Formats:</span>
                   {[
                     { label: '300×200', l: 300, w: 200 },
                     { label: '300×300', l: 300, w: 300 },
@@ -2228,7 +2488,11 @@ export default function EscandallsManager({
                         setCalcBoardLength(preset.l);
                         setCalcBoardWidth(preset.w);
                       }}
-                      className="px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-[10px] font-mono text-slate-300 border border-slate-800 cursor-pointer"
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono border cursor-pointer transition-colors ${
+                        isDark 
+                          ? 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-800' 
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                      }`}
                     >
                       {preset.label}
                     </button>
@@ -2237,160 +2501,152 @@ export default function EscandallsManager({
               </div>
 
               {/* 2. Mides de la Peça a Tallar */}
-              <div className="p-3 rounded-xl border border-slate-800 bg-slate-950/60 space-y-2">
+              <div className={`p-3 rounded-xl border space-y-2 ${
+                isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <label className="font-bold text-sky-400 flex items-center gap-1.5 text-[11px]">
+                  <label className={`font-bold flex items-center gap-1.5 text-[11px] ${isDark ? 'text-sky-400' : 'text-sky-700'}`}>
                     <Scissors className="w-3.5 h-3.5" /> 2. Mides de la Peça a tallar (mm)
                   </label>
-                  <span className="text-[10px] font-mono text-slate-400">
+                  <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Net: {formatDecimal(calcPieceLength, 0)} × {formatDecimal(calcPieceWidth, 0)} mm
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Llargada peça (mm):</span>
+                    <span className={`text-[10px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Llargada peça (mm):</span>
                     <DecimalInput
                       value={calcPieceLength}
                       onChange={(e, num) => setCalcPieceLength(num)}
-                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
+                      className={`w-full p-2 rounded-lg border font-mono text-center outline-none transition-all ${
+                        isDark ? 'border-slate-800 bg-slate-900 text-slate-100 focus:border-sky-500/50' : 'border-slate-300 bg-white text-slate-900 focus:border-sky-500'
+                      }`}
                       placeholder="Llargada mm"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Amplada peça (mm):</span>
+                    <span className={`text-[10px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Amplada peça (mm):</span>
                     <DecimalInput
                       value={calcPieceWidth}
                       onChange={(e, num) => setCalcPieceWidth(num)}
-                      className="w-full p-2 rounded-lg border border-slate-800 bg-slate-900 text-slate-100 font-mono text-center outline-none focus:border-sky-500/50"
+                      className={`w-full p-2 rounded-lg border font-mono text-center outline-none transition-all ${
+                        isDark ? 'border-slate-800 bg-slate-900 text-slate-100 focus:border-sky-500/50' : 'border-slate-300 bg-white text-slate-900 focus:border-sky-500'
+                      }`}
                       placeholder="Amplada mm"
                     />
                   </div>
                 </div>
 
                 {/* Marge de Seguretat i Repeticions */}
-                <div className="pt-2 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center justify-between bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/30">
-                    <span className="text-[10px] text-amber-300 font-bold">Marge seguretat:</span>
+                <div className={`pt-2 border-t grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
+                  <div className={`flex items-center justify-between px-2 py-1 rounded-lg border ${
+                    isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-900'
+                  }`}>
+                    <span className="text-[10px] font-bold">Marge seguretat:</span>
                     <div className="flex items-center gap-1">
                       <DecimalInput
                         value={calcMargin}
                         onChange={(e, num) => setCalcMargin(num)}
-                        className="w-12 p-1 rounded-lg border border-amber-500/50 bg-slate-950 text-amber-300 font-mono font-extrabold text-center text-xs"
+                        className={`w-12 p-1 rounded-lg border font-mono font-extrabold text-center text-xs ${
+                          isDark ? 'border-amber-500/50 bg-slate-950 text-amber-300' : 'border-amber-400 bg-white text-amber-900'
+                        }`}
                       />
-                      <span className="text-[10px] text-amber-400 font-bold">mm</span>
+                      <span className="text-[10px] font-bold">mm</span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/30">
-                    <span className="text-[10px] text-amber-300 font-bold">Repeticions:</span>
+                  <div className={`flex items-center justify-between px-2 py-1 rounded-lg border ${
+                    isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' : 'bg-amber-50 border-amber-300 text-amber-900'
+                  }`}>
+                    <span className="text-[10px] font-bold">Repeticions:</span>
                     <div className="flex items-center gap-1">
                       <DecimalInput
                         value={calcRepeticions}
                         onChange={(e, num) => setCalcRepeticions(Math.max(1, num))}
-                        className="w-12 p-1 rounded-lg border border-amber-500/50 bg-slate-950 text-amber-300 font-mono font-extrabold text-center text-xs"
+                        className={`w-12 p-1 rounded-lg border font-mono font-extrabold text-center text-xs ${
+                          isDark ? 'border-amber-500/50 bg-slate-950 text-amber-300' : 'border-amber-400 bg-white text-amber-900'
+                        }`}
                         placeholder="1"
                       />
-                      <span className="text-[10px] text-amber-400 font-bold">×</span>
+                      <span className="text-[10px] font-bold">×</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* 3. Resultat del Càlcul i Píndoles Informatives */}
-              {(() => {
-                const isCalcExceeded = calcResults.rawBoardFraction > 1;
+              <div className={`p-4 rounded-xl border space-y-3 transition-all ${
+                isDark ? 'border-amber-500/40 bg-amber-500/[0.06]' : 'border-amber-300 bg-amber-50/80'
+              }`}>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                    <Ruler className="w-3.5 h-3.5" /> Mida de tall efectiva {calcRepeticions > 1 ? `(${calcRepeticions} repeticions)` : ''}
+                  </span>
+                  <span className={`font-mono font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                    {calcResults.effLength} × {calcResults.effWidth} mm {calcRepeticions > 1 && <span className="font-extrabold text-amber-600">({calcRepeticions}×)</span>}
+                  </span>
+                </div>
 
-                return (
-                  <div className={`p-4 rounded-xl border space-y-3 transition-all ${
-                    isCalcExceeded ? 'border-rose-500/60 bg-rose-500/[0.08]' : 'border-amber-500/40 bg-amber-500/[0.06]'
+                {/* Píndoles informatives de Resultats */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className={`p-2 rounded-lg border ${
+                    isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'
                   }`}>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-amber-400 font-bold flex items-center gap-1.5">
-                        <Ruler className="w-3.5 h-3.5" /> Mida de tall efectiva {calcRepeticions > 1 ? `(${calcRepeticions} repeticions)` : ''}
-                      </span>
-                      <span className="font-mono font-bold text-slate-100">
-                        {calcResults.effLength} × {calcResults.effWidth} mm {calcRepeticions > 1 && <span className="text-amber-400 font-extrabold">({calcRepeticions}×)</span>}
-                      </span>
-                    </div>
-
-                    {/* Píndoles informatives de Resultats */}
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
-                        <span className="text-[9px] text-slate-400 block uppercase font-medium">Superfície Peça</span>
-                        <span className="font-mono font-bold text-slate-200 text-xs">
-                          {formatDecimal(calcResults.pieceEffAreaCm2, 1)} cm²
-                        </span>
-                      </div>
-
-                      <div className="p-2 rounded-lg bg-slate-950/80 border border-slate-800">
-                        <span className="text-[9px] text-slate-400 block uppercase font-medium">Fracció exacta</span>
-                        <span className="font-mono font-semibold text-slate-300 text-xs">
-                          {formatDecimal(calcResults.rawBoardFraction, 3)} u
-                        </span>
-                      </div>
-
-                      <div className={`p-2 rounded-lg border transition-colors ${
-                        isCalcExceeded 
-                          ? 'bg-rose-500/20 border-rose-500 text-rose-200 shadow-lg shadow-rose-950/50' 
-                          : 'bg-amber-500/10 border-amber-500/40'
-                      }`}>
-                        <span className={`text-[9px] block uppercase font-bold ${isCalcExceeded ? 'text-rose-300' : 'text-amber-300'}`}>
-                          A TRASPASSAR
-                        </span>
-                        <span className={`font-mono font-extrabold text-sm ${isCalcExceeded ? 'text-rose-200' : 'text-amber-400'}`}>
-                          {formatDecimal(calcResults.roundedBoardFraction, 2)} {calcSelectedMaterialUnit || 'u'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {isCalcExceeded && (
-                      <p className="text-[10px] text-rose-400 font-semibold text-center flex items-center justify-center gap-1 pt-1">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
-                        <span>La superfície requerida excedeix la mida del tauler brut (1 u). Redueix les mides o les repeticions.</span>
-                      </p>
-                    )}
+                    <span className={`text-[9px] block uppercase font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Superfície Peça</span>
+                    <span className={`font-mono font-bold text-xs ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                      {formatDecimal(calcResults.pieceEffAreaCm2, 1)} cm²
+                    </span>
                   </div>
-                );
-              })()}
+
+                  <div className={`p-2 rounded-lg border ${
+                    isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
+                    <span className={`text-[9px] block uppercase font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Fracció exacta</span>
+                    <span className={`font-mono font-semibold text-xs ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
+                      {formatDecimal(calcResults.rawBoardFraction, 3)} u
+                    </span>
+                  </div>
+
+                  <div className={`p-2 rounded-lg border transition-colors ${
+                    isDark ? 'bg-amber-500/10 border-amber-500/40 text-amber-300' : 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                  }`}>
+                    <span className="text-[9px] block uppercase font-bold text-amber-700">
+                      A TRASPASSAR
+                    </span>
+                    <span className="font-mono font-extrabold text-sm text-amber-600">
+                      {formatDecimal(calcResults.roundedBoardFraction, 2)} {calcSelectedMaterialUnit || 'u'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
               {/* Botons d'Acció de la Calculadora */}
-              {(() => {
-                const isCalcExceeded = calcResults.rawBoardFraction > 1;
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalcModalOpen(false)}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-xs transition-colors cursor-pointer text-center ${
+                    isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                  }`}
+                >
+                  Cancel·lar
+                </button>
 
-                return (
-                  <div className="pt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCalcModalOpen(false)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer text-center"
-                    >
-                      Cancel·lar
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isCalcExceeded}
-                      onClick={() => {
-                        if (!isCalcExceeded) {
-                          handleApplyCalculatorResult(calcResults.roundedBoardFraction);
-                        }
-                      }}
-                      className={`flex-1 py-2 px-3 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 ${
-                        isCalcExceeded 
-                          ? 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed opacity-60' 
-                          : 'bg-amber-600 hover:bg-amber-500 text-white cursor-pointer'
-                      }`}
-                      title={isCalcExceeded ? 'No es pot aplicar: la fracció de tauler supera 1 unitat' : ''}
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>
-                        {calcTargetIndex !== null ? 'Aplicar a l\'Escandall' : 'Acceptar'}
-                      </span>
-                    </button>
-                  </div>
-                );
-              })()}
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleApplyCalculatorResult(calcResults.roundedBoardFraction);
+                  }}
+                  className="flex-1 py-2 px-3 rounded-xl font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white cursor-pointer"
+                  title="Traspassar el valor calculat a l'escandall"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {calcTargetIndex !== null ? 'Aplicar a l\'Escandall' : 'Acceptar'}
+                  </span>
+                </button>
+              </div>
 
             </div>
           </div>
@@ -2432,17 +2688,23 @@ export default function EscandallsManager({
       {/* ========================================================================= */}
       {duplicateModalOpen && duplicatingSourceEsc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs text-slate-100">
+          <div className={`w-full max-w-2xl border rounded-2xl shadow-2xl overflow-hidden flex flex-col text-xs transition-all ${
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
             {/* Capçalera */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 shrink-0">
-              <h3 className="font-bold text-base font-serif text-slate-100 flex items-center gap-2">
+            <div className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-200 bg-slate-50 text-slate-900'
+            }`}>
+              <h3 className="font-bold text-base font-serif flex items-center gap-2">
                 <Copy className="w-5 h-5 text-amber-500" />
                 <span>Duplicar Escandall de Fabricació</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setDuplicateModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                className={`p-1.5 cursor-pointer rounded-xl transition-colors ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                }`}
                 title="Tancar"
               >
                 <X className="w-5 h-5" />
@@ -2452,8 +2714,12 @@ export default function EscandallsManager({
             {/* Cos del Modal */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
               {/* Informació de l'Escandall Origen */}
-              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] flex items-center gap-3">
-                <div className="w-11 h-11 rounded-lg bg-slate-950 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+              <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
+                isDark ? 'border-amber-500/30 bg-amber-500/[0.06]' : 'border-amber-300 bg-amber-50/80'
+              }`}>
+                <div className={`w-11 h-11 rounded-lg border overflow-hidden shrink-0 flex items-center justify-center ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                }`}>
                   {duplicatingSourceEsc.producteImatge ? (
                     <img
                       src={resolveProducteMediaUrl(duplicatingSourceEsc.producteImatge) || resolveMediaUrl(duplicatingSourceEsc.producteImatge)}
@@ -2465,9 +2731,9 @@ export default function EscandallsManager({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <span className="text-[10px] text-amber-400 font-mono uppercase font-semibold block">Escandall d'origen a duplicar:</span>
-                  <h4 className="font-bold text-slate-100 text-sm font-serif truncate">{duplicatingSourceEsc.producteNom}</h4>
-                  <p className="text-[11px] text-slate-400 font-mono">
+                  <span className={`text-[10px] font-mono uppercase font-semibold block ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>Escandall d'origen a duplicar:</span>
+                  <h4 className={`font-bold text-sm font-serif truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{duplicatingSourceEsc.producteNom}</h4>
+                  <p className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     {duplicatingSourceEsc.materials?.length || 0} materials · {duplicatingSourceEsc.operacions?.length || 0} operacions · {duplicatingSourceEsc.maquinaria?.length || 0} maquinàries
                   </p>
                 </div>
@@ -2475,11 +2741,13 @@ export default function EscandallsManager({
 
               {/* Selector de Pestanyes de Mode de Duplicació */}
               <div className="space-y-3">
-                <label className="font-bold text-slate-200 text-xs block">
+                <label className={`font-bold text-xs block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                   A quin producte o destí vols aplicar aquesta duplicitat?
                 </label>
 
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <div className={`grid grid-cols-2 gap-2 p-1 rounded-xl border ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                }`}>
                   <button
                     type="button"
                     onClick={() => {
@@ -2491,13 +2759,13 @@ export default function EscandallsManager({
                     className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                       duplicateMode === 'unlinked'
                         ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200')
                     }`}
                   >
                     <Package className="w-4 h-4" />
                     <span>Producte sense escandall</span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                      duplicateMode === 'unlinked' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+                      duplicateMode === 'unlinked' ? 'bg-amber-800 text-white' : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700')
                     }`}>
                       {unlinkedProducts.length}
                     </span>
@@ -2509,7 +2777,7 @@ export default function EscandallsManager({
                     className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                       duplicateMode === 'custom'
                         ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                        : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200')
                     }`}
                   >
                     <Palette className="w-4 h-4" />
@@ -2522,10 +2790,12 @@ export default function EscandallsManager({
               {duplicateMode === 'unlinked' && (
                 <div className="space-y-3">
                   {unlinkedProducts.length === 0 ? (
-                    <div className="p-6 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center space-y-2">
-                      <CheckCircle2 className="w-8 h-8 text-amber-400 mx-auto" />
-                      <p className="font-bold text-slate-200 text-xs">Tots els productes del catàleg ja tenen escandall assignat!</p>
-                      <p className="text-[11px] text-slate-400 leading-relaxed max-w-md mx-auto">
+                    <div className={`p-6 rounded-xl border text-center space-y-2 ${
+                      isDark ? 'border-amber-500/30 bg-amber-500/5' : 'border-amber-300 bg-amber-50'
+                    }`}>
+                      <CheckCircle2 className="w-8 h-8 text-amber-500 mx-auto" />
+                      <p className={`font-bold text-xs ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>Tots els productes del catàleg ja tenen escandall assignat!</p>
+                      <p className={`text-[11px] leading-relaxed max-w-md mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                         No hi ha cap producte pendent a la botiga. Pots utilitzar la pestanya <strong>"Còpia lliure / Nou Projecte"</strong> per generar un escandall duplicat amb un nom personalitzat.
                       </p>
                     </div>
@@ -2539,14 +2809,18 @@ export default function EscandallsManager({
                           placeholder="Cerca un producte sense escandall per nom o codi..."
                           value={duplicateSearchQuery}
                           onChange={(e) => setDuplicateSearchQuery(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-800 bg-slate-950 text-slate-200 outline-none focus:border-amber-500/50 text-xs"
+                          className={`w-full pl-9 pr-4 py-2 rounded-xl border text-xs outline-none transition-all ${
+                            isDark 
+                              ? 'border-slate-800 bg-slate-950 text-slate-200 focus:border-amber-500/50' 
+                              : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-amber-500'
+                          }`}
                         />
                       </div>
 
                       {/* Llista Seleccionable de Productes Sense Escandall */}
                       <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
                         {filteredUnlinkedProducts.length === 0 ? (
-                          <div className="py-6 text-center text-slate-500 text-xs italic">
+                          <div className={`py-6 text-center text-xs italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                             No s'ha trobat cap producte sense escandall que coincideixi amb la cerca.
                           </div>
                         ) : (
@@ -2566,18 +2840,20 @@ export default function EscandallsManager({
                                 }}
                                 className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                                   isSelected
-                                    ? 'bg-amber-600/15 border-amber-500/80 text-white shadow-md'
-                                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950'
+                                    ? (isDark ? 'bg-amber-600/15 border-amber-500/80 text-white shadow-md' : 'bg-amber-50 border-amber-500 text-amber-950 shadow-sm font-semibold')
+                                    : (isDark ? 'bg-slate-950/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:bg-slate-950' : 'bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300 hover:bg-slate-100')
                                 }`}
                               >
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                                    isSelected ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-700 bg-slate-900'
+                                    isSelected ? 'border-amber-500 bg-amber-500 text-white' : (isDark ? 'border-slate-700 bg-slate-900' : 'border-slate-300 bg-white')
                                   }`}>
-                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />}
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                   </div>
 
-                                  <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                  <div className={`w-10 h-10 rounded-lg border overflow-hidden shrink-0 flex items-center justify-center ${
+                                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'
+                                  }`}>
                                     {resolvedImg ? (
                                       <img src={resolvedImg} alt={p.nom} className="w-full h-full object-cover" />
                                     ) : (
@@ -2587,22 +2863,24 @@ export default function EscandallsManager({
 
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <h4 className="font-bold text-xs text-slate-100 truncate" title={p.nom}>{p.nom}</h4>
+                                      <h4 className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={p.nom}>{p.nom}</h4>
                                       {p.codi && (
-                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-mono text-slate-400 bg-slate-900 border border-slate-800">
+                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono ${
+                                          isDark ? 'text-slate-400 bg-slate-900 border border-slate-800' : 'text-slate-600 bg-slate-200 border border-slate-300'
+                                        }`}>
                                           {p.codi}
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-[10px] text-slate-400 truncate">
+                                    <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                                       {p.descripcio || (Array.isArray(p.opcionsPersonalitzacio) ? `${p.opcionsPersonalitzacio.length} opcions de personalització` : 'Sense descripció')}
                                     </p>
                                   </div>
                                 </div>
 
                                 <div className="text-right shrink-0">
-                                  <span className="text-[10px] text-slate-400 block font-mono">PVP Web</span>
-                                  <span className="font-mono font-bold text-xs text-amber-400">
+                                  <span className={`text-[10px] block font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>PVP Web</span>
+                                  <span className={`font-mono font-bold text-xs ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                                     {pPrice > 0 ? formatCurrency(pPrice, 2) : '- - -'}
                                   </span>
                                 </div>
@@ -2618,8 +2896,10 @@ export default function EscandallsManager({
 
               {/* OPCIÓ 2: Nom personalitzat per a còpia lliure / projecte */}
               {duplicateMode === 'custom' && (
-                <div className="space-y-3 p-4 rounded-xl border border-slate-800 bg-slate-950/60">
-                  <label className="block text-slate-300 font-semibold text-xs mb-1">
+                <div className={`space-y-3 p-4 rounded-xl border ${
+                  isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'
+                }`}>
+                  <label className={`block font-semibold text-xs mb-1 ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>
                     Nom del nou escandall duplicat *
                   </label>
                   <input
@@ -2627,10 +2907,14 @@ export default function EscandallsManager({
                     required
                     value={duplicateCustomName}
                     onChange={(e) => setDuplicateCustomName(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-800 bg-slate-900 text-slate-100 font-serif text-sm outline-none focus:border-amber-500/50"
+                    className={`w-full p-2.5 rounded-xl border font-serif text-sm outline-none transition-all ${
+                      isDark 
+                        ? 'border-slate-800 bg-slate-900 text-slate-100 focus:border-amber-500/50' 
+                        : 'border-slate-300 bg-white text-slate-900 focus:border-amber-500'
+                    }`}
                     placeholder="Ex: Clauer Inicial Edició Especial (Còpia)"
                   />
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className={`text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     Es crearà una nova plantilla d'escandall independent amb tots els materials, temps d'operacions, maquinària i percentatges de merme/marge duplicats de l'original.
                   </p>
                 </div>
@@ -2638,11 +2922,15 @@ export default function EscandallsManager({
             </div>
 
             {/* Botons d'Acció Inferiors del Modal */}
-            <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 shrink-0">
+            <div className={`px-6 py-4 border-t flex items-center justify-between gap-3 shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
+            }`}>
               <button
                 type="button"
                 onClick={() => setDuplicateModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
+                className={`px-4 py-2 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }`}
               >
                 Cancel·lar
               </button>

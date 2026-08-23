@@ -10,13 +10,14 @@ export function DecimalInput({
   onChange,
   onFocus,
   onBlur,
+  onKeyDown,
   className = '',
   placeholder = '',
   disabled = false,
   readOnly = false,
   min,
   max,
-  step,
+  step = 0.5,
   decimals = null,
   ...props
 }) {
@@ -64,6 +65,41 @@ export function DecimalInput({
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const currentNum = parseDecimal(localValue) || 0;
+      const stepVal = step ? parseFloat(step) : 0.5;
+      let nextNum = e.key === 'ArrowUp' ? currentNum + stepVal : currentNum - stepVal;
+      
+      if (min !== undefined && nextNum < Number(min)) nextNum = Number(min);
+      if (max !== undefined && nextNum > Number(max)) nextNum = Number(max);
+
+      // Evitar imprecisions de coma flotant JavaScript (ex: 0.5000000000000001)
+      const precision = stepVal.toString().includes('.') ? stepVal.toString().split('.')[1].length : 2;
+      nextNum = Math.round(nextNum * Math.pow(10, precision)) / Math.pow(10, precision);
+
+      const formatted = formatDecimalInput(nextNum, decimals);
+      setLocalValue(formatted);
+
+      if (onChange) {
+        const syntheticEvent = {
+          ...e,
+          target: {
+            ...e.target,
+            value: formatted,
+            valueAsNumber: nextNum,
+          },
+        };
+        onChange(syntheticEvent, nextNum);
+      }
+    }
+
+    if (onKeyDown) {
+      onKeyDown(e);
+    }
+  };
+
   const handleFocus = (e) => {
     setIsFocused(true);
     if (onFocus) onFocus(e);
@@ -92,6 +128,7 @@ export function DecimalInput({
       inputMode="decimal"
       value={isFocused ? localValue : (value !== undefined && value !== null && value !== '' ? formatDecimalInput(value, decimals) : localValue)}
       onChange={handleChange}
+      onKeyDown={handleKeyDown}
       onFocus={handleFocus}
       onBlur={handleBlur}
       placeholder={placeholder ? formatDecimalInput(placeholder, decimals) : ''}

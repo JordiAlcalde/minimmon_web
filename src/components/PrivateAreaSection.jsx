@@ -285,6 +285,28 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [adminFamFilter, setAdminFamFilter] = useState('Totes');
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const descTextAreaRef = useRef(null);
+  const savedProductScrollY = useRef(0);
+  const lastEditedProductId = useRef(null);
+
+  // Efecte per retornar el focus de la llista de productes al lloc exacte / producte editat
+  useEffect(() => {
+    if (!editingProducte && lastEditedProductId.current) {
+      const targetId = lastEditedProductId.current;
+      const timer = setTimeout(() => {
+        const rowEl = document.getElementById(`product-row-${targetId}`);
+        if (rowEl) {
+          rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          rowEl.classList.add('bg-amber-500/20', 'transition-colors', 'duration-500');
+          setTimeout(() => {
+            rowEl.classList.remove('bg-amber-500/20');
+          }, 2500);
+        } else if (savedProductScrollY.current > 0) {
+          window.scrollTo({ top: savedProductScrollY.current, behavior: 'smooth' });
+        }
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [editingProducte]);
 
   // Dades de producció (Escandalls, Materials, Operacions, Maquinària)
   const [dbEscandalls, setDbEscandalls] = useState([]);
@@ -1008,6 +1030,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         gammaIds: selectedGammes,
         titolPersonalitzacio: editingProducte.titolPersonalitzacio || '',
         requereixPressupost: editingProducte.requereixPressupost === true,
+        preuDesDe: editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true,
+        isPreuDesDe: editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true,
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
@@ -1024,6 +1048,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
 
+      lastEditedProductId.current = docId;
       setEditingProducte(null);
     } catch (err) {
       alert("Error desant el producte: " + err.message);
@@ -2760,6 +2785,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   gammaIds: initialGammas,
                   titolPersonalitzacio: '',
                   requereixPressupost: false,
+                  preuDesDe: false,
+                  isPreuDesDe: false,
                   opcionsPersonalitzacio: [
                     { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
                   ],
@@ -3177,8 +3204,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
-              {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost i Novetat */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+              {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost, Preu des de i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
                 <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
                   <input
                     type="checkbox"
@@ -3204,6 +3231,21 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       <FileText className="w-3.5 h-3.5 text-primary" /> Requereix Pressupost
                     </span>
                     <span className="text-[11px] text-on-surface-variant font-normal">Mostra preu orientatiu i botó "Demanar pressupost".</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, preuDesDe: e.target.checked, isPreuDesDe: e.target.checked })}
+                    className="w-4 h-4 rounded text-primary"
+                  />
+                  <div>
+                    <span className="block font-bold text-primary flex items-center gap-1">
+                      <Tag className="w-3.5 h-3.5 text-primary" /> Preu des de
+                    </span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Mostra el text "PREU DES DE" a la targeta de producte.</span>
                   </div>
                 </label>
 
@@ -3347,7 +3389,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         }
 
                         return filteredAdminProducts.map((p, idx) => (
-                          <tr key={p.id} className="hover:bg-surface-container/40 transition-colors">
+                          <tr key={p.id} id={`product-row-${p.id}`} className="hover:bg-surface-container/40 transition-colors">
                             <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
                             <td className="p-4 font-mono text-xs font-bold text-primary">
                               <div className="flex items-center gap-2">
@@ -3497,7 +3539,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 <span>Duplicar</span>
                               </button>
                               <button
-                                onClick={() => setEditingProducte(p)}
+                                onClick={() => {
+                                  savedProductScrollY.current = window.scrollY;
+                                  lastEditedProductId.current = p.id;
+                                  setEditingProducte(p);
+                                }}
                                 className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
                               >
                                 Editar

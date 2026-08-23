@@ -57,11 +57,11 @@ export default function OperacionsManager({ operacions, setOperacions, isDark })
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold font-serif flex items-center gap-2">
+          <h2 className={`text-xl font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             <Wrench className="w-6 h-6 text-amber-500" />
             Operacions & Maniobres de Producció
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Gestió de procediments de tall, assemblatge, disseny i el seu cost d'hora de mà d'obra.
           </p>
         </div>
