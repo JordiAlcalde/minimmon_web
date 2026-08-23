@@ -49,6 +49,7 @@ import {
   Coins,
   History,
   UserCheck,
+  Quote,
   PhoneCall,
   MessageCircle,
   Globe,
@@ -59,7 +60,8 @@ import {
   ArrowUpRight,
   HelpCircle,
   CheckCircle2,
-  Shuffle
+  Shuffle,
+  X
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
 import { StarRating } from './CommentsSection';
@@ -323,6 +325,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [calculsPressupostos, setCalculsPressupostos] = useState([]);
   const [loadingCalculs, setLoadingCalculs] = useState(true);
 
+  // Frases Solemnes state
+  const [dbFrases, setDbFrases] = useState([]);
+  const [loadingFrases, setLoadingFrases] = useState(true);
+  const [editingFrase, setEditingFrase] = useState(null); // null = list, {} = form modal
+  const [fraseFilterDesti, setFraseFilterDesti] = useState('tots'); // 'tots' | 'univers' | 'taller' | 'ambdues' | 'inactives'
+
   // Form state per al calculador
   const [calcClientNom, setCalcClientNom] = useState('');
   const [calcClientContacte, setCalcClientContacte] = useState('');
@@ -388,6 +396,38 @@ export default function PrivateAreaSection({ setActiveTab }) {
         setLoadingCalculs(false);
       }, () => setLoadingCalculs(false));
 
+      const qFrases = query(collection(db, "frases"), orderBy("ordre", "asc"));
+      const unsubFrases = onSnapshot(qFrases, (snapshot) => {
+        if (!snapshot.empty) {
+          setDbFrases(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        } else {
+          const default1 = {
+            id: 'frase-1',
+            quote: "La repetició és el verí de l'originalitat.",
+            author: "Mínim Món",
+            context: "Filosofia del taller i l'artesania única",
+            desti: 'ambdues',
+            actiu: true,
+            ordre: 1,
+            dataCreacio: new Date().toISOString()
+          };
+          const default2 = {
+            id: 'frase-2',
+            quote: "La veritat del resultat val més que la perfecció de la màquina.",
+            author: "Mínim Món",
+            context: "L'autenticitat del treball artesanal enfront de l'automatització frívola",
+            desti: 'ambdues',
+            actiu: true,
+            ordre: 2,
+            dataCreacio: new Date().toISOString()
+          };
+          setDoc(doc(db, "frases", "frase-1"), default1).catch(console.warn);
+          setDoc(doc(db, "frases", "frase-2"), default2).catch(console.warn);
+          setDbFrases([default1, default2]);
+        }
+        setLoadingFrases(false);
+      }, () => setLoadingFrases(false));
+
       return () => {
         unsubPress();
         unsubProd();
@@ -395,6 +435,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         unsubGam();
         unsubVal();
         unsubCalc();
+        unsubFrases();
       };
     }
   }, [isAuthenticated]);
@@ -892,6 +933,105 @@ export default function PrivateAreaSection({ setActiveTab }) {
     setCalcPercentUrgent(0);
     setCalcPreuVendaFinal('');
     setSelectedCalculView(null);
+  };
+
+  // Gestió de Frases Solemnes
+  const handleSaveFrase = async (e) => {
+    e.preventDefault();
+    if (!editingFrase || !editingFrase.quote) {
+      alert("Indica el text de la frase.");
+      return;
+    }
+
+    const docId = editingFrase.id || `frase-${Date.now()}`;
+    const nextOrdre = Number(editingFrase.ordre || (dbFrases.length + 1));
+
+    try {
+      const docRef = doc(db, "frases", docId);
+      await setDoc(docRef, {
+        id: docId,
+        quote: editingFrase.quote.trim(),
+        author: (editingFrase.author || 'Mínim Món').trim(),
+        context: (editingFrase.context || '').trim(),
+        desti: editingFrase.desti || 'ambdues', // 'univers' | 'taller' | 'ambdues'
+        actiu: editingFrase.actiu !== false,
+        ordre: nextOrdre,
+        dataCreacio: editingFrase.dataCreacio || new Date().toISOString()
+      }, { merge: true });
+
+      setEditingFrase(null);
+    } catch (err) {
+      alert("Error desant la frase: " + err.message);
+    }
+  };
+
+  const handleToggleFraseActiu = async (frase) => {
+    try {
+      const docRef = doc(db, "frases", frase.id);
+      await updateDoc(docRef, {
+        actiu: !frase.actiu
+      });
+    } catch (err) {
+      alert("Error actualitzant estat de la frase: " + err.message);
+    }
+  };
+
+  const handleMoveFraseOrder = async (frase, direction) => {
+    const sorted = [...dbFrases].sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+    const idx = sorted.findIndex(f => f.id === frase.id);
+    if (idx === -1) return;
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+
+    const targetFrase = sorted[targetIdx];
+    const currentOrdre = frase.ordre || (idx + 1);
+    const targetOrdre = targetFrase.ordre || (targetIdx + 1);
+
+    try {
+      await updateDoc(doc(db, "frases", frase.id), { ordre: targetOrdre });
+      await updateDoc(doc(db, "frases", targetFrase.id), { ordre: currentOrdre });
+    } catch (err) {
+      console.error("Error canviant ordre de frase:", err);
+    }
+  };
+
+  const handleDeleteFrase = async (fraseId) => {
+    if (!window.confirm("Estàs segur que vols eliminar aquesta frase de Firestore?")) return;
+    try {
+      await deleteDoc(doc(db, "frases", fraseId));
+    } catch (err) {
+      alert("Error eliminant frase: " + err.message);
+    }
+  };
+
+  const handleRestoreDefaultFrases = async () => {
+    try {
+      const default1 = {
+        id: 'frase-1',
+        quote: "La repetició és el verí de l'originalitat.",
+        author: "Mínim Món",
+        context: "Filosofia del taller i l'artesania única",
+        desti: 'ambdues',
+        actiu: true,
+        ordre: 1,
+        dataCreacio: new Date().toISOString()
+      };
+      const default2 = {
+        id: 'frase-2',
+        quote: "La veritat del resultat val més que la perfecció de la màquina.",
+        author: "Mínim Món",
+        context: "L'autenticitat del treball artesanal enfront de l'automatització frívola",
+        desti: 'ambdues',
+        actiu: true,
+        ordre: 2,
+        dataCreacio: new Date().toISOString()
+      };
+      await setDoc(doc(db, "frases", "frase-1"), default1, { merge: true });
+      await setDoc(doc(db, "frases", "frase-2"), default2, { merge: true });
+      alert("S'ha recuperat la frase original inicial ('La repetició és el verí de l'originalitat.') a Firestore!");
+    } catch (err) {
+      alert("Error recuperant frases inicials: " + err.message);
+    }
   };
 
   // Save Project
@@ -1614,7 +1754,22 @@ export default function PrivateAreaSection({ setActiveTab }) {
               Sistema
             </div>
             <div className="space-y-2">
-              <div className="hidden lg:block h-12" />
+              <button 
+                onClick={() => setActiveModule('frases')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'frases' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Quote className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Frases</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'frases' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbFrases.length}
+                </span>
+              </button>
 
               <button 
                 onClick={() => setActiveModule('config')}
@@ -4783,6 +4938,390 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </div>
                   ))
               )}
+          </div>
+        </div>
+      )}
+
+      {/* MODULE: GESTIÓ DE FRASES SOLEMNES */}
+      {activeModule === 'frases' && (
+        <div className="space-y-6">
+          {/* Controls Bar */}
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-primary flex items-center gap-2">
+                <Quote className="w-5 h-5 text-primary" />
+                <span>Gestió de Frases Solemnes & Filosofia</span>
+              </h2>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Edita, activa/desactiva i assigna la pàgina de destí (<strong>Univers Mínim</strong> o <strong>El Taller</strong>) per a les dites poètiques del lloc web.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleRestoreDefaultFrases}
+                className="px-3.5 py-2.5 bg-surface hover:bg-surface-container text-primary border border-outline/25 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-2xs"
+                title="Recuperar la frase inicial original si s'havia eliminat"
+              >
+                <RefreshCw className="w-4 h-4 text-primary" />
+                <span>Recuperar Frases Inicials</span>
+              </button>
+              <button
+                onClick={() => {
+                  setEditingFrase({
+                    id: `frase-${Date.now()}`,
+                    quote: '',
+                    author: 'Mínim Món',
+                    context: '',
+                    desti: 'ambdues', // 'univers' | 'taller' | 'ambdues'
+                    actiu: true,
+                    ordre: dbFrases.length + 1
+                  });
+                }}
+                className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nova Frase</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filtres per Pàgina de Destí */}
+          <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <span className="text-xs uppercase font-mono font-bold text-primary mr-1">Pàgina de destí:</span>
+              <button
+                onClick={() => setFraseFilterDesti('tots')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  fraseFilterDesti === 'tots' ? 'bg-primary text-on-primary font-bold' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Totes ({dbFrases.length})
+              </button>
+              <button
+                onClick={() => setFraseFilterDesti('univers')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  fraseFilterDesti === 'univers' ? 'bg-sky-700 text-white font-bold' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                🌟 Univers Mínim ({dbFrases.filter(f => f.desti === 'univers').length})
+              </button>
+              <button
+                onClick={() => setFraseFilterDesti('taller')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  fraseFilterDesti === 'taller' ? 'bg-amber-700 text-white font-bold' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                🪵 El Taller ({dbFrases.filter(f => f.desti === 'taller').length})
+              </button>
+              <button
+                onClick={() => setFraseFilterDesti('ambdues')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  fraseFilterDesti === 'ambdues' ? 'bg-emerald-700 text-white font-bold' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                🔄 Ambdues Pàgines ({dbFrases.filter(f => f.desti === 'ambdues' || f.desti === 'tots').length})
+              </button>
+              <button
+                onClick={() => setFraseFilterDesti('inactives')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                  fraseFilterDesti === 'inactives' ? 'bg-gray-700 text-white font-bold' : 'bg-surface-container text-on-surface-variant'
+                }`}
+              >
+                Inactives ({dbFrases.filter(f => f.actiu === false).length})
+              </button>
+            </div>
+          </div>
+
+          {/* FORMULARIS MODAL D'EDICIÓ / CREACIÓ DE FRASE */}
+          {editingFrase && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fadeIn">
+              <div className="bg-surface-container-lowest rounded-2xl border border-primary/30 shadow-2xl p-6 md:p-8 max-w-xl w-full space-y-6 text-xs overflow-y-auto max-h-[90vh]">
+                <div className="flex justify-between items-center pb-3 border-b border-outline/15">
+                  <h3 className="font-serif text-lg text-primary font-semibold flex items-center gap-2">
+                    <Quote className="w-5 h-5 text-primary" />
+                    <span>{dbFrases.some(f => f.id === editingFrase.id) ? 'Editar Frase Solemn' : 'Nova Frase Solemn'}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setEditingFrase(null)}
+                    className="text-on-surface-variant hover:text-primary p-1 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveFrase} className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase font-semibold text-primary mb-1">
+                      Text de la Frase / Cita *
+                    </label>
+                    <textarea
+                      rows={3}
+                      required
+                      value={editingFrase.quote || ''}
+                      onChange={(e) => setEditingFrase({ ...editingFrase, quote: e.target.value })}
+                      placeholder="Ex: La repetició és el verí de l'originalitat."
+                      className="w-full p-3 rounded-xl bg-surface border border-outline/25 text-sm font-serif italic text-primary outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-primary mb-1">
+                        Autor / Signatura
+                      </label>
+                      <input
+                        type="text"
+                        value={editingFrase.author || 'Mínim Món'}
+                        onChange={(e) => setEditingFrase({ ...editingFrase, author: e.target.value })}
+                        placeholder="Ex: Mínim Món"
+                        className="w-full px-3 py-2 rounded-xl bg-surface border border-outline/25 text-xs text-primary font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs uppercase font-semibold text-primary mb-1">
+                        Ordre de visualització
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingFrase.ordre || 1}
+                        onChange={(e) => setEditingFrase({ ...editingFrase, ordre: parseInt(e.target.value) || 1 })}
+                        className="w-full px-3 py-2 rounded-xl bg-surface border border-outline/25 text-xs text-primary font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase font-semibold text-primary mb-1">
+                      Context / Nota aclaridora (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingFrase.context || ''}
+                      onChange={(e) => setEditingFrase({ ...editingFrase, context: e.target.value })}
+                      placeholder="Ex: Filosofia del taller i l'artesania única"
+                      className="w-full px-3 py-2 rounded-xl bg-surface border border-outline/25 text-xs text-on-surface-variant"
+                    />
+                  </div>
+
+                  {/* Selector de Pàgina de Destí */}
+                  <div>
+                    <label className="block text-xs uppercase font-semibold text-primary mb-2">
+                      Pàgina de destí on s'ha de mostrar:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditingFrase({ ...editingFrase, desti: 'univers' })}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                          editingFrase.desti === 'univers'
+                            ? 'bg-sky-500/15 border-sky-500 text-sky-900 dark:text-sky-200 font-bold shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-primary/40'
+                        }`}
+                      >
+                        <span className="font-semibold text-xs flex items-center gap-1">🌟 Univers Mínim</span>
+                        <span className="text-[10px] opacity-75 mt-1">Pàgina d'inici i portada general</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingFrase({ ...editingFrase, desti: 'taller' })}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                          editingFrase.desti === 'taller'
+                            ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200 font-bold shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-primary/40'
+                        }`}
+                      >
+                        <span className="font-semibold text-xs flex items-center gap-1">🪵 El Taller</span>
+                        <span className="text-[10px] opacity-75 mt-1">Pàgina del taller artesanal</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingFrase({ ...editingFrase, desti: 'ambdues' })}
+                        className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                          (editingFrase.desti === 'ambdues' || editingFrase.desti === 'tots')
+                            ? 'bg-emerald-500/15 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold shadow-xs'
+                            : 'bg-surface border-outline/20 text-on-surface-variant hover:border-primary/40'
+                        }`}
+                      >
+                        <span className="font-semibold text-xs flex items-center gap-1">🔄 Ambdues Pàgines</span>
+                        <span className="text-[10px] opacity-75 mt-1">Visible a Univers i a Taller</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Switch Activa / Inactiva */}
+                  <div className="pt-2">
+                    <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer p-3 bg-surface rounded-xl border border-outline/15">
+                      <input
+                        type="checkbox"
+                        checked={editingFrase.actiu !== false}
+                        onChange={(e) => setEditingFrase({ ...editingFrase, actiu: e.target.checked })}
+                        className="w-4 h-4 rounded text-primary"
+                      />
+                      <div>
+                        <span className="block font-bold">Frase Activa al web</span>
+                        <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, la frase es guarda però no es mostra al públic.</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-outline/15">
+                    <button
+                      type="button"
+                      onClick={() => setEditingFrase(null)}
+                      className="px-4 py-2 bg-surface border hover:bg-surface-container text-xs rounded-xl cursor-pointer"
+                    >
+                      Cancel·lar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-xl shadow cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Desar Frase</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Llista de Frases en Targetes Elegants */}
+          <div className="space-y-4">
+            {(() => {
+              const filteredFrases = dbFrases.filter(f => {
+                if (fraseFilterDesti === 'inactives') return f.actiu === false;
+                if (fraseFilterDesti === 'univers') return (f.desti === 'univers' || f.desti === 'ambdues' || f.desti === 'tots') && f.actiu !== false;
+                if (fraseFilterDesti === 'taller') return (f.desti === 'taller' || f.desti === 'ambdues' || f.desti === 'tots') && f.actiu !== false;
+                if (fraseFilterDesti === 'ambdues') return (f.desti === 'ambdues' || f.desti === 'tots') && f.actiu !== false;
+                return true;
+              }).sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+
+              if (filteredFrases.length === 0) {
+                return (
+                  <div className="p-12 text-center bg-surface-container-lowest rounded-xl border border-outline/15 text-on-surface-variant space-y-2">
+                    <Quote className="w-8 h-8 text-outline mx-auto" />
+                    <p className="font-serif text-base text-primary">No s'ha trobat cap frase amb aquest filtre.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredFrases.map((frase, idx) => (
+                    <div
+                      key={frase.id}
+                      className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
+                        frase.actiu === false 
+                          ? 'bg-surface-container/30 border-outline/15 opacity-60' 
+                          : 'bg-surface-container-lowest border-outline/20 hover:border-primary/40 shadow-2xs'
+                      }`}
+                    >
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-bold px-2 py-0.5 bg-surface-container rounded border text-primary">
+                            #{frase.ordre || idx + 1}
+                          </span>
+
+                          {/* Badge de Destí */}
+                          {(frase.desti === 'univers') && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-300 inline-flex items-center gap-1 shadow-2xs">
+                              🌟 Univers Mínim
+                            </span>
+                          )}
+                          {(frase.desti === 'taller') && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-1 shadow-2xs">
+                              🪵 El Taller
+                            </span>
+                          )}
+                          {(frase.desti === 'ambdues' || frase.desti === 'tots' || !frase.desti) && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1 shadow-2xs">
+                              🔄 Ambdues Pàgines
+                            </span>
+                          )}
+
+                          {frase.actiu === false && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 border border-gray-400">
+                              Inactiva
+                            </span>
+                          )}
+                        </div>
+
+                        <blockquote className="font-serif text-base md:text-lg italic font-light text-primary leading-snug">
+                          “{frase.quote}”
+                        </blockquote>
+
+                        <div className="flex items-center gap-3 text-xs text-on-surface-variant">
+                          <span className="font-semibold text-primary">— {frase.author || 'Mínim Món'}</span>
+                          {frase.context && <span className="text-[11px] font-mono text-outline">({frase.context})</span>}
+                        </div>
+                      </div>
+
+                      {/* Controls de Reordenació i Accions */}
+                      <div className="flex items-center gap-2 shrink-0 border-t md:border-t-0 pt-3 md:pt-0 w-full md:w-auto justify-end border-outline/10">
+                        {/* Botons d'Ordre */}
+                        <div className="flex items-center border rounded-lg bg-surface p-0.5 border-outline/20">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleMoveFraseOrder(frase, -1)}
+                            className="p-1.5 text-primary hover:bg-surface-container rounded disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                            title="Moure amunt"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === filteredFrases.length - 1}
+                            onClick={() => handleMoveFraseOrder(frase, 1)}
+                            className="p-1.5 text-primary hover:bg-surface-container rounded disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                            title="Moure avall"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Botó Activar / Desactivar Ràpid */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleFraseActiu(frase)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                            frase.actiu !== false
+                              ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {frase.actiu !== false ? 'Activa' : 'Inactiva'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingFrase(frase)}
+                          className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFrase(frase.id)}
+                          className="p-1.5 text-error hover:bg-error-container/30 rounded-lg cursor-pointer transition-colors"
+                          title="Eliminar frase"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  ShoppingCart, Plus, Search, CheckCircle, Clock, AlertTriangle, 
+  ShoppingCart, Plus, Search, CheckCircle, Clock, AlertTriangle, Calendar,
   Building2, Package, FileText, Copy, ExternalLink, Edit2, Trash2, X, ArrowDownRight, RefreshCw, Save 
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
@@ -268,8 +268,8 @@ export default function CompresManager({
                       </div>
                       <div className="text-[11px] text-slate-400 flex items-center gap-3 mt-0.5">
                         <span className="font-mono">Ref: {com.id}</span>
-                        <span>📅 {com.dataCreacio}</span>
-                        {com.numAlbara && <span className="font-mono text-amber-400">📄 Albarà: {com.numAlbara}</span>}
+                        <span className="flex items-center gap-1 font-mono text-slate-400"><Calendar className="w-3.5 h-3.5 text-amber-500/80 shrink-0" /> {com.dataCreacio}</span>
+                        {com.numAlbara && <span className="font-mono text-amber-400 flex items-center gap-1"><FileText className="w-3.5 h-3.5 shrink-0" /> Albarà: {com.numAlbara}</span>}
                       </div>
                     </div>
                   </div>

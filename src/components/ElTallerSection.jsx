@@ -1,25 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { STITCH_CRAFTSMAN } from '../data/stitchData';
-import { getRandomPhilosophicalQuote, PHILOSOPHICAL_QUOTES } from '../data/philosophicalQuotes';
+import { PHILOSOPHICAL_QUOTES } from '../data/philosophicalQuotes';
 import { resolveMediaUrl } from '../utils/mediaUtils';
+import { db } from '../firebase';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 
 export default function ElTallerSection({ setActiveTab }) {
+  const [dbFrases, setDbFrases] = useState([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [isQuoteFading, setIsQuoteFading] = useState(false);
 
   useEffect(() => {
-    if (!PHILOSOPHICAL_QUOTES || PHILOSOPHICAL_QUOTES.length <= 1) return;
+    const qFrases = query(collection(db, "frases"), orderBy("ordre", "asc"));
+    const unsub = onSnapshot(qFrases, (snapshot) => {
+      if (!snapshot.empty) {
+        setDbFrases(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    }, () => {});
+    return () => unsub();
+  }, []);
+
+  const activeTallerQuotes = useMemo(() => {
+    const filtered = dbFrases.filter(f => f.actiu !== false && (f.desti === 'taller' || f.desti === 'ambdues' || f.desti === 'tots' || !f.desti));
+    return filtered.length > 0 ? filtered : PHILOSOPHICAL_QUOTES;
+  }, [dbFrases]);
+
+  useEffect(() => {
+    if (!activeTallerQuotes || activeTallerQuotes.length <= 1) return;
     const interval = setInterval(() => {
       setIsQuoteFading(true);
       setTimeout(() => {
-        setQuoteIndex((prev) => (prev + 1) % PHILOSOPHICAL_QUOTES.length);
+        setQuoteIndex((prev) => (prev + 1) % activeTallerQuotes.length);
         setIsQuoteFading(false);
       }, 500);
     }, 8000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeTallerQuotes]);
 
-  const currentQuote = PHILOSOPHICAL_QUOTES[quoteIndex] || PHILOSOPHICAL_QUOTES[0];
+  const currentQuote = activeTallerQuotes[quoteIndex] || activeTallerQuotes[0];
 
   return (
     <div className="pt-28 pb-24 animate-fadeIn">
@@ -141,23 +159,33 @@ export default function ElTallerSection({ setActiveTab }) {
 
       {/* Technical Precision */}
       <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-        <div className="border-t border-outline/20 pt-16 grid grid-cols-1 md:grid-cols-2 gap-gutter items-start">
-          <h2 className="font-headline-lg text-headline-lg text-primary font-serif text-3xl md:text-4xl leading-tight">
-            68 Anys<br /><span className="text-outline">d'Experiència</span>
-          </h2>
-          <div>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-6 leading-relaxed">
+        <div className="border-t border-outline/20 pt-16 grid grid-cols-1 md:grid-cols-12 gap-gutter items-center">
+          <div className="col-span-1 md:col-span-5 space-y-6">
+            <h2 className="font-headline-lg text-headline-lg text-primary font-serif text-3xl md:text-4xl leading-tight">
+              68 Anys<br /><span className="text-outline">d'Experiència</span>
+            </h2>
+            <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden shadow-xl border border-outline/15 group">
+              <img 
+                src={resolveMediaUrl('images/jordi-alcalde-5.jpg')} 
+                alt="Jordi Alcalde Casalta - 68 Anys d'Experiència" 
+                className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/30 via-transparent to-transparent"></div>
+            </div>
+          </div>
+          <div className="col-span-1 md:col-span-7 space-y-6 md:pl-6">
+            <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed text-base">
               La mestria tècnica no és un fi en si mateix, sinó el llenguatge a través del qual s'expressa la visió artística. Dècades de dedicació al disseny industrial atorguen la capacitat de resoldre problemes complexos amb solucions aparentment senzilles.
             </p>
-            <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+            <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed text-base">
               Cada decisió, des de la selecció del tall de la fusta fins a l'aplicació del vernís final, està guiada per una perspectiva suau i respectuosa amb el material, cercant sempre l'harmonia i la bellesa funcional.
             </p>
-            <div className="mt-8">
+            <div className="pt-4">
               <button 
                 onClick={() => { setActiveTab('contacte'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer"
+                className="bg-primary text-on-primary px-8 py-3.5 rounded-xl font-body-md hover:bg-primary-container transition-colors shadow-md cursor-pointer inline-flex items-center gap-2"
               >
-                Parlem del teu projecte
+                <span>Parlem del teu projecte</span>
               </button>
             </div>
           </div>

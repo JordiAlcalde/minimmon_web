@@ -63,24 +63,40 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', idea: '' });
   
+  const [dbFrases, setDbFrases] = useState([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [isQuoteFading, setIsQuoteFading] = useState(false);
   const [isQuoteHovered, setIsQuoteHovered] = useState(false);
 
+  useEffect(() => {
+    const qFrases = query(collection(db, "frases"), orderBy("ordre", "asc"));
+    const unsub = onSnapshot(qFrases, (snapshot) => {
+      if (!snapshot.empty) {
+        setDbFrases(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }
+    }, () => {});
+    return () => unsub();
+  }, []);
+
+  const activeUniversQuotes = React.useMemo(() => {
+    const filtered = dbFrases.filter(f => f.actiu !== false && (f.desti === 'univers' || f.desti === 'ambdues' || f.desti === 'tots' || !f.desti));
+    return filtered.length > 0 ? filtered : PHILOSOPHICAL_QUOTES;
+  }, [dbFrases]);
+
   // Rotació temporitzada de frases solemnes (cada 7 segons amb fade suau)
   useEffect(() => {
-    if (isQuoteHovered || !PHILOSOPHICAL_QUOTES || PHILOSOPHICAL_QUOTES.length <= 1) return;
+    if (isQuoteHovered || !activeUniversQuotes || activeUniversQuotes.length <= 1) return;
     const interval = setInterval(() => {
       setIsQuoteFading(true);
       setTimeout(() => {
-        setQuoteIndex((prev) => (prev + 1) % PHILOSOPHICAL_QUOTES.length);
+        setQuoteIndex((prev) => (prev + 1) % activeUniversQuotes.length);
         setIsQuoteFading(false);
       }, 500);
     }, 7000);
     return () => clearInterval(interval);
-  }, [isQuoteHovered]);
+  }, [isQuoteHovered, activeUniversQuotes]);
 
-  const currentQuote = PHILOSOPHICAL_QUOTES[quoteIndex] || PHILOSOPHICAL_QUOTES[0];
+  const currentQuote = activeUniversQuotes[quoteIndex] || activeUniversQuotes[0];
   const [allProjects, setAllProjects] = useState([]);
   const [featuredConfig, setFeaturedConfig] = useState({ mode: 'manual', cadenceSeconds: 8 });
   const [featuredProjects, setFeaturedProjects] = useState(null);
@@ -231,7 +247,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
                 <img 
                   className="w-full h-full object-cover object-top" 
                   alt="Jordi Alcalde Casalta" 
-                  src={resolveMediaUrl('images/jordi-alcalde-3.jpg')} 
+                  src={resolveMediaUrl('images/jordi-alcalde-6.jpg')} 
                 />
               </div>
               <div>

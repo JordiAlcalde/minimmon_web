@@ -3,7 +3,7 @@ import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Calendar } from 'lucide-react';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import { formatDecimal } from '../utils/numberUtils';
 import { StarRating } from './CommentsSection';
@@ -208,8 +208,8 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
               onChange={(e) => setSortOrder(e.target.value)}
               className="bg-surface border border-outline/20 rounded px-2.5 py-1 text-xs text-primary font-sans cursor-pointer hover:border-primary/40 transition-colors"
             >
-              <option value="newest">📅 Data (Més recents primer)</option>
-              <option value="oldest">📅 Data (Més antics primer)</option>
+              <option value="newest">Data (Més recents primer)</option>
+              <option value="oldest">Data (Més antics primer)</option>
             </select>
           </div>
         </div>
@@ -281,8 +281,9 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                           )
                         ))}
                         {projectDataCreacio && (
-                          <span className="px-3 py-1 bg-primary/10 text-primary rounded text-label-sm font-mono text-xs font-semibold">
-                            📅 {formatDateDDMMAAAA(projectDataCreacio)}
+                          <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-label-sm font-mono text-xs font-semibold inline-flex items-center gap-1.5 border border-primary/20">
+                            <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span>{formatDateDDMMAAAA(projectDataCreacio)}</span>
                           </span>
                         )}
                         {project.novetat && (
