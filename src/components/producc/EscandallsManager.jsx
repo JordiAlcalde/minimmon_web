@@ -1208,7 +1208,7 @@ export default function EscandallsManager({
                   <span>Selecciona el Projecte a Escandallar</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Tria entre projectes de Móns Mínims, obres singulars o crea'n un a mida.
+                  Tria entre projectes de Mons Mínims, obres singulars o crea'n un a mida.
                 </p>
               </div>
 
@@ -1232,7 +1232,7 @@ export default function EscandallsManager({
                   projectPickerType === 'stitch' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                Móns Mínims
+                Mons Mínims
               </button>
               <button
                 type="button"

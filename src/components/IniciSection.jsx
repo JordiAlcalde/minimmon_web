@@ -358,7 +358,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
           <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
             <div className="max-w-2xl">
               <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest mb-2 block font-semibold">Obres Destacades</span>
-              <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary font-serif">Móns en Miniatura</h2>
+              <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary font-serif">Mons en Miniatura</h2>
             </div>
             <button 
               onClick={() => { setActiveTab('mons'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}

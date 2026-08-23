@@ -69,7 +69,7 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
               </li>
               <li>
                 <button onClick={() => handleNavClick('mons')} className="hover:text-primary transition-colors cursor-pointer text-left">
-                  <span className="notranslate" translate="no">Mínims Móns</span>
+                  <span className="notranslate" translate="no">Mínims Mons</span>
                 </button>
               </li>
               <li>

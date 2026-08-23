@@ -8,7 +8,7 @@ import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import { formatDecimal } from '../utils/numberUtils';
 import { StarRating } from './CommentsSection';
 
-// Error Boundary per protegir la galeria de Móns Mínims davant dades inusuals
+// Error Boundary per protegir la galeria de Mons Mínims davant dades inusuals
 class ProjectCardErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

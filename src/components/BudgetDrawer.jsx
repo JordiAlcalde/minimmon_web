@@ -164,7 +164,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                 </div>
                 <h3 className="font-serif text-lg text-primary font-semibold">La teva cistella és buida</h3>
                 <p className="text-xs text-on-surface-variant max-w-xs mx-auto leading-relaxed">
-                  Explora el nostre Catàleg de Regals o Móns Mínims i afegeix les peces que vulguis per demanar una proposta personalitzada.
+                  Explora el nostre Catàleg de Regals o Mons Mínims i afegeix les peces que vulguis per demanar una proposta personalitzada.
                 </p>
                 <button
                   onClick={handleClose}

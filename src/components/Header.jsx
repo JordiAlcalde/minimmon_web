@@ -98,7 +98,7 @@ export default function Header({
                     : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
                 }`}
               >
-                <span>MÓNS MÍNIMS</span>
+                <span>MONS MÍNIMS</span>
                 {activeTab === 'mons' && (
                   <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
                 )}
@@ -281,7 +281,7 @@ export default function Header({
             onClick={() => handleNavClick('mons')}
             className={`text-left font-body-md text-lg uppercase tracking-wider py-2 ${activeTab === 'mons' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}
           >
-            Móns Mínims
+            Mons Mínims
           </button>
           <button 
             onClick={() => handleNavClick('regals')}

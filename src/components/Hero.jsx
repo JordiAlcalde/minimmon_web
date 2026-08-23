@@ -16,7 +16,7 @@ export default function Hero({ onOpenWizard }) {
         </div>
 
         <h1 className="hero-title">
-          Móns en miniatura que simbolitzen una essència, gravats en fusta.
+          Mons en miniatura que simbolitzen una essència, gravats en fusta.
         </h1>
 
         <p className="hero-description">

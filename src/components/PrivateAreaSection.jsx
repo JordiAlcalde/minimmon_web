@@ -3672,43 +3672,52 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                  </>
                                );
                              })()}
-                            <td className="p-4 text-right space-x-2">
-                              <button
-                                onClick={async () => {
-                                  const res = await copyDirectLink('producte', p.id);
-                                  alert(`Enllaç directe del producte copiat al portapapers:\n\n${res.link}`);
-                                }}
-                                className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-outline/20 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
-                                title="Copiar enllaç directe per a màrqueting"
-                              >
-                                <Share2 className="w-3 h-3 text-primary" />
-                                <span>Enllaç</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDuplicateProducte(p)}
-                                className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1 border border-amber-500/20"
-                                title="Duplicar aquest producte com a plantilla nova"
-                              >
-                                <Copy className="w-3 h-3 text-amber-600" />
-                                <span>Duplicar</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  savedProductScrollY.current = window.scrollY;
-                                  lastEditedProductId.current = p.id;
-                                  setEditingProducte(p);
-                                }}
-                                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProducte(p.id)}
-                                className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer"
-                              >
-                                Esborrar
-                              </button>
+                            <td className="p-4 text-right">
+                              <div className="inline-flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await copyDirectLink('producte', p.id);
+                                    alert(`Enllaç directe del producte copiat al portapapers:\n\n${res.link}`);
+                                  }}
+                                  className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-surface hover:bg-surface-container text-primary border border-outline/25 shadow-2xs"
+                                  title="Copiar enllaç directe per a màrqueting"
+                                >
+                                  <Share2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span>Enllaç</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateProducte(p)}
+                                  className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 shadow-2xs"
+                                  title="Duplicar aquest producte com a plantilla nova"
+                                >
+                                  <Copy className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
+                                  <span>Duplicar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    savedProductScrollY.current = window.scrollY;
+                                    lastEditedProductId.current = p.id;
+                                    setEditingProducte(p);
+                                  }}
+                                  className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 shadow-2xs"
+                                  title="Editar producte"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <span>Editar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProducte(p.id)}
+                                  className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-all cursor-pointer bg-error-container/20 hover:bg-error-container/40 text-error border border-error/20 shadow-2xs"
+                                  title="Esborrar producte"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-error shrink-0" />
+                                  <span>Esborrar</span>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ));
@@ -4568,7 +4577,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-4 h-4 rounded text-primary"
                   />
                   <div>
-                    <span className="block font-bold">Actiu a Móns Mínims</span>
+                    <span className="block font-bold">Actiu a Mons Mínims</span>
                     <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment de la galeria pública.</span>
                   </div>
                 </label>
