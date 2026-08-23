@@ -499,7 +499,7 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
             Tens un espai que vols immortalitzar?
           </h2>
           <p className="font-body-lg text-body-lg text-on-surface-variant mb-10">
-            Cada projecte personalitzat és un viatge per capturar l'essència d'un lloc especial. Treballem junts per donar forma al teu Mínim Món.
+            Cada projecte personalitzat és un viatge per capturar l'essència d'un lloc especial.<br className="hidden sm:inline" /> Treballem junts per donar forma al teu Mínim Món.
           </p>
 
           {!formSubmitted ? (

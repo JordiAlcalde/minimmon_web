@@ -329,7 +329,6 @@ export default function RegalsCatalogSection({
         <div className="space-y-16 animate-fadeIn">
           {/* Hero Section */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-center">
-            <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Catàleg d'Artesania</span>
             <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">
               Petites peces amb ànima.
             </h1>
@@ -352,11 +351,11 @@ export default function RegalsCatalogSection({
                 <div
                   key={fam.id || fam.nom}
                   onClick={() => handleSelectFamilia(fam.nom)}
-                  className="group block relative overflow-hidden rounded-xl aspect-[4/3] bg-surface-container-low transition-all duration-300 hover:scale-[1.015] hover:shadow-xl cursor-pointer border border-outline/10 shadow-md"
+                  className="group block relative overflow-hidden rounded-xl h-[270px] sm:h-[285px] md:h-[300px] bg-surface-container-low transition-all duration-300 hover:scale-[1.015] hover:shadow-xl cursor-pointer border border-outline/10 shadow-md"
                 >
-                  {/* Fotografia de Fons de la Família */}
+                  {/* Fotografia de Fons de la Família (Manté la part inferior) */}
                   <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                    className="absolute inset-0 bg-cover bg-bottom transition-transform duration-700 group-hover:scale-105"
                     style={{ backgroundImage: `url("${cardImg}")` }}
                   ></div>
 
