@@ -1159,6 +1159,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
     const mainOrdre = Number(editingProducte.ordre || calculateSmartNextProductOrder(selectedGammes, dbProductesAdmin));
 
     try {
+      const isQtyPricingActive = editingProducte.preuPerQuantitat?.actiu === true;
+      const isPreuDesDeFinal = isQtyPricingActive ? true : (editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true);
+
       const docRef = doc(db, "productes", docId);
       await setDoc(docRef, {
         codi: code,
@@ -1170,8 +1173,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
         gammaIds: selectedGammes,
         titolPersonalitzacio: editingProducte.titolPersonalitzacio || '',
         requereixPressupost: editingProducte.requereixPressupost === true,
-        preuDesDe: editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true,
-        isPreuDesDe: editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true,
+        preuDesDe: isPreuDesDeFinal,
+        isPreuDesDe: isPreuDesDeFinal,
+        preuPerQuantitat: editingProducte.preuPerQuantitat || null,
         opcionsPersonalitzacio: editingProducte.opcionsPersonalitzacio || [],
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
@@ -3383,6 +3387,137 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* Sistema Opcional de Preus per Quantitat de Compra (Trams) */}
+              <div className="bg-surface p-4 rounded-lg border border-outline/15 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="flex items-center gap-2.5 text-xs font-bold text-primary cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editingProducte.preuPerQuantitat?.actiu === true}
+                      onChange={(e) => {
+                        const actiu = e.target.checked;
+                        const current = editingProducte.preuPerQuantitat || {};
+                        const defaultP1 = current.preuFinsLlindar ?? (parseFloat(String(editingProducte.preu || '').replace(',', '.')) || 0);
+                        const defaultP2 = current.preuMesLlindar ?? (parseFloat(String(editingProducte.preu || '').replace(',', '.')) || 0);
+                        setEditingProducte({
+                          ...editingProducte,
+                          preuPerQuantitat: {
+                            actiu,
+                            llindar: current.llindar ?? 10,
+                            preuFinsLlindar: defaultP1,
+                            preuMesLlindar: defaultP2
+                          },
+                          // Si s'activa el preu per quantitat, s'obliga automàticament l'opció "PREU DES DE"
+                          preuDesDe: actiu ? true : editingProducte.preuDesDe,
+                          isPreuDesDe: actiu ? true : editingProducte.isPreuDesDe
+                        });
+                      }}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                    <span className="flex items-center gap-1.5 uppercase tracking-wide">
+                      <Layers className="w-3.5 h-3.5 text-primary" />
+                      Activar Preus per Quantitat / Volum
+                    </span>
+                  </label>
+
+                  {editingProducte.preuPerQuantitat?.actiu && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-500/30">
+                      ✓ "PREU DES DE" Activat Automàticament
+                    </span>
+                  )}
+                </div>
+
+                {editingProducte.preuPerQuantitat?.actiu && (
+                  <div className="p-3 bg-surface-container/40 rounded-lg border border-outline/20 space-y-3">
+                    <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                      Defineix el llindar d'unitats i els dos preus. Al catàleg es mostrarà el <strong>Preu 2 (inferior)</strong> amb el text <strong>"PREU DES DE"</strong>. A la fitxa i al carretó el preu unitari s'ajustarà en temps real segons les unitats seleccionades pel client.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
+                          1. Llindar d'Unitats (X):
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="Ex: 10"
+                          value={editingProducte.preuPerQuantitat?.llindar ?? 10}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10) || 1;
+                            setEditingProducte({
+                              ...editingProducte,
+                              preuPerQuantitat: {
+                                ...(editingProducte.preuPerQuantitat || {}),
+                                llindar: val
+                              }
+                            });
+                          }}
+                          className="w-full px-3 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary"
+                        />
+                        <span className="text-[10px] text-on-surface-variant block mt-0.5">Fins a X u / Més de X u</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
+                          2. Preu 1 (Fins a {editingProducte.preuPerQuantitat?.llindar || 10} u):
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="Ex: 15.00"
+                            value={editingProducte.preuPerQuantitat?.preuFinsLlindar ?? ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setEditingProducte({
+                                ...editingProducte,
+                                preuPerQuantitat: {
+                                  ...(editingProducte.preuPerQuantitat || {}),
+                                  preuFinsLlindar: val
+                                }
+                              });
+                            }}
+                            className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary"
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-mono text-outline font-bold">€</span>
+                        </div>
+                        <span className="text-[10px] text-on-surface-variant block mt-0.5">Preu estàndard comanda</span>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300 mb-1">
+                          3. Preu 2 (Més de {editingProducte.preuPerQuantitat?.llindar || 10} u):
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="Ex: 11.50"
+                            value={editingProducte.preuPerQuantitat?.preuMesLlindar ?? ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              setEditingProducte({
+                                ...editingProducte,
+                                preuPerQuantitat: {
+                                  ...(editingProducte.preuPerQuantitat || {}),
+                                  preuMesLlindar: val
+                                }
+                              });
+                            }}
+                            className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-emerald-500/40 text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-500/5"
+                          />
+                          <span className="absolute right-2.5 top-2 text-xs font-mono text-emerald-600 font-bold">€</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium block mt-0.5">Preu amb descompte ("DES DE")</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost, Preu des de i Novetat */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
                 <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
@@ -3413,10 +3548,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </div>
                 </label>
 
-                <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
+                <label className={`flex items-center gap-3 text-xs font-semibold text-primary ${editingProducte.preuPerQuantitat?.actiu ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
                   <input
                     type="checkbox"
-                    checked={editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true}
+                    disabled={editingProducte.preuPerQuantitat?.actiu === true}
+                    checked={editingProducte.preuPerQuantitat?.actiu === true || editingProducte.preuDesDe === true || editingProducte.isPreuDesDe === true}
                     onChange={(e) => setEditingProducte({ ...editingProducte, preuDesDe: e.target.checked, isPreuDesDe: e.target.checked })}
                     className="w-4 h-4 rounded text-primary"
                   />
@@ -3424,7 +3560,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <span className="block font-bold text-primary flex items-center gap-1">
                       <Tag className="w-3.5 h-3.5 text-primary" /> Preu des de
                     </span>
-                    <span className="text-[11px] text-on-surface-variant font-normal">Mostra el text "PREU DES DE" a la targeta de producte.</span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">
+                      {editingProducte.preuPerQuantitat?.actiu ? 'Activat automàticament per Preus per Quantitat.' : 'Mostra el text "PREU DES DE" a la targeta.'}
+                    </span>
                   </div>
                 </label>
 

@@ -7,7 +7,7 @@ import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers } from 'lucide-react';
 import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -654,7 +654,7 @@ export default function RegalsCatalogSection({
                     <MiniProductCard
                       product={product}
                       dbEscandalls={dbEscandalls}
-                      onClick={() => setActiveModalProduct(product)}
+                      onClick={(selectedQty) => setActiveModalProduct({ ...product, initialQty: typeof selectedQty === 'number' ? selectedQty : 1 })}
                       onAddToCart={addToCart}
                     />
                   </ProductCardErrorBoundary>
@@ -838,7 +838,6 @@ function isValidImagePath(str) {
 
 // Subcomponent Mini-Fitxa neta per a la graella de 3 columnes
 function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
-  const [qty, setQty] = useState(1);
   const [addedToast, setAddedToast] = useState(false);
   const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
   const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
@@ -848,9 +847,17 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
   const rawPrice = (escData.hasEscandall && escData.preu > 0)
     ? escData.preu
     : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
-  const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
+  
+  // Lògica de Preus per Quantitat (Trams)
+  const hasQtyPricing = Boolean(product.preuPerQuantitat?.actiu === true);
+  const priceTier2 = Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
+
+  // Preu de referència a mostrar a la targeta (el preu inferior per volum si té preus per quantitat)
+  const displayedPrice = hasQtyPricing ? priceTier2 : rawPrice;
+  const isZeroPrice = !displayedPrice || isNaN(displayedPrice) || displayedPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
-  const isPreuDesDe = product.preuDesDe === true || product.isPreuDesDe === true;
+  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
+
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
   const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
   const ratingScore = product.rating || 5.0;
@@ -858,7 +865,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
 
   return (
     <div 
-      onClick={onClick}
+      onClick={() => onClick && onClick(1)}
       className="group bg-surface-container-lowest border border-outline/15 hover:border-primary/40 rounded-2xl p-4 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col justify-between h-full relative"
     >
       {/* Part Superior: Imatge a l'esquerra + Dades a la dreta */}
@@ -899,123 +906,69 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
 
           {/* Termini de Lliurament */}
           <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-on-surface-variant/80">
-            <Clock className="w-3 h-3 text-primary/60 shrink-0" />
+            <Clock className="w-3.5 h-3.5 text-primary/60 shrink-0" />
             <span>Lliurament: <strong className="text-primary font-medium">{deliveryTime}</strong></span>
           </div>
         </div>
       </div>
 
-      {/* Barra Inferior: Preu, Quantitat i Botó d'Acció */}
-      <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <span className="text-[10px] text-on-surface-variant/70 block uppercase tracking-wider font-mono font-medium">
-            {isPreuDesDe ? "PREU DES DE" : (isBudgetRequired ? "Preu orientatiu" : "Preu")}
+      {/* Barra Inferior: Preu i Botó d'Acció en una sola línia */}
+      <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+        <div className="flex items-baseline gap-1.5 min-w-0">
+          <span className="text-[10px] text-on-surface-variant/75 uppercase tracking-wider font-mono font-medium whitespace-nowrap">
+            {isPreuDesDe ? "PREU DES DE:" : (isBudgetRequired ? "Preu orientatiu:" : "Preu:")}
           </span>
-          <span className={textPriceValue ? "font-sans text-xs sm:text-sm font-semibold text-primary" : "font-sans text-base sm:text-lg font-bold text-primary tracking-tight"}>
-            {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${rawPrice.toFixed(2).replace('.', ',')} €`)}
+          <span className={textPriceValue ? "font-sans text-xs font-semibold text-primary" : "font-sans text-xs sm:text-sm font-bold text-primary tracking-tight whitespace-nowrap"}>
+            {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${displayedPrice.toFixed(2).replace('.', ',')} €`)}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Selector de Quantitat a la Mini-Fitxa */}
-          <div 
-            className="flex items-center border border-outline/25 rounded-lg bg-surface overflow-hidden shadow-2xs" 
-            onClick={(e) => e.stopPropagation()}
+        {/* Botó segons si té personalització o és compra/pressupost */}
+        {hasCustomization ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick(1);
+            }}
+            className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
           >
-            <button
-              type="button"
-              onClick={() => setQty(Math.max(1, qty - 1))}
-              className="px-2 py-1 text-primary hover:bg-surface-container transition-colors cursor-pointer text-xs font-bold leading-none"
-              title="Reduir quantitat"
-              aria-label="Reduir quantitat"
-            >
-              -
-            </button>
-            <span className="px-1.5 text-xs font-mono font-bold text-primary min-w-[16px] text-center">{qty}</span>
-            <button
-              type="button"
-              onClick={() => setQty(qty + 1)}
-              className="px-2 py-1 text-primary hover:bg-surface-container transition-colors cursor-pointer text-xs font-bold leading-none"
-              title="Augmentar quantitat"
-              aria-label="Augmentar quantitat"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Botó segons si té personalització o és compra/pressupost directe */}
-          {hasCustomization ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-              }}
-              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Personalitzar</span>
-            </button>
-          ) : isBudgetRequired ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onAddToCart) {
-                  onAddToCart({
-                    id: product.id || product.nom,
-                    productNom: product.nom,
-                    nom: product.nom,
-                    preu: rawPrice,
-                    quantitat: qty,
-                    imatge: resolvedImg,
-                    selectedOptions: {},
-                    requereixPressupost: true
-                  });
-                  setAddedToast(true);
-                  setTimeout(() => setAddedToast(false), 2000);
-                }
-              }}
-              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
-            >
-              <img src="/images/icon-pressupost.png" alt="" className="w-3.5 h-3.5 object-contain brightness-0 invert shrink-0" />
-              <span>Demanar pressupost</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onAddToCart) {
-                  onAddToCart({
-                    id: product.id || product.nom,
-                    productNom: product.nom,
-                    nom: product.nom,
-                    preu: rawPrice,
-                    quantitat: qty,
-                    imatge: resolvedImg,
-                    selectedOptions: {},
-                    requereixPressupost: false
-                  });
-                  setAddedToast(true);
-                  setTimeout(() => setAddedToast(false), 2000);
-                }
-              }}
-              className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5"
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Afegir a la cistella</span>
-            </button>
-          )}
-        </div>
-
-        {/* Feedback visual si s'afegeix directament */}
-        {addedToast && (
-          <div className="w-full text-right text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-end gap-1 animate-fadeIn">
-            <Check className="w-3.5 h-3.5" /> {isBudgetRequired ? 'Afegit a la sol·licitud!' : 'Afegit a la cistella!'}
-          </div>
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>Personalitzar</span>
+          </button>
+        ) : isBudgetRequired ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick(1);
+            }}
+            className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
+          >
+            <FileText className="w-3.5 h-3.5 text-amber-300" />
+            <span>Pressupost</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick(1);
+            }}
+            className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-amber-300" />
+            <span>Afegir</span>
+          </button>
         )}
       </div>
+
+      {/* Feedback visual si s'afegeix directament */}
+      {addedToast && (
+        <div className="w-full text-right text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-end gap-1 animate-fadeIn">
+          <Check className="w-3.5 h-3.5" /> {isBudgetRequired ? 'Afegit a la sol·licitud!' : 'Afegit a la cistella!'}
+        </div>
+      )}
     </div>
   );
 }
@@ -1086,7 +1039,6 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const rawPrice = (escData.hasEscandall && escData.preu > 0)
     ? escData.preu
     : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
-  const isZeroPrice = !rawPrice || isNaN(rawPrice) || rawPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true;
 
   // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
@@ -1101,8 +1053,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const defaultMainImage = (isValidImagePath(product.imatgePrincipal) ? product.imatgePrincipal : null) || imagesList[0] || product.imatgePrincipal || '';
 
   const [selectedImg, setSelectedImg] = useState(defaultMainImage);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(product.initialQty || 1);
   const [notes, setNotes] = useState('');
+
+  // Sincronitzar quantitat inicial si s'ha triat des de la targeta prèviament
+  useEffect(() => {
+    if (product.initialQty) {
+      setQuantity(product.initialQty);
+    }
+  }, [product.initialQty]);
   const safeOpcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
 
   const [selectedOptions, setSelectedOptions] = useState(() => {
@@ -1152,8 +1111,21 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
     return t.includes('frase') || t.includes('cara b') || t.includes('text') || t.includes('dedicatòria');
   })?.titol || (safeOpcions[1]?.titol || 'Text (Cara B)');
 
+  // Detecció de Text Cara A i Text Cara B per a etiquetes bifacials
+  const textKeyA = safeOpcions.find(o => {
+    const t = String(o?.titol || '').toLowerCase();
+    return t.includes('cara a') || t.includes('frontal') || t.includes('davantera') || t.includes('text 1');
+  })?.titol || phraseKey;
+
+  const textKeyB = safeOpcions.find(o => {
+    const t = String(o?.titol || '').toLowerCase();
+    return t.includes('cara b') || t.includes('posterior') || t.includes('darrere') || t.includes('revers') || t.includes('text 2');
+  })?.titol;
+
   const simInitial = typeof selectedOptions[initialKey] === 'string' ? selectedOptions[initialKey] : '';
   const simPhrase = typeof selectedOptions[phraseKey] === 'string' ? selectedOptions[phraseKey] : '';
+  const simPhraseA = textKeyA && typeof selectedOptions[textKeyA] === 'string' ? selectedOptions[textKeyA] : simPhrase;
+  const simPhraseB = textKeyB && typeof selectedOptions[textKeyB] === 'string' ? selectedOptions[textKeyB] : '';
 
   const handleShareProductLink = async () => {
     await copyDirectLink('producte', product.id);
@@ -1213,10 +1185,22 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const currentDisplayImg = selectedImg || defaultMainImage;
 
+  // Lògica de Preus per Quantitat (Trams)
+  const hasQtyPricing = Boolean(product.preuPerQuantitat?.actiu === true);
+  const qtyThreshold = Number(product.preuPerQuantitat?.llindar || 10);
+  const priceTier1 = Number(product.preuPerQuantitat?.preuFinsLlindar ?? rawPrice);
+  const priceTier2 = Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
+
+  // Preu base dinàmic segons quantitat
+  const activeBasePrice = hasQtyPricing
+    ? (quantity > qtyThreshold ? priceTier2 : priceTier1)
+    : rawPrice;
+
   // Sobrecostos dinàmics de personalització segons la configuració dels escandalls
   const currentSurcharge = computeOptionSurcharges(product, selectedOptions, dbEscandalls);
-  const baseUnitPrice = rawPrice;
+  const baseUnitPrice = activeBasePrice;
   const finalUnitPrice = baseUnitPrice + currentSurcharge;
+  const isZeroPrice = !finalUnitPrice || isNaN(finalUnitPrice) || finalUnitPrice <= 0;
 
   const handleAdd = () => {
     onAddToCart({
@@ -1561,7 +1545,8 @@ Pots deixar-ho en blanc si ho prefereixes.`}
             })()}
             selectedOptions={selectedOptions}
             setSelectedOptions={setSelectedOptions}
-            phraseText={simPhrase}
+            phraseText={simPhraseA}
+            phraseTextB={simPhraseB}
           />
         )}
 
@@ -1576,7 +1561,7 @@ Pots deixar-ho en blanc si ho prefereixes.`}
         {/* Preu o Preu Orientatiu */}
         <div className="flex items-baseline gap-3 pt-3 border-t border-outline/10 flex-wrap">
           <span className="text-xs uppercase font-mono tracking-wider text-on-surface-variant font-semibold">
-            {isBudgetRequired ? "Preu orientatiu:" : "Preu:"}
+            {isBudgetRequired ? "Preu orientatiu:" : (hasQtyPricing ? "Preu unitari:" : (isPreuDesDe ? "PREU DES DE:" : "Preu:"))}
           </span>
           <span className={textPriceValue ? "font-sans text-sm sm:text-base font-semibold text-primary" : "font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight"}>
             {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`)}
@@ -1584,7 +1569,67 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           {!isBudgetRequired && !isZeroPrice && (
             <span className="text-xs text-on-surface-variant/80 font-mono">(IVA inclòs)</span>
           )}
+          {!isBudgetRequired && !isZeroPrice && quantity > 1 && (
+            <span className="text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+              Total: {(finalUnitPrice * quantity).toFixed(2).replace('.', ',')} €
+            </span>
+          )}
         </div>
+
+        {/* Taula Visual de Descompte per Quantitat (si està actiu) */}
+        {hasQtyPricing && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono flex-wrap gap-1">
+              <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5" /> Trams de Preu per Quantitat:
+              </span>
+              {quantity > qtyThreshold ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-2xs">
+                  ✓ Descompte per volum aplicat!
+                </span>
+              ) : (
+                <span className="text-[10px] text-on-surface-variant font-medium">
+                  Tria més de {qtyThreshold} u per estalviar
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+              <div
+                onClick={() => setQuantity(1)}
+                className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                  quantity <= qtyThreshold
+                    ? 'bg-surface border-primary text-primary font-bold shadow-2xs'
+                    : 'bg-surface/60 border-outline/15 text-on-surface-variant opacity-75 hover:opacity-100'
+                }`}
+                title={`Aplicar tram de 1 a ${qtyThreshold} unitats`}
+              >
+                <div className="text-[10px] uppercase opacity-75">1 a {qtyThreshold} unitats</div>
+                <div className="text-sm font-extrabold">{priceTier1.toFixed(2).replace('.', ',')} € / u</div>
+              </div>
+
+              <div
+                onClick={() => setQuantity(qtyThreshold + 1)}
+                className={`p-2 rounded-lg border transition-all cursor-pointer ${
+                  quantity > qtyThreshold
+                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs'
+                    : 'bg-surface/60 border-outline/15 text-on-surface-variant hover:border-emerald-500/40'
+                }`}
+                title={`Aplicar tram de més de ${qtyThreshold} unitats`}
+              >
+                <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-between">
+                  <span>Més de {qtyThreshold} unitats</span>
+                  <span className="text-[9px] px-1 bg-emerald-600/20 text-emerald-800 dark:text-emerald-200 rounded font-bold">
+                    DES DE
+                  </span>
+                </div>
+                <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
+                  {priceTier2.toFixed(2).replace('.', ',')} € / u
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Quantitat i Observacions */}
         <div className="space-y-3 pt-2">
