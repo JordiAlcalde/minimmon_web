@@ -1190,6 +1190,7 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const qtyThreshold = Number(product.preuPerQuantitat?.llindar || 10);
   const priceTier1 = Number(product.preuPerQuantitat?.preuFinsLlindar ?? rawPrice);
   const priceTier2 = Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
+  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
 
   // Preu base dinàmic segons quantitat
   const activeBasePrice = hasQtyPricing
