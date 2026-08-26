@@ -2,13 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { RefreshCw, ArrowLeftRight } from 'lucide-react';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 
-// Configuració completa de Formes, Mides Reals, Plantilles oficials i Coordenades Calibrades de Forats
+// Configuració completa de Formes, Mides Reals, Plantilles oficials '_blank' i Coordenades Calibrades de Forats
 export const ETIQUETA_SHAPES = {
   rectangular: {
     id: 'rectangular',
     nom: 'Rectangular',
     prefix: 'XR',
-    templateImg: 'images/etiqueta_plantilla_rd.png',
+    templateImg: 'images/etiqueta_plantilla_rd_blank.png',
     overviewImg: 'images/etiqueta_rectangular.png',
     hasCustomHoles: true,
     canvasW: 283,
@@ -18,14 +18,14 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '209 / 115',
     templateHotspots: {
-      A: { label: 'A', x: 13.5, y: 18 },
-      B: { label: 'B', x: 50.0, y: 18 },
-      C: { label: 'C', x: 86.5, y: 18 },
-      D: { label: 'D', x: 13.5, y: 50 },
-      E: { label: 'E', x: 86.5, y: 50 },
-      F: { label: 'F', x: 13.5, y: 82 },
-      G: { label: 'G', x: 50.0, y: 82 },
-      H: { label: 'H', x: 86.5, y: 82 }
+      A: { label: 'A', x: 9.1, y: 16.0 },
+      B: { label: 'B', x: 50.0, y: 16.5 },
+      C: { label: 'C', x: 89.5, y: 16.5 },
+      D: { label: 'D', x: 9.1, y: 49.6 },
+      E: { label: 'E', x: 89.5, y: 49.6 },
+      F: { label: 'F', x: 9.1, y: 81.0 },
+      G: { label: 'G', x: 50.0, y: 82.8 },
+      H: { label: 'H', x: 89.5, y: 82.8 }
     },
     defaultMides: ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'],
     mides: [
@@ -89,7 +89,7 @@ export const ETIQUETA_SHAPES = {
     id: 'arrodonida',
     nom: 'Arrodonida',
     prefix: 'XD',
-    templateImg: 'images/etiqueta_plantilla_rd.png',
+    templateImg: 'images/etiqueta_plantilla_rd_blank.png',
     overviewImg: 'images/etiqueta_arrodonida.png',
     hasCustomHoles: true,
     canvasW: 283,
@@ -99,14 +99,14 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '209 / 115',
     templateHotspots: {
-      A: { label: 'A', x: 13.5, y: 18 },
-      B: { label: 'B', x: 50.0, y: 18 },
-      C: { label: 'C', x: 86.5, y: 18 },
-      D: { label: 'D', x: 13.5, y: 50 },
-      E: { label: 'E', x: 86.5, y: 50 },
-      F: { label: 'F', x: 13.5, y: 82 },
-      G: { label: 'G', x: 50.0, y: 82 },
-      H: { label: 'H', x: 86.5, y: 82 }
+      A: { label: 'A', x: 9.1, y: 16.0 },
+      B: { label: 'B', x: 50.0, y: 16.5 },
+      C: { label: 'C', x: 89.5, y: 16.5 },
+      D: { label: 'D', x: 9.1, y: 49.6 },
+      E: { label: 'E', x: 89.5, y: 49.6 },
+      F: { label: 'F', x: 9.1, y: 81.0 },
+      G: { label: 'G', x: 50.0, y: 82.8 },
+      H: { label: 'H', x: 89.5, y: 82.8 }
     },
     defaultMides: ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'],
     mides: [
@@ -170,7 +170,7 @@ export const ETIQUETA_SHAPES = {
     id: 'circular',
     nom: 'Circular',
     prefix: 'XC',
-    templateImg: 'images/etiqueta_plantilla_c.png',
+    templateImg: 'images/etiqueta_plantilla_c_blank.png',
     overviewImg: 'images/etiqueta_circular.png',
     hasCustomHoles: true,
     canvasW: 265,
@@ -180,15 +180,15 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '1 / 1',
     templateHotspots: {
-      A: { label: 'A', x: 23, y: 23 },
-      B: { label: 'B', x: 50, y: 12 },
-      C: { label: 'C', x: 77, y: 23 },
-      D: { label: 'D', x: 12, y: 50 },
-      E: { label: 'E', x: 50, y: 50 },
-      F: { label: 'F', x: 88, y: 50 },
-      G: { label: 'G', x: 23, y: 77 },
-      H: { label: 'H', x: 50, y: 88 },
-      I: { label: 'I', x: 77, y: 77 }
+      A: { label: 'A', x: 24.0, y: 24.0 },
+      B: { label: 'B', x: 49.6, y: 14.7 },
+      C: { label: 'C', x: 76.0, y: 24.0 },
+      D: { label: 'D', x: 13.0, y: 49.6 },
+      E: { label: 'E', x: 50.0, y: 50.0 },
+      F: { label: 'F', x: 84.1, y: 50.2 },
+      G: { label: 'G', x: 24.0, y: 76.0 },
+      H: { label: 'H', x: 49.6, y: 87.8 },
+      I: { label: 'I', x: 76.0, y: 76.0 }
     },
     defaultMides: ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'],
     mides: [
@@ -255,7 +255,7 @@ export const ETIQUETA_SHAPES = {
     id: 'ovalada',
     nom: 'Ovalada',
     prefix: 'XV',
-    templateImg: 'images/etiqueta_plantilla_v.png',
+    templateImg: 'images/etiqueta_plantilla_v_blank.png',
     overviewImg: 'images/etiqueta_ovalada.png',
     hasCustomHoles: true,
     canvasW: 283,
@@ -265,15 +265,15 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '153 / 115',
     templateHotspots: {
-      A: { label: 'A', x: 19, y: 23 },
-      B: { label: 'B', x: 50, y: 13 },
-      C: { label: 'C', x: 81, y: 23 },
-      D: { label: 'D', x: 10, y: 50 },
-      E: { label: 'E', x: 50, y: 50 },
-      F: { label: 'F', x: 90, y: 50 },
-      G: { label: 'G', x: 19, y: 77 },
-      H: { label: 'H', x: 50, y: 87 },
-      I: { label: 'I', x: 81, y: 77 }
+      A: { label: 'A', x: 20.0, y: 24.0 },
+      B: { label: 'B', x: 49.7, y: 14.2 },
+      C: { label: 'C', x: 80.0, y: 24.0 },
+      D: { label: 'D', x: 10.2, y: 49.4 },
+      E: { label: 'E', x: 50.0, y: 50.0 },
+      F: { label: 'F', x: 87.9, y: 49.6 },
+      G: { label: 'G', x: 20.0, y: 76.0 },
+      H: { label: 'H', x: 49.7, y: 84.8 },
+      I: { label: 'I', x: 80.0, y: 76.0 }
     },
     defaultMides: ['35 x 50 mm', '45 x 60 mm', '55 x 75 mm'],
     mides: [
@@ -421,7 +421,13 @@ export default function EtiquetaSimulator({
     return ['A']; // Per defecte forat A
   }, [selectedOptions['Forats seleccionats'], shapeConfig]);
 
-  // Commutar forat (A - I)
+  // Codi de model generat (p.ex. XR1550AC)
+  const generatedCode = useMemo(() => {
+    const holesSuffix = shapeConfig.hasCustomHoles ? activeHoles.slice().sort().join('') : '';
+    return `${shapeConfig.prefix}${currentMidaObj.codeNum}${holesSuffix}`;
+  }, [shapeConfig, currentMidaObj, activeHoles]);
+
+  // Commutar forat (A - H / I)
   const handleToggleHole = (holeKey) => {
     if (!shapeConfig.hasCustomHoles) return;
 
@@ -452,7 +458,7 @@ export default function EtiquetaSimulator({
       return clean.includes(mClean) || mClean.includes(clean);
     }) || shapeConfig.mides[0];
 
-    const holesSuffix = shapeConfig.hasCustomHoles ? activeHoles.sort().join('') : '';
+    const holesSuffix = shapeConfig.hasCustomHoles ? activeHoles.slice().sort().join('') : '';
     const code = `${shapeConfig.prefix}${foundObj.codeNum}${holesSuffix}`;
     const holesStr = activeHoles.join(', ');
 
@@ -633,9 +639,16 @@ export default function EtiquetaSimulator({
       {shapeConfig.hasCustomHoles ? (
         <div className="space-y-3 pt-2 border-t border-outline/10">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <label className="text-xs font-mono font-bold uppercase text-on-surface-variant">
-              Selecciona els forats:
-            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="text-xs font-mono font-bold uppercase text-on-surface-variant">
+                Selecciona els forats:
+              </label>
+              {generatedCode && (
+                <span className="text-[11px] font-mono font-bold bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+                  Ref.: {generatedCode}
+                </span>
+              )}
+            </div>
             {activeHoles.length > 0 && (
               <button
                 type="button"
@@ -654,14 +667,14 @@ export default function EtiquetaSimulator({
               className="relative w-full"
               style={{ aspectRatio: shapeConfig.templateAspect || '209 / 115' }}
             >
-              {/* Imatge Oficial de la Plantilla */}
+              {/* Imatge Oficial de la Plantilla _blank */}
               <img
                 src={resolveMediaUrl(shapeConfig.templateImg)}
                 alt={`Plantilla de forats ${shapeConfig.nom}`}
                 className="w-full h-full object-contain pointer-events-none select-none drop-shadow-xs"
               />
 
-              {/* Botons / Hotspots interactius directament a sobre de cada lletra de la plantilla */}
+              {/* Botons / Hotspots interactius directament a sobre de cada forat de la plantilla (sense lletres) */}
               {shapeConfig.templateHotspots && Object.keys(shapeConfig.templateHotspots).map((key) => {
                 const spot = shapeConfig.templateHotspots[key];
                 const isActive = activeHoles.includes(key);
@@ -672,17 +685,15 @@ export default function EtiquetaSimulator({
                     type="button"
                     onClick={() => handleToggleHole(key)}
                     title={`Forat ${key} (${isActive ? 'Actiu' : 'Inactiu'})`}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all cursor-pointer group z-20"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-all cursor-pointer group z-20"
                     style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
                   >
                     {isActive ? (
-                      <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-amber-500 text-amber-950 font-bold font-mono text-xs flex items-center justify-center shadow-md ring-2 ring-amber-400 ring-offset-1 border border-amber-600 animate-scaleIn">
-                        {key}
+                      <span className="w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full bg-amber-500 shadow-md ring-2 ring-amber-400 border border-amber-600 flex items-center justify-center animate-scaleIn">
+                        <span className="w-2 h-2 rounded-full bg-amber-950"></span>
                       </span>
                     ) : (
-                      <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-black/10 hover:bg-amber-500/30 text-primary font-bold font-mono text-[11px] flex items-center justify-center transition-all border border-transparent hover:border-amber-500/50">
-                        {key}
-                      </span>
+                      <span className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black/30 hover:border-amber-500 bg-black/5 hover:bg-amber-500/30 transition-all"></span>
                     )}
                   </button>
                 );
