@@ -8,7 +8,7 @@ export const ETIQUETA_SHAPES = {
     id: 'rectangular',
     nom: 'Rectangular',
     prefix: 'XR',
-    templateImg: 'images/etiqueta_plantilla_rd_blank.png',
+    templateImg: 'images/etiqueta_plantilla_r_blank.png',
     overviewImg: 'images/etiqueta_rectangular.png',
     hasCustomHoles: true,
     canvasW: 283,
@@ -89,24 +89,18 @@ export const ETIQUETA_SHAPES = {
     id: 'arrodonida',
     nom: 'Arrodonida',
     prefix: 'XD',
-    templateImg: 'images/etiqueta_plantilla_rd_blank.png',
+    templateImg: 'images/etiqueta_plantilla_d_blank.png',
     overviewImg: 'images/etiqueta_arrodonida.png',
     hasCustomHoles: true,
     canvasW: 283,
     canvasH: 132,
     aspect: '283 / 132',
-    templateW: 209,
-    templateH: 115,
-    templateAspect: '209 / 115',
+    templateW: 190,
+    templateH: 58,
+    templateAspect: '190 / 58',
     templateHotspots: {
-      A: { label: 'A', x: 9.1, y: 16.0 },
-      B: { label: 'B', x: 50.0, y: 16.5 },
-      C: { label: 'C', x: 89.5, y: 16.5 },
-      D: { label: 'D', x: 9.1, y: 49.6 },
-      E: { label: 'E', x: 89.5, y: 49.6 },
-      F: { label: 'F', x: 9.1, y: 81.0 },
-      G: { label: 'G', x: 50.0, y: 82.8 },
-      H: { label: 'H', x: 89.5, y: 82.8 }
+      A: { label: 'A', x: 10.6, y: 47.4 },
+      B: { label: 'B', x: 89.6, y: 47.4 }
     },
     defaultMides: ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'],
     mides: [
@@ -118,14 +112,8 @@ export const ETIQUETA_SHAPES = {
         wMm: 50,
         hMm: 15,
         holes: {
-          A: { x: 64, y: 47 },
-          B: { x: 141.5, y: 47 },
-          C: { x: 219, y: 47 },
-          D: { x: 64, y: 65.5 },
-          E: { x: 219, y: 65.5 },
-          F: { x: 64, y: 84 },
-          G: { x: 141.5, y: 84 },
-          H: { x: 219, y: 84 }
+          A: { x: 64, y: 65.5 },
+          B: { x: 219, y: 65.5 }
         }
       },
       {
@@ -136,14 +124,8 @@ export const ETIQUETA_SHAPES = {
         wMm: 60,
         hMm: 20,
         holes: {
-          A: { x: 50, y: 39 },
-          B: { x: 141.5, y: 39 },
-          C: { x: 233, y: 39 },
-          D: { x: 50, y: 65.5 },
-          E: { x: 233, y: 65.5 },
-          F: { x: 50, y: 92 },
-          G: { x: 141.5, y: 92 },
-          H: { x: 233, y: 92 }
+          A: { x: 50, y: 65.5 },
+          B: { x: 233, y: 65.5 }
         }
       },
       {
@@ -154,14 +136,8 @@ export const ETIQUETA_SHAPES = {
         wMm: 60,
         hMm: 25,
         holes: {
-          A: { x: 52, y: 31 },
-          B: { x: 141.5, y: 31 },
-          C: { x: 231, y: 31 },
-          D: { x: 52, y: 65.5 },
-          E: { x: 231, y: 65.5 },
-          F: { x: 52, y: 100 },
-          G: { x: 141.5, y: 100 },
-          H: { x: 231, y: 100 }
+          A: { x: 52, y: 65.5 },
+          B: { x: 231, y: 65.5 }
         }
       }
     ]
@@ -372,9 +348,10 @@ export default function EtiquetaSimulator({
     const pNom = String(productNom || '').toLowerCase();
 
     if (sType === 'etiqueta_medalla' || pNom.includes('medall')) return ETIQUETA_SHAPES.medalla;
-    if (sType === 'etiqueta_circular' || pNom.includes('circul') || pNom.includes('rodó') || pNom.includes('rodo')) return ETIQUETA_SHAPES.circular;
-    if (sType === 'etiqueta_ovalada' || pNom.includes('oval')) return ETIQUETA_SHAPES.ovalada;
     if (sType === 'etiqueta_arrodonida' || pNom.includes('arrodonid')) return ETIQUETA_SHAPES.arrodonida;
+    if (sType === 'etiqueta_ovalada' || pNom.includes('oval')) return ETIQUETA_SHAPES.ovalada;
+    if (sType === 'etiqueta_circular' || pNom.includes('circul') || (/\b(rodona|rodo|rodó|rodons|rodones)\b/i.test(pNom))) return ETIQUETA_SHAPES.circular;
+    if (sType === 'etiqueta_rectangular' || pNom.includes('rectang')) return ETIQUETA_SHAPES.rectangular;
     return ETIQUETA_SHAPES.rectangular;
   }, [simType, productNom]);
 
@@ -387,7 +364,23 @@ export default function EtiquetaSimulator({
   }, [midesDisponibles, shapeConfig]);
 
   // Mida seleccionada actual
-  const selectedMidaLabel = selectedOptions['Mida de l\'etiqueta'] || availableMides[0] || shapeConfig.defaultMides[0];
+  const selectedMidaLabel = selectedOptions['Mida de l\'etiqueta'] || 
+                           selectedOptions['Mida'] || 
+                           availableMides[0] || 
+                           shapeConfig.defaultMides[0];
+
+  // Sincronitzar mida inicial si no està definida a selectedOptions
+  React.useEffect(() => {
+    if (!selectedOptions['Mida de l\'etiqueta'] && selectedMidaLabel) {
+      setSelectedOptions(prev => {
+        const next = { ...prev, 'Mida de l\'etiqueta': selectedMidaLabel };
+        Object.keys(prev).forEach(k => {
+          if (k.toLowerCase().includes('mida')) next[k] = selectedMidaLabel;
+        });
+        return next;
+      });
+    }
+  }, [selectedMidaLabel]);
 
   // Objecte de dades de la mida triada (imatge real, mides, coordenades de forats)
   const currentMidaObj = useMemo(() => {
@@ -418,7 +411,7 @@ export default function EtiquetaSimulator({
     if (typeof raw === 'string' && raw.trim()) {
       return raw.split(',').map(s => s.trim().toUpperCase());
     }
-    return ['A']; // Per defecte forat A
+    return []; // Per defecte SENSE cap forat (preu base net)
   }, [selectedOptions['Forats seleccionats'], shapeConfig]);
 
   // Codi de model generat (p.ex. XR1550AC)
@@ -462,12 +455,17 @@ export default function EtiquetaSimulator({
     const code = `${shapeConfig.prefix}${foundObj.codeNum}${holesSuffix}`;
     const holesStr = activeHoles.join(', ');
 
-    setSelectedOptions(prev => ({
-      ...prev,
-      'Mida de l\'etiqueta': midaLabel,
-      'Forats (Resum)': shapeConfig.hasCustomHoles ? (holesStr ? `${holesStr} (${code})` : `Sense forats (${code})`) : `1 forat superior (${code})`,
-      'Codi Model Generat': code
-    }));
+    setSelectedOptions(prev => {
+      const next = { ...prev };
+      next['Mida de l\'etiqueta'] = midaLabel;
+      next['Mida'] = midaLabel;
+      Object.keys(prev).forEach(k => {
+        if (k.toLowerCase().includes('mida')) next[k] = midaLabel;
+      });
+      next['Forats (Resum)'] = shapeConfig.hasCustomHoles ? (holesStr ? `${holesStr} (${code})` : `Sense forats (${code})`) : `1 forat superior (${code})`;
+      next['Codi Model Generat'] = code;
+      return next;
+    });
   };
 
   // Netejar forats
@@ -531,7 +529,7 @@ export default function EtiquetaSimulator({
           })}
         </div>
 
-        {/* Commutador de Cara: Frontal ⇄ Posterior */}
+        {/* Commutador de Cara: Anterior ⇄ Posterior */}
         <div className="flex items-center bg-surface border border-outline/25 rounded-xl p-1 gap-1">
           <button
             type="button"
@@ -542,7 +540,7 @@ export default function EtiquetaSimulator({
                 : 'text-on-surface-variant hover:text-primary'
             }`}
           >
-            Frontal
+            Anterior
           </button>
           <button
             type="button"
@@ -621,7 +619,7 @@ export default function EtiquetaSimulator({
               </p>
             ) : (
               <p className="text-[10px] font-serif italic text-[#6E4F39]/70">
-                {activeSide === 'caraA' ? '(Text gravat Frontal...)' : '(Text gravat Posterior...)'}
+                {activeSide === 'caraA' ? '(Text gravat Anterior...)' : '(Text gravat Posterior...)'}
               </p>
             )}
           </div>
@@ -639,26 +637,26 @@ export default function EtiquetaSimulator({
       {shapeConfig.hasCustomHoles ? (
         <div className="space-y-3 pt-2 border-t border-outline/10">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <label className="text-xs font-mono font-bold uppercase text-on-surface-variant">
-                Selecciona els forats:
-              </label>
+            <label className="text-xs font-mono font-bold uppercase text-on-surface-variant">
+              Selecciona els forats:
+            </label>
+            <div className="flex items-center gap-3 ml-auto flex-wrap">
+              {activeHoles.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearHoles}
+                  className="text-[11px] text-error hover:underline font-mono cursor-pointer flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Netejar forats</span>
+                </button>
+              )}
               {generatedCode && (
-                <span className="text-[11px] font-mono font-bold bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+                <span className="text-[11px] font-mono font-bold bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full shadow-2xs">
                   Ref.: {generatedCode}
                 </span>
               )}
             </div>
-            {activeHoles.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearHoles}
-                className="text-[11px] text-error hover:underline font-mono cursor-pointer flex items-center gap-1"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Netejar forats</span>
-              </button>
-            )}
           </div>
 
           {/* Plantilla Gràfica Interactiva de Selecció */}

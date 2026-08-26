@@ -8,7 +8,7 @@ import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers } from 'lucide-react';
-import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
@@ -42,44 +42,58 @@ const MOTIVATIONAL_PILLS = [
   }
 ];
 
-// Helper per calcular els sobrecostos de personalització dinàmics en temps real
-export function computeOptionSurcharges(product, selectedOptions = {}, dbEscandalls = []) {
+// Helper per calcular els sobrecostos de personalització dinàmics en temps real (sense interpretacions ocultes de codi)
+export function computeOptionSurcharges(product, selectedOptions = {}) {
   if (!product) return 0;
-
-  // Trobar escandall associat
-  const escandallObj = dbEscandalls.find(e => 
-    (e.producteId && String(e.producteId) === String(product.id)) ||
-    (product.codi && e.producteCodi === product.codi) ||
-    (product.nom && String(e.producteNom).toLowerCase().trim() === String(product.nom).toLowerCase().trim())
-  );
-
-  const opcionsCostosMap = escandallObj?.opcionsCostos || product.opcionsCostos || {};
   let totalSurcharge = 0;
 
-  Object.entries(selectedOptions || {}).forEach(([opKey, val]) => {
-    if (val === undefined || val === null) return;
-    const configForOp = opcionsCostosMap[opKey];
+  const opcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
 
-    if (configForOp && typeof configForOp === 'object') {
-      if (typeof val === 'string') {
-        const trimmedVal = val.trim();
-        if (trimmedVal.length > 0) {
-          if (configForOp[trimmedVal]) {
-            const sur = Number(configForOp[trimmedVal].sobrecost || 0);
-            if (!isNaN(sur)) totalSurcharge += sur;
-          } else {
-            const textConfig = configForOp['Text Personalitzat'] || configForOp[Object.keys(configForOp)[0]];
-            const sur = Number(textConfig?.sobrecost || 0);
-            if (!isNaN(sur)) totalSurcharge += sur;
-          }
+  opcions.forEach((opc) => {
+    if (!opc || typeof opc !== 'object') return;
+    const opKey = opc.titol || opc.nom || '';
+    const selectedVal = selectedOptions[opKey];
+    if (selectedVal === undefined || selectedVal === null) return;
+
+    if (opc.tipus === 'desplegable') {
+      const valStr = String(selectedVal).trim();
+      if (valStr) {
+        const preusValors = opc.preusValors || {};
+        let valPrice = preusValors[valStr];
+        if (valPrice === undefined) {
+          const matched = Object.entries(preusValors).find(([k]) => k.trim().toLowerCase() === valStr.toLowerCase());
+          if (matched) valPrice = matched[1];
         }
-      } else if (typeof val === 'object' && val.fileName) {
-        const textConfig = configForOp['Text Personalitzat'] || configForOp[Object.keys(configForOp)[0]];
-        const sur = Number(textConfig?.sobrecost || 0);
-        if (!isNaN(sur)) totalSurcharge += sur;
+        if (valPrice !== undefined && !isNaN(Number(valPrice))) {
+          totalSurcharge += Number(valPrice);
+        }
+      }
+    } else if (opc.tipus === 'fitxer' || opc.tipus === 'imatge') {
+      // S'aplica sobrecost si s'ha adjuntat un fitxer o imatge
+      const hasFile = (typeof selectedVal === 'object' && (selectedVal.fileName || selectedVal.dataUrl)) || 
+                      (typeof selectedVal === 'string' && selectedVal.trim().length > 0);
+      if (hasFile && opc.preu && !isNaN(Number(opc.preu))) {
+        totalSurcharge += Number(opc.preu);
+      }
+    } else {
+      // Per a text, memo, etc.: S'aplica sobrecost si l'usuari ha escrit contingut
+      const hasText = (typeof selectedVal === 'string' && selectedVal.trim().length > 0) || 
+                      (typeof selectedVal === 'number' && selectedVal > 0);
+      if (hasText && opc.preu && !isNaN(Number(opc.preu))) {
+        totalSurcharge += Number(opc.preu);
       }
     }
   });
+
+  // Sobrecost per forats afegits a l'etiqueta (segons preuPerForat configurable a l'àrea privada)
+  const preuForat = Number(product.preuPerForat || 0);
+  if (preuForat > 0) {
+    const rawHoles = selectedOptions['Forats seleccionats'];
+    const numHoles = Array.isArray(rawHoles) ? rawHoles.length : (typeof rawHoles === 'string' && rawHoles.trim() ? rawHoles.split(',').map(s => s.trim()).filter(Boolean).length : 0);
+    if (numHoles > 0) {
+      totalSurcharge += numHoles * preuForat;
+    }
+  }
 
   return totalSurcharge;
 }
@@ -848,15 +862,23 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
     ? escData.preu
     : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
   
-  // Lògica de Preus per Quantitat (Trams)
+  // Lògica de Preus per Quantitat (Trams) i Mides
   const hasQtyPricing = Boolean(product.preuPerQuantitat?.actiu === true);
-  const priceTier2 = Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
+  const preusPerMidaMap = product.preuPerQuantitat?.preusPerMida || {};
+  const allTier2 = Object.values(preusPerMidaMap).map(v => Number(v?.preuMesLlindar ?? v)).filter(n => !isNaN(n) && n > 0);
+  const priceTier2 = allTier2.length > 0 
+    ? Math.min(...allTier2) 
+    : Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
 
-  // Preu de referència a mostrar a la targeta (el preu inferior per volum si té preus per quantitat)
-  const displayedPrice = hasQtyPricing ? priceTier2 : rawPrice;
+  // Preu base inferior per mida si no té preus per volum
+  const basePreusPerMida = Object.values(product.preusPerMida || {}).map(Number).filter(n => !isNaN(n) && n > 0);
+  const minBasePrice = basePreusPerMida.length > 0 ? Math.min(...basePreusPerMida) : rawPrice;
+
+  // Preu de referència a mostrar a la targeta (el preu inferior per volum o per mida)
+  const displayedPrice = hasQtyPricing ? priceTier2 : minBasePrice;
   const isZeroPrice = !displayedPrice || isNaN(displayedPrice) || displayedPrice <= 0;
-  const isBudgetRequired = product.requereixPressupost === true;
-  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
+  const isBudgetRequired = product.requereixPressupost === true && !hasQtyPricing;
+  const isPreuDesDe = hasQtyPricing ? true : ((basePreusPerMida.length > 1) || product.preuDesDe === true || product.isPreuDesDe === true);
 
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
   const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
@@ -1034,12 +1056,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   // Preus i Requisit de Pressupost (Si té escandall actiu, utilitza el preu calculat de l'escandall)
   const escData = getProductEscandallData(product, dbEscandalls);
-  const hasTextPrice = typeof product.preu === 'string' && isNaN(parseFloat(product.preu.replace(',', '.'))) && product.preu.trim() !== '';
-  const textPriceValue = hasTextPrice ? product.preu.trim() : (product.preuOrientatiu && isNaN(parseFloat(product.preuOrientatiu.replace(',', '.'))) ? product.preuOrientatiu.trim() : null);
   const rawPrice = (escData.hasEscandall && escData.preu > 0)
     ? escData.preu
     : (product.preuBase !== undefined ? Number(product.preuBase) : (product.preu !== undefined ? parseDecimal(product.preu, 0) : 0));
-  const isBudgetRequired = product.requereixPressupost === true;
+  const hasQtyPricing = Boolean(product.preuPerQuantitat?.actiu === true);
+  const hasTextPrice = typeof product.preu === 'string' && isNaN(parseFloat(product.preu.replace(',', '.'))) && product.preu.trim() !== '';
+  const textPriceValue = (!hasQtyPricing && hasTextPrice) 
+    ? product.preu.trim() 
+    : (!hasQtyPricing && product.preuOrientatiu && isNaN(parseFloat(product.preuOrientatiu.replace(',', '.'))) ? product.preuOrientatiu.trim() : null);
+  const isBudgetRequired = product.requereixPressupost === true && !hasQtyPricing;
 
   // Llista d'imatges vàlides (Garanteix que rawImages sigui SEMPRE un Array)
   const rawImages = Array.isArray(product.imatges)
@@ -1185,20 +1210,89 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const currentDisplayImg = selectedImg || defaultMainImage;
 
-  // Lògica de Preus per Quantitat (Trams)
-  const hasQtyPricing = Boolean(product.preuPerQuantitat?.actiu === true);
-  const qtyThreshold = Number(product.preuPerQuantitat?.llindar || 10);
-  const priceTier1 = Number(product.preuPerQuantitat?.preuFinsLlindar ?? rawPrice);
-  const priceTier2 = Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
-  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
+  // Obtenir totes les mides disponibles d'aquest producte
+  const availableProductMides = React.useMemo(() => {
+    return getAvailableMidesForProduct(product);
+  }, [product]);
 
-  // Preu base dinàmic segons quantitat
-  const activeBasePrice = hasQtyPricing
-    ? (quantity > qtyThreshold ? priceTier2 : priceTier1)
+  // Mida triada al simulador o formulari (amb fallback a la primera mida disponible)
+  const rawSelectedMida = selectedOptions['Mida de l\'etiqueta'] || 
+                          selectedOptions['Mida'] || 
+                          selectedOptions['Dimensions'] || 
+                          selectedOptions['Mesura'] || 
+                          Object.entries(selectedOptions).find(([k]) => k.toLowerCase().includes('mida'))?.[1] ||
+                          '';
+
+  const selectedMida = rawSelectedMida || (availableProductMides.length > 0 ? availableProductMides[0] : '');
+
+  // Lògica de Preus per Quantitat (Trams)
+  const qtyThreshold = Number(product.preuPerQuantitat?.llindar || 10);
+
+  // Funció de normalització de mides per comparar cadenes de text
+  const cleanMidaKey = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .toLowerCase()
+      .replace(/ø/g, '')
+      .replace(/mm/g, '')
+      .replace(/cm/g, '')
+      .replace(/\s+/g, '')
+      .replace(/,/g, '.')
+      .trim();
+  };
+
+  // Buscar configuració de preus per a la mida seleccionada
+  const preusPerMidaObj = product.preuPerQuantitat?.preusPerMida || {};
+  const normalizedSelectedMida = cleanMidaKey(selectedMida);
+
+  const matchedMidaEntry = Object.entries(preusPerMidaObj).find(([k]) => {
+    if (!normalizedSelectedMida) return false;
+    const normalizedKey = cleanMidaKey(k);
+    return normalizedSelectedMida === normalizedKey ||
+           normalizedSelectedMida.includes(normalizedKey) ||
+           normalizedKey.includes(normalizedSelectedMida);
+  });
+  const midaPricing = matchedMidaEntry ? matchedMidaEntry[1] : null;
+
+  // Extreure Preu 1 i Preu 2
+  const rawP1 = typeof midaPricing === 'object' && midaPricing !== null
+    ? (midaPricing.preuFinsLlindar ?? midaPricing.preu1 ?? midaPricing.preu)
+    : (midaPricing !== null && midaPricing !== undefined && !isNaN(Number(midaPricing)) ? midaPricing : null);
+  
+  const rawP2 = typeof midaPricing === 'object' && midaPricing !== null
+    ? (midaPricing.preuMesLlindar ?? midaPricing.preu2)
+    : null;
+
+  const priceTier1 = (rawP1 !== null && rawP1 !== undefined && rawP1 !== '' && !isNaN(Number(rawP1)) && Number(rawP1) > 0)
+    ? Number(rawP1)
+    : Number(product.preuPerQuantitat?.preuFinsLlindar ?? rawPrice);
+
+  const priceTier2 = (rawP2 !== null && rawP2 !== undefined && rawP2 !== '' && !isNaN(Number(rawP2)) && Number(rawP2) > 0)
+    ? Number(rawP2)
+    : Number(product.preuPerQuantitat?.preuMesLlindar ?? priceTier1);
+
+  // Preu base si no és preu per quantitat
+  const basePreuPerMidaMap = product.preusPerMida || {};
+  const matchedBaseEntry = Object.entries(basePreuPerMidaMap).find(([k]) => {
+    if (!normalizedSelectedMida) return false;
+    const normalizedKey = cleanMidaKey(k);
+    return normalizedSelectedMida === normalizedKey ||
+           normalizedSelectedMida.includes(normalizedKey) ||
+           normalizedKey.includes(normalizedSelectedMida);
+  });
+  const basePriceForMida = matchedBaseEntry && !isNaN(Number(matchedBaseEntry[1])) && Number(matchedBaseEntry[1]) > 0
+    ? Number(matchedBaseEntry[1])
     : rawPrice;
 
-  // Sobrecostos dinàmics de personalització segons la configuració dels escandalls
-  const currentSurcharge = computeOptionSurcharges(product, selectedOptions, dbEscandalls);
+  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
+
+  // Preu base dinàmic segons quantitat i mida
+  const activeBasePrice = hasQtyPricing
+    ? (quantity > qtyThreshold ? priceTier2 : priceTier1)
+    : basePriceForMida;
+
+  // Sobrecostos dinàmics de personalització segons la configuració explícita de l'àrea privada
+  const currentSurcharge = computeOptionSurcharges(product, selectedOptions);
   const baseUnitPrice = activeBasePrice;
   const finalUnitPrice = baseUnitPrice + currentSurcharge;
   const isZeroPrice = !finalUnitPrice || isNaN(finalUnitPrice) || finalUnitPrice <= 0;
@@ -1415,11 +1509,18 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                 const isInitialField = isInicialKeychain && (lowerKey.includes('inicial') || lowerKey.includes('lletra') || (lowerKey.includes('cara a') && !lowerKey.includes('text')));
                 const isPhraseField = (isInicialKeychain && (lowerKey.includes('frase') || lowerKey.includes('cara b'))) || lowerKey.includes('dedicatòria') || opcType === 'textarea';
 
+                const singlePrice = Number(opc.preu || 0);
+
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between items-center text-xs">
-                      <label className="font-medium text-on-surface-variant">
-                        {key}
+                      <label className="font-medium text-on-surface-variant flex items-center gap-1.5 flex-wrap">
+                        <span>{key}</span>
+                        {opcType !== 'desplegable' && singlePrice > 0 && (
+                          <span className="text-[10px] font-mono font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            +{singlePrice.toFixed(2).replace('.', ',')} €
+                          </span>
+                        )}
                         {isInitialField && <span className="text-[10px] text-primary/70 font-mono ml-1">(1 lletra majúscula)</span>}
                         {isPhraseField && <span className="text-[10px] text-primary/70 font-mono ml-1">(Màxim 80 caràcters, admet salts de línia amb CTRL+INTRO)</span>}
                       </label>
@@ -1434,11 +1535,18 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                       <select
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
                         onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: e.target.value })}
-                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans"
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans font-medium"
                       >
-                        {valorsStr.split(',').map((val, vIdx) => (
-                          <option key={vIdx} value={val.trim()}>{val.trim()}</option>
-                        ))}
+                        {valorsStr.split(',').map((val, vIdx) => {
+                          const trimmedVal = val.trim();
+                          const itemPrice = Number(opc.preusValors?.[trimmedVal] || 0);
+                          const priceBadge = itemPrice > 0 ? ` (+${itemPrice.toFixed(2).replace('.', ',')} €)` : '';
+                          return (
+                            <option key={vIdx} value={trimmedVal}>
+                              {trimmedVal}{priceBadge}
+                            </option>
+                          );
+                        })}
                       </select>
                     ) : opcType === 'fitxer' || opcType === 'imatge' ? (
                       <div className="space-y-2">
@@ -1491,13 +1599,13 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                       />
                     ) : (opcType === 'memo' || opcType === 'textarea' || opcType === 'textllarg' || isPhraseField) ? (
                       <textarea
-                        rows={3}
+                        rows={2}
                         maxLength={isPhraseField ? 80 : 500}
                         placeholder={valorsStr || `Escriu aquí el teu text o observacions.
 Pots deixar-ho en blanc si ho prefereixes.`}
                         value={typeof selectedOptions[key] === 'string' ? selectedOptions[key] : ''}
                         onChange={(e) => setSelectedOptions({ ...selectedOptions, [key]: isPhraseField ? e.target.value.slice(0, 80) : e.target.value })}
-                        className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary outline-none focus:border-primary font-sans resize-y min-h-[70px]"
+                        className="w-full bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary outline-none focus:border-primary font-sans resize-y min-h-[48px]"
                       />
                     ) : (
                       <input
@@ -1552,18 +1660,10 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           />
         )}
 
-        {/* Termini de fabricació estimat (Ubicat just abans de la quantitat) */}
-        {(product.terminiFabricacio || product.terminiLliurament) && (
-          <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono pt-3 border-t border-outline/10">
-            <Clock className="w-3.5 h-3.5 text-primary" />
-            <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio || product.terminiLliurament}</strong></span>
-          </div>
-        )}
-
         {/* Preu o Preu Orientatiu */}
         <div className="flex items-baseline gap-3 pt-3 border-t border-outline/10 flex-wrap">
           <span className="text-xs uppercase font-mono tracking-wider text-on-surface-variant font-semibold">
-            {isBudgetRequired ? "Preu orientatiu:" : (hasQtyPricing ? "Preu unitari:" : (isPreuDesDe ? "PREU DES DE:" : "Preu:"))}
+            {isBudgetRequired ? "PREU ORIENTATIU:" : (hasQtyPricing ? "PREU UNITARI:" : (isPreuDesDe ? "PREU DES DE:" : "PREU:"))}
           </span>
           <span className={textPriceValue ? "font-sans text-sm sm:text-base font-semibold text-primary" : "font-sans text-2xl sm:text-3xl font-bold text-primary tracking-tight"}>
             {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${finalUnitPrice.toFixed(2).replace('.', ',')} €`)}
@@ -1578,57 +1678,30 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           )}
         </div>
 
-        {/* Taula Visual de Descompte per Quantitat (si està actiu) */}
+        {/* Trams de Preu per Quantitat */}
         {hasQtyPricing && (
-          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-2">
-            <div className="flex items-center justify-between text-xs font-mono flex-wrap gap-1">
-              <span className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5" /> Trams de Preu per Quantitat:
-              </span>
-              {quantity > qtyThreshold ? (
-                <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow-2xs">
-                  ✓ Descompte per volum aplicat!
-                </span>
-              ) : (
-                <span className="text-[10px] text-on-surface-variant font-medium">
-                  Tria més de {qtyThreshold} u per estalviar
-                </span>
-              )}
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1.5 font-mono text-xs">
+            <div className="font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+              <span>Trams de preu per quantitat:</span>
             </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div
-                onClick={() => setQuantity(1)}
-                className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                  quantity <= qtyThreshold
-                    ? 'bg-surface border-primary text-primary font-bold shadow-2xs'
-                    : 'bg-surface/60 border-outline/15 text-on-surface-variant opacity-75 hover:opacity-100'
-                }`}
-                title={`Aplicar tram de 1 a ${qtyThreshold} unitats`}
-              >
-                <div className="text-[10px] uppercase opacity-75">1 a {qtyThreshold} unitats</div>
-                <div className="text-sm font-extrabold">{priceTier1.toFixed(2).replace('.', ',')} € / u</div>
-              </div>
-
-              <div
-                onClick={() => setQuantity(qtyThreshold + 1)}
-                className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                  quantity > qtyThreshold
-                    ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs'
-                    : 'bg-surface/60 border-outline/15 text-on-surface-variant hover:border-emerald-500/40'
-                }`}
-                title={`Aplicar tram de més de ${qtyThreshold} unitats`}
-              >
-                <div className="text-[10px] uppercase text-emerald-700 dark:text-emerald-400 font-semibold flex items-center justify-between">
-                  <span>Més de {qtyThreshold} unitats</span>
-                  <span className="text-[9px] px-1 bg-emerald-600/20 text-emerald-800 dark:text-emerald-200 rounded font-bold">
-                    DES DE
-                  </span>
-                </div>
-                <div className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
-                  {priceTier2.toFixed(2).replace('.', ',')} € / u
-                </div>
-              </div>
+            <div className="pl-5 space-y-0.5 text-xs font-mono">
+              <p className={`flex items-center gap-2 transition-all ${quantity <= qtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
+                <span>De 1 a {qtyThreshold} unitats = {priceTier1.toFixed(2).replace('.', ',')} €</span>
+                {quantity <= qtyThreshold && (
+                  <svg className="w-3 h-3 text-red-600 fill-current shrink-0 animate-fadeIn" viewBox="0 0 24 24">
+                    <polygon points="22,4 22,20 4,12" />
+                  </svg>
+                )}
+              </p>
+              <p className={`flex items-center gap-2 transition-all ${quantity > qtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
+                <span>Més de {qtyThreshold} unitats = {priceTier2.toFixed(2).replace('.', ',')} €</span>
+                {quantity > qtyThreshold && (
+                  <svg className="w-3 h-3 text-red-600 fill-current shrink-0 animate-fadeIn" viewBox="0 0 24 24">
+                    <polygon points="22,4 22,20 4,12" />
+                  </svg>
+                )}
+              </p>
             </div>
           </div>
         )}
@@ -1670,6 +1743,14 @@ Pots deixar-ho en blanc si ho prefereixes.`}
               />
             </div>
           </div>
+
+          {/* Termini de fabricació estimat (Just abans del botó) */}
+          {(product.terminiFabricacio || product.terminiLliurament) && (
+            <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono pt-1">
+              <Clock className="w-3.5 h-3.5 text-primary" />
+              <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio || product.terminiLliurament}</strong></span>
+            </div>
+          )}
 
           {/* Botó Afegir a la Cistella o Demanar Pressupost */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">

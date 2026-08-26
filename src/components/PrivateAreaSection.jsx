@@ -88,6 +88,42 @@ export const getEffectiveProductOrder = (product, gammaNom) => {
   return Number(product.ordre || 1);
 };
 
+export const getAvailableMidesForProduct = (product) => {
+  if (!product) return [];
+  const safeOpcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
+  const opMida = safeOpcions.find(o => {
+    const t = String(o?.titol || o?.nom || '').toLowerCase();
+    return t.includes('mida') || t.includes('dimensions') || t.includes('mesura') || t.includes('talla');
+  });
+  if (opMida && typeof opMida.valors === 'string' && opMida.valors.trim()) {
+    return opMida.valors.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  const sim = String(product.simulador || '').toLowerCase();
+  const nom = String(product.nom || '').toLowerCase();
+
+  if (sim === 'etiqueta_rectangular' || (!sim.startsWith('etiqueta_') && nom.includes('rectangular'))) {
+    return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+  }
+  if (sim === 'etiqueta_arrodonida' || (!sim.startsWith('etiqueta_') && nom.includes('arrodonid'))) {
+    return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+  }
+  if (sim === 'etiqueta_circular' || (!sim.startsWith('etiqueta_') && nom.includes('circular'))) {
+    return ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'];
+  }
+  if (sim === 'etiqueta_ovalada' || (!sim.startsWith('etiqueta_') && nom.includes('ovalad'))) {
+    return ['20 x 40 mm', '25 x 50 mm', '30 x 60 mm'];
+  }
+  if (sim === 'etiqueta_medalla' || (!sim.startsWith('etiqueta_') && nom.includes('medalla'))) {
+    return ['Ø 25 mm', 'Ø 35 mm', 'Ø 45 mm'];
+  }
+  if (sim.includes('etiqueta') || nom.includes('etiqueta')) {
+    return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+  }
+
+  return [];
+};
+
 export const sortProductsWithGammaOrder = (productsList, activeGamFilter, dbGammes = []) => {
   const gamFilter = (activeGamFilter && activeGamFilter !== 'Totes' && activeGamFilter !== 'Tots') ? activeGamFilter : null;
 
@@ -1188,6 +1224,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         ordre: mainOrdre,
         ordrePerGamma: updatedOrdrePerGamma,
         simulador: editingProducte.simulador || 'auto',
+        preuPerForat: editingProducte.preuPerForat !== undefined ? (Number(editingProducte.preuPerForat) || 0) : 0,
+        preusPerMida: editingProducte.preusPerMida || null,
         actiu: editingProducte.actiu !== false,
         novetat: editingProducte.novetat === true,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
@@ -2957,6 +2995,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   material: 'Fusta de til·ler',
                   acabat: 'Vernís mat',
                   ordre: initialOrdre,
+                  preuPerForat: 0,
                   actiu: true
                 });
               }}
@@ -3014,30 +3053,57 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               {/* CAIXETÍ DESTACAT: SIMULADOR INTERACTIU DE FITXA PÚBLICA */}
-              <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-2">
-                <label className="block text-xs uppercase font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>Simulador Interactiu Assignat a la Fitxa Pública</span>
-                </label>
-                <select
-                  value={editingProducte.simulador || 'auto'}
-                  onChange={(e) => setEditingProducte({ ...editingProducte, simulador: e.target.value })}
-                  className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
-                >
-                  <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
-                  <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
-                  <option value="etiqueta_rectangular">🏷️ Etiqueta Rectangular (XR)</option>
-                  <option value="etiqueta_arrodonida">🏷️ Etiqueta Arrodonida (XD)</option>
-                  <option value="etiqueta_circular">🏷️ Etiqueta Circular (XC)</option>
-                  <option value="etiqueta_ovalada">🏷️ Etiqueta Ovalada (XV)</option>
-                  <option value="etiqueta_medalla">🏷️ Etiqueta Medalla (XM - 1 Forat fix)</option>
-                  <option value="inicial">🔤 Simulador de Clauer Inicial</option>
-                  <option value="puzle">🧩 Simulador de Puzle</option>
-                  <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
-                </select>
-                <p className="text-[11px] text-on-surface-variant leading-tight">
-                  Tria quin simulador 2D interactiu en temps real s'activarà quan el client obri aquest regal al web.
-                </p>
+              <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs uppercase font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>Simulador Interactiu Assignat a la Fitxa Pública</span>
+                  </label>
+                  <select
+                    value={editingProducte.simulador || 'auto'}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, simulador: e.target.value })}
+                    className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
+                  >
+                    <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
+                    <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
+                    <option value="etiqueta_rectangular">🏷️ Etiqueta Rectangular (XR)</option>
+                    <option value="etiqueta_arrodonida">🏷️ Etiqueta Arrodonida (XD)</option>
+                    <option value="etiqueta_circular">🏷️ Etiqueta Circular (XC)</option>
+                    <option value="etiqueta_ovalada">🏷️ Etiqueta Ovalada (XV)</option>
+                    <option value="etiqueta_medalla">🏷️ Etiqueta Medalla (XM - 1 Forat fix)</option>
+                    <option value="inicial">🔤 Simulador de Clauer Inicial</option>
+                    <option value="puzle">🧩 Simulador de Puzle</option>
+                    <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
+                  </select>
+                  <p className="text-[11px] text-on-surface-variant leading-tight">
+                    Tria quin simulador 2D interactiu en temps real s'activarà quan el client obri aquest regal al web.
+                  </p>
+                </div>
+
+                {/* Preu per forat (si s'utilitza un simulador d'etiquetes) */}
+                {(String(editingProducte.simulador || '').includes('etiqueta') || String(editingProducte.nom || '').toLowerCase().includes('etiqueta')) && (
+                  <div className="pt-2.5 border-t border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-primary font-mono">
+                        Preu per forat (€):
+                      </label>
+                      <p className="text-[10px] text-on-surface-variant">
+                        Increment sobre el preu base per cada forat que l'usuari afegeixi al disseny (deixa 0 si el preu base ja inclou els forats).
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <DecimalInput
+                        value={editingProducte.preuPerForat ?? 0}
+                        onChange={(_, num) => setEditingProducte({ ...editingProducte, preuPerForat: num || 0 })}
+                        className="w-24 bg-surface border border-outline/25 rounded px-2.5 py-1.5 text-xs text-primary font-mono font-bold outline-none focus:border-primary text-right"
+                        placeholder="0,00"
+                        step={0.05}
+                        decimals={2}
+                      />
+                      <span className="text-xs font-mono font-bold text-on-surface-variant">€ / forat</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Descripció amb Barra d'Eines Rich Text */}
@@ -3207,7 +3273,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         ...editingProducte,
                         opcionsPersonalitzacio: [
                           ...currentOps,
-                          { tipus: 'desplegable', titol: '', valors: '' }
+                          { tipus: 'desplegable', titol: '', valors: '', preu: 0, preusValors: {} }
                         ]
                       });
                     }}
@@ -3240,103 +3306,172 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 ) : (
                   <div className="space-y-3">
                     {editingProducte.opcionsPersonalitzacio.map((opc, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 bg-surface-container rounded border border-outline/10">
-                        {/* Botons per reordenar (Pujar / Baixar) */}
-                        <div className="flex items-center gap-0.5 shrink-0 bg-surface border border-outline/20 rounded p-0.5">
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => {
-                              if (idx === 0) return;
+                      <div key={idx} className="p-3 bg-surface-container rounded-lg border border-outline/15 space-y-2.5">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                          {/* Botons per reordenar (Pujar / Baixar) */}
+                          <div className="flex items-center gap-0.5 shrink-0 bg-surface border border-outline/20 rounded p-0.5">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => {
+                                if (idx === 0) return;
+                                const ops = [...editingProducte.opcionsPersonalitzacio];
+                                const temp = ops[idx - 1];
+                                ops[idx - 1] = ops[idx];
+                                ops[idx] = temp;
+                                setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                              }}
+                              className={`p-1 rounded transition-colors ${idx === 0 ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
+                              title="Pujar opció"
+                              aria-label="Pujar opció"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === (editingProducte.opcionsPersonalitzacio.length - 1)}
+                              onClick={() => {
+                                if (idx >= editingProducte.opcionsPersonalitzacio.length - 1) return;
+                                const ops = [...editingProducte.opcionsPersonalitzacio];
+                                const temp = ops[idx + 1];
+                                ops[idx + 1] = ops[idx];
+                                ops[idx] = temp;
+                                setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                              }}
+                              className={`p-1 rounded transition-colors ${idx === (editingProducte.opcionsPersonalitzacio.length - 1) ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
+                              title="Baixar opció"
+                              aria-label="Baixar opció"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <select
+                            value={opc.tipus || 'desplegable'}
+                            onChange={(e) => {
                               const ops = [...editingProducte.opcionsPersonalitzacio];
-                              const temp = ops[idx - 1];
-                              ops[idx - 1] = ops[idx];
-                              ops[idx] = temp;
+                              ops[idx].tipus = e.target.value;
                               setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
                             }}
-                            className={`p-1 rounded transition-colors ${idx === 0 ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
-                            title="Pujar opció"
-                            aria-label="Pujar opció"
+                            className="w-28 bg-surface border border-outline/25 rounded px-2 py-1.5 text-xs text-primary font-mono shrink-0"
                           >
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === (editingProducte.opcionsPersonalitzacio.length - 1)}
-                            onClick={() => {
-                              if (idx >= editingProducte.opcionsPersonalitzacio.length - 1) return;
+                            <option value="desplegable">Desplegable</option>
+                            <option value="text">Text</option>
+                            <option value="memo">Textàrea</option>
+                            <option value="quantitat">Quantitat</option>
+                            <option value="fitxer">Fitxer</option>
+                            <option value="colors">Colors</option>
+                          </select>
+
+                          <input
+                            type="text"
+                            placeholder="Títol (ex: Text de la cara frontal)"
+                            value={opc.titol || ''}
+                            onChange={(e) => {
                               const ops = [...editingProducte.opcionsPersonalitzacio];
-                              const temp = ops[idx + 1];
-                              ops[idx + 1] = ops[idx];
-                              ops[idx] = temp;
+                              ops[idx].titol = e.target.value;
                               setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
                             }}
-                            className={`p-1 rounded transition-colors ${idx === (editingProducte.opcionsPersonalitzacio.length - 1) ? 'opacity-25 cursor-not-allowed text-outline' : 'hover:bg-primary/15 text-primary cursor-pointer'}`}
-                            title="Baixar opció"
-                            aria-label="Baixar opció"
+                            className="w-full sm:w-1/3 bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary font-semibold min-w-[140px]"
+                          />
+
+                          <input
+                            type="text"
+                            placeholder={
+                              opc.tipus === 'desplegable'
+                                ? "Valors: Noguer, Roure, Bedoll"
+                                : opc.tipus === 'memo'
+                                ? "Text d'ajuda (ex: Escriu la teva dedicatoria...)"
+                                : "Placeholder de text..."
+                            }
+                            value={opc.valors || ''}
+                            onChange={(e) => {
+                              const ops = [...editingProducte.opcionsPersonalitzacio];
+                              ops[idx].valors = e.target.value;
+                              setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                            }}
+                            className="w-full sm:flex-1 bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary min-w-[140px]"
+                          />
+
+                          {/* Preu afegit per a opcions no desplegables amb espai suficient */}
+                          {opc.tipus !== 'desplegable' && (
+                            <div className="flex items-center gap-1 shrink-0 bg-surface border border-outline/25 rounded px-2.5 py-1 w-24 sm:w-28 justify-between" title="Preu incrementat en omplir aquesta opció">
+                              <span className="text-[11px] font-mono text-outline font-bold">+</span>
+                              <DecimalInput
+                                value={opc.preu !== undefined ? opc.preu : 0}
+                                onChange={(_, num) => {
+                                  const ops = [...editingProducte.opcionsPersonalitzacio];
+                                  ops[idx].preu = num || 0;
+                                  setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                                }}
+                                className="w-full bg-transparent text-xs font-mono font-bold text-primary text-right outline-none px-1"
+                                placeholder="0,00"
+                                step={0.1}
+                                decimals={2}
+                              />
+                              <span className="text-[11px] font-mono font-bold text-primary">€</span>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const ops = editingProducte.opcionsPersonalitzacio.filter((_, i) => i !== idx);
+                              setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                            }}
+                            className="text-error hover:bg-error-container/30 p-1.5 rounded transition-colors cursor-pointer shrink-0"
+                            title="Esborrar opció"
                           >
-                            <ChevronDown className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
 
-                        <select
-                          value={opc.tipus || 'desplegable'}
-                          onChange={(e) => {
-                            const ops = [...editingProducte.opcionsPersonalitzacio];
-                            ops[idx].tipus = e.target.value;
-                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
-                          }}
-                          className="bg-surface border border-outline/25 rounded px-2 py-1.5 text-xs text-primary font-mono"
-                        >
-                          <option value="desplegable">Desplegable</option>
-                          <option value="text">Text (línia única)</option>
-                          <option value="memo">Memo / Textàrea (multilínia)</option>
-                          <option value="quantitat">Quantitat</option>
-                          <option value="fitxer">Fitxer</option>
-                          <option value="colors">Colors</option>
-                        </select>
-
-                        <input
-                          type="text"
-                          placeholder="Títol (ex: Fusta preferida)"
-                          value={opc.titol || ''}
-                          onChange={(e) => {
-                            const ops = [...editingProducte.opcionsPersonalitzacio];
-                            ops[idx].titol = e.target.value;
-                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
-                          }}
-                          className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary flex-1"
-                        />
-
-                        <input
-                          type="text"
-                          placeholder={
-                            opc.tipus === 'desplegable'
-                              ? "Valors: Noguer, Roure, Bedoll"
-                              : opc.tipus === 'memo'
-                              ? "Text d'ajuda (ex: Escriu la teva dedicatoria...)"
-                              : "Placeholder de text..."
-                          }
-                          value={opc.valors || ''}
-                          onChange={(e) => {
-                            const ops = [...editingProducte.opcionsPersonalitzacio];
-                            ops[idx].valors = e.target.value;
-                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
-                          }}
-                          className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary flex-1"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const ops = editingProducte.opcionsPersonalitzacio.filter((_, i) => i !== idx);
-                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
-                          }}
-                          className="text-error hover:bg-error-container/30 p-1.5 rounded transition-colors cursor-pointer"
-                          title="Esborrar opció"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Editor de Preus per a cada valor del desplegable */}
+                        {opc.tipus === 'desplegable' && (() => {
+                          const valorsList = (opc.valors || '').split(',').map(v => v.trim()).filter(Boolean);
+                          if (valorsList.length === 0) return null;
+                          return (
+                            <div className="pt-2 border-t border-outline/10 space-y-1.5 bg-surface/60 p-2.5 rounded-lg">
+                              <div className="flex items-center justify-between text-[11px] font-mono font-semibold text-primary">
+                                <span className="flex items-center gap-1">
+                                  <Tag className="w-3 h-3 text-primary" /> Preu per a cada valor del desplegable:
+                                </span>
+                                <span className="text-[10px] text-on-surface-variant/70 font-mono">(0.00 € = preu base)</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                                {valorsList.map((val, vIdx) => {
+                                  const currentPreus = opc.preusValors || {};
+                                  const itemPrice = currentPreus[val] !== undefined ? currentPreus[val] : 0;
+                                  return (
+                                    <div key={vIdx} className="flex items-center justify-between gap-2 p-1.5 bg-surface rounded border border-outline/20 text-xs font-mono">
+                                      <span className="font-semibold text-primary truncate max-w-[130px]" title={val}>{val}:</span>
+                                      <div className="flex items-center gap-1 shrink-0 bg-surface-container border border-outline/25 rounded px-2 py-0.5 w-24 justify-between">
+                                        <span className="text-[10px] text-outline font-bold">+</span>
+                                        <DecimalInput
+                                          value={itemPrice}
+                                          onChange={(_, num) => {
+                                            const ops = [...editingProducte.opcionsPersonalitzacio];
+                                            const prevPreus = ops[idx].preusValors || {};
+                                            ops[idx].preusValors = {
+                                              ...prevPreus,
+                                              [val]: num || 0
+                                            };
+                                            setEditingProducte({ ...editingProducte, opcionsPersonalitzacio: ops });
+                                          }}
+                                          className="w-full bg-transparent text-xs font-mono font-bold text-primary text-right outline-none px-1"
+                                          placeholder="0,00"
+                                          step={0.1}
+                                          decimals={2}
+                                        />
+                                        <span className="text-[10px] font-mono font-bold text-primary">€</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -3392,6 +3527,53 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* Preus base per mida (si el producte té mides definides i no s'activa preu per volum) */}
+              {!editingProducte.preuPerQuantitat?.actiu && (() => {
+                const detectedMides = getAvailableMidesForProduct(editingProducte);
+                if (detectedMides.length === 0) return null;
+                return (
+                  <div className="p-3.5 bg-surface rounded-lg border border-outline/20 space-y-2">
+                    <label className="block text-xs font-bold font-mono text-primary flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-primary" />
+                      <span>Preus base per a cada mida (€):</span>
+                    </label>
+                    <p className="text-[10px] text-on-surface-variant leading-tight">
+                      Introdueix el preu per a cada mida si varia la quantitat de matèria prima. A la fitxa pública el preu base s'actualitzarà automàticament en triar la mida.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                      {detectedMides.map((mida, mIdx) => {
+                        const val = editingProducte.preusPerMida?.[mida] ?? (mIdx === 0 ? editingProducte.preu : '');
+                        return (
+                          <div key={mIdx} className="flex items-center justify-between gap-2 p-2 bg-surface-container/30 rounded-lg border border-outline/20 text-xs font-mono">
+                            <span className="font-bold text-primary truncate">{mida}:</span>
+                            <div className="relative w-24 shrink-0">
+                              <DecimalInput
+                                value={val ?? 0}
+                                onChange={(_, num) => {
+                                  const current = editingProducte.preusPerMida || {};
+                                  setEditingProducte({
+                                    ...editingProducte,
+                                    preusPerMida: {
+                                      ...current,
+                                      [mida]: num || 0
+                                    }
+                                  });
+                                }}
+                                className="w-full pl-2 pr-6 py-1 rounded bg-surface border border-outline/25 text-xs font-bold text-primary text-right outline-none focus:border-primary"
+                                placeholder="0,00"
+                                step={0.1}
+                                decimals={2}
+                              />
+                              <span className="absolute right-2 top-1 text-xs text-outline font-bold pointer-events-none">€</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Sistema Opcional de Preus per Quantitat de Compra (Trams) */}
               <div className="bg-surface p-4 rounded-lg border border-outline/15 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -3410,11 +3592,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             actiu,
                             llindar: current.llindar ?? 10,
                             preuFinsLlindar: defaultP1,
-                            preuMesLlindar: defaultP2
+                            preuMesLlindar: defaultP2,
+                            preusPerMida: current.preusPerMida || {}
                           },
-                          // Si s'activa el preu per quantitat, s'obliga automàticament l'opció "PREU DES DE"
+                          // Si s'activa el preu per quantitat, s'obliga "PREU DES DE" i es desactiva "Requereix Pressupost"
                           preuDesDe: actiu ? true : editingProducte.preuDesDe,
-                          isPreuDesDe: actiu ? true : editingProducte.isPreuDesDe
+                          isPreuDesDe: actiu ? true : editingProducte.isPreuDesDe,
+                          requereixPressupost: actiu ? false : editingProducte.requereixPressupost
                         });
                       }}
                       className="w-4 h-4 rounded text-primary"
@@ -3432,95 +3616,180 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   )}
                 </div>
 
-                {editingProducte.preuPerQuantitat?.actiu && (
-                  <div className="p-3 bg-surface-container/40 rounded-lg border border-outline/20 space-y-3">
-                    <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                      Defineix el llindar d'unitats i els dos preus. Al catàleg es mostrarà el <strong>Preu 2 (inferior)</strong> amb el text <strong>"PREU DES DE"</strong>. A la fitxa i al carretó el preu unitari s'ajustarà en temps real segons les unitats seleccionades pel client.
-                    </p>
+                {editingProducte.preuPerQuantitat?.actiu && (() => {
+                  const detectedMides = getAvailableMidesForProduct(editingProducte);
+                  const llindarVal = editingProducte.preuPerQuantitat?.llindar ?? 10;
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                      <div>
-                        <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
-                          1. Llindar d'Unitats (X):
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="Ex: 10"
-                          value={editingProducte.preuPerQuantitat?.llindar ?? 10}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10) || 1;
-                            setEditingProducte({
-                              ...editingProducte,
-                              preuPerQuantitat: {
-                                ...(editingProducte.preuPerQuantitat || {}),
-                                llindar: val
-                              }
-                            });
-                          }}
-                          className="w-full px-3 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary"
-                        />
-                        <span className="text-[10px] text-on-surface-variant block mt-0.5">Fins a X u / Més de X u</span>
-                      </div>
+                  return (
+                    <div className="p-3 bg-surface-container/40 rounded-lg border border-outline/20 space-y-3">
+                      <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                        Defineix el llindar d'unitats i els preus per tram{detectedMides.length > 0 ? ' per a cada mida' : ''}. Al catàleg es mostrarà el <strong>Preu 2 (inferior)</strong> amb el text <strong>"PREU DES DE"</strong>. A la fitxa i al carretó el preu s'ajustarà en temps real segons la mida i unitats triades.
+                      </p>
 
-                      <div>
-                        <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
-                          2. Preu 1 (Fins a {editingProducte.preuPerQuantitat?.llindar || 10} u):
-                        </label>
-                        <div className="relative">
+                      <div className="pt-1">
+                        <div className="max-w-xs">
+                          <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
+                            1. Llindar d'Unitats (X):
+                          </label>
                           <input
                             type="number"
-                            step="any"
-                            min="0"
-                            placeholder="Ex: 15.00"
-                            value={editingProducte.preuPerQuantitat?.preuFinsLlindar ?? ''}
+                            min="1"
+                            placeholder="Ex: 12"
+                            value={llindarVal}
                             onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
+                              const val = parseInt(e.target.value, 10) || 1;
                               setEditingProducte({
                                 ...editingProducte,
                                 preuPerQuantitat: {
                                   ...(editingProducte.preuPerQuantitat || {}),
-                                  preuFinsLlindar: val
+                                  llindar: val
                                 }
                               });
                             }}
-                            className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary"
+                            className="w-full px-3 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary"
                           />
-                          <span className="absolute right-2.5 top-2 text-xs font-mono text-outline font-bold">€</span>
+                          <span className="text-[10px] text-on-surface-variant block mt-0.5">Fins a X u / Més de X u</span>
                         </div>
-                        <span className="text-[10px] text-on-surface-variant block mt-0.5">Preu estàndard comanda</span>
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300 mb-1">
-                          3. Preu 2 (Més de {editingProducte.preuPerQuantitat?.llindar || 10} u):
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            placeholder="Ex: 11.50"
-                            value={editingProducte.preuPerQuantitat?.preuMesLlindar ?? ''}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value) || 0;
-                              setEditingProducte({
-                                ...editingProducte,
-                                preuPerQuantitat: {
-                                  ...(editingProducte.preuPerQuantitat || {}),
-                                  preuMesLlindar: val
-                                }
-                              });
-                            }}
-                            className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-emerald-500/40 text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-500/5"
-                          />
-                          <span className="absolute right-2.5 top-2 text-xs font-mono text-emerald-600 font-bold">€</span>
+                      {/* Taula de preus per mida (si el producte té mides) */}
+                      {detectedMides.length > 0 ? (
+                        <div className="space-y-2 pt-2 border-t border-outline/15">
+                          <div className="flex items-center justify-between text-xs font-mono font-bold text-primary px-1">
+                            <span>Mida / Format</span>
+                            <div className="grid grid-cols-2 gap-3 text-right w-64 sm:w-72">
+                              <span>Preu 1 (Fins a {llindarVal} u)</span>
+                              <span className="text-emerald-700 dark:text-emerald-300">Preu 2 (Més de {llindarVal} u)</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            {detectedMides.map((mida, mIdx) => {
+                              const midaObj = editingProducte.preuPerQuantitat?.preusPerMida?.[mida] || {};
+                              const p1 = midaObj.preuFinsLlindar ?? (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuFinsLlindar ?? '') : '');
+                              const p2 = midaObj.preuMesLlindar ?? (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuMesLlindar ?? '') : '');
+
+                              return (
+                                <div key={mIdx} className="flex items-center justify-between gap-3 p-2 bg-surface rounded-lg border border-outline/20 text-xs font-mono">
+                                  <span className="font-bold text-primary truncate">{mida}</span>
+                                  <div className="grid grid-cols-2 gap-3 w-64 sm:w-72 shrink-0">
+                                    <div className="relative">
+                                      <DecimalInput
+                                        value={p1}
+                                        onChange={(_, num) => {
+                                          const val = num || 0;
+                                          const current = editingProducte.preuPerQuantitat?.preusPerMida || {};
+                                          const updated = {
+                                            ...current,
+                                            [mida]: { ...(current[mida] || {}), preuFinsLlindar: val }
+                                          };
+                                          setEditingProducte({
+                                            ...editingProducte,
+                                            preuPerQuantitat: {
+                                              ...(editingProducte.preuPerQuantitat || {}),
+                                              preuFinsLlindar: mIdx === 0 ? val : editingProducte.preuPerQuantitat?.preuFinsLlindar,
+                                              preusPerMida: updated
+                                            }
+                                          });
+                                        }}
+                                        className="w-full pl-2 pr-6 py-1.5 rounded bg-surface-container/30 border border-outline/25 text-xs font-bold text-primary text-right outline-none focus:border-primary"
+                                        placeholder="0,00"
+                                        step={0.05}
+                                        decimals={2}
+                                      />
+                                      <span className="absolute right-2 top-1.5 text-xs text-outline font-bold pointer-events-none">€</span>
+                                    </div>
+
+                                    <div className="relative">
+                                      <DecimalInput
+                                        value={p2}
+                                        onChange={(_, num) => {
+                                          const val = num || 0;
+                                          const current = editingProducte.preuPerQuantitat?.preusPerMida || {};
+                                          const updated = {
+                                            ...current,
+                                            [mida]: { ...(current[mida] || {}), preuMesLlindar: val }
+                                          };
+                                          setEditingProducte({
+                                            ...editingProducte,
+                                            preuPerQuantitat: {
+                                              ...(editingProducte.preuPerQuantitat || {}),
+                                              preuMesLlindar: mIdx === 0 ? val : editingProducte.preuPerQuantitat?.preuMesLlindar,
+                                              preusPerMida: updated
+                                            }
+                                          });
+                                        }}
+                                        className="w-full pl-2 pr-6 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-xs font-bold text-emerald-800 dark:text-emerald-300 text-right outline-none focus:border-primary"
+                                        placeholder="0,00"
+                                        step={0.05}
+                                        decimals={2}
+                                      />
+                                      <span className="absolute right-2 top-1.5 text-xs text-emerald-600 font-bold pointer-events-none">€</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium block mt-0.5">Preu amb descompte ("DES DE")</span>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-mono font-semibold text-primary mb-1">
+                              2. Preu 1 (Fins a {llindarVal} u):
+                            </label>
+                            <div className="relative">
+                              <DecimalInput
+                                value={editingProducte.preuPerQuantitat?.preuFinsLlindar ?? ''}
+                                onChange={(_, num) => {
+                                  setEditingProducte({
+                                    ...editingProducte,
+                                    preuPerQuantitat: {
+                                      ...(editingProducte.preuPerQuantitat || {}),
+                                      preuFinsLlindar: num || 0
+                                    }
+                                  });
+                                }}
+                                className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-outline/25 text-xs font-mono font-bold text-primary outline-none focus:border-primary"
+                                placeholder="15,00"
+                                step={0.5}
+                                decimals={2}
+                              />
+                              <span className="absolute right-2.5 top-2 text-xs font-mono text-outline font-bold pointer-events-none">€</span>
+                            </div>
+                            <span className="text-[10px] text-on-surface-variant block mt-0.5">Preu estàndard comanda</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-mono font-semibold text-emerald-800 dark:text-emerald-300 mb-1">
+                              3. Preu 2 (Més de {llindarVal} u):
+                            </label>
+                            <div className="relative">
+                              <DecimalInput
+                                value={editingProducte.preuPerQuantitat?.preuMesLlindar ?? ''}
+                                onChange={(_, num) => {
+                                  setEditingProducte({
+                                    ...editingProducte,
+                                    preuPerQuantitat: {
+                                      ...(editingProducte.preuPerQuantitat || {}),
+                                      preuMesLlindar: num || 0
+                                    }
+                                  });
+                                }}
+                                className="w-full pl-3 pr-7 py-2 rounded bg-surface border border-emerald-500/40 text-xs font-mono font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-500/5 outline-none focus:border-primary"
+                                placeholder="11,50"
+                                step={0.5}
+                                decimals={2}
+                              />
+                              <span className="absolute right-2.5 top-2 text-xs font-mono text-emerald-600 font-bold pointer-events-none">€</span>
+                            </div>
+                            <span className="text-[10px] text-emerald-700 dark:text-emerald-300 font-medium block mt-0.5">Preu amb descompte ("DES DE")</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost, Preu des de i Novetat */}
@@ -3542,7 +3811,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <input
                     type="checkbox"
                     checked={editingProducte.requereixPressupost === true}
-                    onChange={(e) => setEditingProducte({ ...editingProducte, requereixPressupost: e.target.checked })}
+                    onChange={(e) => {
+                      const req = e.target.checked;
+                      setEditingProducte({
+                        ...editingProducte,
+                        requereixPressupost: req,
+                        ...(req ? { preuPerQuantitat: { ...(editingProducte.preuPerQuantitat || {}), actiu: false } } : {})
+                      });
+                    }}
                     className="w-4 h-4 rounded text-primary"
                   />
                   <div>

@@ -134,6 +134,17 @@ export default function App() {
     return () => window.removeEventListener('popstate', processDeepLink);
   }, []);
 
+  // Actualització dinàmica del títol de la pestanya del navegador segons la secció activa
+  useEffect(() => {
+    if (activeTab === 'privat' || activeTab === 'privada') {
+      document.title = 'Mínim Món | PRIVAT';
+    } else if (activeTab === 'producc') {
+      document.title = 'Mínim Món | PRODUCC';
+    } else {
+      document.title = 'Mínim Món | Essències en Miniatura';
+    }
+  }, [activeTab]);
+
   const handleSelectTab = (tabId) => {
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
