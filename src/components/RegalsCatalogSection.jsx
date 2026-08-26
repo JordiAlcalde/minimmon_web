@@ -1087,12 +1087,12 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const isInicialKeychain = simType === 'inicial' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('inicial'));
   const isPuzzleProduct = simType === 'puzle' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('puzle') && /\d+\s*x\s*\d+/i.test(product.nom));
-  const isEtiquetaProduct = simType === 'etiqueta' || simType === 'xapa' || (simType === 'auto' && (
+  const isEtiquetaProduct = simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
     String(product.nom || '').toLowerCase().includes('etiquet') ||
     String(product.nom || '').toLowerCase().includes('xap') ||
     String(product.nom || '').toLowerCase().includes('medall') ||
-    (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('etiquet') || String(f).toLowerCase().includes('xap'))) ||
-    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('etiquet') || String(g).toLowerCase().includes('xap')))
+    (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('etiquet') || String(f).toLowerCase().includes('xap') || String(f).toLowerCase().includes('medall'))) ||
+    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('etiquet') || String(g).toLowerCase().includes('xap') || String(g).toLowerCase().includes('medall')))
   ));
 
   // Trobar el primer fitxer adjuntat per l'usuari per passar-ho al simulador de puzle
@@ -1537,12 +1537,13 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           <EtiquetaSimulator
             productNom={product.nom}
             productCodi={product.codi || 'XR'}
+            simType={simType}
             midesDisponibles={(() => {
               const opMida = safeOpcions.find(o => String(o?.titol || '').toLowerCase().includes('mida'));
               if (opMida && typeof opMida.valors === 'string') {
                 return opMida.valors.split(',').map(s => s.trim()).filter(Boolean);
               }
-              return ['15 x 50 mm', '15 x 60 mm', '25 x 60 mm'];
+              return [];
             })()}
             selectedOptions={selectedOptions}
             setSelectedOptions={setSelectedOptions}

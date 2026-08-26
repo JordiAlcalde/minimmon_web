@@ -3025,7 +3025,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
                 >
                   <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
-                  <option value="etiqueta">🏷️ Simulador d'Etiquetes i Forats (A - I)</option>
+                  <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
+                  <option value="etiqueta_rectangular">🏷️ Etiqueta Rectangular (XR)</option>
+                  <option value="etiqueta_arrodonida">🏷️ Etiqueta Arrodonida (XD)</option>
+                  <option value="etiqueta_circular">🏷️ Etiqueta Circular (XC)</option>
+                  <option value="etiqueta_ovalada">🏷️ Etiqueta Ovalada (XV)</option>
+                  <option value="etiqueta_medalla">🏷️ Etiqueta Medalla (XM - 1 Forat fix)</option>
                   <option value="inicial">🔤 Simulador de Clauer Inicial</option>
                   <option value="puzle">🧩 Simulador de Puzle</option>
                   <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
