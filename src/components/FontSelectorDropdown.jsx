@@ -39,7 +39,7 @@ export const AVAILABLE_FONTS = [
   }
 ];
 
-export default function FontSelectorDropdown({ selectedFontName, onSelectFont, className = '' }) {
+export default function FontSelectorDropdown({ selectedFontName, onSelectFont, className = '', align = 'left' }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -57,6 +57,8 @@ export default function FontSelectorDropdown({ selectedFontName, onSelectFont, c
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const alignClass = align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left';
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <button
@@ -66,14 +68,14 @@ export default function FontSelectorDropdown({ selectedFontName, onSelectFont, c
         title="Triar tipografia de gravat"
       >
         <Type className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400 shrink-0" />
-        <span style={{ fontFamily: currentFontObj.fontFamily }} className="text-xs font-semibold truncate max-w-[105px] sm:max-w-[130px]">
+        <span style={{ fontFamily: currentFontObj.fontFamily }} className="text-xs font-semibold truncate max-w-[95px] sm:max-w-[130px]">
           {currentFontObj.name}
         </span>
         <ChevronDown className={`w-3.5 h-3.5 text-outline transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-1.5 w-60 bg-surface border border-outline/20 rounded-2xl p-1.5 shadow-xl z-50 space-y-1 animate-scaleIn backdrop-blur-md">
+        <div className={`absolute ${alignClass} top-full mt-1.5 w-56 sm:w-60 max-w-[calc(100vw-2.5rem)] bg-surface border border-outline/20 rounded-2xl p-1.5 shadow-2xl z-50 space-y-1 animate-scaleIn backdrop-blur-md`}>
           <div className="px-2.5 py-1 text-[10px] uppercase font-mono font-bold text-on-surface-variant border-b border-outline/10 flex items-center justify-between">
             <span>Tipografia de Gravat</span>
             <span className="text-[9px] text-amber-700 dark:text-amber-400 font-semibold">{AVAILABLE_FONTS.length} estils</span>

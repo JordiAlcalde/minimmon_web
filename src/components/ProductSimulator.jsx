@@ -105,6 +105,7 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
               <FontSelectorDropdown
                 selectedFontName={selectedFontName}
                 onSelectFont={handleSelectFont}
+                align="right"
               />
             )}
 
