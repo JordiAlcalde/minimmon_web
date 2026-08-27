@@ -898,7 +898,10 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
             src={resolvedImg} 
             alt={product.nom}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            onError={(e) => { e.target.src = resolveMediaUrl('images/tots_productes.jpg'); }}
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = resolveMediaUrl('images/tots_productes.jpg');
+            }}
           />
           {product.novetat && (
             <span className="absolute top-1 left-1 bg-amber-400 text-amber-950 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs">
@@ -1342,9 +1345,8 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
               alt={product.nom}
               className="w-full h-full object-cover transition-all duration-300"
               onError={(e) => {
-                if (imagesList.length > 0 && e.target.src !== resolveMediaUrl(imagesList[0])) {
-                  e.target.src = resolveMediaUrl(imagesList[0]);
-                }
+                e.target.onerror = null;
+                e.target.src = resolveMediaUrl('images/tots_productes.jpg');
               }}
             />
           ) : (
@@ -1363,7 +1365,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                 className={`w-14 h-14 rounded overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${(selectedImg === imgUrl || (!selectedImg && idx === 0)) ? 'border-primary shadow-xs' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
               >
-                <img src={resolveMediaUrl(imgUrl)} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={resolveMediaUrl(imgUrl)}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = resolveMediaUrl('images/tots_productes.jpg');
+                  }}
+                />
               </button>
             ))}
           </div>

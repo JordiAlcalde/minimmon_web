@@ -637,6 +637,7 @@ export default function EtiquetaSimulator({
               transform: activeSide === 'caraB' ? 'scaleX(-1)' : 'scaleX(1)'
             }}
             onError={(e) => {
+              e.target.onerror = null;
               if (shapeConfig.overviewImg) {
                 e.target.src = resolveMediaUrl(shapeConfig.overviewImg);
               }

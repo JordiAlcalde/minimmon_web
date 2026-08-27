@@ -49,12 +49,15 @@ export function resolveMediaUrl(url) {
   if (cleanPath.startsWith('images/')) {
     return safeEncodeURI(`${prefix}${cleanPath}`);
   }
+  if (cleanPath.startsWith('etiqueta_')) {
+    return safeEncodeURI(`${prefix}images/${cleanPath}`);
+  }
 
   // Handle families, productes and general images
   if (!cleanPath.startsWith('imatges/') && !cleanPath.startsWith('videos/')) {
     if (cleanPath.startsWith('productes/')) {
       cleanPath = `imatges/${cleanPath}`;
-    } else if (cleanPath.startsWith('família_') || cleanPath.startsWith('familia_')) {
+    } else if (cleanPath.startsWith('família_') || cleanPath.startsWith('familia_') || cleanPath.startsWith('clauer_') || cleanPath.startsWith('joc_')) {
       cleanPath = `imatges/productes/${cleanPath}`;
     } else {
       cleanPath = isVideoExtension(cleanPath) ? `videos/${cleanPath}` : `imatges/${cleanPath}`;
@@ -96,6 +99,9 @@ export function resolveProducteMediaUrl(url) {
 
   if (cleanPath.startsWith('images/')) {
     return safeEncodeURI(`${prefix}${cleanPath}`);
+  }
+  if (cleanPath.startsWith('etiqueta_')) {
+    return safeEncodeURI(`${prefix}images/${cleanPath}`);
   }
 
   // Remove imatges/productes/ or imatges/ prefix if present
