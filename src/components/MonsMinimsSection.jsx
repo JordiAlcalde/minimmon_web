@@ -148,7 +148,6 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
           <div className="absolute inset-0 bg-gradient-to-b from-surface-container-lowest/50 via-surface-container-lowest/80 to-surface-container-lowest"></div>
 
           <div className="relative z-10 max-w-3xl mx-auto">
-            <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Galeria de Peces</span>
             <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">L'Art de la Precisió</h1>
 
             {/* Poetic Intro Block */}
