@@ -8,7 +8,7 @@ import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers } from 'lucide-react';
-import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
@@ -1225,36 +1225,30 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const selectedMida = rawSelectedMida || (availableProductMides.length > 0 ? availableProductMides[0] : '');
 
-  // Lògica de Preus per Quantitat (Trams)
-  const qtyThreshold = Number(product.preuPerQuantitat?.llindar || 10);
-
-  // Funció de normalització de mides per comparar cadenes de text
-  const cleanMidaKey = (str) => {
-    if (!str || typeof str !== 'string') return '';
-    return str
-      .toLowerCase()
-      .replace(/ø/g, '')
-      .replace(/mm/g, '')
-      .replace(/cm/g, '')
-      .replace(/\s+/g, '')
-      .replace(/,/g, '.')
-      .trim();
-  };
-
   // Buscar configuració de preus per a la mida seleccionada
   const preusPerMidaObj = product.preuPerQuantitat?.preusPerMida || {};
-  const normalizedSelectedMida = cleanMidaKey(selectedMida);
 
-  const matchedMidaEntry = Object.entries(preusPerMidaObj).find(([k]) => {
-    if (!normalizedSelectedMida) return false;
-    const normalizedKey = cleanMidaKey(k);
-    return normalizedSelectedMida === normalizedKey ||
-           normalizedSelectedMida.includes(normalizedKey) ||
-           normalizedKey.includes(normalizedSelectedMida);
-  });
+  // 1. Cercar primer per coincidència de mida/dimensions
+  let matchedMidaEntry = Object.entries(preusPerMidaObj).find(([k]) => matchMidaKey(selectedMida, k));
+
+  // 2. Si no es troba per clau directa, cercar per índex dins de les mides disponibles
+  if (!matchedMidaEntry) {
+    const selectedIdx = availableProductMides.findIndex(m => matchMidaKey(selectedMida, m));
+    if (selectedIdx >= 0 && Object.entries(preusPerMidaObj)[selectedIdx]) {
+      matchedMidaEntry = Object.entries(preusPerMidaObj)[selectedIdx];
+    }
+  }
   const midaPricing = matchedMidaEntry ? matchedMidaEntry[1] : null;
 
-  // Extreure Preu 1 i Preu 2
+  // Extreure Llindar, Preu 1 i Preu 2 per a la mida seleccionada
+  const rawLlindar = typeof midaPricing === 'object' && midaPricing !== null
+    ? midaPricing.llindar
+    : null;
+
+  const activeQtyThreshold = (rawLlindar !== null && rawLlindar !== undefined && !isNaN(Number(rawLlindar)) && Number(rawLlindar) > 0)
+    ? Number(rawLlindar)
+    : Number(product.preuPerQuantitat?.llindar || 10);
+
   const rawP1 = typeof midaPricing === 'object' && midaPricing !== null
     ? (midaPricing.preuFinsLlindar ?? midaPricing.preu1 ?? midaPricing.preu)
     : (midaPricing !== null && midaPricing !== undefined && !isNaN(Number(midaPricing)) ? midaPricing : null);
@@ -1273,22 +1267,22 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   // Preu base si no és preu per quantitat
   const basePreuPerMidaMap = product.preusPerMida || {};
-  const matchedBaseEntry = Object.entries(basePreuPerMidaMap).find(([k]) => {
-    if (!normalizedSelectedMida) return false;
-    const normalizedKey = cleanMidaKey(k);
-    return normalizedSelectedMida === normalizedKey ||
-           normalizedSelectedMida.includes(normalizedKey) ||
-           normalizedKey.includes(normalizedSelectedMida);
-  });
+  let matchedBaseEntry = Object.entries(basePreuPerMidaMap).find(([k]) => matchMidaKey(selectedMida, k));
+  if (!matchedBaseEntry) {
+    const selectedIdx = availableProductMides.findIndex(m => matchMidaKey(selectedMida, m));
+    if (selectedIdx >= 0 && Object.entries(basePreuPerMidaMap)[selectedIdx]) {
+      matchedBaseEntry = Object.entries(basePreuPerMidaMap)[selectedIdx];
+    }
+  }
   const basePriceForMida = matchedBaseEntry && !isNaN(Number(matchedBaseEntry[1])) && Number(matchedBaseEntry[1]) > 0
     ? Number(matchedBaseEntry[1])
     : rawPrice;
 
   const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
 
-  // Preu base dinàmic segons quantitat i mida
+  // Preu base dinàmic segons quantitat i mida (utilitzant el llindar específic de la mida)
   const activeBasePrice = hasQtyPricing
-    ? (quantity > qtyThreshold ? priceTier2 : priceTier1)
+    ? (quantity > activeQtyThreshold ? priceTier2 : priceTier1)
     : basePriceForMida;
 
   // Sobrecostos dinàmics de personalització segons la configuració explícita de l'àrea privada
@@ -1628,6 +1622,8 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           <ProductSimulator
             initialLetter={selectedOptions[initialKey] || ''}
             phraseText={selectedOptions[phraseKey] || ''}
+            selectedOptions={selectedOptions}
+            setSelectedOptions={setSelectedOptions}
           />
         )}
 
@@ -1686,17 +1682,17 @@ Pots deixar-ho en blanc si ho prefereixes.`}
               <span>Trams de preu per quantitat:</span>
             </div>
             <div className="pl-5 space-y-0.5 text-xs font-mono">
-              <p className={`flex items-center gap-2 transition-all ${quantity <= qtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
-                <span>De 1 a {qtyThreshold} unitats = {priceTier1.toFixed(2).replace('.', ',')} €</span>
-                {quantity <= qtyThreshold && (
+              <p className={`flex items-center gap-2 transition-all ${quantity <= activeQtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
+                <span>De 1 a {activeQtyThreshold} unitats = {priceTier1.toFixed(2).replace('.', ',')} €</span>
+                {quantity <= activeQtyThreshold && (
                   <svg className="w-3 h-3 text-red-600 fill-current shrink-0 animate-fadeIn" viewBox="0 0 24 24">
                     <polygon points="22,4 22,20 4,12" />
                   </svg>
                 )}
               </p>
-              <p className={`flex items-center gap-2 transition-all ${quantity > qtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
-                <span>Més de {qtyThreshold} unitats = {priceTier2.toFixed(2).replace('.', ',')} €</span>
-                {quantity > qtyThreshold && (
+              <p className={`flex items-center gap-2 transition-all ${quantity > activeQtyThreshold ? 'text-black dark:text-white font-bold' : 'text-black/60 dark:text-white/60 font-normal'}`}>
+                <span>Més de {activeQtyThreshold} unitats = {priceTier2.toFixed(2).replace('.', ',')} €</span>
+                {quantity > activeQtyThreshold && (
                   <svg className="w-3 h-3 text-red-600 fill-current shrink-0 animate-fadeIn" viewBox="0 0 24 24">
                     <polygon points="22,4 22,20 4,12" />
                   </svg>

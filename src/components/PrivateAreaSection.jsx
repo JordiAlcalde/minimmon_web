@@ -88,6 +88,47 @@ export const getEffectiveProductOrder = (product, gammaNom) => {
   return Number(product.ordre || 1);
 };
 
+// Helper per extreure les dimensions numèriques d'una mida (ex: "35 x 50 mm" -> [35, 50], "Ø 50 mm" -> [50])
+export const extractMidaDimensions = (str) => {
+  if (!str || typeof str !== 'string') return [];
+  const numbers = str.match(/\d+(?:[.,]\d+)?/g);
+  if (!numbers) return [];
+  return numbers.map(n => parseFloat(n.replace(',', '.')));
+};
+
+// Funció de normalització de mides per comparar cadenes de text
+export const cleanMidaKey = (str) => {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .toLowerCase()
+    .replace(/ø/g, '')
+    .replace(/mm/g, '')
+    .replace(/cm/g, '')
+    .replace(/\s+/g, '')
+    .replace(/,/g, '.')
+    .trim();
+};
+
+// Comprovació robusta de coincidència de mides sense falsos positius per subcadenes
+export const matchMidaKey = (targetMida, keyMida) => {
+  if (!targetMida || !keyMida) return false;
+  const cleanTarget = cleanMidaKey(targetMida);
+  const cleanKey = cleanMidaKey(keyMida);
+  if (cleanTarget === cleanKey) return true;
+
+  const dimsTarget = extractMidaDimensions(targetMida);
+  const dimsKey = extractMidaDimensions(keyMida);
+
+  if (dimsTarget.length === 2 && dimsKey.length === 2) {
+    return (dimsTarget[0] === dimsKey[0] && dimsTarget[1] === dimsKey[1]) ||
+           (dimsTarget[0] === dimsKey[1] && dimsTarget[1] === dimsKey[0]);
+  }
+  if (dimsTarget.length === 1 && dimsKey.length === 1) {
+    return dimsTarget[0] === dimsKey[0];
+  }
+  return false;
+};
+
 export const getAvailableMidesForProduct = (product) => {
   if (!product) return [];
   const safeOpcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
@@ -108,14 +149,14 @@ export const getAvailableMidesForProduct = (product) => {
   if (sim === 'etiqueta_arrodonida' || (!sim.startsWith('etiqueta_') && nom.includes('arrodonid'))) {
     return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
   }
-  if (sim === 'etiqueta_circular' || (!sim.startsWith('etiqueta_') && nom.includes('circular'))) {
+  if (sim === 'etiqueta_circular' || (!sim.startsWith('etiqueta_') && (nom.includes('circular') || /\b(rodona|rodo|rodó|rodons|rodones)\b/i.test(nom)))) {
     return ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'];
   }
-  if (sim === 'etiqueta_ovalada' || (!sim.startsWith('etiqueta_') && nom.includes('ovalad'))) {
-    return ['20 x 40 mm', '25 x 50 mm', '30 x 60 mm'];
+  if (sim === 'etiqueta_ovalada' || (!sim.startsWith('etiqueta_') && (nom.includes('ovalad') || nom.includes('oval')))) {
+    return ['35 x 50 mm', '45 x 60 mm', '55 x 75 mm'];
   }
   if (sim === 'etiqueta_medalla' || (!sim.startsWith('etiqueta_') && nom.includes('medalla'))) {
-    return ['Ø 25 mm', 'Ø 35 mm', 'Ø 45 mm'];
+    return ['Ø 45 mm', 'Ø 50 mm', 'Ø 55 mm', 'Ø 60 mm'];
   }
   if (sim.includes('etiqueta') || nom.includes('etiqueta')) {
     return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
@@ -3542,7 +3583,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                       {detectedMides.map((mida, mIdx) => {
-                        const val = editingProducte.preusPerMida?.[mida] ?? (mIdx === 0 ? editingProducte.preu : '');
+                        const currentBaseMap = editingProducte.preusPerMida || {};
+                        const matchedEntry = Object.entries(currentBaseMap).find(([k]) => matchMidaKey(mida, k));
+                        const val = matchedEntry ? matchedEntry[1] : (currentBaseMap[mida] ?? (mIdx === 0 ? editingProducte.preu : ''));
                         return (
                           <div key={mIdx} className="flex items-center justify-between gap-2 p-2 bg-surface-container/30 rounded-lg border border-outline/20 text-xs font-mono">
                             <span className="font-bold text-primary truncate">{mida}:</span>
@@ -3657,22 +3700,54 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         <div className="space-y-2 pt-2 border-t border-outline/15">
                           <div className="flex items-center justify-between text-xs font-mono font-bold text-primary px-1">
                             <span>Mida / Format</span>
-                            <div className="grid grid-cols-2 gap-3 text-right w-64 sm:w-72">
-                              <span>Preu 1 (Fins a {llindarVal} u)</span>
-                              <span className="text-emerald-700 dark:text-emerald-300">Preu 2 (Més de {llindarVal} u)</span>
+                            <div className="grid grid-cols-3 gap-2.5 text-right w-72 sm:w-80 md:w-96">
+                              <span>Llindar (u)</span>
+                              <span>Preu 1 (≤ Llindar)</span>
+                              <span className="text-emerald-700 dark:text-emerald-300">Preu 2 (&gt; Llindar)</span>
                             </div>
                           </div>
 
                           <div className="space-y-1.5">
                             {detectedMides.map((mida, mIdx) => {
-                              const midaObj = editingProducte.preuPerQuantitat?.preusPerMida?.[mida] || {};
-                              const p1 = midaObj.preuFinsLlindar ?? (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuFinsLlindar ?? '') : '');
-                              const p2 = midaObj.preuMesLlindar ?? (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuMesLlindar ?? '') : '');
+                              const currentPreusPerMida = editingProducte.preuPerQuantitat?.preusPerMida || {};
+                              const matchedEntry = Object.entries(currentPreusPerMida).find(([k]) => matchMidaKey(mida, k));
+                              const midaObj = matchedEntry ? matchedEntry[1] : (currentPreusPerMida[mida] || {});
+                              const midaLlindar = midaObj.llindar ?? (editingProducte.preuPerQuantitat?.llindar ?? 10);
+                              const p1 = midaObj.preuFinsLlindar !== undefined ? midaObj.preuFinsLlindar : (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuFinsLlindar ?? '') : '');
+                              const p2 = midaObj.preuMesLlindar !== undefined ? midaObj.preuMesLlindar : (mIdx === 0 ? (editingProducte.preuPerQuantitat?.preuMesLlindar ?? '') : '');
 
                               return (
                                 <div key={mIdx} className="flex items-center justify-between gap-3 p-2 bg-surface rounded-lg border border-outline/20 text-xs font-mono">
-                                  <span className="font-bold text-primary truncate">{mida}</span>
-                                  <div className="grid grid-cols-2 gap-3 w-64 sm:w-72 shrink-0">
+                                  <span className="font-bold text-primary truncate flex-1">{mida}</span>
+                                  <div className="grid grid-cols-3 gap-2.5 w-72 sm:w-80 md:w-96 shrink-0">
+                                    {/* Llindar per a aquesta mida */}
+                                    <div className="relative">
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        placeholder="10"
+                                        value={midaLlindar}
+                                        onChange={(e) => {
+                                          const lVal = parseInt(e.target.value, 10) || 1;
+                                          const current = editingProducte.preuPerQuantitat?.preusPerMida || {};
+                                          const updated = {
+                                            ...current,
+                                            [mida]: { ...(midaObj || {}), llindar: lVal }
+                                          };
+                                          setEditingProducte({
+                                            ...editingProducte,
+                                            preuPerQuantitat: {
+                                              ...(editingProducte.preuPerQuantitat || {}),
+                                              preusPerMida: updated
+                                            }
+                                          });
+                                        }}
+                                        className="w-full pl-2 pr-4 py-1.5 rounded bg-surface-container/30 border border-outline/25 text-xs font-bold text-primary text-right outline-none focus:border-primary"
+                                      />
+                                      <span className="absolute right-1.5 top-1.5 text-[10px] text-outline font-bold pointer-events-none">u</span>
+                                    </div>
+
+                                    {/* Preu 1 */}
                                     <div className="relative">
                                       <DecimalInput
                                         value={p1}
@@ -3681,7 +3756,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                           const current = editingProducte.preuPerQuantitat?.preusPerMida || {};
                                           const updated = {
                                             ...current,
-                                            [mida]: { ...(current[mida] || {}), preuFinsLlindar: val }
+                                            [mida]: { ...(midaObj || {}), preuFinsLlindar: val }
                                           };
                                           setEditingProducte({
                                             ...editingProducte,
@@ -3700,6 +3775,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                       <span className="absolute right-2 top-1.5 text-xs text-outline font-bold pointer-events-none">€</span>
                                     </div>
 
+                                    {/* Preu 2 */}
                                     <div className="relative">
                                       <DecimalInput
                                         value={p2}
@@ -3708,7 +3784,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                           const current = editingProducte.preuPerQuantitat?.preusPerMida || {};
                                           const updated = {
                                             ...current,
-                                            [mida]: { ...(current[mida] || {}), preuMesLlindar: val }
+                                            [mida]: { ...(midaObj || {}), preuMesLlindar: val }
                                           };
                                           setEditingProducte({
                                             ...editingProducte,

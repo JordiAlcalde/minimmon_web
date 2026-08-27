@@ -2091,10 +2091,10 @@ export default function EscandallsManager({
                     <h4 className={`font-bold flex items-center gap-1.5 text-xs mb-1 ${
                       isDark ? 'text-amber-400' : 'text-amber-900 font-extrabold'
                     }`}>
-                      <Sliders className="w-4 h-4" /> Sobrecostos de Personalització segons Variants del Catàleg
+                      <Sliders className="w-4 h-4" /> Sobrecostos Interns de Personalització (Escandall)
                     </h4>
                     <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      Configura el sobrecost directe o minuts addicionals de taller que requereix cadascuna de les opcions que el client pot triar o escriure a la botiga web.
+                      Configura el cost intern directe de taller o matèria primera per a cadascuna de les opcions de personalització. <em>Nota: Aquests valors són estrictament informatius per a l'escandall intern de fabricació; els preus de venda al públic web es gestionen directament des de la definició de l'article a l'Àrea Privada.</em>
                     </p>
                   </div>
 

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RefreshCw, ArrowLeftRight } from 'lucide-react';
 import { resolveMediaUrl } from '../utils/mediaUtils';
+import FontSelectorDropdown, { AVAILABLE_FONTS } from './FontSelectorDropdown';
 
 // Configuració completa de Formes, Mides Reals, Plantilles oficials '_blank' i Coordenades Calibrades de Forats
 export const ETIQUETA_SHAPES = {
@@ -156,15 +157,10 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '1 / 1',
     templateHotspots: {
-      A: { label: 'A', x: 24.0, y: 24.0 },
       B: { label: 'B', x: 49.6, y: 14.7 },
-      C: { label: 'C', x: 76.0, y: 24.0 },
       D: { label: 'D', x: 13.0, y: 49.6 },
-      E: { label: 'E', x: 50.0, y: 50.0 },
       F: { label: 'F', x: 84.1, y: 50.2 },
-      G: { label: 'G', x: 24.0, y: 76.0 },
-      H: { label: 'H', x: 49.6, y: 87.8 },
-      I: { label: 'I', x: 76.0, y: 76.0 }
+      H: { label: 'H', x: 49.6, y: 87.8 }
     },
     defaultMides: ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'],
     mides: [
@@ -176,15 +172,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 40,
         hMm: 40,
         holes: {
-          A: { x: 86, y: 86 },
           B: { x: 132.5, y: 68 },
-          C: { x: 179, y: 86 },
           D: { x: 68, y: 132.5 },
-          E: { x: 132.5, y: 132.5 },
           F: { x: 197, y: 132.5 },
-          G: { x: 86, y: 179 },
-          H: { x: 132.5, y: 197 },
-          I: { x: 179, y: 179 }
+          H: { x: 132.5, y: 197 }
         }
       },
       {
@@ -195,15 +186,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 50,
         hMm: 50,
         holes: {
-          A: { x: 74, y: 74 },
           B: { x: 132.5, y: 50 },
-          C: { x: 191, y: 74 },
           D: { x: 50, y: 132.5 },
-          E: { x: 132.5, y: 132.5 },
           F: { x: 215, y: 132.5 },
-          G: { x: 74, y: 191 },
-          H: { x: 132.5, y: 215 },
-          I: { x: 191, y: 191 }
+          H: { x: 132.5, y: 215 }
         }
       },
       {
@@ -214,15 +200,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 60,
         hMm: 60,
         holes: {
-          A: { x: 62, y: 62 },
           B: { x: 132.5, y: 32 },
-          C: { x: 203, y: 62 },
           D: { x: 32, y: 132.5 },
-          E: { x: 132.5, y: 132.5 },
           F: { x: 233, y: 132.5 },
-          G: { x: 62, y: 203 },
-          H: { x: 132.5, y: 233 },
-          I: { x: 203, y: 203 }
+          H: { x: 132.5, y: 233 }
         }
       }
     ]
@@ -241,15 +222,10 @@ export const ETIQUETA_SHAPES = {
     templateH: 115,
     templateAspect: '153 / 115',
     templateHotspots: {
-      A: { label: 'A', x: 20.0, y: 24.0 },
       B: { label: 'B', x: 49.7, y: 14.2 },
-      C: { label: 'C', x: 80.0, y: 24.0 },
       D: { label: 'D', x: 10.2, y: 49.4 },
-      E: { label: 'E', x: 50.0, y: 50.0 },
       F: { label: 'F', x: 87.9, y: 49.6 },
-      G: { label: 'G', x: 20.0, y: 76.0 },
-      H: { label: 'H', x: 49.7, y: 84.8 },
-      I: { label: 'I', x: 80.0, y: 76.0 }
+      H: { label: 'H', x: 49.7, y: 84.8 }
     },
     defaultMides: ['35 x 50 mm', '45 x 60 mm', '55 x 75 mm'],
     mides: [
@@ -261,15 +237,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 50,
         hMm: 35,
         holes: {
-          A: { x: 80, y: 64 },
           B: { x: 141.5, y: 50 },
-          C: { x: 203, y: 64 },
           D: { x: 62, y: 103.5 },
-          E: { x: 141.5, y: 103.5 },
           F: { x: 221, y: 103.5 },
-          G: { x: 80, y: 143 },
-          H: { x: 141.5, y: 157 },
-          I: { x: 203, y: 143 }
+          H: { x: 141.5, y: 157 }
         }
       },
       {
@@ -280,15 +251,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 60,
         hMm: 45,
         holes: {
-          A: { x: 68, y: 48 },
           B: { x: 141.5, y: 32 },
-          C: { x: 215, y: 48 },
           D: { x: 44, y: 103.5 },
-          E: { x: 141.5, y: 103.5 },
           F: { x: 239, y: 103.5 },
-          G: { x: 68, y: 159 },
-          H: { x: 141.5, y: 175 },
-          I: { x: 215, y: 159 }
+          H: { x: 141.5, y: 175 }
         }
       },
       {
@@ -299,15 +265,10 @@ export const ETIQUETA_SHAPES = {
         wMm: 75,
         hMm: 55,
         holes: {
-          A: { x: 55, y: 40 },
           B: { x: 141.5, y: 22 },
-          C: { x: 228, y: 40 },
           D: { x: 24, y: 103.5 },
-          E: { x: 141.5, y: 103.5 },
           F: { x: 259, y: 103.5 },
-          G: { x: 55, y: 167 },
-          H: { x: 141.5, y: 185 },
-          I: { x: 228, y: 167 }
+          H: { x: 141.5, y: 185 }
         }
       }
     ]
@@ -324,10 +285,10 @@ export const ETIQUETA_SHAPES = {
     aspect: '1 / 1',
     defaultMides: ['Ø 45 mm', 'Ø 50 mm', 'Ø 55 mm', 'Ø 60 mm'],
     mides: [
-      { id: '45', label: 'Ø 45 mm', codeNum: '45', img: 'images/etiqueta_xm45.png', wMm: 45, hMm: 45, holes: { B: { x: 141.5, y: 35 } } },
-      { id: '50', label: 'Ø 50 mm', codeNum: '50', img: 'images/etiqueta_xm50.png', wMm: 50, hMm: 50, holes: { B: { x: 141.5, y: 30 } } },
-      { id: '55', label: 'Ø 55 mm', codeNum: '55', img: 'images/etiqueta_xm55.png', wMm: 55, hMm: 55, holes: { B: { x: 141.5, y: 24 } } },
-      { id: '60', label: 'Ø 60 mm', codeNum: '60', img: 'images/etiqueta_xm60.png', wMm: 60, hMm: 60, holes: { B: { x: 141.5, y: 18 } } }
+      { id: '45', label: 'Ø 45 mm', codeNum: '45', img: 'images/etiqueta_xm45.png', wMm: 45, hMm: 45 },
+      { id: '50', label: 'Ø 50 mm', codeNum: '50', img: 'images/etiqueta_xm50.png', wMm: 50, hMm: 50 },
+      { id: '55', label: 'Ø 55 mm', codeNum: '55', img: 'images/etiqueta_xm55.png', wMm: 55, hMm: 55 },
+      { id: '60', label: 'Ø 60 mm', codeNum: '60', img: 'images/etiqueta_xm60.png', wMm: 60, hMm: 60 }
     ]
   }
 };
@@ -401,10 +362,33 @@ export default function EtiquetaSimulator({
   const textA = phraseText || selectedOptions['Text (Cara A)'] || selectedOptions['Text Cara A'] || '';
   const textB = phraseTextB || selectedOptions['Text (Cara B)'] || selectedOptions['Text Cara B'] || '';
 
+  // Tipografia seleccionada per al gravat
+  const selectedFontName = selectedOptions['Tipografia'] || selectedOptions['Font'] || AVAILABLE_FONTS[0].name;
+  const currentFontObj = useMemo(() => {
+    return AVAILABLE_FONTS.find(f => f.name === selectedFontName || f.id === selectedFontName) || AVAILABLE_FONTS[0];
+  }, [selectedFontName]);
+
+  // Sincronitzar tipografia inicial si no està definida
+  useEffect(() => {
+    if (!selectedOptions['Tipografia'] && !selectedOptions['Font']) {
+      setSelectedOptions(prev => ({
+        ...prev,
+        'Tipografia': AVAILABLE_FONTS[0].name
+      }));
+    }
+  }, []);
+
+  const handleSelectFont = (fontName) => {
+    setSelectedOptions(prev => ({
+      ...prev,
+      'Tipografia': fontName
+    }));
+  };
+
   // Forats seleccionats
   const activeHoles = useMemo(() => {
     if (!shapeConfig.hasCustomHoles) {
-      return ['B']; // Medalla sempre té el forat superior B
+      return [];
     }
     const raw = selectedOptions['Forats seleccionats'];
     if (Array.isArray(raw)) return raw;
@@ -462,7 +446,12 @@ export default function EtiquetaSimulator({
       Object.keys(prev).forEach(k => {
         if (k.toLowerCase().includes('mida')) next[k] = midaLabel;
       });
-      next['Forats (Resum)'] = shapeConfig.hasCustomHoles ? (holesStr ? `${holesStr} (${code})` : `Sense forats (${code})`) : `1 forat superior (${code})`;
+      if (shapeConfig.hasCustomHoles) {
+        next['Forats (Resum)'] = holesStr ? `${holesStr} (${code})` : `Sense forats (${code})`;
+      } else {
+        delete next['Forats seleccionats'];
+        delete next['Forats (Resum)'];
+      }
       next['Codi Model Generat'] = code;
       return next;
     });
@@ -489,9 +478,34 @@ export default function EtiquetaSimulator({
     }, 150);
   };
 
-  // Mida del text gravat
+  // Mida del text gravat (proporció base multiplicada per la mida escollida: Petita, Mitjana, Gran)
+  const selectedFontSize = selectedOptions['Mida de la font'] || selectedOptions['Mida del text'] || 'Mitjana';
+
+  const handleSelectFontSize = (sizeLabel) => {
+    setSelectedOptions(prev => ({
+      ...prev,
+      'Mida de la font': sizeLabel
+    }));
+  };
+
   const getPhraseFontSize = (txt) => {
     const len = (txt || '').length;
+    const isSmall = String(selectedFontSize).toLowerCase() === 'petita';
+    const isLarge = String(selectedFontSize).toLowerCase() === 'gran';
+
+    if (isSmall) {
+      if (len <= 8) return 'text-xs sm:text-sm';
+      if (len <= 20) return 'text-[11px] sm:text-xs';
+      if (len <= 40) return 'text-[9px] sm:text-[10px]';
+      return 'text-[8px] sm:text-[9px]';
+    }
+    if (isLarge) {
+      if (len <= 8) return 'text-base sm:text-lg md:text-xl';
+      if (len <= 20) return 'text-sm sm:text-base';
+      if (len <= 40) return 'text-xs sm:text-sm';
+      return 'text-[10px] sm:text-[11px]';
+    }
+    // Mitjana (per defecte)
     if (len <= 8) return 'text-sm sm:text-base';
     if (len <= 20) return 'text-xs sm:text-sm';
     if (len <= 40) return 'text-[11px] sm:text-xs';
@@ -504,33 +518,71 @@ export default function EtiquetaSimulator({
   const shapeAspect = shapeConfig.aspect || '283 / 132';
 
   return (
-    <div className="w-full bg-surface-container-lowest border border-outline/15 rounded-2xl p-4 sm:p-5 space-y-4 shadow-xs select-none">
+    <div className="w-full bg-surface-container-lowest border border-outline/15 rounded-2xl p-4 sm:p-5 space-y-3.5 shadow-xs select-none">
       
-      {/* SECCIÓ: Selector de Mides i Commutador de Cara (Frontal / Posterior) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Selector de Mides */}
-        <div className="flex flex-wrap gap-2 items-center">
-          {availableMides.map((mida, idx) => {
-            const isSelected = selectedMidaLabel === mida;
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleSelectMida(mida)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-mono transition-all cursor-pointer shadow-2xs ${
-                  isSelected
-                    ? 'bg-[#3D2B1F] text-white ring-2 ring-primary/40 font-bold'
-                    : 'bg-surface hover:bg-surface-container text-primary border border-outline/25'
-                }`}
-              >
-                {mida}
-              </button>
-            );
-          })}
+      {/* LÍNIA 1: Selector de Mides del Producte */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {availableMides.map((mida, idx) => {
+          const isSelected = selectedMidaLabel === mida;
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleSelectMida(mida)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-mono transition-all cursor-pointer shadow-2xs ${
+                isSelected
+                  ? 'bg-[#3D2B1F] text-white ring-2 ring-primary/40 font-bold'
+                  : 'bg-surface hover:bg-surface-container text-primary border border-outline/25'
+              }`}
+            >
+              {mida}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* LÍNIA 2: Eines de Gravat (Tipografia + Mida de Font + Commutador Anterior/Posterior) */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-outline/10">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Desplegable visual de Tipografia */}
+          <FontSelectorDropdown
+            selectedFontName={selectedFontName}
+            onSelectFont={handleSelectFont}
+          />
+
+          {/* Selector de Mida de la Font (Petita / Mitjana / Gran) */}
+          <div className="flex items-center bg-surface border border-outline/25 rounded-xl p-1 gap-1">
+            <span className="text-[10px] text-on-surface-variant font-mono font-semibold px-1 hidden xs:inline">
+              Mida:
+            </span>
+            {[
+              { id: 'petita', label: 'Petita', short: 'P' },
+              { id: 'mitjana', label: 'Mitjana', short: 'M' },
+              { id: 'gran', label: 'Gran', short: 'G' }
+            ].map((sz) => {
+              const isSelected = selectedFontSize.toLowerCase() === sz.id || selectedFontSize.toLowerCase() === sz.label.toLowerCase();
+              return (
+                <button
+                  key={sz.id}
+                  type="button"
+                  onClick={() => handleSelectFontSize(sz.label)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-primary text-on-primary font-bold shadow-xs'
+                      : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'
+                  }`}
+                  title={`Mida de lletra: ${sz.label}`}
+                >
+                  <span className="hidden sm:inline">{sz.label}</span>
+                  <span className="sm:hidden">{sz.short}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Commutador de Cara: Anterior ⇄ Posterior */}
-        <div className="flex items-center bg-surface border border-outline/25 rounded-xl p-1 gap-1">
+        <div className="flex items-center bg-surface border border-outline/25 rounded-xl p-1 gap-1 ml-auto">
           <button
             type="button"
             onClick={() => setActiveSide('caraA')}
@@ -574,15 +626,15 @@ export default function EtiquetaSimulator({
           }`}
           style={{ aspectRatio: shapeAspect }}
         >
-          {/* Imatge de fons de fusta autèntica de la mida triada (amb flip horitzontal i vertical a la cara posterior per invertir les vetes) */}
+          {/* Imatge de fons de fusta autèntica de la mida triada (amb flip únicament horitzontal a la cara posterior per invertir les vetes) */}
           <img
             src={resolveMediaUrl(currentMidaObj.img)}
             alt={`${shapeConfig.nom} ${currentMidaObj.label}`}
             className={`w-full h-full object-contain pointer-events-none drop-shadow-md select-none transition-transform duration-300 ${
-              activeSide === 'caraB' ? '-scale-x-100 -scale-y-100' : 'scale-x-100 scale-y-100'
+              activeSide === 'caraB' ? '-scale-x-100' : 'scale-x-100'
             }`}
             style={{
-              transform: activeSide === 'caraB' ? 'scale(-1, -1)' : 'scale(1, 1)'
+              transform: activeSide === 'caraB' ? 'scaleX(-1)' : 'scaleX(1)'
             }}
             onError={(e) => {
               if (shapeConfig.overviewImg) {
@@ -592,33 +644,41 @@ export default function EtiquetaSimulator({
           />
 
           {/* SVG Overlay per als forats calats (Cercle blanc amb filet negre) */}
-          <svg viewBox={`0 0 ${viewBoxW} ${viewBoxH}`} className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
-            {currentMidaObj.holes && Object.keys(currentMidaObj.holes).map((key) => {
-              const pos = currentMidaObj.holes[key];
-              const isActive = activeHoles.includes(key);
-              if (!isActive || !pos) return null;
+          {shapeConfig.hasCustomHoles && (
+            <svg viewBox={`0 0 ${viewBoxW} ${viewBoxH}`} className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+              {currentMidaObj.holes && Object.keys(currentMidaObj.holes).map((key) => {
+                const pos = currentMidaObj.holes[key];
+                const isActive = activeHoles.includes(key);
+                if (!isActive || !pos) return null;
 
-              // Invertir horitzontalment si estem a la cara B
-              const cx = activeSide === 'caraA' ? pos.x : (viewBoxW - pos.x);
-              const cy = pos.y;
+                // Invertir horitzontalment si estem a la cara B
+                const cx = activeSide === 'caraA' ? pos.x : (viewBoxW - pos.x);
+                const cy = pos.y;
 
-              return (
-                <g key={key} className="animate-fadeIn">
-                  {/* Cercle blanc buit amb filet negre fi */}
-                  <circle cx={cx} cy={cy} r="4.8" fill="#FFFFFF" stroke="#000000" strokeWidth="1.2" />
-                </g>
-              );
-            })}
-          </svg>
+                return (
+                  <g key={key} className="animate-fadeIn">
+                    {/* Cercle blanc buit amb filet negre fi */}
+                    <circle cx={cx} cy={cy} r="4.8" fill="#FFFFFF" stroke="#000000" strokeWidth="1.2" />
+                  </g>
+                );
+              })}
+            </svg>
+          )}
 
           {/* GRAVAT DE TEXT EN TEMPS REAL A L'ETIQUETA */}
           <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center pointer-events-none z-10">
             {currentVisibleText && currentVisibleText.trim() ? (
-              <p className={`text-[#24170E] font-serif font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] ${getPhraseFontSize(currentVisibleText)} animate-fadeIn max-w-[80%] whitespace-pre-wrap leading-snug`}>
+              <p
+                style={{ fontFamily: currentFontObj.fontFamily }}
+                className={`text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] ${getPhraseFontSize(currentVisibleText)} animate-fadeIn max-w-[80%] whitespace-pre-wrap leading-snug`}
+              >
                 {currentVisibleText}
               </p>
             ) : (
-              <p className="text-[10px] font-serif italic text-[#6E4F39]/70">
+              <p
+                style={{ fontFamily: currentFontObj.fontFamily }}
+                className="text-[10px] italic text-[#6E4F39]/70"
+              >
                 {activeSide === 'caraA' ? '(Text gravat Anterior...)' : '(Text gravat Posterior...)'}
               </p>
             )}
@@ -633,8 +693,8 @@ export default function EtiquetaSimulator({
         )}
       </div>
 
-      {/* SECCIÓ: Selecciona els forats utilitzant la plantilla gràfica interactiva */}
-      {shapeConfig.hasCustomHoles ? (
+      {/* SECCIÓ: Selecciona els forats utilitzant la plantilla gràfica interactiva (només per a formes amb forats personalitzables) */}
+      {shapeConfig.hasCustomHoles && (
         <div className="space-y-3 pt-2 border-t border-outline/10">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <label className="text-xs font-mono font-bold uppercase text-on-surface-variant">
@@ -697,19 +757,6 @@ export default function EtiquetaSimulator({
                 );
               })}
             </div>
-          </div>
-        </div>
-      ) : (
-        /* Indicador per a Medalla (1 forat fix integrat) */
-        <div className="p-3.5 bg-surface border border-outline/20 rounded-xl flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-900 dark:text-amber-200 flex items-center justify-center shrink-0 font-mono font-bold text-xs border border-amber-500/40">
-            1
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-xs font-semibold text-primary">Forat de Suspensió Fix Integrat</p>
-            <p className="text-[11px] text-on-surface-variant">
-              Aquest model de medalla incorpora 1 forat superior fix de fàbrica per penjar o collar.
-            </p>
           </div>
         </div>
       )}

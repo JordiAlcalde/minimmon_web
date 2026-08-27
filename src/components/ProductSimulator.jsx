@@ -1,9 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RotateCw, Sun } from 'lucide-react';
+import FontSelectorDropdown, { AVAILABLE_FONTS } from './FontSelectorDropdown';
 
-export default function ProductSimulator({ initialLetter = '', phraseText = '' }) {
+export default function ProductSimulator({ initialLetter = '', phraseText = '', selectedOptions = {}, setSelectedOptions = () => {} }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isLit, setIsLit] = useState(true);
+
+  // Tipografia seleccionada per al gravat
+  const selectedFontName = selectedOptions['Tipografia'] || selectedOptions['Font'] || AVAILABLE_FONTS[0].name;
+  const currentFontObj = useMemo(() => {
+    return AVAILABLE_FONTS.find(f => f.name === selectedFontName || f.id === selectedFontName) || AVAILABLE_FONTS[0];
+  }, [selectedFontName]);
+
+  // Sincronitzar tipografia inicial si no està definida
+  useEffect(() => {
+    if (setSelectedOptions && !selectedOptions['Tipografia'] && !selectedOptions['Font']) {
+      setSelectedOptions(prev => ({
+        ...prev,
+        'Tipografia': AVAILABLE_FONTS[0].name
+      }));
+    }
+  }, []);
+
+  const handleSelectFont = (fontName) => {
+    if (setSelectedOptions) {
+      setSelectedOptions(prev => ({
+        ...prev,
+        'Tipografia': fontName
+      }));
+    }
+  };
+
+  // Mida del text gravat (Petita, Mitjana, Gran)
+  const selectedFontSize = selectedOptions['Mida de la font'] || selectedOptions['Mida del text'] || 'Mitjana';
+
+  const handleSelectFontSize = (sizeLabel) => {
+    if (setSelectedOptions) {
+      setSelectedOptions(prev => ({
+        ...prev,
+        'Mida de la font': sizeLabel
+      }));
+    }
+  };
 
   // Netejar inicial: 1 sola lletra majúscula
   const cleanInitial = (initialLetter || '').trim().charAt(0).toUpperCase();
@@ -14,10 +52,26 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
   // Mida dinàmica de la font per a la Cara B
   const getPhraseFontSize = (text) => {
     const len = text.length;
-    if (len <= 15) return 'text-sm sm:text-base md:text-lg font-bold font-serif leading-snug';
-    if (len <= 35) return 'text-xs sm:text-sm md:text-base font-bold font-serif leading-snug';
-    if (len <= 55) return 'text-[11px] sm:text-xs md:text-sm font-bold font-serif leading-snug';
-    return 'text-[10px] sm:text-[11px] md:text-xs font-bold font-serif leading-tight';
+    const isSmall = String(selectedFontSize).toLowerCase() === 'petita';
+    const isLarge = String(selectedFontSize).toLowerCase() === 'gran';
+
+    if (isSmall) {
+      if (len <= 15) return 'text-xs sm:text-sm font-bold leading-snug';
+      if (len <= 35) return 'text-[11px] sm:text-xs font-bold leading-snug';
+      if (len <= 55) return 'text-[9px] sm:text-[10px] font-bold leading-snug';
+      return 'text-[8px] sm:text-[9px] font-bold leading-tight';
+    }
+    if (isLarge) {
+      if (len <= 15) return 'text-base sm:text-lg md:text-xl font-bold leading-snug';
+      if (len <= 35) return 'text-sm sm:text-base font-bold leading-snug';
+      if (len <= 55) return 'text-xs sm:text-sm font-bold leading-snug';
+      return 'text-[11px] sm:text-xs font-bold leading-tight';
+    }
+    // Mitjana (per defecte)
+    if (len <= 15) return 'text-sm sm:text-base md:text-lg font-bold leading-snug';
+    if (len <= 35) return 'text-xs sm:text-sm md:text-base font-bold leading-snug';
+    if (len <= 55) return 'text-[11px] sm:text-xs md:text-sm font-bold leading-snug';
+    return 'text-[10px] sm:text-[11px] md:text-xs font-bold leading-tight';
   };
 
   return (
@@ -25,9 +79,9 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
       {/* Escenari 3D del Clauer (Mida molt compacta per veure canvis mentre s'edita en mòbil) */}
       <div className={`relative w-full py-3 px-2 flex flex-col items-center justify-center rounded-2xl border border-outline/15 shadow-inner min-h-[195px] sm:min-h-[235px] overflow-hidden select-none transition-colors duration-300 ${isLit ? 'bg-gradient-to-b from-surface-container-lowest via-amber-950/5 to-surface-container-lowest' : 'bg-surface-container-lowest'}`}>
         
-        {/* Controls integrats dibuixats en blau (A B a l'esquerra, Bombeta al centre, Gir a la dreta) */}
-        <div className="absolute top-2 left-3 right-3 flex items-center justify-between z-30 pointer-events-auto">
-          {/* Selector A / B (AB en blau) */}
+        {/* Controls integrats (A B a l'esquerra, Desplegable de Tipografia, Mida i Gir a la dreta) */}
+        <div className="absolute top-2 left-3 right-3 flex items-center justify-between z-30 pointer-events-auto gap-1.5 flex-wrap">
+          {/* Selector A / B */}
           <div className="flex items-center bg-surface/90 backdrop-blur-xs border border-outline/25 rounded-lg p-0.5 shadow-xs">
             <button
               type="button"
@@ -45,15 +99,53 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
             </button>
           </div>
 
-          {/* Botó de girar (Icona de gir en blau) */}
-          <button
-            type="button"
-            onClick={() => setIsFlipped(!isFlipped)}
-            className="p-1.5 bg-surface/90 hover:bg-surface text-primary rounded-lg border border-outline/25 shadow-xs transition-transform cursor-pointer active:scale-95"
-            title="Girar la peça"
-          >
-            <RotateCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isFlipped ? 'rotate-180' : ''}`} />
-          </button>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {/* Desplegable visual de Tipografia */}
+            {setSelectedOptions && (
+              <FontSelectorDropdown
+                selectedFontName={selectedFontName}
+                onSelectFont={handleSelectFont}
+              />
+            )}
+
+            {/* Selector de Mida de Lletra */}
+            {setSelectedOptions && (
+              <div className="flex items-center bg-surface/90 border border-outline/25 rounded-lg p-0.5 gap-0.5">
+                {[
+                  { id: 'petita', label: 'Petita', short: 'P' },
+                  { id: 'mitjana', label: 'Mitjana', short: 'M' },
+                  { id: 'gran', label: 'Gran', short: 'G' }
+                ].map((sz) => {
+                  const isSelected = selectedFontSize.toLowerCase() === sz.id || selectedFontSize.toLowerCase() === sz.label.toLowerCase();
+                  return (
+                    <button
+                      key={sz.id}
+                      type="button"
+                      onClick={() => handleSelectFontSize(sz.label)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-primary text-on-primary font-bold shadow-xs'
+                          : 'text-on-surface-variant hover:text-primary'
+                      }`}
+                      title={`Mida: ${sz.label}`}
+                    >
+                      {sz.short}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Botó de girar */}
+            <button
+              type="button"
+              onClick={() => setIsFlipped(!isFlipped)}
+              className="p-1.5 bg-surface/90 hover:bg-surface text-primary rounded-lg border border-outline/25 shadow-xs transition-transform cursor-pointer active:scale-95"
+              title="Girar la peça"
+            >
+              <RotateCw className={`w-3.5 h-3.5 transition-transform duration-500 ${isFlipped ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
         </div>
 
         {/* Anella metàl·lica superior passant pel forat de la peca */}
@@ -181,11 +273,14 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '' }
               {/* Frase / Dedicatòria gravada centrada dins de la silueta */}
               <div className="absolute inset-0 flex flex-col items-center justify-center p-2.5 pt-5 text-center pointer-events-none">
                 {cleanPhrase ? (
-                  <p className={`text-[#24170E] font-serif font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] ${getPhraseFontSize(cleanPhrase)} animate-fadeIn max-w-[130px] sm:max-w-[150px] whitespace-pre-wrap leading-snug`}>
+                  <p
+                    style={{ fontFamily: currentFontObj.fontFamily }}
+                    className={`text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] ${getPhraseFontSize(cleanPhrase)} animate-fadeIn max-w-[130px] sm:max-w-[150px] whitespace-pre-wrap leading-snug`}
+                  >
                     {cleanPhrase}
                   </p>
                 ) : (
-                  <p className="text-[10px] font-serif italic text-[#8B6E59]/70">
+                  <p style={{ fontFamily: currentFontObj.fontFamily }} className="text-[10px] italic text-[#8B6E59]/70">
                     (Escriu la teva frase a sobre...)
                   </p>
                 )}
