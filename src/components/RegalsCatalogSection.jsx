@@ -615,52 +615,39 @@ export default function RegalsCatalogSection({
 
                 return (
                   <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop animate-fadeIn">
-                    <div className="bg-surface-container-lowest p-6 rounded-2xl border border-primary/25 shadow-md space-y-5">
-                      <div className="flex items-center gap-2.5 pb-3 border-b border-outline/15">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                          <Info className="w-4 h-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-primary text-sm">
-                            Dades comunes a {activeGammaObj.nom}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Caixetí 1: Text Informatiu Comú */}
+                    <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs space-y-3">
+                      {/* Caixetí 1: Text Informatiu Comú (sense contenidor redundant ni doble marc) */}
                       {gammaHasText && (
-                        <div className="text-sm text-on-surface-variant leading-relaxed font-body-md bg-surface-container/30 p-4 rounded-xl border border-outline/10">
-                          <p className="whitespace-pre-line">{activeGammaObj.textInformatiu}</p>
+                        <div className="text-sm text-on-surface-variant leading-relaxed font-body-md whitespace-pre-line">
+                          {renderFormattedText(activeGammaObj.textInformatiu)}
                         </div>
                       )}
 
                       {/* Caixetins 2 & 3: Imatges Ilustratives (~200x200px, aliniades per l'esquerra) */}
                       {gammaHasImages && (
-                        <div className="pt-1">
-                          <div className="flex flex-wrap items-center justify-start gap-4">
-                            {validGammaImages.map((imgUrl, idx) => {
-                              const resolved = resolveMediaUrl(imgUrl);
-                              return (
-                                <div
-                                  key={idx}
-                                  onClick={() => setSelectedModalImage(resolved)}
-                                  className="w-[200px] h-[200px] rounded-2xl bg-surface border border-outline/20 overflow-hidden relative shadow-md group shrink-0 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all"
-                                  title="Fes clic per ampliar imatge"
-                                >
-                                  <img
-                                    src={resolved}
-                                    alt={`${activeGammaObj.nom} - detalls ${idx + 1}`}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                  />
-                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                                    <span className="opacity-0 group-hover:opacity-100 bg-black/75 text-white text-xs px-3 py-1 rounded-full backdrop-blur-xs transition-opacity font-medium shadow">
-                                      Ampliar 🔍
-                                    </span>
-                                  </div>
+                        <div className="flex flex-wrap items-center justify-start gap-3 pt-1">
+                          {validGammaImages.map((imgUrl, idx) => {
+                            const resolved = resolveMediaUrl(imgUrl);
+                            return (
+                              <div
+                                key={idx}
+                                onClick={() => setSelectedModalImage(resolved)}
+                                className="w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] rounded-xl bg-surface border border-outline/20 overflow-hidden relative shadow-xs group shrink-0 cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all"
+                                title="Fes clic per ampliar imatge"
+                              >
+                                <img
+                                  src={resolved}
+                                  alt={`${activeGammaObj.nom} - detalls ${idx + 1}`}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <span className="opacity-0 group-hover:opacity-100 bg-black/75 text-white text-xs px-2.5 py-0.5 rounded-full backdrop-blur-xs transition-opacity font-medium shadow">
+                                    Ampliar 🔍
+                                  </span>
                                 </div>
-                              );
-                            })}
-                          </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1465,7 +1452,7 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
               <div className="mt-2.5 p-3.5 bg-surface-container/40 rounded-xl border border-primary/15 text-xs text-on-surface-variant space-y-3 animate-fadeIn">
                 {gammaHasText && (
                   <div className="leading-relaxed font-body-md whitespace-pre-line">
-                    {matchedGammaObj.textInformatiu}
+                    {renderFormattedText(matchedGammaObj.textInformatiu)}
                   </div>
                 )}
                 {gammaHasImages && (

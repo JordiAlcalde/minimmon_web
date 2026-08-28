@@ -488,28 +488,27 @@ export default function EtiquetaSimulator({
     }));
   };
 
-  const getPhraseFontSize = (txt) => {
+  // Mida dinàmica calibrada del text gravat (Petita: 0.75x, Mitjana: 1.0x, Gran: 1.40x)
+  const getPhraseFontSizeStyle = (txt) => {
     const len = (txt || '').length;
-    const isSmall = String(selectedFontSize).toLowerCase() === 'petita';
-    const isLarge = String(selectedFontSize).toLowerCase() === 'gran';
+    const sLower = String(selectedFontSize || '').toLowerCase();
+    const isSmall = sLower === 'petita' || sLower === 'p';
+    const isLarge = sLower === 'gran' || sLower === 'g';
 
-    if (isSmall) {
-      if (len <= 8) return 'text-xs sm:text-sm';
-      if (len <= 20) return 'text-[11px] sm:text-xs';
-      if (len <= 40) return 'text-[9px] sm:text-[10px]';
-      return 'text-[8px] sm:text-[9px]';
-    }
-    if (isLarge) {
-      if (len <= 8) return 'text-base sm:text-lg md:text-xl';
-      if (len <= 20) return 'text-sm sm:text-base';
-      if (len <= 40) return 'text-xs sm:text-sm';
-      return 'text-[10px] sm:text-[11px]';
-    }
-    // Mitjana (per defecte)
-    if (len <= 8) return 'text-sm sm:text-base';
-    if (len <= 20) return 'text-xs sm:text-sm';
-    if (len <= 40) return 'text-[11px] sm:text-xs';
-    return 'text-[9px] sm:text-[10px]';
+    // Mida base calibrada en px segons la longitud del text
+    let basePx = 16;
+    if (len <= 8) basePx = 22;
+    else if (len <= 20) basePx = 17;
+    else if (len <= 40) basePx = 13.5;
+    else basePx = 11;
+
+    const factor = isSmall ? 0.75 : (isLarge ? 1.40 : 1.0);
+    const finalPx = Math.round(basePx * factor * 10) / 10;
+
+    return {
+      fontSize: `${finalPx}px`,
+      lineHeight: 1.25
+    };
   };
 
   const currentVisibleText = activeSide === 'caraA' ? textA : textB;
@@ -670,8 +669,11 @@ export default function EtiquetaSimulator({
           <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center pointer-events-none z-10">
             {currentVisibleText && currentVisibleText.trim() ? (
               <p
-                style={{ fontFamily: currentFontObj.fontFamily }}
-                className={`text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] ${getPhraseFontSize(currentVisibleText)} animate-fadeIn max-w-[80%] whitespace-pre-wrap leading-snug`}
+                style={{ 
+                  fontFamily: currentFontObj.fontFamily,
+                  ...getPhraseFontSizeStyle(currentVisibleText)
+                }}
+                className="text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.7)] animate-fadeIn max-w-[80%] whitespace-pre-wrap transition-all duration-200"
               >
                 {currentVisibleText}
               </p>

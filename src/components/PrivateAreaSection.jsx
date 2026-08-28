@@ -443,6 +443,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [catalogSubtab, setCatalogSubtab] = useState('cataleg'); // 'cataleg' | 'informacions'
   const [infoFilterUbicacio, setInfoFilterUbicacio] = useState('tots'); // 'tots' | 'pre_filtres' | 'pre_llista' | 'post_llista'
   const infoContingutTextAreaRef = useRef(null);
+  const gammaTextInformatiuRef = useRef(null);
 
   // Efecte per retornar el focus de la llista de productes al lloc exacte / producte editat
   useEffect(() => {
@@ -3190,8 +3191,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
       {/* MODULE: CATÀLEG DE REGALS / PRODUCTES */}
       {activeModule === 'productes' && (
         <div className="space-y-6">
-          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
               <div>
                 <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Regals / Productes</h2>
                 <p className="text-xs text-on-surface-variant mt-1">
@@ -3199,110 +3199,112 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </p>
               </div>
 
-              {catalogSubtab === 'cataleg' && (
-                <button
-                  onClick={() => {
-                    const initialGammas = adminGamFilter && adminGamFilter !== 'Totes' ? [adminGamFilter] : [];
-                    const initialOrdre = calculateSmartNextProductOrder(initialGammas, dbProductesAdmin);
-                    setEditingProducte({
-                      id: `prdt-${Date.now()}`,
-                      codi: generateNextProductCode(dbProductesAdmin),
-                      nom: '',
-                      descripcio: '',
-                      imatgePrincipal: '',
-                      imatges: [],
-                      familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
-                      gammaIds: initialGammas,
-                      titolPersonalitzacio: '',
-                      requereixPressupost: false,
-                      preuDesDe: false,
-                      isPreuDesDe: false,
-                      opcionsPersonalitzacio: [
-                        { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
-                      ],
-                      cost: 0,
-                      preu: 0,
-                      terminiFabricacio: '3 - 5 dies feiners',
-                      material: 'Fusta de til·ler',
-                      acabat: 'Vernís mat',
-                      ordre: initialOrdre,
-                      preuPerForat: 0,
-                      actiu: true
-                    });
-                  }}
-                  className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nou Producte (Regal)</span>
-                </button>
-              )}
+              {/* SUB-PESTANYES D'ACCÉS (Catàleg vs Informacions) + BOTÓ D'ACCIÓ EN LÍNIA */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-outline/10">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSubtab('cataleg');
+                      setEditingInformacio(null);
+                    }}
+                    className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                      catalogSubtab === 'cataleg'
+                        ? 'bg-primary text-on-primary shadow-sm font-bold'
+                        : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
+                    }`}
+                  >
+                    <Package className="w-4 h-4" />
+                    <span>Catàleg</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      catalogSubtab === 'cataleg' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
+                    }`}>
+                      {dbProductesAdmin.length}
+                    </span>
+                  </button>
 
-              {catalogSubtab === 'informacions' && (
-                <button
-                  onClick={() => {
-                    setEditingInformacio({
-                      id: `info-${Date.now()}`,
-                      titol: '',
-                      contingut: '',
-                      ubicacio: 'post_llista',
-                      ordre: dbInformacions.length + 1,
-                      icona: 'Sparkles',
-                      actiu: true
-                    });
-                  }}
-                  className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Nova Informació</span>
-                </button>
-              )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSubtab('informacions');
+                      setEditingProducte(null);
+                    }}
+                    className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                      catalogSubtab === 'informacions'
+                        ? 'bg-primary text-on-primary shadow-sm font-bold'
+                        : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>Informacions</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      catalogSubtab === 'informacions' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
+                    }`}>
+                      {dbInformacions.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Botó d'Acció segons la sub-pestanya activa */}
+                {catalogSubtab === 'cataleg' && (
+                  <button
+                    onClick={() => {
+                      const initialGammas = adminGamFilter && adminGamFilter !== 'Totes' ? [adminGamFilter] : [];
+                      const initialOrdre = calculateSmartNextProductOrder(initialGammas, dbProductesAdmin);
+                      setEditingProducte({
+                        id: `prdt-${Date.now()}`,
+                        codi: generateNextProductCode(dbProductesAdmin),
+                        nom: '',
+                        descripcio: '',
+                        imatgePrincipal: '',
+                        imatges: [],
+                        familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
+                        gammaIds: initialGammas,
+                        titolPersonalitzacio: '',
+                        requereixPressupost: false,
+                        preuDesDe: false,
+                        isPreuDesDe: false,
+                        opcionsPersonalitzacio: [
+                          { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
+                        ],
+                        cost: 0,
+                        preu: 0,
+                        terminiFabricacio: '3 - 5 dies feiners',
+                        material: 'Fusta de til·ler',
+                        acabat: 'Vernís mat',
+                        ordre: initialOrdre,
+                        preuPerForat: 0,
+                        actiu: true
+                      });
+                    }}
+                    className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nou Producte (Regal)</span>
+                  </button>
+                )}
+
+                {catalogSubtab === 'informacions' && (
+                  <button
+                    onClick={() => {
+                      setEditingInformacio({
+                        id: `info-${Date.now()}`,
+                        titol: '',
+                        contingut: '',
+                        ubicacio: 'post_llista',
+                        ordre: dbInformacions.length + 1,
+                        icona: 'Sparkles',
+                        actiu: true
+                      });
+                    }}
+                    className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Nova Informació</span>
+                  </button>
+                )}
+              </div>
             </div>
-
-            {/* SUB-PESTANYES D'ACCÉS: CATÀLEG vs INFORMACIONS */}
-            <div className="flex items-center gap-2.5 pt-3 border-t border-outline/10">
-              <button
-                type="button"
-                onClick={() => {
-                  setCatalogSubtab('cataleg');
-                  setEditingInformacio(null);
-                }}
-                className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                  catalogSubtab === 'cataleg'
-                    ? 'bg-primary text-on-primary shadow-sm font-bold'
-                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
-                }`}
-              >
-                <Package className="w-4 h-4" />
-                <span>Catàleg</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                  catalogSubtab === 'cataleg' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
-                }`}>
-                  {dbProductesAdmin.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCatalogSubtab('informacions');
-                  setEditingProducte(null);
-                }}
-                className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
-                  catalogSubtab === 'informacions'
-                    ? 'bg-primary text-on-primary shadow-sm font-bold'
-                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Informacions</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                  catalogSubtab === 'informacions' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
-                }`}>
-                  {dbInformacions.length}
-                </span>
-              </button>
-            </div>
-          </div>
 
           {/* VISTA 1: CATÀLEG DE PRODUCTES */}
           {catalogSubtab === 'cataleg' && (
@@ -5123,12 +5125,46 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <div className="md:col-span-8 space-y-5">
                     
                     {/* Caixetí 1: Text informatiu */}
-                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-1.5">
-                      <label className="block text-xs uppercase font-semibold text-primary flex items-center justify-between">
-                        <span>Caixetí 1: Text Informatiu Comú (Aparèixerà abans dels productes)</span>
-                        <span className="text-[10px] text-on-surface-variant font-normal">Opcional</span>
-                      </label>
+                    <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="block text-xs uppercase font-semibold text-primary">
+                          Caixetí 1: Text Informatiu Comú (Aparèixerà abans dels productes)
+                        </label>
+                        
+                        <div className="flex items-center gap-2">
+                          {/* Botons de Format (Negreta, Cursiva, Subratllat) */}
+                          <div className="flex items-center gap-1 bg-surface p-1 rounded-lg border border-outline/20">
+                            <button
+                              type="button"
+                              onClick={() => applyFormatToSelection(gammaTextInformatiuRef, editingGamma.textInformatiu || '', 'bold', (newText) => setEditingGamma({ ...editingGamma, textInformatiu: newText }))}
+                              className="px-2.5 py-0.5 text-xs font-bold bg-surface-container hover:bg-primary/15 hover:text-primary rounded border border-outline/10 cursor-pointer"
+                              title="Negreta: **text**"
+                            >
+                              B
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyFormatToSelection(gammaTextInformatiuRef, editingGamma.textInformatiu || '', 'italic', (newText) => setEditingGamma({ ...editingGamma, textInformatiu: newText }))}
+                              className="px-2.5 py-0.5 text-xs italic bg-surface-container hover:bg-primary/15 hover:text-primary rounded border border-outline/10 cursor-pointer"
+                              title="Cursiva: *text*"
+                            >
+                              I
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyFormatToSelection(gammaTextInformatiuRef, editingGamma.textInformatiu || '', 'underline', (newText) => setEditingGamma({ ...editingGamma, textInformatiu: newText }))}
+                              className="px-2.5 py-0.5 text-xs underline bg-surface-container hover:bg-primary/15 hover:text-primary rounded border border-outline/10 cursor-pointer"
+                              title="Subratllat: <u>text</u>"
+                            >
+                              U
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-on-surface-variant font-normal">Opcional</span>
+                        </div>
+                      </div>
+
                       <textarea
+                        ref={gammaTextInformatiuRef}
                         rows={3}
                         value={editingGamma.textInformatiu || ''}
                         onChange={(e) => setEditingGamma({ ...editingGamma, textInformatiu: e.target.value })}
@@ -5179,13 +5215,6 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 type="text"
                                 placeholder={`Imatge ${idx + 1} (ex. puzle_01.jpg o URL)...`}
                                 value={imgUrl || ''}
-                                onBlur={() => {
-                                  if (isShort) {
-                                    const updated = [...(editingGamma.imatges || [])];
-                                    updated[idx] = resolveProducteMediaUrl(imgUrl);
-                                    setEditingGamma({ ...editingGamma, imatges: updated });
-                                  }
-                                }}
                                 onChange={(e) => {
                                   const updated = [...(editingGamma.imatges || [])];
                                   updated[idx] = e.target.value;
@@ -5197,12 +5226,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const clean = imgUrl.trim().replace(/^\/+/, '');
                                     const updated = [...(editingGamma.imatges || [])];
-                                    updated[idx] = resolveProducteMediaUrl(imgUrl);
+                                    updated[idx] = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/${clean}`;
                                     setEditingGamma({ ...editingGamma, imatges: updated });
                                   }}
                                   className="px-2 py-1.5 bg-primary text-on-primary text-[11px] rounded font-semibold whitespace-nowrap cursor-pointer hover:bg-primary-container"
-                                  title="Expandir URL de producte"
+                                  title="Expandir a URL Raw de GitHub"
                                 >
                                   ⚡
                                 </button>
@@ -5244,8 +5274,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   alt={`Miniatura ${idx + 1}`} 
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+                                    const filename = (imgUrl || '').trim().replace(/^.*[\\/]/, '');
+                                    if (filename && !e.target.src.includes('raw.githubusercontent.com') && !e.target.src.includes('data:')) {
+                                      e.target.src = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/${filename}`;
+                                    } else {
+                                      e.target.onerror = null;
+                                      e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+                                    }
                                   }}
                                 />
                                 <div className="absolute top-1 left-1 bg-black/60 text-white font-mono text-[9px] px-1 rounded">

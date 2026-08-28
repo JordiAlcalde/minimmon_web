@@ -74,7 +74,7 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
               </li>
               <li>
                 <button onClick={() => handleNavClick('regals')} className="hover:text-primary transition-colors cursor-pointer text-left">
-                  Obsequis
+                  Catàleg
                 </button>
               </li>
               <li>

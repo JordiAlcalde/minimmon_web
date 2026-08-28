@@ -112,7 +112,7 @@ export default function Header({
                     : 'text-on-surface-variant dark:text-on-secondary-fixed-variant hover:text-primary dark:hover:text-primary-fixed font-medium'
                 }`}
               >
-                <span>CATÀLEG DE REGALS</span>
+                <span>CATÀLEG</span>
                 {activeTab === 'regals' && (
                   <span className="absolute -bottom-1 -left-3.5 -right-3.5 h-[5px] border-b-[2.5px] border-x-[2px] border-primary dark:border-primary-fixed rounded-b-lg animate-fadeIn" />
                 )}
@@ -287,7 +287,7 @@ export default function Header({
             onClick={() => handleNavClick('regals')}
             className={`text-left font-body-md text-lg uppercase tracking-wider py-2 ${activeTab === 'regals' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}
           >
-            Catàleg de Regals
+            Catàleg
           </button>
           <button 
             onClick={() => handleNavClick('taller')}

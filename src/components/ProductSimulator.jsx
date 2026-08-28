@@ -49,29 +49,29 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
   // Netejar frase: màxim 80 caràcters
   const cleanPhrase = (phraseText || '').slice(0, 80);
 
-  // Mida dinàmica de la font per a la Cara B
-  const getPhraseFontSize = (text) => {
-    const len = text.length;
-    const isSmall = String(selectedFontSize).toLowerCase() === 'petita';
-    const isLarge = String(selectedFontSize).toLowerCase() === 'gran';
+  // Mida dinàmica calibrada de la font per a la Cara B (Petita: 0.75x, Mitjana: 1.0x, Gran: 1.40x)
+  const getPhraseFontSizeStyle = (text) => {
+    const len = (text || '').length;
+    const sLower = String(selectedFontSize || '').toLowerCase();
+    const isSmall = sLower === 'petita' || sLower === 'p';
+    const isLarge = sLower === 'gran' || sLower === 'g';
 
-    if (isSmall) {
-      if (len <= 15) return 'text-xs sm:text-sm font-bold leading-snug';
-      if (len <= 35) return 'text-[11px] sm:text-xs font-bold leading-snug';
-      if (len <= 55) return 'text-[9px] sm:text-[10px] font-bold leading-snug';
-      return 'text-[8px] sm:text-[9px] font-bold leading-tight';
-    }
-    if (isLarge) {
-      if (len <= 15) return 'text-base sm:text-lg md:text-xl font-bold leading-snug';
-      if (len <= 35) return 'text-sm sm:text-base font-bold leading-snug';
-      if (len <= 55) return 'text-xs sm:text-sm font-bold leading-snug';
-      return 'text-[11px] sm:text-xs font-bold leading-tight';
-    }
-    // Mitjana (per defecte)
-    if (len <= 15) return 'text-sm sm:text-base md:text-lg font-bold leading-snug';
-    if (len <= 35) return 'text-xs sm:text-sm md:text-base font-bold leading-snug';
-    if (len <= 55) return 'text-[11px] sm:text-xs md:text-sm font-bold leading-snug';
-    return 'text-[10px] sm:text-[11px] md:text-xs font-bold leading-tight';
+    // Mida base calibrada en píxels
+    let basePx = 15;
+    if (len <= 10) basePx = 20;
+    else if (len <= 20) basePx = 16;
+    else if (len <= 40) basePx = 13;
+    else if (len <= 60) basePx = 11;
+    else basePx = 9.5;
+
+    // Factor proporcional clar i distintiu
+    const factor = isSmall ? 0.75 : (isLarge ? 1.40 : 1.0);
+    const finalPx = Math.round(basePx * factor * 10) / 10;
+
+    return {
+      fontSize: `${finalPx}px`,
+      lineHeight: 1.25
+    };
   };
 
   return (
@@ -275,8 +275,11 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
               <div className="absolute inset-0 flex flex-col items-center justify-center p-2.5 pt-5 text-center pointer-events-none">
                 {cleanPhrase ? (
                   <p
-                    style={{ fontFamily: currentFontObj.fontFamily }}
-                    className={`text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] ${getPhraseFontSize(cleanPhrase)} animate-fadeIn max-w-[130px] sm:max-w-[150px] whitespace-pre-wrap leading-snug`}
+                    style={{ 
+                      fontFamily: currentFontObj.fontFamily,
+                      ...getPhraseFontSizeStyle(cleanPhrase)
+                    }}
+                    className="text-[#24170E] font-bold tracking-tight drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] animate-fadeIn max-w-[130px] sm:max-w-[150px] whitespace-pre-wrap transition-all duration-200"
                   >
                     {cleanPhrase}
                   </p>
