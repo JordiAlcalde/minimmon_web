@@ -7,8 +7,8 @@ import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers } from 'lucide-react';
-import { DEFAULT_FAMILIES, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions } from './PrivateAreaSection';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers, Leaf, ShieldCheck, Wrench, Heart, Flame, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
@@ -98,6 +98,32 @@ export function computeOptionSurcharges(product, selectedOptions = {}) {
   return totalSurcharge;
 }
 
+export function InformacioCard({ info }) {
+  if (!info || info.actiu === false) return null;
+
+  return (
+    <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-1.5 animate-fadeIn">
+      <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
+        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+          {renderCatalogInformacioIcon(info.icona || 'Sparkles', "w-4 h-4 text-amber-700 dark:text-amber-400")}
+        </div>
+        <div className="space-y-1 flex-1">
+          {info.titol && (
+            <p className="font-semibold text-primary text-sm">
+              {info.titol}
+            </p>
+          )}
+          {info.contingut && (
+            <div className="leading-relaxed text-on-surface-variant font-sans">
+              {renderFormattedText(info.contingut)}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function RegalsCatalogSection({ 
   setActiveTab, 
   catalogResetKey,
@@ -109,6 +135,7 @@ export default function RegalsCatalogSection({
   const [dbGammes, setDbGammes] = useState([]);
   const [dbFamilies, setDbFamilies] = useState([]);
   const [dbEscandalls, setDbEscandalls] = useState([]);
+  const [dbInformacions, setDbInformacions] = useState(DEFAULT_INFORMACIONS);
   const [loading, setLoading] = useState(true);
 
   // Navegació de dues pàgines: 'catalog' (Vista principal de blocs de famílies) | 'products' (Vista detallada de productes)
@@ -243,11 +270,21 @@ export default function RegalsCatalogSection({
       }
     }, () => {});
 
+    const qInfo = query(collection(db, "cataleg_informacions"), orderBy("ordre", "asc"));
+    const unsubInfo = onSnapshot(qInfo, (snapshot) => {
+      if (!snapshot.empty) {
+        setDbInformacions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(i => i.actiu !== false));
+      } else {
+        setDbInformacions(DEFAULT_INFORMACIONS);
+      }
+    }, () => {});
+
     return () => {
       unsubProd();
       unsubGam();
       unsubFam();
       unsubEsc();
+      unsubInfo();
     };
   }, []);
 
@@ -453,6 +490,13 @@ export default function RegalsCatalogSection({
             </section>
           ) : (
             <>
+              {/* INFORMACIONS GLOBALS: UBICACIÓ 1 (PRE-FILTRES) */}
+              {dbInformacions
+                .filter(i => i.actiu !== false && i.ubicacio === 'pre_filtres')
+                .sort((a, b) => (Number(a.ordre) || 1) - (Number(b.ordre) || 1))
+                .map(info => <InformacioCard key={info.id} info={info} />)
+              }
+
               {/* BARRA DE FILTRES AMB PALETA PRIMÀRIA (#3D2B1F / #F3ECE4) I VERDA PER A SUB-GAMMES */}
               <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
                 <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-sm">
@@ -556,21 +600,6 @@ export default function RegalsCatalogSection({
                 </div>
               </section>
 
-              {/* Nota Tècnica / Avís d'Artesania sobre Fusta Natural */}
-              <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-                <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
-                    <Sparkles className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-semibold text-primary text-sm">És important saber que...</p>
-                    <p className="leading-relaxed text-on-surface-variant">
-                      Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un suport natural i que es poden apreciar les vetes i els petits nusos propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.
-                    </p>
-                  </div>
-                </div>
-              </section>
-
               {/* Nova Secció d'Informació Comuna de la Gamma (Caixetí 1: Text informatiu, Caixetí 2/3: Fins a 5 imatges) */}
               {(() => {
                 const activeGammaObj = selectedGamma && selectedGamma !== 'Tots'
@@ -641,6 +670,13 @@ export default function RegalsCatalogSection({
             </>
           )}
 
+          {/* INFORMACIONS GLOBALS: UBICACIÓ 2 (PRE-LLISTA) */}
+          {dbInformacions
+            .filter(i => i.actiu !== false && (i.ubicacio === 'pre_llista' || i.ubicacio === 'post_filtres'))
+            .sort((a, b) => (Number(a.ordre) || 1) - (Number(b.ordre) || 1))
+            .map(info => <InformacioCard key={info.id} info={info} />)
+          }
+
           {/* Grid de Mini-Fitxes de Productes (Files de 3 columnes en PC, 2 en Tauleta, 1 en Mòbil) */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
             {filteredProducts.length === 0 ? (
@@ -676,6 +712,13 @@ export default function RegalsCatalogSection({
               </div>
             )}
           </section>
+
+          {/* INFORMACIONS GLOBALS: UBICACIÓ 3 (POST-LLISTA) */}
+          {dbInformacions
+            .filter(i => i.actiu !== false && i.ubicacio === 'post_llista')
+            .sort((a, b) => (Number(a.ordre) || 1) - (Number(b.ordre) || 1))
+            .map(info => <InformacioCard key={info.id} info={info} />)
+          }
         </div>
       )}
 

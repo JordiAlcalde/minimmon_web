@@ -334,3 +334,86 @@ export const INITIAL_COMPRES = [
     ]
   }
 ];
+
+export const INITIAL_ORDRES_FABRICACIO = [
+  {
+    id: 'OF-2026-0001',
+    dataCreacio: '2026-08-20',
+    dataLimitEntrega: '2026-08-30',
+    estat: 'en_curs', // 'cua', 'en_curs', 'acabats', 'finalitzada', 'cancel·lada'
+    prioritat: 'urgent', // 'normal', 'urgent', 'baixa'
+    origen: 'web_pressupost',
+    comandaRef: 'PRESSUPOST-2026-1042',
+    clientNom: 'Marta Vives i Serra',
+    clientContacte: 'marta.vives@example.cat',
+    producteNom: 'Etiqueta Rectangular Fusta',
+    producteCodi: 'XR',
+    quantitat: 50,
+    mida: '20 x 60 mm',
+    codiModelGenerat: 'XR2060AB',
+    tipografia: 'Dancing Script',
+    midaFont: 'Mitjana',
+    forats: ['A', 'B'],
+    textCaraA: 'Festa Major 2026',
+    textCaraB: 'Colla Gegantera',
+    materials: [
+      {
+        materialId: 'mat-1',
+        nom: 'Bedoll Natural 1.5mm',
+        quantitatTeoricaUnitat: 0.0012,
+        quantitatTotal: 0.06,
+        unitat: 'm²',
+        estocReservat: 0.06,
+        estocDescomptat: false
+      }
+    ],
+    operacions: [
+      { id: 'op-1', nom: 'Preparació de fitxers i vectorització', tempsTeoricMinuts: 10, tempsRealMinuts: 10, completada: true },
+      { id: 'op-2', nom: 'Tall i gravat làser Cara A i B', tempsTeoricMinuts: 35, tempsRealMinuts: 30, completada: true },
+      { id: 'op-3', nom: 'Poliment manual i desbarbat', tempsTeoricMinuts: 20, tempsRealMinuts: 0, completada: false },
+      { id: 'op-4', nom: 'Aplicació d\'oli protector i assecat', tempsTeoricMinuts: 15, tempsRealMinuts: 0, completada: false },
+      { id: 'op-5', nom: 'Control de qualitat i embalatge', tempsTeoricMinuts: 10, tempsRealMinuts: 0, completada: false }
+    ],
+    parametresLaser: { potencia: '65%', velocitat: '400 mm/s', passades: '1' },
+    notesTaller: 'Assegurar gravat profund i net a la cara posterior.'
+  },
+  {
+    id: 'OF-2026-0002',
+    dataCreacio: '2026-08-25',
+    dataLimitEntrega: '2026-09-05',
+    estat: 'cua',
+    prioritat: 'normal',
+    origen: 'estoc',
+    comandaRef: '',
+    clientNom: 'Estoc Taller Mínim Món',
+    clientContacte: 'taller@minimmon.cat',
+    producteNom: 'Clauer Inicial de Fusta',
+    producteCodi: 'CLI',
+    quantitat: 25,
+    mida: '50 x 30 mm',
+    codiModelGenerat: 'CLI-A',
+    tipografia: 'Playfair Display',
+    midaFont: 'Gran',
+    forats: [],
+    textCaraA: 'A',
+    textCaraB: 'Mínim Món Artesania',
+    materials: [
+      {
+        materialId: 'mat-1',
+        nom: 'Bedoll Natural 1.5mm',
+        quantitatTeoricaUnitat: 0.0015,
+        quantitatTotal: 0.0375,
+        unitat: 'm²',
+        estocReservat: 0.0375,
+        estocDescomptat: false
+      }
+    ],
+    operacions: [
+      { id: 'op-1', nom: 'Tall i gravat làser clauers', tempsTeoricMinuts: 25, tempsRealMinuts: 0, completada: false },
+      { id: 'op-2', nom: 'Poliment de vores', tempsTeoricMinuts: 15, tempsRealMinuts: 0, completada: false },
+      { id: 'op-3', nom: 'Col·locació d\'anelles metàl·liques', tempsTeoricMinuts: 15, tempsRealMinuts: 0, completada: false }
+    ],
+    parametresLaser: { potencia: '70%', velocitat: '350 mm/s', passades: '1' },
+    notesTaller: 'Llançament per a reposició d\'estoc per a la fira.'
+  }
+];

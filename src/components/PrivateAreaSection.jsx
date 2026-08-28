@@ -61,13 +61,82 @@ import {
   HelpCircle,
   CheckCircle2,
   Shuffle,
-  X
+  X,
+  Leaf,
+  ShieldCheck,
+  Wrench,
+  Heart,
+  Flame,
+  AlertTriangle,
+  Info,
+  ArrowUp,
+  ArrowDown,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
 import { StarRating } from './CommentsSection';
 
 export const DEFAULT_FAMILIES = [];
 export const DEFAULT_GAMMES = [];
+
+export const DEFAULT_INFORMACIONS = [
+  {
+    id: 'info-fusta-natural',
+    titol: 'És important saber que...',
+    contingut: "Tot i que les fustes que utilitzem són de la millor qualitat, s'ha de tenir en compte que es tracta d'un **suport natural** i que es poden apreciar les *vetes i els petits nusos* propis de la fusta. Això pot comportar un canvi de tonalitat en parts de les peces que no podem evitar.",
+    ubicacio: 'post_llista', // 'pre_filtres' | 'pre_llista' | 'post_llista'
+    ordre: 1,
+    icona: 'Sparkles',
+    actiu: true,
+    dataCreacio: '2026-08-28T00:00:00.000Z'
+  }
+];
+
+export const UBICACIONS_INFORMACIO = [
+  { id: 'pre_filtres', name: '1. Pre-filtres', labelCurt: 'Pre-filtres', desc: 'A dalt de tot, abans del selector de Famílies i Gammes' },
+  { id: 'pre_llista', name: '2. Pre-llista', labelCurt: 'Pre-llista', desc: 'Sota dels filtres i abans de la graella de productes' },
+  { id: 'post_llista', name: '3. Post-llista', labelCurt: 'Post-llista', desc: 'Al final de tot, sota de la graella de productes' }
+];
+
+export const AVAILABLE_CATALOG_INFO_ICONS = [
+  { id: 'Sparkles', name: 'Guspira / Fusta noble' },
+  { id: 'Info', name: 'Informació General' },
+  { id: 'AlertTriangle', name: 'Avís / Important' },
+  { id: 'CheckCircle2', name: 'Garantia de Qualitat' },
+  { id: 'Leaf', name: 'Material Natural / Eco' },
+  { id: 'Package', name: 'Enviament / Embalatge' },
+  { id: 'Clock', name: 'Terminis i Temps' },
+  { id: 'Heart', name: 'Fet a Mà / Artesania' },
+  { id: 'ShieldCheck', name: 'Seguretat i Protecció' },
+  { id: 'HelpCircle', name: 'Ajuda / Dubtes' },
+  { id: 'Flame', name: 'Gravat Làser' },
+  { id: 'Wrench', name: 'Taller i Eines' },
+  { id: 'Tag', name: 'Etiquetes i Detalls' },
+  { id: 'Star', name: 'Destacat / Especial' }
+];
+
+export function renderCatalogInformacioIcon(iconName, className = "w-4 h-4 text-amber-700 dark:text-amber-400") {
+  switch (iconName) {
+    case 'Info': return <Info className={className} />;
+    case 'AlertTriangle': return <AlertTriangle className={className} />;
+    case 'CheckCircle2': return <CheckCircle2 className={className} />;
+    case 'Leaf': return <Leaf className={className} />;
+    case 'Package': return <Package className={className} />;
+    case 'Clock': return <Clock className={className} />;
+    case 'Heart': return <Heart className={className} />;
+    case 'ShieldCheck': return <ShieldCheck className={className} />;
+    case 'HelpCircle': return <HelpCircle className={className} />;
+    case 'Flame': return <Flame className={className} />;
+    case 'Wrench': return <Wrench className={className} />;
+    case 'Tag': return <Tag className={className} />;
+    case 'Star': return <Star className={className} />;
+    case 'ShoppingBag': return <ShoppingBag className={className} />;
+    case 'Sparkles':
+    default:
+      return <Sparkles className={className} />;
+  }
+}
 
 export const getEffectiveProductOrder = (product, gammaNom) => {
   if (!product) return 1;
@@ -367,6 +436,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const savedProductScrollY = useRef(0);
   const lastEditedProductId = useRef(null);
 
+  // Informacions Globals del Catàleg state
+  const [dbInformacions, setDbInformacions] = useState([]);
+  const [loadingInformacions, setLoadingInformacions] = useState(true);
+  const [editingInformacio, setEditingInformacio] = useState(null); // null = list mode, {} = edit form
+  const [catalogSubtab, setCatalogSubtab] = useState('cataleg'); // 'cataleg' | 'informacions'
+  const [infoFilterUbicacio, setInfoFilterUbicacio] = useState('tots'); // 'tots' | 'pre_filtres' | 'pre_llista' | 'post_llista'
+  const infoContingutTextAreaRef = useRef(null);
+
   // Efecte per retornar el focus de la llista de productes al lloc exacte / producte editat
   useEffect(() => {
     if (!editingProducte && lastEditedProductId.current) {
@@ -505,6 +582,24 @@ export default function PrivateAreaSection({ setActiveTab }) {
         setLoadingFrases(false);
       }, () => setLoadingFrases(false));
 
+      // 8. Informacions Globals del Catàleg
+      const unsubInfo = onSnapshot(collection(db, "cataleg_informacions"), (snapshot) => {
+        if (!snapshot.empty) {
+          const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          list.sort((a, b) => (Number(a.ordre) || 1) - (Number(b.ordre) || 1));
+          setDbInformacions(list);
+        } else {
+          // Inicialitzar amb la informació de fusta natural per defecte si està buit
+          const defaultInfo = DEFAULT_INFORMACIONS[0];
+          setDoc(doc(db, "cataleg_informacions", defaultInfo.id), defaultInfo).catch(console.warn);
+          setDbInformacions([defaultInfo]);
+        }
+        setLoadingInformacions(false);
+      }, (err) => {
+        console.warn("Error carregant informacions del catàleg:", err);
+        setLoadingInformacions(false);
+      });
+
       return () => {
         unsubPress();
         unsubProd();
@@ -513,6 +608,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         unsubVal();
         unsubCalc();
         unsubFrases();
+        unsubInfo();
       };
     }
   }, [isAuthenticated]);
@@ -1453,6 +1549,98 @@ export default function PrivateAreaSection({ setActiveTab }) {
       } catch (err) {
         alert("Error esborrant gamma: " + err.message);
       }
+    }
+  };
+
+  // Handlers per a Informacions Globals del Catàleg
+  const handleSaveInformacio = async (e) => {
+    e.preventDefault();
+    if (!editingInformacio) return;
+    if (!editingInformacio.contingut?.trim() && !editingInformacio.titol?.trim()) {
+      alert("Si us plau, omple almenys el títol o el contingut de la informació.");
+      return;
+    }
+    const docId = editingInformacio.id || `info-${Date.now()}`;
+    try {
+      await setDoc(doc(db, "cataleg_informacions", docId), {
+        id: docId,
+        titol: editingInformacio.titol || '',
+        contingut: editingInformacio.contingut || '',
+        ubicacio: editingInformacio.ubicacio || 'post_llista',
+        ordre: Number(editingInformacio.ordre || 1),
+        icona: editingInformacio.icona || 'Sparkles',
+        actiu: editingInformacio.actiu !== false,
+        dataModificacio: new Date().toISOString(),
+        dataCreacio: editingInformacio.dataCreacio || new Date().toISOString()
+      }, { merge: true });
+      setEditingInformacio(null);
+    } catch (err) {
+      console.error("Error desant informació:", err);
+      alert("Error desant informació: " + err.message);
+    }
+  };
+
+  const handleDeleteInformacio = async (infoId) => {
+    if (window.confirm("Segur que vols eliminar aquest bloc d'informació?")) {
+      try {
+        await deleteDoc(doc(db, "cataleg_informacions", infoId));
+        if (editingInformacio?.id === infoId) setEditingInformacio(null);
+      } catch (err) {
+        console.error("Error eliminant informació:", err);
+        alert("Error eliminant informació: " + err.message);
+      }
+    }
+  };
+
+  const handleToggleInformacioActiu = async (info) => {
+    try {
+      const nextActiu = info.actiu === false ? true : false;
+      await updateDoc(doc(db, "cataleg_informacions", info.id), { actiu: nextActiu });
+    } catch (err) {
+      console.error("Error canviant estat actiu:", err);
+    }
+  };
+
+  const handleChangeInformacioUbicacio = async (infoId, newUbicacio) => {
+    try {
+      await updateDoc(doc(db, "cataleg_informacions", infoId), { ubicacio: newUbicacio });
+    } catch (err) {
+      console.error("Error canviant ubicació:", err);
+    }
+  };
+
+  const handleMoveInformacioOrder = async (currInfo, targetInfo) => {
+    if (!currInfo || !targetInfo) return;
+    const currOrdre = Number(currInfo.ordre || 1);
+    const targetOrdre = Number(targetInfo.ordre || 1);
+    let newCurrOrdre = targetOrdre;
+    let newTargetOrdre = currOrdre;
+    if (newCurrOrdre === newTargetOrdre) {
+      newCurrOrdre = Math.max(1, targetOrdre - 1);
+    }
+    try {
+      await updateDoc(doc(db, "cataleg_informacions", currInfo.id), { ordre: newCurrOrdre });
+      await updateDoc(doc(db, "cataleg_informacions", targetInfo.id), { ordre: newTargetOrdre });
+    } catch (err) {
+      console.error("Error canviant ordre informació:", err);
+    }
+  };
+
+  const handleDuplicateInformacio = async (info) => {
+    if (!info) return;
+    const newId = `info-${Date.now()}`;
+    const duplicated = {
+      ...info,
+      id: newId,
+      titol: info.titol ? `${info.titol} (Còpia)` : 'Informació (Còpia)',
+      ordre: (Number(info.ordre) || 1) + 1,
+      dataCreacio: new Date().toISOString()
+    };
+    try {
+      await setDoc(doc(db, "cataleg_informacions", newId), duplicated);
+      setEditingInformacio(duplicated);
+    } catch (err) {
+      console.error("Error duplicant informació:", err);
     }
   };
   const handleSaveBranca = async (e) => {
@@ -3002,53 +3190,125 @@ export default function PrivateAreaSection({ setActiveTab }) {
       {/* MODULE: CATÀLEG DE REGALS / PRODUCTES */}
       {activeModule === 'productes' && (
         <div className="space-y-6">
-          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Regals / Productes</h2>
-              <p className="text-xs text-on-surface-variant mt-1">
-                Estructura de taula <code className="font-mono text-primary font-bold">productes</code> amb codis autonumèrics (`PRDT-XXXX`), descripció formatada, opcions i preus privats.
-              </p>
+          <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Regals / Productes</h2>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Estructura de taula <code className="font-mono text-primary font-bold">productes</code> amb codis autonumèrics (`PRDT-XXXX`), descripció formatada, opcions i preus privats.
+                </p>
+              </div>
+
+              {catalogSubtab === 'cataleg' && (
+                <button
+                  onClick={() => {
+                    const initialGammas = adminGamFilter && adminGamFilter !== 'Totes' ? [adminGamFilter] : [];
+                    const initialOrdre = calculateSmartNextProductOrder(initialGammas, dbProductesAdmin);
+                    setEditingProducte({
+                      id: `prdt-${Date.now()}`,
+                      codi: generateNextProductCode(dbProductesAdmin),
+                      nom: '',
+                      descripcio: '',
+                      imatgePrincipal: '',
+                      imatges: [],
+                      familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
+                      gammaIds: initialGammas,
+                      titolPersonalitzacio: '',
+                      requereixPressupost: false,
+                      preuDesDe: false,
+                      isPreuDesDe: false,
+                      opcionsPersonalitzacio: [
+                        { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
+                      ],
+                      cost: 0,
+                      preu: 0,
+                      terminiFabricacio: '3 - 5 dies feiners',
+                      material: 'Fusta de til·ler',
+                      acabat: 'Vernís mat',
+                      ordre: initialOrdre,
+                      preuPerForat: 0,
+                      actiu: true
+                    });
+                  }}
+                  className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nou Producte (Regal)</span>
+                </button>
+              )}
+
+              {catalogSubtab === 'informacions' && (
+                <button
+                  onClick={() => {
+                    setEditingInformacio({
+                      id: `info-${Date.now()}`,
+                      titol: '',
+                      contingut: '',
+                      ubicacio: 'post_llista',
+                      ordre: dbInformacions.length + 1,
+                      icona: 'Sparkles',
+                      actiu: true
+                    });
+                  }}
+                  className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nova Informació</span>
+                </button>
+              )}
             </div>
 
-            <button
-              onClick={() => {
-                const initialGammas = adminGamFilter && adminGamFilter !== 'Totes' ? [adminGamFilter] : [];
-                const initialOrdre = calculateSmartNextProductOrder(initialGammas, dbProductesAdmin);
-                setEditingProducte({
-                  id: `prdt-${Date.now()}`,
-                  codi: generateNextProductCode(dbProductesAdmin),
-                  nom: '',
-                  descripcio: '',
-                  imatgePrincipal: '',
-                  imatges: [],
-                  familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
-                  gammaIds: initialGammas,
-                  titolPersonalitzacio: '',
-                  requereixPressupost: false,
-                  preuDesDe: false,
-                  isPreuDesDe: false,
-                  opcionsPersonalitzacio: [
-                    { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
-                  ],
-                  cost: 0,
-                  preu: 0,
-                  terminiFabricacio: '3 - 5 dies feiners',
-                  material: 'Fusta de til·ler',
-                  acabat: 'Vernís mat',
-                  ordre: initialOrdre,
-                  preuPerForat: 0,
-                  actiu: true
-                });
-              }}
-              className="px-4 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nou Producte (Regal)</span>
-            </button>
+            {/* SUB-PESTANYES D'ACCÉS: CATÀLEG vs INFORMACIONS */}
+            <div className="flex items-center gap-2.5 pt-3 border-t border-outline/10">
+              <button
+                type="button"
+                onClick={() => {
+                  setCatalogSubtab('cataleg');
+                  setEditingInformacio(null);
+                }}
+                className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  catalogSubtab === 'cataleg'
+                    ? 'bg-primary text-on-primary shadow-sm font-bold'
+                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                <span>Catàleg</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  catalogSubtab === 'cataleg' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
+                }`}>
+                  {dbProductesAdmin.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCatalogSubtab('informacions');
+                  setEditingProducte(null);
+                }}
+                className={`px-5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                  catalogSubtab === 'informacions'
+                    ? 'bg-primary text-on-primary shadow-sm font-bold'
+                    : 'bg-surface-container hover:bg-surface-container-high text-on-surface-variant border border-outline/20'
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Informacions</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  catalogSubtab === 'informacions' ? 'bg-black/20 text-white' : 'bg-surface text-primary'
+                }`}>
+                  {dbInformacions.length}
+                </span>
+              </button>
+            </div>
           </div>
 
-          {/* EDITOR FORM DE PRODUCTE */}
-          {editingProducte ? (
+          {/* VISTA 1: CATÀLEG DE PRODUCTES */}
+          {catalogSubtab === 'cataleg' && (
+            <>
+              {/* EDITOR FORM DE PRODUCTE */}
+              {editingProducte ? (
             <form onSubmit={handleSaveProducte} className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/30 shadow-lg space-y-6 max-w-4xl mx-auto">
               <div className="flex justify-between items-center pb-4 border-b border-outline/15">
                 <div>
@@ -4243,6 +4503,414 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       })()}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+          </>
+        )}
+
+          {/* VISTA 2: INFORMACIONS GLOBALS DEL CATÀLEG */}
+          {catalogSubtab === 'informacions' && (
+            <div className="space-y-6">
+              
+              {/* FORMULARI D'EDICIÓ / CREACIÓ D'INFORMACIÓ */}
+              {editingInformacio ? (
+                <form onSubmit={handleSaveInformacio} className="bg-surface-container-lowest p-6 md:p-8 rounded-2xl border border-primary/30 shadow-lg space-y-6 max-w-4xl mx-auto animate-fadeIn">
+                  <div className="flex justify-between items-center pb-4 border-b border-outline/15">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">
+                        {renderCatalogInformacioIcon(editingInformacio.icona || 'Sparkles', "w-5 h-5")}
+                      </div>
+                      <div>
+                        <h3 className="font-serif text-xl text-primary font-semibold">
+                          {dbInformacions.some(i => i.id === editingInformacio.id) ? 'Editar Informació del Catàleg' : 'Nova Informació del Catàleg'}
+                        </h3>
+                        <p className="text-xs text-on-surface-variant">
+                          Text informatiu global per al catàleg de regals
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingInformacio(null)}
+                      className="text-xs text-on-surface-variant hover:text-primary px-3 py-1.5 bg-surface border rounded-lg cursor-pointer"
+                    >
+                      Cancel·lar
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 1. TÍTOL */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                        Títol de la Informació (opcional o encapçalament)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingInformacio.titol || ''}
+                        onChange={(e) => setEditingInformacio({ ...editingInformacio, titol: e.target.value })}
+                        placeholder="Ex: És important saber que..."
+                        className="w-full px-4 py-2.5 rounded-xl bg-surface border border-outline/30 text-sm font-semibold text-primary"
+                      />
+                    </div>
+
+                    {/* 2. CONTINGUT / TEXT INFORMATIU * */}
+                    <div className="space-y-2 md:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                          Contingut / Text Informatiu *
+                        </label>
+                        {/* Botons d'Edició Ràpida (Negreta, Cursiva, Subratllat) */}
+                        <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-lg border border-outline/20">
+                          <button
+                            type="button"
+                            onClick={() => applyFormatToSelection(infoContingutTextAreaRef, editingInformacio.contingut || '', 'bold', (newText) => setEditingInformacio({ ...editingInformacio, contingut: newText }))}
+                            className="px-2.5 py-1 text-xs font-bold bg-surface hover:bg-primary/10 hover:text-primary rounded border border-outline/20 cursor-pointer"
+                            title="Negreta: **text**"
+                          >
+                            B
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyFormatToSelection(infoContingutTextAreaRef, editingInformacio.contingut || '', 'italic', (newText) => setEditingInformacio({ ...editingInformacio, contingut: newText }))}
+                            className="px-2.5 py-1 text-xs italic bg-surface hover:bg-primary/10 hover:text-primary rounded border border-outline/20 cursor-pointer"
+                            title="Cursiva: *text*"
+                          >
+                            I
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyFormatToSelection(infoContingutTextAreaRef, editingInformacio.contingut || '', 'underline', (newText) => setEditingInformacio({ ...editingInformacio, contingut: newText }))}
+                            className="px-2.5 py-1 text-xs underline bg-surface hover:bg-primary/10 hover:text-primary rounded border border-outline/20 cursor-pointer"
+                            title="Subratllat: <u>text</u>"
+                          >
+                            U
+                          </button>
+                        </div>
+                      </div>
+
+                      <textarea
+                        ref={infoContingutTextAreaRef}
+                        required
+                        rows={4}
+                        value={editingInformacio.contingut || ''}
+                        onChange={(e) => setEditingInformacio({ ...editingInformacio, contingut: e.target.value })}
+                        placeholder="Escriu aquí el text informatiu. Pots utilitzar **negreta** i *cursiva*..."
+                        className="w-full px-4 py-3 rounded-xl bg-surface border border-outline/30 text-xs text-primary font-sans leading-relaxed"
+                      />
+                    </div>
+
+                    {/* 3. ICONA IDENTIFICATIVA */}
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                        Icona Identificativa
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                        {AVAILABLE_CATALOG_INFO_ICONS.map(ic => {
+                          const isSel = (editingInformacio.icona || 'Sparkles') === ic.id;
+                          return (
+                            <button
+                              key={ic.id}
+                              type="button"
+                              onClick={() => setEditingInformacio({ ...editingInformacio, icona: ic.id })}
+                              className={`p-2.5 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                isSel
+                                  ? 'bg-primary/20 border-primary text-primary ring-2 ring-primary/30 shadow-xs'
+                                  : 'bg-surface border-outline/20 hover:border-primary/40 text-on-surface-variant'
+                              }`}
+                              title={ic.name}
+                            >
+                              {renderCatalogInformacioIcon(ic.id, `w-5 h-5 ${isSel ? 'text-primary' : 'text-on-surface-variant'}`)}
+                              <span className="text-[10px] font-mono text-center truncate max-w-full">{ic.id}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 4. PREVISUALITZACIÓ EN TEMPS REAL */}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="block text-[11px] uppercase font-mono font-bold text-amber-700 dark:text-amber-400">
+                        Previsualització en temps real (Com es veurà al Catàleg)
+                      </label>
+                      <div className="bg-surface-container-lowest p-4 md:p-5 rounded-2xl border border-primary/20 shadow-xs flex items-start gap-3.5 text-xs text-on-surface-variant">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                          {renderCatalogInformacioIcon(editingInformacio.icona || 'Sparkles', "w-4 h-4 text-amber-700 dark:text-amber-400")}
+                        </div>
+                        <div className="space-y-1 flex-1">
+                          {editingInformacio.titol && (
+                            <p className="font-semibold text-primary text-sm">
+                              {editingInformacio.titol}
+                            </p>
+                          )}
+                          <div className="leading-relaxed text-on-surface-variant">
+                            {renderFormattedText(editingInformacio.contingut || 'Escriu el text a dalt per veure el resultat formatat en temps real...')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 5. UBICACIÓ AL CATÀLEG (3 POSICIONS) */}
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                        Ubicació al Catàleg *
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {UBICACIONS_INFORMACIO.map(u => {
+                          const isSelected = (editingInformacio.ubicacio || 'post_llista') === u.id;
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => setEditingInformacio({ ...editingInformacio, ubicacio: u.id })}
+                              className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-primary/15 border-primary text-primary ring-2 ring-primary/30 shadow-xs'
+                                  : 'bg-surface border-outline/20 hover:border-primary/40 text-on-surface-variant'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-bold text-xs">{u.name}</span>
+                                {isSelected && <Check className="w-4 h-4 text-primary" />}
+                              </div>
+                              <p className="text-[11px] leading-tight text-on-surface-variant">
+                                {u.desc}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 6. ORDRE & ACTIU */}
+                    <div className="space-y-1.5">
+                      <label className="block text-xs uppercase font-semibold text-on-surface-variant">
+                        Ordre de Visualització
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingInformacio.ordre || 1}
+                        onChange={(e) => setEditingInformacio({ ...editingInformacio, ordre: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                        className="w-full px-3 py-2 rounded-xl bg-surface border border-outline/30 text-xs font-mono font-bold text-primary"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-5">
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={editingInformacio.actiu !== false}
+                          onChange={(e) => setEditingInformacio({ ...editingInformacio, actiu: e.target.checked })}
+                          className="w-4 h-4 rounded text-primary border-outline/30 focus:ring-primary"
+                        />
+                        <span className="text-xs font-semibold text-primary">
+                          Informació Activa (visible al web)
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Botons d'Acció */}
+                  <div className="flex justify-end gap-3 pt-4 border-t border-outline/15">
+                    <button
+                      type="button"
+                      onClick={() => setEditingInformacio(null)}
+                      className="px-4 py-2.5 bg-surface hover:bg-surface-container text-on-surface-variant text-xs font-semibold rounded-xl border border-outline/20 cursor-pointer"
+                    >
+                      Cancel·lar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Desar Informació</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* TAULA I LLISTAT D'INFORMACIONS */
+                <div className="bg-surface-container-lowest p-6 rounded-2xl border border-outline/15 space-y-4">
+                  
+                  {/* Barra de Filtres */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-outline/10">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-mono uppercase font-bold text-on-surface-variant">Filtrar per Ubicació:</span>
+                      <div className="flex items-center gap-1.5 bg-surface-container p-1 rounded-xl border border-outline/15">
+                        {['tots', 'pre_filtres', 'pre_llista', 'post_llista'].map(ub => {
+                          const label = ub === 'tots' ? 'Totes' : (UBICACIONS_INFORMACIO.find(u => u.id === ub)?.labelCurt || ub);
+                          const isSel = infoFilterUbicacio === ub;
+                          return (
+                            <button
+                              key={ub}
+                              type="button"
+                              onClick={() => setInfoFilterUbicacio(ub)}
+                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                isSel 
+                                  ? 'bg-primary text-on-primary font-bold shadow-xs' 
+                                  : 'text-on-surface-variant hover:text-primary'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <span className="text-xs font-mono text-on-surface-variant">
+                      Total: <strong className="text-primary">{dbInformacions.length}</strong> informacions ({dbInformacions.filter(i => i.actiu !== false).length} actives)
+                    </span>
+                  </div>
+
+                  {/* Llistat */}
+                  {dbInformacions.length === 0 ? (
+                    <div className="py-12 text-center text-xs font-mono text-on-surface-variant">
+                      <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-30 text-primary" />
+                      No hi ha cap bloc d'informació creat. Fes clic a "+ Nova Informació" per afegir-ne un.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {dbInformacions
+                        .filter(info => {
+                          if (infoFilterUbicacio !== 'tots' && info.ubicacio !== infoFilterUbicacio) return false;
+                          return true;
+                        })
+                        .sort((a, b) => (Number(a.ordre) || 1) - (Number(b.ordre) || 1))
+                        .map((info, idx, arr) => {
+                          const ubicacioObj = UBICACIONS_INFORMACIO.find(u => u.id === info.ubicacio) || UBICACIONS_INFORMACIO[2];
+
+                          return (
+                            <div
+                              key={info.id}
+                              className={`p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                info.actiu !== false 
+                                  ? 'bg-surface border-outline/20 hover:border-primary/40 shadow-xs' 
+                                  : 'bg-surface/50 border-dashed border-outline/20 opacity-60'
+                              }`}
+                            >
+                              {/* Icona + Títol & Text */}
+                              <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                                <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 mt-0.5">
+                                  {renderCatalogInformacioIcon(info.icona || 'Sparkles', "w-4 h-4 text-amber-700 dark:text-amber-400")}
+                                </div>
+
+                                <div className="space-y-1 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {info.titol && (
+                                      <span className="font-bold text-xs text-primary">
+                                        {info.titol}
+                                      </span>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                      info.actiu !== false 
+                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' 
+                                        : 'bg-slate-500/15 text-slate-500 border border-slate-500/30'
+                                    }`}>
+                                      {info.actiu !== false ? '✓ Activa' : 'Inactiva'}
+                                    </span>
+                                  </div>
+
+                                  <div className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed font-sans">
+                                    {renderFormattedText(info.contingut)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Ubicació Selector ràpid + Reordenar + Accions */}
+                              <div className="flex items-center gap-3 shrink-0 flex-wrap justify-between md:justify-end border-t md:border-t-0 pt-2 md:pt-0 border-outline/10">
+                                
+                                {/* Selector ràpid d'Ubicació */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-mono uppercase text-on-surface-variant">Ubicació:</span>
+                                  <select
+                                    value={info.ubicacio || 'post_llista'}
+                                    onChange={(e) => handleChangeInformacioUbicacio(info.id, e.target.value)}
+                                    className="px-2.5 py-1 rounded-lg bg-surface border border-outline/30 text-xs font-semibold text-primary outline-none cursor-pointer"
+                                  >
+                                    {UBICACIONS_INFORMACIO.map(u => (
+                                      <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Controls d'Ordre */}
+                                <div className="flex items-center gap-1 bg-surface-container p-1 rounded-lg border border-outline/20">
+                                  <span className="text-xs font-mono font-bold px-1.5 text-primary">
+                                    #{info.ordre || 1}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => handleMoveInformacioOrder(info, arr[idx - 1])}
+                                    className="p-1 text-on-surface-variant hover:text-primary disabled:opacity-30 cursor-pointer"
+                                    title="Pujar ordre"
+                                  >
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === arr.length - 1}
+                                    onClick={() => handleMoveInformacioOrder(info, arr[idx + 1])}
+                                    className="p-1 text-on-surface-variant hover:text-primary disabled:opacity-30 cursor-pointer"
+                                    title="Baixar ordre"
+                                  >
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Botó Activar / Desactivar */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleInformacioActiu(info)}
+                                  className={`p-2 rounded-lg border transition-colors cursor-pointer ${
+                                    info.actiu !== false
+                                      ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                      : 'bg-surface hover:bg-surface-container text-slate-400 border-outline/20'
+                                  }`}
+                                  title={info.actiu !== false ? 'Desactivar informació' : 'Activar informació'}
+                                >
+                                  {info.actiu !== false ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                                </button>
+
+                                {/* Botó Duplicar */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateInformacio(info)}
+                                  className="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30 transition-colors cursor-pointer"
+                                  title="Duplicar informació"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Botó Editar */}
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingInformacio(info)}
+                                  className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                  <span>Editar</span>
+                                </button>
+
+                                {/* Botó Esborrar */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInformacio(info.id)}
+                                  className="p-2 rounded-lg bg-error-container/20 hover:bg-error-container/40 text-error border border-error/20 transition-colors cursor-pointer"
+                                  title="Esborrar informació"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

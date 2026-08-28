@@ -20,12 +20,13 @@ import CompresManager from './CompresManager';
 import UnitatsManager from './UnitatsManager';
 import UnitatsCompraManager from './UnitatsCompraManager';
 import FabricantsManager from './FabricantsManager';
-import { OrdresFabricacioManager, ControlProduccioManager } from './ProduccioPlaceholders';
+import OrdresFabricacioManager from './OrdresFabricacioManager';
+import { ControlProduccioManager } from './ProduccioPlaceholders';
 
 import { 
   INITIAL_GRUPS, INITIAL_UNITATS, INITIAL_UNITATS_COMPRA, INITIAL_FABRICANTS,
   INITIAL_PROVEIDORS, INITIAL_MATERIALS, INITIAL_MAQUINARIA, INITIAL_OPERACIONS, 
-  INITIAL_ESCANDALLS, INITIAL_COMPRES 
+  INITIAL_ESCANDALLS, INITIAL_COMPRES, INITIAL_ORDRES_FABRICACIO 
 } from '../../data/produccInitialData';
 import { normalizeEntityIds } from '../../utils/produccIdUtils';
 
@@ -59,6 +60,7 @@ export default function ProduccApp({ setActiveTab }) {
   const [operacions, setOperacions] = useState(INITIAL_OPERACIONS);
   const [escandalls, setEscandalls] = useState(INITIAL_ESCANDALLS);
   const [compres, setCompres] = useState(INITIAL_COMPRES);
+  const [ordresFabricacio, setOrdresFabricacio] = useState(INITIAL_ORDRES_FABRICACIO);
 
   // Dades del Catàleg Web per als Escandalls
   const [productes, setProductes] = useState([]);
@@ -68,15 +70,15 @@ export default function ProduccApp({ setActiveTab }) {
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
     grups, unitats, unitatsCompra, fabricants, proveidors,
-    materials, maquinaria, operacions, escandalls, compres
+    materials, maquinaria, operacions, escandalls, compres, ordresFabricacio
   });
 
   useEffect(() => {
     stateRefs.current = {
       grups, unitats, unitatsCompra, fabricants, proveidors,
-      materials, maquinaria, operacions, escandalls, compres
+      materials, maquinaria, operacions, escandalls, compres, ordresFabricacio
     };
-  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres]);
+  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres, ordresFabricacio]);
 
   // Sincronització en temps real amb Firestore per a cadascuna de les col·leccions
   useEffect(() => {
@@ -114,6 +116,7 @@ export default function ProduccApp({ setActiveTab }) {
     const unsubOperacions = syncCollection("producc_operacions", setOperacions, INITIAL_OPERACIONS);
     const unsubEscandalls = syncCollection("producc_escandalls", setEscandalls, INITIAL_ESCANDALLS);
     const unsubCompres = syncCollection("producc_compres", setCompres, INITIAL_COMPRES);
+    const unsubOF = syncCollection("producc_ordres_fabricacio", setOrdresFabricacio, INITIAL_ORDRES_FABRICACIO);
 
     // Carregar catàleg de la botiga (productes, famílies, gammes)
     const unsubProductes = onSnapshot(collection(db, "productes"), (snapshot) => {
@@ -139,6 +142,7 @@ export default function ProduccApp({ setActiveTab }) {
       unsubOperacions();
       unsubEscandalls();
       unsubCompres();
+      unsubOF();
       unsubProductes();
       unsubFamilies();
       unsubGammes();
@@ -188,6 +192,7 @@ export default function ProduccApp({ setActiveTab }) {
   const setOperacionsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_operacions", updater, stateRefs.current.operacions, setOperacions);
   const setEscandallsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_escandalls", updater, stateRefs.current.escandalls, setEscandalls);
   const setCompresWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_compres", updater, stateRefs.current.compres, setCompres);
+  const setOrdresFabricacioWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_ordres_fabricacio", updater, stateRefs.current.ordresFabricacio, setOrdresFabricacio);
 
   // Auto-normalització de possibles IDs antics amb timestamps llargs cap a IDs seqüencials nets
   useEffect(() => {
@@ -269,7 +274,7 @@ export default function ProduccApp({ setActiveTab }) {
 
   return (
     <div className={`min-h-screen transition-colors ${
-      isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      isDark ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       {/* Dedicated Producc Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#FAF7F2] shadow-sm backdrop-blur-md">
@@ -716,6 +721,16 @@ export default function ProduccApp({ setActiveTab }) {
 
         {activeProduccSubtab === 'ordres_fabricacio' && (
           <OrdresFabricacioManager
+            ordresFabricacio={ordresFabricacio}
+            setOrdresFabricacio={setOrdresFabricacioWithFirestore}
+            materials={materials}
+            setMaterials={setMaterialsWithFirestore}
+            escandalls={escandalls}
+            productes={productes}
+            families={families}
+            gammes={gammes}
+            maquinaria={maquinaria}
+            operacions={operacions}
             isDark={isDark}
           />
         )}
