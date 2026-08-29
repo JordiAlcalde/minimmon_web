@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
 import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
@@ -138,6 +138,46 @@ export function renderCatalogInformacioIcon(iconName, className = "w-4 h-4 text-
   }
 }
 
+// Funció de normalització de noms de gamma per tolerar canvis com "Per celebrar" -> "Celebrar", articles, majúscules i accents
+export const normalizeGammaName = (name = '') => {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/^(per\s+|de\s+|els\s+|les\s+|la\s+|el\s+)/i, '')
+    .trim();
+};
+
+// Comprovació resilient de si un producte pertany a una gamma (per nom exacte, nom antic o normalitzat)
+export const isProductInGamma = (productGammas = [], targetGammaName = '', dbGammes = []) => {
+  if (!productGammas || !targetGammaName) return false;
+  if (targetGammaName === 'Tots' || targetGammaName === 'Totes') return true;
+
+  const targetNorm = normalizeGammaName(targetGammaName);
+  const targetLower = String(targetGammaName).toLowerCase().trim();
+
+  return productGammas.some(g => {
+    if (!g) return false;
+    const gLower = String(g).toLowerCase().trim();
+    const gNorm = normalizeGammaName(g);
+
+    if (gLower === targetLower || gNorm === targetNorm) return true;
+    if (gLower.includes(targetLower) || targetLower.includes(gLower)) return true;
+    if (targetNorm && gNorm && (gNorm.includes(targetNorm) || targetNorm.includes(gNorm))) return true;
+
+    // Si coincideix per ID o nom a dbGammes
+    if (Array.isArray(dbGammes)) {
+      const matchedGamObj = dbGammes.find(gam => gam && (gam.id === g || gam.nom === g));
+      if (matchedGamObj) {
+        const objNorm = normalizeGammaName(matchedGamObj.nom);
+        if (objNorm === targetNorm || String(matchedGamObj.nom).toLowerCase().includes(targetLower)) return true;
+      }
+    }
+
+    return false;
+  });
+};
+
 export const getEffectiveProductOrder = (product, gammaNom) => {
   if (!product) return 1;
   // Si hi ha una gamma específica triada (que no sigui 'Totes' / 'Tots')
@@ -145,13 +185,28 @@ export const getEffectiveProductOrder = (product, gammaNom) => {
     if (product.ordrePerGamma && product.ordrePerGamma[gammaNom] !== undefined) {
       return Number(product.ordrePerGamma[gammaNom]);
     }
+    // Coincidència normalitzada
+    if (product.ordrePerGamma && typeof product.ordrePerGamma === 'object') {
+      const targetNorm = normalizeGammaName(gammaNom);
+      const matchedKey = Object.keys(product.ordrePerGamma).find(k => normalizeGammaName(k) === targetNorm);
+      if (matchedKey && product.ordrePerGamma[matchedKey] !== undefined) {
+        return Number(product.ordrePerGamma[matchedKey]);
+      }
+    }
   }
 
   // Si gammaNom és null, 'Totes' o 'Tots':
   // Utilitzem la gamma principal del producte (la primera de gammaIds) com a referència d'ordre per gamma
   const primaryGamma = (Array.isArray(product.gammaIds) && product.gammaIds.length > 0) ? product.gammaIds[0] : null;
-  if (primaryGamma && product.ordrePerGamma && product.ordrePerGamma[primaryGamma] !== undefined) {
-    return Number(product.ordrePerGamma[primaryGamma]);
+  if (primaryGamma && product.ordrePerGamma) {
+    if (product.ordrePerGamma[primaryGamma] !== undefined) {
+      return Number(product.ordrePerGamma[primaryGamma]);
+    }
+    const targetNorm = normalizeGammaName(primaryGamma);
+    const matchedKey = Object.keys(product.ordrePerGamma).find(k => normalizeGammaName(k) === targetNorm);
+    if (matchedKey && product.ordrePerGamma[matchedKey] !== undefined) {
+      return Number(product.ordrePerGamma[matchedKey]);
+    }
   }
 
   return Number(product.ordre || 1);
@@ -244,8 +299,8 @@ export const sortProductsWithGammaOrder = (productsList, activeGamFilter, dbGamm
       const primaryGamB = (Array.isArray(b.gammaIds) && b.gammaIds[0]) || '';
 
       if (primaryGamA !== primaryGamB) {
-        const objGamA = dbGammes.find(g => g && (g.nom || '').toLowerCase() === primaryGamA.toLowerCase());
-        const objGamB = dbGammes.find(g => g && (g.nom || '').toLowerCase() === primaryGamB.toLowerCase());
+        const objGamA = dbGammes.find(g => g && isProductInGamma([primaryGamA], g.nom, dbGammes));
+        const objGamB = dbGammes.find(g => g && isProductInGamma([primaryGamB], g.nom, dbGammes));
 
         const ordGamA = objGamA ? Number(objGamA.ordre || 999) : 999;
         const ordGamB = objGamB ? Number(objGamB.ordre || 999) : 999;
@@ -433,6 +488,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [adminFamFilter, setAdminFamFilter] = useState('Totes');
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const descTextAreaRef = useRef(null);
+  const infoAdicionalTextAreaRef = useRef(null);
   const savedProductScrollY = useRef(0);
   const lastEditedProductId = useRef(null);
 
@@ -1346,6 +1402,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         familaIds: finalFamilaIds,
         gammaIds: selectedGammes,
         titolPersonalitzacio: editingProducte.titolPersonalitzacio || '',
+        infoAdicionalTitol: editingProducte.infoAdicionalTitol || '',
+        infoAdicional: editingProducte.infoAdicional || '',
         requereixPressupost: editingProducte.requereixPressupost === true,
         preuDesDe: isPreuDesDeFinal,
         isPreuDesDe: isPreuDesDeFinal,
@@ -1493,19 +1551,54 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }
   };
 
-  // Save / Delete Família
+  // Save / Delete Família amb actualització en cascada de gammes i productes vinculats
   const handleSaveFamilia = async (e) => {
     e.preventDefault();
     if (!editingFamilia || !editingFamilia.nom) return;
     const docId = editingFamilia.id || `fam-${Date.now()}`;
     const imgResolved = editingFamilia.imatge ? resolveMediaUrl(editingFamilia.imatge) : '';
+    const originalFam = dbFamilies.find(f => f.id === docId);
+    const oldName = originalFam ? originalFam.nom : null;
+    const newName = editingFamilia.nom.trim();
+
     try {
       await setDoc(doc(db, "families", docId), {
-        nom: editingFamilia.nom,
+        nom: newName,
         descripcio: editingFamilia.descripcio || '',
         imatge: imgResolved || editingFamilia.imatge || '',
         ordre: Number(editingFamilia.ordre || 1)
       }, { merge: true });
+
+      // Si s'ha canviat el nom d'una família existent, actualitzar gammes i productes en cascada
+      if (oldName && oldName !== newName) {
+        const batch = writeBatch(db);
+        let count = 0;
+        
+        dbGammes.forEach(g => {
+          if (g.familiaNom === oldName) {
+            batch.update(doc(db, "gammes", g.id), { familiaNom: newName });
+            count++;
+          }
+        });
+
+        dbProductesAdmin.forEach(prod => {
+          let modified = false;
+          let newFamilaIds = prod.familaIds ? [...prod.familaIds] : [];
+          if (newFamilaIds.includes(oldName)) {
+            newFamilaIds = newFamilaIds.map(f => f === oldName ? newName : f);
+            modified = true;
+          }
+          if (modified) {
+            batch.update(doc(db, "productes", prod.id), { familaIds: newFamilaIds });
+            count++;
+          }
+        });
+
+        if (count > 0) {
+          await batch.commit();
+        }
+      }
+
       setEditingFamilia(null);
     } catch (err) {
       alert("Error desant família: " + err.message);
@@ -1522,21 +1615,62 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }
   };
 
-  // Save / Delete Gamma
+  // Save / Delete Gamma amb actualització en cascada de productes vinculats
   const handleSaveGamma = async (e) => {
     e.preventDefault();
     if (!editingGamma || !editingGamma.nom) return;
     const docId = editingGamma.id || `gam-${Date.now()}`;
     const cleanImatges = (editingGamma.imatges || []).filter(img => typeof img === 'string' && img.trim() !== '');
+    const originalGamma = dbGammes.find(g => g.id === docId);
+    const oldName = originalGamma ? originalGamma.nom : null;
+    const newName = editingGamma.nom.trim();
+
     try {
       await setDoc(doc(db, "gammes", docId), {
-        nom: editingGamma.nom,
+        nom: newName,
         familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || ''),
         ordre: Number(editingGamma.ordre || 1),
         textInformatiu: editingGamma.textInformatiu || '',
         imatges: cleanImatges,
         actiu: editingGamma.actiu !== false
       }, { merge: true });
+
+      // Si s'ha canviat el nom d'una gamma existent, actualitzar automàticament tots els productes en cascada
+      if (oldName && oldName !== newName) {
+        const batch = writeBatch(db);
+        let count = 0;
+        dbProductesAdmin.forEach(prod => {
+          let modified = false;
+          let newGammaIds = Array.isArray(prod.gammaIds) ? [...prod.gammaIds] : [];
+          let newOrdrePerGamma = prod.ordrePerGamma ? { ...prod.ordrePerGamma } : {};
+
+          // Reemplaçar nom antic per nou a gammaIds (per nom directe o normalitzat)
+          if (newGammaIds.some(g => g === oldName || normalizeGammaName(g) === normalizeGammaName(oldName))) {
+            newGammaIds = newGammaIds.map(g => (g === oldName || normalizeGammaName(g) === normalizeGammaName(oldName)) ? newName : g);
+            modified = true;
+          }
+
+          // Reemplaçar nom antic per nou a ordrePerGamma
+          if (newOrdrePerGamma[oldName] !== undefined) {
+            newOrdrePerGamma[newName] = newOrdrePerGamma[oldName];
+            delete newOrdrePerGamma[oldName];
+            modified = true;
+          }
+
+          if (modified) {
+            batch.update(doc(db, "productes", prod.id), {
+              gammaIds: newGammaIds,
+              ordrePerGamma: newOrdrePerGamma
+            });
+            count++;
+          }
+        });
+
+        if (count > 0) {
+          await batch.commit();
+        }
+      }
+
       setEditingGamma(null);
     } catch (err) {
       alert("Error desant gamma: " + err.message);
@@ -2422,9 +2556,22 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                     {(selectedPressupost.productes || []).map((item, idx) => (
                       <div key={idx} className="bg-surface p-3.5 rounded-lg border border-outline/15 text-xs space-y-1.5">
-                        <div className="flex justify-between font-semibold text-primary text-sm">
-                          <span>{idx + 1}. {item.nom}</span>
-                          <span className="font-mono">x{item.quantitat}</span>
+                        <div className="flex justify-between font-semibold text-primary text-sm items-start gap-2">
+                          <div>
+                            <span>{idx + 1}. {item.nom}</span>
+                            <div className="mt-0.5">
+                              {item.preuUnitari ? (
+                                <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                  Preu tancat: {Number(item.preuUnitari).toFixed(2).replace('.', ',')} € (Total: {(Number(item.preuUnitari) * (Number(item.quantitat) || 1)).toFixed(2).replace('.', ',')} €)
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                  Sol·licitud de pressupost
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="font-mono text-xs">x{item.quantitat}</span>
                         </div>
 
                         {Object.keys(item.opcionsTriades || {}).length > 0 && (
@@ -3261,6 +3408,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         familaIds: dbFamilies[0]?.nom ? [dbFamilies[0].nom] : [],
                         gammaIds: initialGammas,
                         titolPersonalitzacio: '',
+                        infoAdicionalTitol: '',
+                        infoAdicional: '',
                         requereixPressupost: false,
                         preuDesDe: false,
                         isPreuDesDe: false,
@@ -3375,6 +3524,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <option value="etiqueta_ovalada">🏷️ Etiqueta Ovalada (XV)</option>
                     <option value="etiqueta_medalla">🏷️ Etiqueta Medalla (XM - 1 Forat fix)</option>
                     <option value="inicial">🔤 Simulador de Clauer Inicial</option>
+                    <option value="clauer_celebrar">🎉 Simulador de Clauer Celebrar (Plantilla rodona / 2 cares + logo)</option>
                     <option value="puzle">🧩 Simulador de Puzle</option>
                     <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
                   </select>
@@ -3547,12 +3697,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <label key={gam.id || gam.nom} className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary p-1 bg-surface rounded border border-outline/10">
                       <input
                         type="checkbox"
-                        checked={(editingProducte.gammaIds || []).includes(gam.nom)}
+                        checked={(editingProducte.gammaIds || []).some(g => isProductInGamma([g], gam.nom, dbGammes))}
                         onChange={(e) => {
                           const current = editingProducte.gammaIds || [];
                           const updated = e.target.checked
-                            ? [...current, gam.nom]
-                            : current.filter(g => g !== gam.nom);
+                            ? [...current.filter(g => !isProductInGamma([g], gam.nom, dbGammes)), gam.nom]
+                            : current.filter(g => !isProductInGamma([g], gam.nom, dbGammes));
                           setEditingProducte({ ...editingProducte, gammaIds: updated });
                         }}
                         className="rounded text-primary"
@@ -3779,6 +3929,91 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Informació Addicional Opcional del Producte */}
+              <div className="bg-surface p-4 rounded-lg border border-outline/15 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs uppercase font-semibold text-primary">
+                    Informació Addicional (Opcional)
+                  </label>
+                  {/* Barra de format [ B ] [ I ] [ U ] */}
+                  <div className="flex items-center gap-1 border border-outline/20 rounded p-1 bg-surface-container/40">
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(infoAdicionalTextAreaRef, editingProducte.infoAdicional || '', 'bold', (txt) => setEditingProducte({ ...editingProducte, infoAdicional: txt }))}
+                      className="px-2.5 py-0.5 font-bold text-xs bg-surface hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Negreta (**text**)"
+                    >
+                      B
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(infoAdicionalTextAreaRef, editingProducte.infoAdicional || '', 'italic', (txt) => setEditingProducte({ ...editingProducte, infoAdicional: txt }))}
+                      className="px-2.5 py-0.5 italic text-xs bg-surface hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Cursiva (*text*)"
+                    >
+                      I
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyFormatToSelection(infoAdicionalTextAreaRef, editingProducte.infoAdicional || '', 'underline', (txt) => setEditingProducte({ ...editingProducte, infoAdicional: txt }))}
+                      className="px-2.5 py-0.5 underline text-xs bg-surface hover:bg-primary hover:text-on-primary rounded transition-colors cursor-pointer"
+                      title="Subratllat (<u>text</u>)"
+                    >
+                      U
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">
+                      Títol de la informació addicional (Opcional):
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: INFORMACIÓ IMPORTANT / NOTA / ACLARIMENT..."
+                      value={editingProducte.infoAdicionalTitol || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, infoAdicionalTitol: e.target.value })}
+                      className="w-full px-3 py-1.5 rounded bg-surface-container border text-xs text-primary font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase font-mono text-outline mb-1">
+                      Text explicatiu de la informació addicional (Opcional):
+                    </label>
+                    <textarea
+                      ref={infoAdicionalTextAreaRef}
+                      rows={3}
+                      placeholder="Escriu aquí el text per aclarir algun concepte del producte... Selecciona text i clica B, I o U per formatar-lo."
+                      value={editingProducte.infoAdicional || ''}
+                      onChange={(e) => setEditingProducte({ ...editingProducte, infoAdicional: e.target.value })}
+                      className="w-full px-3 py-2 rounded bg-surface-container border text-xs text-primary font-sans resize-y"
+                    />
+                  </div>
+
+                  <p className="text-[11px] text-on-surface-variant/70 italic">
+                    Aquesta informació s'ubicarà a la fitxa pública del producte just a sobre del preu. Només apareixerà si hi ha contingut al títol, al text o a tots dos.
+                  </p>
+
+                  {Boolean((editingProducte.infoAdicionalTitol || '').trim() || (editingProducte.infoAdicional || '').trim()) && (
+                    <div className="p-3 bg-surface-container/30 rounded-lg border border-outline/15 space-y-1 text-xs">
+                      <span className="text-[10px] uppercase font-mono text-outline font-semibold block">Vista prèvia a la fitxa:</span>
+                      {(editingProducte.infoAdicionalTitol || '').trim() && (
+                        <div className="font-bold text-primary text-xs uppercase tracking-wide">
+                          {editingProducte.infoAdicionalTitol.trim()}
+                        </div>
+                      )}
+                      {(editingProducte.infoAdicional || '').trim() && (
+                        <div className="text-xs text-on-surface-variant leading-relaxed whitespace-pre-line">
+                          {renderFormattedText(editingProducte.infoAdicional.trim())}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Termini de Fabricació, Preus Privats i Ordre */}
@@ -4300,12 +4535,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           dbProductesAdmin.filter(p => {
                             if (adminFamFilter !== 'Totes') {
                               const matchFam = (p.familaIds || []).some(f => f.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
-                                (p.gammaIds || []).some(g => g.toLowerCase().includes(adminFamFilter.toLowerCase())) ||
-                                p.nom.toLowerCase().includes(adminFamFilter.toLowerCase());
+                                isProductInGamma(p.gammaIds, adminFamFilter, dbGammes) ||
+                                (p.nom || '').toLowerCase().includes(adminFamFilter.toLowerCase());
                               if (!matchFam) return false;
                             }
                             if (adminGamFilter !== 'Totes') {
-                              const matchGam = (p.gammaIds || []).some(g => g.toLowerCase().includes(adminGamFilter.toLowerCase()));
+                              const matchGam = isProductInGamma(p.gammaIds, adminGamFilter, dbGammes);
                               if (!matchGam) return false;
                             }
                             return true;
@@ -5201,7 +5436,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           Escriu el nom del fitxer (ex: <code className="font-mono bg-surface px-1 rounded font-bold text-primary">puzle_01.jpg</code>) o una URL completa.
                         </p>
                         <p className="text-[10px] text-outline">
-                          URL Raw per defecte: <code className="font-mono bg-surface px-1 rounded text-primary font-semibold">https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/</code>
+                          URL Raw per defecte: <code className="font-mono bg-surface px-1 rounded text-primary font-semibold">https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/productes/</code>
                         </p>
                       </div>
 
@@ -5228,7 +5463,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   onClick={() => {
                                     const clean = imgUrl.trim().replace(/^\/+/, '');
                                     const updated = [...(editingGamma.imatges || [])];
-                                    updated[idx] = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/${clean}`;
+                                    updated[idx] = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/productes/${clean}`;
                                     setEditingGamma({ ...editingGamma, imatges: updated });
                                   }}
                                   className="px-2 py-1.5 bg-primary text-on-primary text-[11px] rounded font-semibold whitespace-nowrap cursor-pointer hover:bg-primary-container"
@@ -5276,7 +5511,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   onError={(e) => {
                                     const filename = (imgUrl || '').trim().replace(/^.*[\\/]/, '');
                                     if (filename && !e.target.src.includes('raw.githubusercontent.com') && !e.target.src.includes('data:')) {
-                                      e.target.src = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/productes/${filename}`;
+                                      e.target.src = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/productes/${filename}`;
                                     } else {
                                       e.target.onerror = null;
                                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';

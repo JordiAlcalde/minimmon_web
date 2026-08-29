@@ -8,8 +8,8 @@ import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from 
 import DecimalInput from '../common/DecimalInput';
 
 // Base URL estàndard per a les imatges de materials allotjades a GitHub
-const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/';
-const OLD_RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
+const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
+const OLD_RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/';
 
 // Helper per netejar i garantir que la URL té el prefix GitHub complet
 const buildMaterialImageUrl = (inputVal) => {

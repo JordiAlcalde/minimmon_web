@@ -33,6 +33,10 @@ export function BudgetProvider({ children }) {
         (item) => item.producteId === newItem.producteId && JSON.stringify(item.opcionsTriades) === JSON.stringify(newItem.opcionsTriades)
       );
 
+      const parsedPrice = typeof newItem.preuUnitari === 'number' 
+        ? newItem.preuUnitari 
+        : (newItem.preuUnitari ? parseFloat(newItem.preuUnitari) : null);
+
       if (existingIdx > -1) {
         // Actualitzem quantitat i fusionem observacions si n'hi ha
         const updated = [...prevCart];
@@ -40,7 +44,11 @@ export function BudgetProvider({ children }) {
         updated[existingIdx] = {
           ...currentItem,
           quantitat: currentItem.quantitat + (newItem.quantitat || 1),
-          observacions: newItem.observacions ? newItem.observacions : currentItem.observacions
+          observacions: newItem.observacions ? newItem.observacions : currentItem.observacions,
+          preuUnitari: parsedPrice !== null ? parsedPrice : currentItem.preuUnitari,
+          preuBase: newItem.preuBase !== undefined ? newItem.preuBase : currentItem.preuBase,
+          sobrecost: newItem.sobrecost !== undefined ? newItem.sobrecost : currentItem.sobrecost,
+          isBudgetRequired: newItem.isBudgetRequired !== undefined ? newItem.isBudgetRequired : currentItem.isBudgetRequired
         };
         return updated;
       }
@@ -54,6 +62,10 @@ export function BudgetProvider({ children }) {
         quantitat: newItem.quantitat || 1,
         observacions: newItem.observacions || '',
         opcionsTriades: newItem.opcionsTriades || {},
+        preuUnitari: parsedPrice,
+        preuBase: newItem.preuBase || null,
+        sobrecost: newItem.sobrecost || null,
+        isBudgetRequired: Boolean(newItem.isBudgetRequired),
         terminiFabricacio: newItem.terminiFabricacio || ''
       };
 

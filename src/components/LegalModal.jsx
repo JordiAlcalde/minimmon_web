@@ -72,8 +72,7 @@ export default function LegalModal({ title, onClose }) {
           <p>
             <strong>Tipus de cookies utilitzades:</strong><br />
             · <i>Cookies tècniques</i>: Necessàries per al funcionament del lloc.<br />
-            · <i>Cookies analítiques</i>: Ens permeten mesurar i analitzar el trànsit.<br />
-            · <i>Cookies de preferències</i>: Emmagatzemen les teves eleccions (com el consentiment de cookies).
+            · <i>Cookies de preferències</i>: Emmagatzemen les teves eleccions (cistella, idioma, etc.).
           </p>
           <p>
             <strong>Com desactivar les <i>cookies</i>?</strong><br />

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Cloud
+  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -301,6 +301,15 @@ export default function ProduccApp({ setActiveTab }) {
             >
               <ArrowLeft className="w-4 h-4 text-slate-600" />
               <span className="hidden sm:inline">Tornar al Web</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('privat')}
+              className="p-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              title="Tornar a l'Àrea Privada"
+            >
+              <Lock className="w-4 h-4 text-slate-600" />
+              <span className="hidden sm:inline">Àrea Privada</span>
             </button>
           </div>
 

@@ -2,17 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { STITCH_GIFTS } from '../data/stitchData';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers, Leaf, ShieldCheck, Wrench, Heart, Flame, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
-import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions, normalizeGammaName, isProductInGamma } from './PrivateAreaSection';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
 import EtiquetaSimulator from './EtiquetaSimulator';
+import CelebrarSimulator from './CelebrarSimulator';
 import CommentsSection from './CommentsSection';
 
 const MOTIVATIONAL_PILLS = [
@@ -315,7 +316,7 @@ export default function RegalsCatalogSection({
     // Si el producte pertany a gammes i cap d'elles és activa al web, s'oculta temporalment
     if (Array.isArray(p.gammaIds) && p.gammaIds.length > 0 && dbGammes.length > 0) {
       const hasAnyActiveGamma = p.gammaIds.some(gName => 
-        dbGammes.some(g => (g.nom || '').toLowerCase() === gName.toLowerCase())
+        dbGammes.some(g => (g.actiu !== false) && isProductInGamma([gName], g.nom, dbGammes))
       );
       if (!hasAnyActiveGamma) return false;
     }
@@ -341,16 +342,19 @@ export default function RegalsCatalogSection({
     }
     if (selectedFamilia === 'Tots' && selectedGamma === 'Tots') return true;
 
-    const selGamLower = String(selectedGamma || '').toLowerCase();
     const selFamLower = String(selectedFamilia || '').toLowerCase();
 
     if (selectedGamma !== 'Tots') {
-      const matchGam = (p.gammaIds || []).some(g => String(g || '').toLowerCase().includes(selGamLower));
+      const matchGam = isProductInGamma(p.gammaIds, selectedGamma, dbGammes);
       if (matchGam) return true;
     }
     if (selectedFamilia !== 'Tots') {
-      const matchFam = (p.gammaIds || []).some(g => String(g || '').toLowerCase().includes(selFamLower)) ||
-        (p.familaIds || []).some(f => String(f || '').toLowerCase().includes(selFamLower)) ||
+      const matchFam = (p.familaIds || []).some(f => String(f || '').toLowerCase().includes(selFamLower)) ||
+        isProductInGamma(p.gammaIds, selectedFamilia, dbGammes) ||
+        (Array.isArray(p.gammaIds) && p.gammaIds.some(gName => {
+          const matchedGam = dbGammes.find(g => isProductInGamma([gName], g.nom, dbGammes));
+          return matchedGam && String(matchedGam.familiaNom || '').toLowerCase().includes(selFamLower);
+        })) ||
         String(p.nom || '').toLowerCase().includes(selFamLower);
       if (matchFam && selectedGamma === 'Tots') return true;
     }
@@ -1000,7 +1004,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
             }}
             className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
           >
-            <FileText className="w-3.5 h-3.5 text-amber-300" />
+            <img src="/images/icon-pressupost.png" alt="" className="w-3.5 h-3.5 object-contain brightness-0 invert shrink-0" />
             <span>Pressupost</span>
           </button>
         ) : (
@@ -1012,7 +1016,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
             }}
             className="px-3.5 py-1.5 bg-[#3D2B1F] text-white text-xs font-semibold rounded-xl hover:bg-primary-container transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-amber-300" />
+            <img src="/images/icon-cistella.png" alt="" className="w-3.5 h-3.5 object-contain brightness-0 invert shrink-0" />
             <span>Afegir</span>
           </button>
         )}
@@ -1145,13 +1149,17 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
 
   const isInicialKeychain = simType === 'inicial' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('inicial'));
   const isPuzzleProduct = simType === 'puzle' || (simType === 'auto' && String(product.nom || '').toLowerCase().includes('puzle') && /\d+\s*x\s*\d+/i.test(product.nom));
-  const isEtiquetaProduct = simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
+  const isCelebrarProduct = simType === 'clauer_celebrar' || simType === 'celebrar' || (simType === 'auto' && (
+    String(product.nom || '').toLowerCase().includes('celebrar') ||
+    (Array.isArray(product.gammaIds) && isProductInGamma(product.gammaIds, 'Celebrar', dbGammes))
+  ));
+  const isEtiquetaProduct = !isCelebrarProduct && (simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
     String(product.nom || '').toLowerCase().includes('etiquet') ||
     String(product.nom || '').toLowerCase().includes('xap') ||
     String(product.nom || '').toLowerCase().includes('medall') ||
     (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('etiquet') || String(f).toLowerCase().includes('xap') || String(f).toLowerCase().includes('medall'))) ||
     (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('etiquet') || String(g).toLowerCase().includes('xap') || String(g).toLowerCase().includes('medall')))
-  ));
+  )));
 
   // Trobar el primer fitxer adjuntat per l'usuari per passar-ho al simulador de puzle
   const firstUserFile = React.useMemo(() => {
@@ -1527,9 +1535,9 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
             </div>
 
             {/* Text explicatiu / Títol personalitzat */}
-            {(product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")) && (
+            {(product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")) && (
               <p className="text-xs text-on-surface-variant font-mono">
-                {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")}
+                {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")}
               </p>
             )}
 
@@ -1660,8 +1668,8 @@ Pots deixar-ho en blanc si ho prefereixes.`}
         {/* Simulador de Clauer Inicial en Temps Real */}
         {isInicialKeychain && (
           <ProductSimulator
-            initialLetter={selectedOptions[initialKey] || ''}
-            phraseText={selectedOptions[phraseKey] || ''}
+            initialLetter={simInitialLetter}
+            phraseText={simPhraseText}
             selectedOptions={selectedOptions}
             setSelectedOptions={setSelectedOptions}
           />
@@ -1694,6 +1702,33 @@ Pots deixar-ho en blanc si ho prefereixes.`}
             phraseText={simPhraseA}
             phraseTextB={simPhraseB}
           />
+        )}
+
+        {/* Simulador de Clauer Celebrar en Temps Real */}
+        {isCelebrarProduct && (
+          <CelebrarSimulator
+            productNom={product.nom}
+            selectedOptions={selectedOptions}
+            setSelectedOptions={setSelectedOptions}
+            attachedFiles={attachedFiles}
+            setAttachedFiles={setAttachedFiles}
+          />
+        )}
+
+        {/* Informació Addicional Opcional del Producte (Just abans del preu) */}
+        {Boolean((product.infoAdicionalTitol || '').trim() || (product.infoAdicional || '').trim()) && (
+          <div className="space-y-1.5 pt-3 border-t border-outline/10 text-xs">
+            {(product.infoAdicionalTitol || '').trim() && (
+              <div className="text-xs uppercase font-mono tracking-wider font-bold text-primary">
+                {product.infoAdicionalTitol.trim()}
+              </div>
+            )}
+            {(product.infoAdicional || '').trim() && (
+              <div className="text-on-surface-variant leading-relaxed font-sans whitespace-pre-line">
+                {renderFormattedText(product.infoAdicional.trim())}
+              </div>
+            )}
+          </div>
         )}
 
         {/* Preu o Preu Orientatiu */}
@@ -1802,7 +1837,7 @@ Pots deixar-ho en blanc si ho prefereixes.`}
                 </>
               ) : (
                 <>
-                  <ShoppingBag className="w-5 h-5 shrink-0" />
+                  <img src="/images/icon-cistella.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
                   <span>Afegir a la cistella</span>
                 </>
               )}

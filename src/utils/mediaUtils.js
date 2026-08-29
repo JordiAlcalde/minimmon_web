@@ -1,6 +1,6 @@
-export const GITHUB_RAW_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/";
-export const GITHUB_RAW_PRODUCTES_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/imatges/productes/";
-export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/";
+export const GITHUB_RAW_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/";
+export const GITHUB_RAW_PRODUCTES_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/productes/";
+export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/";
 
 export function isVideoExtension(path = '') {
   const lower = path.toLowerCase();
@@ -28,8 +28,16 @@ export function resolveMediaUrl(url) {
 
   // If it's a full URL pointing to GitHub repo, normalize to local path
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/', '');
+      return resolveMediaUrl(rel);
+    }
     if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/')) {
       const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/', '');
+      return resolveMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/', '');
       return resolveMediaUrl(rel);
     }
     if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/')) {
@@ -41,6 +49,7 @@ export function resolveMediaUrl(url) {
   
   let cleanPath = trimmed;
   if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
+  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
   
   const baseUrl = import.meta.env.BASE_URL || './';
   const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;

@@ -191,15 +191,15 @@ export default function Header({
                   </button>
                 )}
 
-                {/* 2. Botó Cistella de Pressupostos */}
+                {/* 2. Botó Cistella */}
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(true)}
                   className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 shadow-xs hover:shadow hover:scale-105"
-                  title="Cistella de Pressupostos"
-                  aria-label="Cistella de Pressupostos"
+                  title="Cistella"
+                  aria-label="Cistella"
                 >
-                  <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
+                  <img src="/images/icon-cistella.png" alt="Cistella" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
                   {totalItems > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
                       {totalItems}
@@ -241,13 +241,14 @@ export default function Header({
                 <Search className="w-4 h-4 shrink-0" />
               </button>
 
-              {/* Mobile Budget Cart Button */}
+              {/* Mobile Cart Button */}
               <button
                 onClick={() => setIsDrawerOpen(true)}
                 className="relative flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary transition-all cursor-pointer border border-primary/20 active:scale-95"
-                title="Obrir Cistella de Pressupostos"
+                title="Cistella"
+                aria-label="Cistella"
               >
-                <img src="/images/icon-pressupost.png" alt="Cistella de Pressupostos" className="w-4 h-4 object-contain dark:brightness-0 dark:invert shrink-0" />
+                <img src="/images/icon-cistella.png" alt="Cistella" className="w-4 h-4 object-contain dark:brightness-0 dark:invert shrink-0" />
                 {totalItems > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-on-primary font-mono text-[9px] flex items-center justify-center font-bold">
                     {totalItems}

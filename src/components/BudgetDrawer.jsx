@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, Send, CheckCircle2, MessageSquare, Sparkles, FileText, Paperclip, Info, ChevronDown } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ShieldCheck, Send, CheckCircle2, FileText, Info, ChevronDown, Check, Sparkles } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
 import { resolveMediaUrl } from '../utils/mediaUtils';
+import { formatCurrency } from '../utils/numberUtils';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { sendTelegramNotification } from '../utils/telegramUtils';
@@ -19,12 +20,25 @@ export default function BudgetDrawer() {
 
   if (!isDrawerOpen) return null;
 
-  const handleSubmitBudget = async (e) => {
+  // Classificació dels articles: Preu Tancat (Compra Directa) vs Sol·licitud de Pressupost
+  const fixedPriceItems = cart.filter(item => !item.isBudgetRequired && typeof item.preuUnitari === 'number' && item.preuUnitari > 0);
+  const budgetItems = cart.filter(item => item.isBudgetRequired || !item.preuUnitari || item.preuUnitari <= 0);
+
+  const totalFixedUnits = fixedPriceItems.reduce((acc, i) => acc + (i.quantitat || 1), 0);
+  const totalBudgetUnits = budgetItems.reduce((acc, i) => acc + (i.quantitat || 1), 0);
+  const totalFixedPrice = fixedPriceItems.reduce((acc, i) => acc + (i.preuUnitari * (i.quantitat || 1)), 0);
+
+  const hasFixed = fixedPriceItems.length > 0;
+  const hasBudget = budgetItems.length > 0;
+  const isMixed = hasFixed && hasBudget;
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (cart.length === 0) return;
 
     setIsSubmitting(true);
-    const refCode = `PRESSUPOST-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const prefix = isMixed ? 'COMANDA-PRESSUPOST' : (hasFixed ? 'COMANDA' : 'PRESSUPOST');
+    const refCode = `${prefix}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     try {
       // 1. Desar a Cloud Firestore
@@ -33,53 +47,74 @@ export default function BudgetDrawer() {
         clientNom: formData.name,
         clientContacte: formData.contact,
         observacionsGenerals: formData.generalNotes,
-        productes: cart.map(item => ({
-          producteId: item.producteId,
-          nom: item.nom,
-          quantitat: item.quantitat,
-          observacions: item.observacions || '',
-          opcionsTriades: item.opcionsTriades || {},
-          terminiFabricacio: item.terminiFabricacio || ''
-        })),
+        tipusSollicitud: isMixed ? 'mixta' : (hasFixed ? 'compra_directa' : 'pressupost'),
+        totalPreuTancat: totalFixedPrice,
+        tePecesPreuTancat: hasFixed,
+        tePecesPressupost: hasBudget,
+        productes: cart.map(item => {
+          const isItemFixed = !item.isBudgetRequired && typeof item.preuUnitari === 'number' && item.preuUnitari > 0;
+          return {
+            producteId: item.producteId,
+            nom: item.nom,
+            quantitat: item.quantitat,
+            preuUnitari: isItemFixed ? item.preuUnitari : null,
+            preuTotal: isItemFixed ? (item.preuUnitari * item.quantitat) : null,
+            isBudgetRequired: !isItemFixed,
+            observacions: item.observacions || '',
+            opcionsTriades: item.opcionsTriades || {},
+            terminiFabricacio: item.terminiFabricacio || ''
+          };
+        }),
         estat: 'pendent',
         data: serverTimestamp()
       });
 
       // 2. Format del missatge detallat per a Telegram
       const itemsSummary = cart.map((item, idx) => {
+        const isItemFixed = !item.isBudgetRequired && typeof item.preuUnitari === 'number' && item.preuUnitari > 0;
+        const priceTag = isItemFixed 
+          ? `[PREU TANCAT: ${item.preuUnitari.toFixed(2)}€ x ${item.quantitat} = ${(item.preuUnitari * item.quantitat).toFixed(2)}€]` 
+          : `[SOL·LICITUD DE PRESSUPOST]`;
+
         const opcionsStr = Object.entries(item.opcionsTriades || {})
-          .map(([k, v]) => `   • ${k}: ${v}`)
+          .map(([k, v]) => `   • ${k}: ${typeof v === 'object' && v?.fileName ? v.fileName : v}`)
           .join('\n');
-        return `<b>${idx + 1}. ${item.nom}</b> (x${item.quantitat})\n${opcionsStr ? opcionsStr + '\n' : ''}${item.observacions ? `   💬 Notes: ${item.observacions}\n` : ''}`;
+
+        return `<b>${idx + 1}. ${item.nom}</b> (x${item.quantitat}) <i>${priceTag}</i>\n${opcionsStr ? opcionsStr + '\n' : ''}${item.observacions ? `   💬 Notes: ${item.observacions}\n` : ''}`;
       }).join('\n');
 
+      let tipusTitol = 'SOL·LICITUD DE PRESSUPOST';
+      if (isMixed) tipusTitol = 'COMANDA I SOL·LICITUD DE PRESSUPOST (MIXTA)';
+      else if (hasFixed) tipusTitol = 'NOVA COMANDA (PREU TANCAT)';
+
       const telegramMsg = `
-📋 <b>NOVA SOL·LICITUD DE PRESSUPOST</b>
+📋 <b>${tipusTitol}</b>
 Ref: <code>${refCode}</code>
 
 👤 <b>Client:</b> ${formData.name}
 📞 <b>Contacte:</b> ${formData.contact}
 
-📦 <b>PECES DE LA CISTELLA (${totalItems}):</b>
+${hasFixed ? `💰 <b>Total Preus Tancats:</b> ${totalFixedPrice.toFixed(2)} € (IVA inclòs)\n` : ''}${hasBudget ? `📋 <b>Peces a Pressupostar:</b> ${totalBudgetUnits} peces\n` : ''}
+📦 <b>DETALL DE LES PECES (${totalItems}):</b>
 ${itemsSummary}
 ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.generalNotes}` : ''}
 `.trim();
 
-      // 3. Enviar notificació per Telegram al mòbil
+      // 3. Enviar notificació per Telegram al taller
       await sendTelegramNotification({
         nom: formData.name,
         email: formData.contact,
         telefon: formData.contact,
-        projecteTitol: `Pressupost ${refCode} (${totalItems} peces)`,
+        projecteTitol: `${tipusTitol} - ${refCode} (${totalItems} peces)`,
         missatge: telegramMsg,
-        tipus: 'Solicitud de Pressupost'
+        tipus: isMixed ? 'Comanda i Pressupost' : (hasFixed ? 'Nova Comanda' : 'Pressupost')
       });
 
       setSubmittedRef(refCode);
       clearCart();
     } catch (err) {
-      console.warn("Nota de Firebase al desar pressupost:", err);
-      // Fallback si no hi ha connexió
+      console.warn("Nota de Firebase al desar sol·licitud:", err);
+      // Fallback si no hi ha connexió directa
       setSubmittedRef(refCode);
       clearCart();
     } finally {
@@ -93,10 +128,10 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn">
+    <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn select-none">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity cursor-pointer"
         onClick={handleClose}
       />
 
@@ -106,13 +141,20 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
           {/* Header */}
           <div className="p-6 bg-surface-container-lowest border-b border-outline/15 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <img src="/images/icon-cistella.png" alt="Cistella" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
               </div>
               <div>
-                <h2 className="font-serif text-xl text-primary font-semibold">Cistella de Pressupostos</h2>
+                <h2 className="font-serif text-xl text-primary font-semibold">La teva Cistella</h2>
                 <p className="text-xs text-on-surface-variant">
-                  {cart.length === 0 ? 'Cap peça afegida' : `${totalItems} ${totalItems === 1 ? 'peça seleccionada' : 'peces seleccionades'}`}
+                  {cart.length === 0 
+                    ? 'Cap peça afegida' 
+                    : isMixed 
+                      ? `${totalItems} peces (${totalFixedUnits} de compra directa + ${totalBudgetUnits} a pressupostar)`
+                      : hasFixed
+                        ? `${totalItems} ${totalItems === 1 ? 'peça de compra directa' : 'peces de compra directa'}`
+                        : `${totalItems} ${totalItems === 1 ? 'peça per a pressupost' : 'peces per a pressupost'}`
+                  }
                 </p>
               </div>
             </div>
@@ -142,9 +184,11 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                 <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-full flex items-center justify-center mx-auto">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
-                <h3 className="font-serif text-2xl text-primary">Sol·licitud Rebuda!</h3>
+                <h3 className="font-serif text-2xl text-primary">
+                  {isMixed ? 'Comanda i Pressupost Rebuts!' : (hasFixed ? 'Comanda Rebuda!' : 'Sol·licitud Rebuda!')}
+                </h3>
                 <p className="text-sm text-on-surface-variant max-w-xs mx-auto">
-                  Moltes gràcies, <strong>{formData.name}</strong>. En <strong className="notranslate" translate="no">Jordi Alcalde</strong> ha rebut la notificació al mòbil i revisarà la teva proposta molt aviat.
+                  Moltes gràcies, <strong>{formData.name}</strong>. En <strong className="notranslate" translate="no">Jordi Alcalde</strong> ha rebut la notificació al taller i revisarà la teva comanda molt aviat.
                 </p>
                 <div className="bg-surface-container p-4 rounded-lg font-mono text-xs text-primary border border-primary/20 max-w-xs mx-auto">
                   Referència: <strong className="text-sm">{submittedRef}</strong>
@@ -160,11 +204,11 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
               /* Empty Cart State */
               <div className="py-16 text-center space-y-4">
                 <div className="w-16 h-16 bg-surface-container rounded-full flex items-center justify-center mx-auto text-outline">
-                  <ShoppingBag className="w-8 h-8" />
+                  <img src="/images/icon-cistella.png" alt="Cistella buida" className="w-8 h-8 object-contain opacity-60 shrink-0" />
                 </div>
                 <h3 className="font-serif text-lg text-primary font-semibold">La teva cistella és buida</h3>
                 <p className="text-xs text-on-surface-variant max-w-xs mx-auto leading-relaxed">
-                  Explora el nostre Catàleg o Mons Mínims i afegeix les peces que vulguis per demanar una proposta personalitzada.
+                  Explora el nostre Catàleg o Mons Mínims i afegeix peces per comprar o demanar una proposta a mida.
                 </p>
                 <button
                   onClick={handleClose}
@@ -176,6 +220,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
             ) : (
               /* Cart Items List */
               <div className="space-y-6">
+                
                 <div className="flex items-center justify-between pb-1 border-b border-outline/10">
                   <span className="text-xs uppercase font-mono font-semibold text-primary tracking-wider">
                     Peces a la cistella ({totalItems}):
@@ -183,7 +228,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm("Vols buidar la cistella i cancel·lar la sol·licitud de pressupost?")) {
+                      if (window.confirm("Vols buidar tota la cistella?")) {
                         clearCart();
                       }
                     }}
@@ -195,89 +240,174 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                   </button>
                 </div>
 
+                {/* Llistat d'articles amb diferenciació clara */}
                 <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div 
-                      key={item.cartItemId} 
-                      className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 space-y-3 shadow-xs"
-                    >
-                      <div className="flex gap-3">
-                        <div className="w-16 h-16 rounded bg-surface-container overflow-hidden shrink-0 border border-outline/10">
-                          {item.imatge ? (
-                            <img src={resolveMediaUrl(item.imatge)} alt={item.nom} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-outline text-xs">Sense img</div>
-                          )}
-                        </div>
+                  {cart.map((item) => {
+                    const isItemFixed = !item.isBudgetRequired && typeof item.preuUnitari === 'number' && item.preuUnitari > 0;
+                    const lineTotal = isItemFixed ? item.preuUnitari * (item.quantitat || 1) : null;
 
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-serif text-base font-semibold text-primary truncate">{item.nom}</h4>
-                          {item.terminiFabricacio && (
-                            <p className="text-[11px] text-on-surface-variant font-mono">Termini: {item.terminiFabricacio}</p>
-                          )}
+                    return (
+                      <div 
+                        key={item.cartItemId} 
+                        className={`bg-surface-container-lowest p-4 rounded-xl border space-y-3 shadow-xs transition-all ${
+                          isItemFixed 
+                            ? 'border-emerald-500/30 dark:border-emerald-500/20' 
+                            : 'border-amber-500/30 dark:border-amber-500/20'
+                        }`}
+                      >
+                        <div className="flex gap-3">
+                          <div className="w-16 h-16 rounded-lg bg-surface-container overflow-hidden shrink-0 border border-outline/10">
+                            {item.imatge ? (
+                              <img src={resolveMediaUrl(item.imatge)} alt={item.nom} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-outline text-xs">Sense img</div>
+                            )}
+                          </div>
 
-                          {/* Opcions Triades */}
-                          {Object.keys(item.opcionsTriades || {}).length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-outline">
-                              {Object.entries(item.opcionsTriades).map(([k, v]) => {
-                                const isFileObj = v && typeof v === 'object' && v.fileName;
-                                return (
-                                  <span key={k} className="bg-surface px-2 py-0.5 rounded border border-outline/10 inline-flex items-center gap-1">
-                                    <span>{k}:</span>
-                                    {isFileObj ? (
-                                      <span className="font-semibold text-primary inline-flex items-center gap-1">
-                                        {v.isImage ? <img src={v.dataUrl} alt="" className="w-3.5 h-3.5 rounded object-cover" /> : <FileText className="w-3 h-3 text-primary" />}
-                                        <span>{v.fileName} ({v.fileSize})</span>
-                                      </span>
-                                    ) : (
-                                      <strong className="text-primary">{String(v)}</strong>
-                                    )}
-                                  </span>
-                                );
-                              })}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-1">
+                              <h4 className="font-serif text-sm sm:text-base font-semibold text-primary truncate">{item.nom}</h4>
+                              <button 
+                                onClick={() => removeFromCart(item.cartItemId)}
+                                className="text-outline hover:text-error transition-colors p-1 cursor-pointer shrink-0"
+                                title="Eliminar de la cistella"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
-                          )}
+
+                            {/* Badge identificador del concepte: Preu tancat vs Pressupost */}
+                            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                              {isItemFixed ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                                  <img src="/images/icon-cistella.png" alt="" className="w-2.5 h-2.5 object-contain brightness-0 invert-0 dark:invert shrink-0" />
+                                  <span>Preu tancat: {formatCurrency(item.preuUnitari)}</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-900 dark:text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30">
+                                  <img src="/images/icon-pressupost.png" alt="" className="w-2.5 h-2.5 object-contain brightness-0 invert-0 dark:invert shrink-0" />
+                                  <span>Sol·licitud de pressupost</span>
+                                </span>
+                              )}
+
+                              {item.terminiFabricacio && (
+                                <span className="text-[10px] text-on-surface-variant font-mono">
+                                  Termini: {item.terminiFabricacio}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Opcions Triades */}
+                            {Object.keys(item.opcionsTriades || {}).length > 0 && (
+                              <div className="mt-1.5 flex flex-wrap gap-1 text-[11px] text-outline">
+                                {Object.entries(item.opcionsTriades).map(([k, v]) => {
+                                  const isFileObj = v && typeof v === 'object' && v.fileName;
+                                  return (
+                                    <span key={k} className="bg-surface px-2 py-0.5 rounded border border-outline/10 inline-flex items-center gap-1">
+                                      <span>{k}:</span>
+                                      {isFileObj ? (
+                                        <span className="font-semibold text-primary inline-flex items-center gap-1">
+                                          {v.isImage ? <img src={v.dataUrl} alt="" className="w-3.5 h-3.5 rounded object-cover" /> : <FileText className="w-3 h-3 text-primary" />}
+                                          <span>{v.fileName} ({v.fileSize})</span>
+                                        </span>
+                                      ) : (
+                                        <strong className="text-primary">{String(v)}</strong>
+                                      )}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <button 
-                          onClick={() => removeFromCart(item.cartItemId)}
-                          className="text-outline hover:text-error transition-colors p-1 self-start cursor-pointer"
-                          title="Eliminar de la cistella"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        {/* Controls de Quantitat, Subtotal i Observacions */}
+                        <div className="pt-2 border-t border-outline/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center border border-outline/20 rounded bg-surface">
+                              <button 
+                                type="button"
+                                onClick={() => updateCartItem(item.cartItemId, { quantitat: Math.max(1, item.quantitat - 1) })}
+                                className="p-1.5 hover:bg-surface-container text-primary transition-colors cursor-pointer"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="px-3 text-xs font-mono font-semibold text-primary">{item.quantitat}</span>
+                              <button 
+                                type="button"
+                                onClick={() => updateCartItem(item.cartItemId, { quantitat: item.quantitat + 1 })}
+                                className="p-1.5 hover:bg-surface-container text-primary transition-colors cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
 
-                      {/* Controls de Quantitat i Observacions */}
-                      <div className="pt-2 border-t border-outline/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                        <div className="flex items-center border border-outline/20 rounded bg-surface">
-                          <button 
-                            type="button"
-                            onClick={() => updateCartItem(item.cartItemId, { quantitat: Math.max(1, item.quantitat - 1) })}
-                            className="p-1.5 hover:bg-surface-container text-primary transition-colors cursor-pointer"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="px-3 text-xs font-mono font-semibold text-primary">{item.quantitat}</span>
-                          <button 
-                            type="button"
-                            onClick={() => updateCartItem(item.cartItemId, { quantitat: item.quantitat + 1 })}
-                            className="p-1.5 hover:bg-surface-container text-primary transition-colors cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
+                            {/* Preu Total de la Línia si és preu tancat */}
+                            {isItemFixed && lineTotal !== null && (
+                              <span className="font-mono text-xs font-bold text-primary">
+                                Total: {formatCurrency(lineTotal)}
+                              </span>
+                            )}
+                          </div>
+
+                          <input 
+                            type="text"
+                            placeholder="Observacions per aquesta peça..."
+                            value={item.observacions || ''}
+                            onChange={(e) => updateCartItem(item.cartItemId, { observacions: e.target.value })}
+                            className="flex-1 bg-surface border border-outline/20 rounded px-3 py-1.5 text-xs text-primary focus:outline-none focus:border-primary font-sans"
+                          />
                         </div>
-
-                        <input 
-                          type="text"
-                          placeholder="Observacions / Comentaris..."
-                          value={item.observacions || ''}
-                          onChange={(e) => updateCartItem(item.cartItemId, { observacions: e.target.value })}
-                          className="flex-1 bg-surface border border-outline/20 rounded px-3 py-1.5 text-xs text-primary focus:outline-none focus:border-primary"
-                        />
                       </div>
+                    );
+                  })}
+                </div>
+
+                {/* Targeta de Resum de la Cistella (Clarament desglossada si és mixta) */}
+                <div className="p-4 rounded-xl bg-surface-container border border-outline/15 space-y-2.5 font-sans shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-mono font-bold text-primary uppercase pb-1.5 border-b border-outline/10">
+                    <span>Resum de la selecció:</span>
+                    <span>{totalItems} peces</span>
+                  </div>
+
+                  {/* Detall Preu Tancat */}
+                  {hasFixed && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-on-surface-variant flex items-center gap-1">
+                        <img src="/images/icon-cistella.png" alt="" className="w-3 h-3 object-contain dark:invert inline" />
+                        <span>Articles amb preu tancat ({totalFixedUnits} u.):</span>
+                      </span>
+                      <span className="font-mono font-bold text-primary text-sm">
+                        {formatCurrency(totalFixedPrice)}
+                      </span>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Detall Pressupost */}
+                  {hasBudget && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-on-surface-variant flex items-center gap-1">
+                        <img src="/images/icon-pressupost.png" alt="" className="w-3 h-3 object-contain dark:invert inline" />
+                        <span>Peces a mida ({totalBudgetUnits} u.):</span>
+                      </span>
+                      <span className="font-mono font-semibold text-amber-700 dark:text-amber-400 italic text-[11px]">
+                        A valorar al pressupost
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Explicació de comanda mixta */}
+                  {isMixed && (
+                    <p className="text-[11px] text-on-surface-variant/90 italic pt-1 border-t border-outline/10 leading-snug">
+                      💡 La teva cistella combina productes amb preu tancat ({formatCurrency(totalFixedPrice)}) i peces personalitzades a mida. En Jordi et contactarà per validar tots els detalls abans de qualsevol pagament.
+                    </p>
+                  )}
+
+                  {hasFixed && !hasBudget && (
+                    <p className="text-[11px] text-on-surface-variant/80 italic pt-1 border-t border-outline/10 leading-snug">
+                      ✓ Preu amb IVA inclòs. Les despeses d'enviament i la forma de lliurament s'acordaran directament.
+                    </p>
+                  )}
                 </div>
 
                 {/* Acordió Desplegable "Recorda..." d'Avisos Informatius */}
@@ -305,10 +435,10 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                 </div>
 
                 {/* Form d'Enviament */}
-                <form onSubmit={handleSubmitBudget} className="bg-surface-container p-5 rounded-xl border border-outline/15 space-y-4 pt-5">
+                <form onSubmit={handleSubmit} className="bg-surface-container p-5 rounded-xl border border-outline/15 space-y-4 pt-5">
                   <h3 className="font-serif text-lg font-semibold text-primary flex items-center gap-2">
                     <Send className="w-4 h-4 text-primary" />
-                    <span>Dades de Contacte</span>
+                    <span>Dades de Contacte per a la Gestió</span>
                   </h3>
 
                   <div>
@@ -321,7 +451,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                       placeholder="Ex: Maria Pons"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2.5 text-sm text-primary focus:outline-none focus:border-primary"
+                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2.5 text-sm text-primary focus:outline-none focus:border-primary font-sans"
                     />
                   </div>
 
@@ -335,7 +465,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                       placeholder="Ex: nom@email.cat o 600 000 000"
                       value={formData.contact}
                       onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2.5 text-sm text-primary focus:outline-none focus:border-primary"
+                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2.5 text-sm text-primary focus:outline-none focus:border-primary font-sans"
                     />
                   </div>
 
@@ -345,10 +475,10 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                     </label>
                     <textarea 
                       rows={2}
-                      placeholder="Explica'ns qualsevol detall sobre la data o l'esdeveniment..."
+                      placeholder="Explica'ns qualsevol detall sobre la data d'entrega o l'esdeveniment..."
                       value={formData.generalNotes}
                       onChange={(e) => setFormData({ ...formData, generalNotes: e.target.value })}
-                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary focus:outline-none focus:border-primary resize-none"
+                      className="w-full bg-surface border border-outline/25 rounded px-3 py-2 text-xs text-primary focus:outline-none focus:border-primary resize-none font-sans"
                     />
                   </div>
 
@@ -358,11 +488,19 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                     className="w-full bg-primary text-on-primary py-3.5 rounded font-body-md text-sm hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {isSubmitting ? (
-                      <span>Enviant sol·licitud...</span>
+                      <span>Tramitant sol·licitud...</span>
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        <span>Sol·licitar Pressupost Sense Compromís</span>
+                        <span>
+                          {isMixed 
+                            ? `Tramitar Comanda (${formatCurrency(totalFixedPrice)} + Pressupost)` 
+                            : (hasFixed 
+                              ? `Confirmar Comanda (${formatCurrency(totalFixedPrice)})` 
+                              : `Sol·licitar Pressupost Sense Compromís`
+                            )
+                          }
+                        </span>
                       </>
                     )}
                   </button>
@@ -370,7 +508,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm("Vols cancel·lar aquesta sol·licitud i buidar la cistella?")) {
+                      if (window.confirm("Vols cancel·lar i buidar la cistella?")) {
                         clearCart();
                         handleClose();
                       }
@@ -378,7 +516,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                     className="w-full py-2.5 bg-error-container/20 hover:bg-error-container/40 text-error text-xs font-semibold rounded transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
-                    <span>Cancel·lar sol·licitud i buidar cistella</span>
+                    <span>Buidar cistella i tancar</span>
                   </button>
                 </form>
               </div>
