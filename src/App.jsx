@@ -8,6 +8,7 @@ import ElTallerSection from './components/ElTallerSection';
 import ContacteSection from './components/ContacteSection';
 import PrivateAreaSection from './components/PrivateAreaSection';
 import ProduccApp from './components/producc/ProduccApp';
+import ProjeccApp from './components/projecc/ProjeccApp';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
@@ -83,8 +84,14 @@ export default function App() {
       const productId = urlParams.get('producte') || (hash.startsWith('#producte-') ? hash.replace('#producte-', '') : null);
       const seccioParam = urlParams.get('seccio') || (hash.startsWith('#seccio-') ? hash.replace('#seccio-', '') : null);
       const isProduccDirect = urlParams.get('producc') !== null || seccioParam === 'producc' || hash === '#producc';
+      const isProjeccDirect = urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc';
 
-      if (isProduccDirect) {
+      if (isProjeccDirect) {
+        setActiveTab('projecc');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (isProduccDirect) {
         setActiveTab('producc');
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -140,6 +147,8 @@ export default function App() {
       document.title = 'Mínim Món | PRIVAT';
     } else if (activeTab === 'producc') {
       document.title = 'Mínim Món | PRODUCC';
+    } else if (activeTab === 'projecc') {
+      document.title = 'Mínim Món | PROJECC';
     } else {
       document.title = 'Mínim Món | Essències en Miniatura';
     }
@@ -165,8 +174,8 @@ export default function App() {
         {/* Texture overlay */}
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-        {/* Header (Amagat quan s'està a l'aplicació Producc) */}
-        {activeTab !== 'producc' && (
+        {/* Header (Amagat quan s'està a l'aplicació Producc o Projecc) */}
+        {activeTab !== 'producc' && activeTab !== 'projecc' && (
           <Header 
             activeTab={activeTab} 
             setActiveTab={handleSelectTab} 
@@ -217,10 +226,14 @@ export default function App() {
         {activeTab === 'producc' && (
           <ProduccApp setActiveTab={setActiveTab} />
         )}
+
+        {activeTab === 'projecc' && (
+          <ProjeccApp setActiveTab={setActiveTab} />
+        )}
       </main>
 
-      {/* Footer (Amagat quan s'està a l'aplicació Producc) */}
-      {activeTab !== 'producc' && (
+      {/* Footer (Amagat quan s'està a l'aplicació Producc o Projecc) */}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && (
         <Footer 
           setActiveTab={setActiveTab} 
           onOpenLegal={(title) => setLegalTitle(title)} 
@@ -240,7 +253,7 @@ export default function App() {
       />
 
       {/* Floating WhatsApp Button */}
-      {activeTab !== 'producc' && <FloatingWhatsApp />}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
       <BudgetDrawer />

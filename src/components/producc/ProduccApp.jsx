@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock
+  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -593,6 +593,15 @@ export default function ProduccApp({ setActiveTab }) {
               {/* Barra: PRODUCCIÓ */}
               {activeGroup === 'produccio' && (
                 <>
+                  <button
+                    onClick={() => setActiveTab && setActiveTab('projecc')}
+                    className="px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-2 transition-all shrink-0 cursor-pointer bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-sm"
+                    title="Obrir la mini-aplicació Projecc de control de desenvolupament i cronometratge"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>Projecc (Desenvolupament)</span>
+                  </button>
+
                   <button
                     onClick={() => setActiveProduccSubtab('ordres_fabricacio')}
                     className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
