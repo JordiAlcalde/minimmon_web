@@ -3517,6 +3517,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
                   >
                     <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
+                    <option value="marc">🖼️ Simulador de Marcs de Fotos (Carrusel 17 gravats)</option>
                     <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
                     <option value="etiqueta_rectangular">🏷️ Etiqueta Rectangular (XR)</option>
                     <option value="etiqueta_arrodonida">🏷️ Etiqueta Arrodonida (XD)</option>

@@ -14,6 +14,7 @@ import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
 import EtiquetaSimulator from './EtiquetaSimulator';
 import CelebrarSimulator from './CelebrarSimulator';
+import MarcSimulator from './MarcSimulator';
 import CommentsSection from './CommentsSection';
 
 const MOTIVATIONAL_PILLS = [
@@ -1153,7 +1154,13 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
     String(product.nom || '').toLowerCase().includes('celebrar') ||
     (Array.isArray(product.gammaIds) && isProductInGamma(product.gammaIds, 'Celebrar', dbGammes))
   ));
-  const isEtiquetaProduct = !isCelebrarProduct && (simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
+  const isMarcProduct = simType === 'marc' || simType === 'marcs' || (simType === 'auto' && (
+    String(product.nom || '').toLowerCase().includes('marc') ||
+    String(product.nom || '').toLowerCase().includes('tradicional') ||
+    (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('fotograf') || String(f).toLowerCase().includes('marc'))) ||
+    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('marc') || String(g).toLowerCase().includes('tradicional')))
+  ));
+  const isEtiquetaProduct = !isCelebrarProduct && !isMarcProduct && (simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
     String(product.nom || '').toLowerCase().includes('etiquet') ||
     String(product.nom || '').toLowerCase().includes('xap') ||
     String(product.nom || '').toLowerCase().includes('medall') ||
@@ -1535,9 +1542,9 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
             </div>
 
             {/* Text explicatiu / Títol personalitzat */}
-            {(product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")) && (
+            {(product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct || isMarcProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")) && (
               <p className="text-xs text-on-surface-variant font-mono">
-                {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")}
+                {product.titolPersonalitzacio || ((isInicialKeychain || isPuzzleProduct || isCelebrarProduct || isMarcProduct) ? "Mira el simulador en temps real per veure el resultat:" : "")}
               </p>
             )}
 
@@ -1548,6 +1555,12 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
                 const opcType = (opc.tipus || '').toLowerCase();
                 const valorsStr = typeof opc.valors === 'string' ? opc.valors : '';
                 const lowerKey = key.toLowerCase();
+
+                // Si és un producte de marcs i l'opció fa referència al gravat, es gestiona directament des del carrusel visual del simulador
+                if (isMarcProduct && (lowerKey.includes('gravat') || lowerKey.includes('dibuix') || lowerKey.includes('model'))) {
+                  return null;
+                }
+
                 const isInitialField = isInicialKeychain && (lowerKey.includes('inicial') || lowerKey.includes('lletra') || (lowerKey.includes('cara a') && !lowerKey.includes('text')));
                 const isPhraseField = (isInicialKeychain && (lowerKey.includes('frase') || lowerKey.includes('cara b'))) || lowerKey.includes('dedicatòria') || opcType === 'textarea';
 
@@ -1707,6 +1720,17 @@ Pots deixar-ho en blanc si ho prefereixes.`}
         {/* Simulador de Clauer Celebrar en Temps Real */}
         {isCelebrarProduct && (
           <CelebrarSimulator
+            productNom={product.nom}
+            selectedOptions={selectedOptions}
+            setSelectedOptions={setSelectedOptions}
+            attachedFiles={attachedFiles}
+            setAttachedFiles={setAttachedFiles}
+          />
+        )}
+
+        {/* Simulador de Marcs de Fotos en Temps Real */}
+        {isMarcProduct && (
+          <MarcSimulator
             productNom={product.nom}
             selectedOptions={selectedOptions}
             setSelectedOptions={setSelectedOptions}
