@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Sun, Moon, Sparkles, FolderKanban, 
-  Layers, Plus, Clock, Database, Cloud, RefreshCw, ListChecks
+  Layers, Plus, Clock, Database, Cloud, RefreshCw, ListChecks,
+  Globe, Boxes
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { 
@@ -317,19 +318,6 @@ export default function ProjeccApp({ setActiveTab }) {
         isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white/90 border-slate-200 shadow-sm'
       }`}>
         <div className="flex items-center gap-3">
-          {setActiveTab && (
-            <button
-              onClick={() => setActiveTab('inici')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-              title="Tornar al Web Principal de Mínim Món"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Web Mínim Món</span>
-            </button>
-          )}
-
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-600/20">
               <Clock className="w-4 h-4" />
@@ -352,17 +340,33 @@ export default function ProjeccApp({ setActiveTab }) {
 
         {/* Accions de la capçalera */}
         <div className="flex items-center gap-2">
-          {/* Botó Catàleg Mestre de Tasques */}
-          <button
-            onClick={() => setIsMestreModalOpen(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-              isDark ? 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-slate-700' : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
-            }`}
-            title="Catàleg mestre de tasques reutilitzables"
-          >
-            <ListChecks className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Catàleg Mestre</span>
-          </button>
+          {/* Botó Web */}
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('inici')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+              }`}
+              title="Tornar al Web Principal de Mínim Món"
+            >
+              <Globe className="w-3.5 h-3.5 text-amber-500" />
+              <span>Web</span>
+            </button>
+          )}
+
+          {/* Botó Producc */}
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('producc')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                isDark ? 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-400 border-amber-800/60' : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+              }`}
+              title="Anar a l'aplicació Producc"
+            >
+              <Boxes className="w-3.5 h-3.5 text-amber-500" />
+              <span>Producc</span>
+            </button>
+          )}
 
           {/* Indicador de sincronització Cloud */}
           <div className={`p-2 rounded-xl flex items-center gap-1 text-[11px] ${

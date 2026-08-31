@@ -43,8 +43,7 @@ export default function ContacteSection() {
   return (
     <div className="pt-28 pb-24 animate-fadeIn">
       <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest block mb-2 font-semibold">Estem en contacte</span>
+        <div className="text-center max-w-3xl mx-auto mb-16 pt-6">
           <h1 className="font-headline-xl text-headline-xl text-primary mb-6 font-serif text-4xl md:text-5xl">
             Comencem a xerrar
           </h1>
@@ -55,7 +54,7 @@ export default function ContacteSection() {
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-start">
           {/* Form */}
-          <div className="md:col-span-7 bg-surface-container-lowest p-8 md:p-12 rounded-lg border border-outline/15 shadow-sm">
+          <div className="md:col-span-7 bg-surface-container p-6 md:p-8 rounded-2xl border border-outline/10 shadow-xs">
             <h2 className="font-serif text-2xl text-primary mb-6">Formulari de Consulta</h2>
 
             {!submitted ? (
@@ -69,7 +68,7 @@ export default function ContacteSection() {
                     id="contact-name"
                     type="text"
                     placeholder="Ex: Maria Pons"
-                    className="w-full bg-surface border border-outline/25 rounded px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
+                    className="w-full bg-surface-container-lowest border border-outline/25 rounded-xl px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
@@ -85,7 +84,7 @@ export default function ContacteSection() {
                       id="contact-email"
                       type="email"
                       placeholder="nom@exemple.cat"
-                      className="w-full bg-surface border border-outline/25 rounded px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
+                      className="w-full bg-surface-container-lowest border border-outline/25 rounded-xl px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     />
@@ -98,7 +97,7 @@ export default function ContacteSection() {
                       id="contact-phone"
                       type="tel"
                       placeholder="600 000 000"
-                      className="w-full bg-surface border border-outline/25 rounded px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
+                      className="w-full bg-surface-container-lowest border border-outline/25 rounded-xl px-4 py-3 text-primary outline-none focus:border-primary transition-colors"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     />
@@ -114,7 +113,7 @@ export default function ContacteSection() {
                     id="contact-message"
                     rows={5}
                     placeholder="Explica'm quin espai, idea o regal en fusta t'agradaria crear..."
-                    className="w-full bg-surface border border-outline/25 rounded px-4 py-3 text-primary outline-none focus:border-primary transition-colors resize-none"
+                    className="w-full bg-surface-container-lowest border border-outline/25 rounded-xl px-4 py-3 text-primary outline-none focus:border-primary transition-colors resize-none"
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                   />
@@ -146,7 +145,7 @@ export default function ContacteSection() {
           </div>
 
           {/* Contact Info Card */}
-          <div className="md:col-span-5 bg-surface-container p-8 md:p-10 rounded-lg space-y-8 border border-outline/10">
+          <div className="md:col-span-5 bg-surface-container p-6 md:p-8 rounded-2xl space-y-8 border border-outline/10 shadow-xs">
             <div>
               <span className="font-label-sm text-label-sm text-primary uppercase tracking-widest font-semibold block mb-1">Creador &amp; Taller</span>
               <h2 className="font-serif text-3xl text-primary notranslate" translate="no">{STITCH_CRAFTSMAN.name}</h2>

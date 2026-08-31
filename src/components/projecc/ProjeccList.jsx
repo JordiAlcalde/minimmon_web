@@ -18,21 +18,6 @@ export function ProjeccList({
   const [typeFilter, setTypeFilter] = useState('tots'); // 'tots' | 'projecte' | 'producte'
   const [statusFilter, setStatusFilter] = useState('tots'); // 'tots' | 'en_curs' | 'tancat'
 
-  // Càlcul de totals globals
-  let globalSeconds = 0;
-  let globalSessions = 0;
-  let activeCount = 0;
-
-  items.forEach(item => {
-    if (item.estat !== 'tancat') activeCount += 1;
-    (item.tasques || []).forEach(t => {
-      (t.sessions || []).forEach(s => {
-        globalSeconds += Number(s.duradaSegons) || 0;
-        globalSessions += 1;
-      });
-    });
-  });
-
   // Filtrar llista
   const filteredItems = items.filter(item => {
     // Filtre de tipus
@@ -58,47 +43,6 @@ export function ProjeccList({
   return (
     <div className="space-y-6">
       
-      {/* Targetes de Resum Global */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className={`p-4 rounded-2xl border space-y-1 ${
-          isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <Layers className="w-4 h-4 text-amber-500" />
-            <span>Gestions Actives</span>
-          </div>
-          <div className="font-mono text-2xl font-bold text-slate-100">
-            {activeCount} <span className="text-xs font-normal text-slate-400">/ {items.length} total</span>
-          </div>
-        </div>
-
-        <div className={`p-4 rounded-2xl border space-y-1 ${
-          isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <Clock className="w-4 h-4 text-emerald-500" />
-            <span>Temps Global Taller</span>
-          </div>
-          <div className="font-mono text-xl sm:text-2xl font-bold text-amber-400">
-            {formatSecondsToHMS(globalSeconds)}
-          </div>
-          <p className="text-[10px] text-slate-400">{formatSecondsHuman(globalSeconds)}</p>
-        </div>
-
-        <div className={`col-span-2 sm:col-span-1 p-4 rounded-2xl border space-y-1 ${
-          isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
-        }`}>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <CheckCircle className="w-4 h-4 text-blue-500" />
-            <span>Sessions de Treball</span>
-          </div>
-          <div className="font-mono text-2xl font-bold text-blue-400">
-            {globalSessions}
-          </div>
-          <p className="text-[10px] text-slate-400">enregistrades a taller</p>
-        </div>
-      </div>
-
       {/* Botonera de Creació Ràpida (Projecte o Producte) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <button
@@ -145,7 +89,7 @@ export function ProjeccList({
                 <ListChecks className="w-5 h-5" />
               </div>
               <div>
-                <div className="text-sm">Catàleg Mestre Tasques</div>
+                <div className="text-sm">Mestre de Tasques</div>
                 <div className="text-[11px] font-normal text-slate-400">Editar tasques comunes</div>
               </div>
             </div>

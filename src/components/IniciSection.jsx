@@ -187,23 +187,24 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
   return (
     <div className="animate-fadeIn">
       {/* Hero Section */}
-      <section className="relative w-full min-h-[80vh] flex items-center justify-center overflow-hidden">
+      <section className="relative w-full min-h-[85vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
             src={resolveMediaUrl('images/hero.jpg')} 
             alt="Mínim Món artesania en fusta" 
             className="w-full h-full object-cover opacity-60 object-center scale-105 transition-transform duration-1000" 
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-surface via-black/40 to-black/60"></div>
+          <div className="absolute inset-0 bg-black/30"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-surface via-black/40 to-black/75"></div>
         </div>
 
-        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 pt-28 pb-16 md:py-16">
-          <h1 className="font-headline-xl text-headline-xl md:text-[60px] md:leading-[68px] text-white font-serif font-semibold drop-shadow-[0_4px_12px_rgba(0,0,0,0.85)]">
+        <div className="relative z-10 text-center px-margin-mobile md:px-margin-desktop max-w-4xl mx-auto flex flex-col items-center gap-6 pt-36 pb-20 md:pt-48 md:pb-28">
+          <h1 className="font-headline-xl text-headline-xl md:text-[60px] md:leading-[68px] text-white font-serif font-semibold drop-shadow-[0_4px_14px_rgba(0,0,0,0.9)]">
             L'essència del que som,<br />
             <span className="inline-block">en miniatura.</span>
           </h1>
 
-          <p className="font-body-lg text-body-lg text-amber-50/90 max-w-2xl mt-1 font-medium leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+          <p className="font-body-lg text-body-lg md:text-xl text-white max-w-2xl mt-1 font-medium leading-relaxed drop-shadow-[0_3px_10px_rgba(0,0,0,0.95)] [text-shadow:_0_2px_12px_rgb(0_0_0_/_90%)]">
             {STITCH_CRAFTSMAN.subtitle}
           </p>
 
