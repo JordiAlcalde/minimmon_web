@@ -520,16 +520,7 @@ export default function RegalsCatalogSection({
                     Tot el<br />Catàleg
                   </button>
 
-                  {/* 2. Miniatura de la Família Seleccionada */}
-                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-outline/20 shadow-xs shrink-0 bg-surface-container relative">
-                    <img
-                      src={activeFamilyImage}
-                      alt={selectedFamilia}
-                      className="w-full h-full object-cover transition-all duration-300"
-                    />
-                  </div>
-
-                  {/* 3. Filera de Botons de Famílies i Sub-Gammes */}
+                  {/* 2. Filera de Botons de Famílies i Sub-Gammes */}
                   <div className="flex-1 space-y-3">
                     {/* Fila 1: Botons de Famílies (Colors Primaris) */}
                     <div className="flex flex-wrap items-center gap-2">

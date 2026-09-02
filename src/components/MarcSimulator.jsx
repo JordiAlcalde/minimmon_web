@@ -24,24 +24,51 @@ export const MARC_MODELS = [
   { id: 'teulada', nom: 'Teulada', fitxer: 'marc_teulada.png', imatge: 'imatges/productes/marc_teulada.png' }
 ];
 
-// Banc de fotografies reals d'exemple
-export const SAMPLE_PHOTOS = [
-  'imatges/Mirada_01.jpg',
-  'imatges/Mirada_02.jpg',
-  'imatges/Mirada_03.jpg',
-  'imatges/Estètica Marta_01.jpg',
-  'imatges/Estètica Marta_02.jpg',
-  'imatges/Estètica Marta_07.jpg',
-  'imatges/Orquestra_01.jpg',
-  'imatges/Orquestra_02.jpg',
-  'imatges/escacs_01.jpg',
-  'imatges/escacs_02.jpg',
-  'imatges/herboristeria_01.jpg',
-  'imatges/herboristeria_02.jpg',
-  'images/workshop.jpg',
-  'images/world_library.jpg',
-  'images/world_lighthouse.jpg'
+// Banc de fotografies reals d'exemple per a marcs verticals (10 models)
+export const SAMPLE_PHOTOS_V = [
+  'imatges/productes/marc_exemple_v_01.png',
+  'imatges/productes/marc_exemple_v_02.png',
+  'imatges/productes/marc_exemple_v_03.png',
+  'imatges/productes/marc_exemple_v_04.png',
+  'imatges/productes/marc_exemple_v_05.png',
+  'imatges/productes/marc_exemple_v_06.png',
+  'imatges/productes/marc_exemple_v_07.png',
+  'imatges/productes/marc_exemple_v_08.png',
+  'imatges/productes/marc_exemple_v_09.png',
+  'imatges/productes/marc_exemple_v_10.png'
 ];
+
+// Banc de fotografies reals d'exemple per a marcs horitzontals (10 models)
+export const SAMPLE_PHOTOS_H = [
+  'imatges/productes/marc_exemple_h_01.png',
+  'imatges/productes/marc_exemple_h_02.png',
+  'imatges/productes/marc_exemple_h_03.png',
+  'imatges/productes/marc_exemple_h_04.png',
+  'imatges/productes/marc_exemple_h_05.png',
+  'imatges/productes/marc_exemple_h_06.png',
+  'imatges/productes/marc_exemple_h_07.png',
+  'imatges/productes/marc_exemple_h_08.png',
+  'imatges/productes/marc_exemple_h_09.png',
+  'imatges/productes/marc_exemple_h_10.png'
+];
+
+// Funció per generar una baralla aleatòria de totes les fotos sense repeticions
+// Garanteix que la primera imatge d'un nou cicle mai no coincideixi amb l'última del cicle anterior
+function generateShuffledDeck(length, lastElement = null) {
+  const deck = Array.from({ length }, (_, i) => i);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  // Si la primera del nou cicle coincideix amb l'última de l'anterior, la canviem amb una altra
+  if (lastElement !== null && deck.length > 1 && deck[0] === lastElement) {
+    const swapIdx = 1 + Math.floor(Math.random() * (deck.length - 1));
+    [deck[0], deck[swapIdx]] = [deck[swapIdx], deck[0]];
+  }
+  return deck;
+}
+
+export const SAMPLE_PHOTOS = SAMPLE_PHOTOS_V;
 
 export default function MarcSimulator({
   productNom = '',
@@ -72,10 +99,24 @@ export default function MarcSimulator({
 
   // Orientació: 'Vertical' o 'Horitzontal'
   const [orientation, setOrientation] = useState(() => selectedOptions['Orientació'] || 'Vertical');
+  const isHorizontal = orientation === 'Horitzontal';
 
-  // Foto d'exemple aleatòria
-  const [photoIndex, setPhotoIndex] = useState(() => Math.floor(Math.random() * SAMPLE_PHOTOS.length));
-  
+  // Llista de fotos de mostra segons l'orientació activa
+  const samplePhotosList = isHorizontal ? SAMPLE_PHOTOS_H : SAMPLE_PHOTOS_V;
+
+  // Estat independent de cues de fotografies per a Vertical i Horitzontal
+  // Cada orientació té la seva baralla barrejada (deck) i el punter de posició (pointer)
+  const [photoDecks, setPhotoDecks] = useState(() => ({
+    Vertical: {
+      deck: generateShuffledDeck(SAMPLE_PHOTOS_V.length),
+      pointer: 0
+    },
+    Horitzontal: {
+      deck: generateShuffledDeck(SAMPLE_PHOTOS_H.length),
+      pointer: 0
+    }
+  }));
+
   // Foto personalitzada que l'usuari pot pujar per provar
   const [userCustomPhoto, setUserCustomPhoto] = useState(null);
 
@@ -98,7 +139,37 @@ export default function MarcSimulator({
     }
   }, [optionKey, orientation]);
 
-  // Canviar model de marc i triar una foto aleatòria nova
+  // Avançar a la següent foto del cicle garantint 0 repeticions dins del mateix cicle
+  // i evitant que la primera del cicle nou sigui igual a l'última del cicle anterior
+  const advancePhoto = (targetOrient = orientation) => {
+    setUserCustomPhoto(null);
+    setPhotoDecks(prev => {
+      const current = prev[targetOrient] || {
+        deck: generateShuffledDeck(targetOrient === 'Horitzontal' ? SAMPLE_PHOTOS_H.length : SAMPLE_PHOTOS_V.length),
+        pointer: 0
+      };
+      const photosCount = targetOrient === 'Horitzontal' ? SAMPLE_PHOTOS_H.length : SAMPLE_PHOTOS_V.length;
+      let nextDeck = current.deck;
+      let nextPointer = current.pointer + 1;
+
+      if (nextPointer >= current.deck.length) {
+        // Nou cicle: generem una nova baralla aleatòria on la primera no sigui l'última de l'anterior
+        const lastPhotoIdx = current.deck[current.deck.length - 1];
+        nextDeck = generateShuffledDeck(photosCount, lastPhotoIdx);
+        nextPointer = 0;
+      }
+
+      return {
+        ...prev,
+        [targetOrient]: {
+          deck: nextDeck,
+          pointer: nextPointer
+        }
+      };
+    });
+  };
+
+  // Canviar model de marc i avançar a la següent foto aleatòria sense repeticions
   const handleSelectModel = (model) => {
     if (setSelectedOptions) {
       setSelectedOptions(prev => ({
@@ -107,7 +178,7 @@ export default function MarcSimulator({
       }));
     }
     if (!userCustomPhoto) {
-      setPhotoIndex(prevIdx => (prevIdx + 1 + Math.floor(Math.random() * (SAMPLE_PHOTOS.length - 1))) % SAMPLE_PHOTOS.length);
+      advancePhoto(orientation);
     }
   };
 
@@ -125,8 +196,7 @@ export default function MarcSimulator({
 
   // Botó per canviar manualment la foto d'exemple
   const handleShufflePhoto = () => {
-    setUserCustomPhoto(null);
-    setPhotoIndex(prevIdx => (prevIdx + 1) % SAMPLE_PHOTOS.length);
+    advancePhoto(orientation);
   };
 
   // Pujar foto pròpia de l'usuari
@@ -163,10 +233,12 @@ export default function MarcSimulator({
     }
   };
 
-  // URL de la imatge activa
-  const currentPhotoUrl = userCustomPhoto || resolveMediaUrl(SAMPLE_PHOTOS[photoIndex]);
+  // Obtenir la foto activa segons la baralla i posició actual de l'orientació
+  const currentDeckObj = photoDecks[orientation] || photoDecks.Vertical;
+  const currentPhotoIndex = currentDeckObj.deck[currentDeckObj.pointer % currentDeckObj.deck.length] ?? 0;
+  const activeSamplePhoto = samplePhotosList[currentPhotoIndex] || samplePhotosList[0];
+  const currentPhotoUrl = userCustomPhoto || resolveMediaUrl(activeSamplePhoto);
   const currentFrameOverlayUrl = resolveMediaUrl(currentModel.imatge);
-  const isHorizontal = orientation === 'Horitzontal';
 
   return (
     <div className="space-y-3 my-3">
@@ -178,7 +250,7 @@ export default function MarcSimulator({
           options={MARC_MODELS}
           selectedId={currentModel.nom}
           onSelect={handleSelectModel}
-          itemWidth="w-22 sm:w-24"
+          itemWidth="w-20 sm:w-24"
           aspectRatio="aspect-[1/1.41]"
           showLabel={true}
         />
@@ -263,8 +335,25 @@ export default function MarcSimulator({
           
           <div className="relative w-full h-full rounded-none overflow-hidden shadow-xl border border-amber-950/30 bg-amber-100/30 dark:bg-amber-950/20">
             
-            {/* Capa 1: Fotografia (de mostra o de l'usuari) adaptada a tota la superfície del marc sense franges negres */}
-            <div className="absolute inset-0 z-10 rounded-none overflow-hidden flex items-center justify-center">
+            {/* Capa 1: Fotografia (de mostra o de l'usuari) encaixada exactament al marc interior */}
+            <div
+              className="absolute z-10 rounded-none overflow-hidden flex items-center justify-center bg-black/5"
+              style={
+                isHorizontal
+                  ? {
+                      left: `${(51 / 646) * 100}%`,
+                      right: `${(51 / 646) * 100}%`,
+                      top: `${(51 / 457) * 100}%`,
+                      bottom: `${(51 / 457) * 100}%`
+                    }
+                  : {
+                      left: `${(51 / 457) * 100}%`,
+                      right: `${(51 / 457) * 100}%`,
+                      top: `${(51 / 646) * 100}%`,
+                      bottom: `${(51 / 646) * 100}%`
+                    }
+              }
+            >
               {currentPhotoUrl ? (
                 <img
                   key={currentPhotoUrl + (isHorizontal ? '-h' : '-v')}

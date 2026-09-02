@@ -121,7 +121,7 @@ export default function VisualOptionCarousel({
                   onSelect(opt);
                   scrollToActiveItem(idx);
                 }}
-                className={`${itemWidth} shrink-0 snap-start rounded-xl border transition-all duration-200 cursor-pointer p-1.5 flex flex-col items-center justify-between text-center relative group ${
+                className={`${itemWidth || 'w-20 sm:w-24'} shrink-0 snap-start rounded-xl border transition-all duration-200 cursor-pointer p-1.5 flex flex-col items-center justify-between text-center relative group overflow-hidden ${
                   isSelected
                     ? 'bg-primary/10 border-primary ring-2 ring-primary/40 shadow-sm scale-[1.02]'
                     : 'bg-surface hover:bg-surface-container border-outline/20 hover:border-primary/40 shadow-2xs hover:scale-[1.01]'
@@ -141,7 +141,7 @@ export default function VisualOptionCarousel({
                     <img
                       src={resolvedImg}
                       alt={opt.nom || `Opció ${idx + 1}`}
-                      className="w-full h-full object-contain relative z-2 transition-transform duration-200 group-hover:scale-105"
+                      className="w-full h-full object-contain max-h-full max-w-full relative z-2 transition-transform duration-200 group-hover:scale-105"
                       loading="lazy"
                     />
                   ) : (
