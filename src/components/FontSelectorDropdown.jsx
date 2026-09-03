@@ -3,6 +3,13 @@ import { Type, ChevronDown, Check } from 'lucide-react';
 
 export const AVAILABLE_FONTS = [
   {
+    id: 'modernline',
+    name: 'Modernline',
+    label: 'Modernline (Manuscrita elegant)',
+    fontFamily: "'Modernline', cursive, sans-serif",
+    sample: 'Elisenda'
+  },
+  {
     id: 'playfair',
     name: 'Playfair Display',
     label: 'Playfair Display (Clàssica)',

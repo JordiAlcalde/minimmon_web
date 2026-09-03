@@ -1145,12 +1145,20 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
     String(product.nom || '').toLowerCase().includes('celebrar') ||
     (Array.isArray(product.gammaIds) && isProductInGamma(product.gammaIds, 'Celebrar', dbGammes))
   ));
-  const isMarcProduct = simType === 'marc' || simType === 'marcs' || (simType === 'auto' && (
+  const isMarcProduct = simType === 'marc' || simType === 'marcs' || simType === 'marc_finestra' || simType === 'finestra' || (simType === 'auto' && (
     String(product.nom || '').toLowerCase().includes('marc') ||
     String(product.nom || '').toLowerCase().includes('tradicional') ||
+    String(product.nom || '').toLowerCase().includes('zenit') ||
+    String(product.nom || '').toLowerCase().includes('finestra') ||
     (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('fotograf') || String(f).toLowerCase().includes('marc'))) ||
-    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('marc') || String(g).toLowerCase().includes('tradicional')))
+    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('marc') || String(g).toLowerCase().includes('tradicional') || String(g).toLowerCase().includes('zenit') || String(g).toLowerCase().includes('finestra')))
   ));
+  const isFinestraProduct = isMarcProduct && (
+    simType === 'marc_finestra' || simType === 'finestra' ||
+    String(product.nom || '').toLowerCase().includes('finestra') ||
+    (Array.isArray(product.gammaIds) && product.gammaIds.some(g => String(g).toLowerCase().includes('finestra'))) ||
+    (Array.isArray(product.familaIds) && product.familaIds.some(f => String(f).toLowerCase().includes('finestra')))
+  );
   const isEtiquetaProduct = !isCelebrarProduct && !isMarcProduct && (simType.startsWith('etiqueta') || simType === 'xapa' || (simType === 'auto' && (
     String(product.nom || '').toLowerCase().includes('etiquet') ||
     String(product.nom || '').toLowerCase().includes('xap') ||
@@ -1719,10 +1727,12 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           />
         )}
 
-        {/* Simulador de Marcs de Fotos en Temps Real */}
+        {/* Simulador de Marcs de Fotos en Temps Real (Finestra o Zenit) */}
         {isMarcProduct && (
           <MarcSimulator
             productNom={product.nom}
+            product={product}
+            simType={isFinestraProduct ? 'marc_finestra' : simType}
             selectedOptions={selectedOptions}
             setSelectedOptions={setSelectedOptions}
             attachedFiles={attachedFiles}

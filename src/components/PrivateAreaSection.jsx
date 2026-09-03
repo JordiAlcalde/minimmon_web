@@ -53,6 +53,7 @@ import {
   PhoneCall,
   MessageCircle,
   Globe,
+  ArrowLeft,
   ArrowRight,
   Save,
   FileSpreadsheet,
@@ -3517,7 +3518,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
                   >
                     <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
-                    <option value="marc">🖼️ Simulador de Marcs de Fotos (Carrusel 17 gravats)</option>
+                    <option value="marc">🖼️ Simulador de Marcs Zenit (Carrusel 17 gravats)</option>
+                    <option value="marc_finestra">🖼️ Simulador de Marcs Finestra (Carrusel Onada, Núvol, Batec)</option>
                     <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
                     <option value="etiqueta_rectangular">🏷️ Etiqueta Rectangular (XR)</option>
                     <option value="etiqueta_arrodonida">🏷️ Etiqueta Arrodonida (XD)</option>
@@ -3680,6 +3682,140 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   onChange={(e) => setEditingProducte({ ...editingProducte, imatgesStr: e.target.value, imatges: e.target.value.split('\n').map(s => s.trim()).filter(Boolean) })}
                   className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
                 />
+
+                {/* Comprovació Visual i Ordre de les Imatges del Producte */}
+                {(() => {
+                  const rawImatges = editingProducte.imatgesStr !== undefined
+                    ? editingProducte.imatgesStr
+                    : (Array.isArray(editingProducte.imatges)
+                        ? editingProducte.imatges.join('\n')
+                        : (typeof editingProducte.imatges === 'string' ? editingProducte.imatges : ''));
+                  const previewImatges = String(rawImatges || '')
+                    .split(/[\r\n]+/)
+                    .map(s => s.trim())
+                    .filter(Boolean);
+
+                  const handleMoveImage = (fromIdx, toIdx) => {
+                    const list = [...previewImatges];
+                    const [moved] = list.splice(fromIdx, 1);
+                    list.splice(toIdx, 0, moved);
+                    setEditingProducte({
+                      ...editingProducte,
+                      imatges: list,
+                      imatgesStr: list.join('\n')
+                    });
+                  };
+
+                  const handleRemoveImage = (removeIdx) => {
+                    const list = previewImatges.filter((_, i) => i !== removeIdx);
+                    setEditingProducte({
+                      ...editingProducte,
+                      imatges: list,
+                      imatgesStr: list.join('\n')
+                    });
+                  };
+
+                  if (previewImatges.length === 0) {
+                    return (
+                      <div className="p-3.5 bg-surface-container/20 rounded-xl border border-dashed border-outline/30 text-center text-xs text-on-surface-variant font-mono flex items-center justify-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-outline shrink-0" />
+                        <span>Escriu una o més rutes d'imatges a sobre per veure aquí la comprovació visual i l'ordre.</span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="p-3 bg-surface-container/40 rounded-xl border border-outline/15 space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between text-xs flex-wrap gap-1">
+                        <span className="font-semibold text-primary flex items-center gap-1.5 font-mono text-[11px] uppercase">
+                          <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                          <span>Comprovació visual i ordre de les imatges ({previewImatges.length})</span>
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant font-mono">
+                          💡 La imatge #1 és la portada principal
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-stretch gap-2.5 pt-1">
+                        {previewImatges.map((imgUrl, idx) => {
+                          const resolved = resolveProducteMediaUrl(imgUrl) || resolveMediaUrl(imgUrl);
+                          const isFirst = idx === 0;
+                          const isLast = idx === previewImatges.length - 1;
+                          const fileName = imgUrl.split('/').pop() || imgUrl;
+
+                          return (
+                            <div
+                              key={idx}
+                              className={`relative bg-surface rounded-xl border ${isFirst ? 'border-primary shadow-xs ring-1 ring-primary/30' : 'border-outline/20'} p-2 flex flex-col items-center justify-between gap-1.5 w-28 sm:w-32 transition-all hover:border-primary/50 group`}
+                            >
+                              {/* Badge d'Ordre i Portada */}
+                              <div className="w-full flex items-center justify-between gap-1 text-[10px] font-mono">
+                                <span className={`px-1.5 py-0.5 rounded-md font-bold ${isFirst ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                                  #{idx + 1}
+                                </span>
+                                {isFirst && (
+                                  <span className="text-[9px] font-bold text-amber-800 dark:text-amber-300 font-sans flex items-center gap-0.5">
+                                    <Star className="w-2.5 h-2.5 fill-current" /> Portada
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Miniatura Imatge */}
+                              <div className="w-full aspect-square rounded-lg overflow-hidden bg-surface-container border border-outline/10 relative flex items-center justify-center">
+                                <img
+                                  src={resolved}
+                                  alt={`Imatge ${idx + 1}`}
+                                  className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                  onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = resolveMediaUrl('images/tots_productes.jpg');
+                                  }}
+                                />
+                              </div>
+
+                              {/* Nom del fitxer / URL */}
+                              <div className="w-full text-center px-0.5">
+                                <p className="text-[10px] font-mono text-on-surface-variant truncate" title={imgUrl}>
+                                  {fileName}
+                                </p>
+                              </div>
+
+                              {/* Botons per canviar l'ordre o eliminar */}
+                              <div className="w-full flex items-center justify-center gap-1 pt-1 border-t border-outline/10">
+                                <button
+                                  type="button"
+                                  disabled={isFirst}
+                                  onClick={() => handleMoveImage(idx, idx - 1)}
+                                  className={`p-1 rounded text-xs transition-colors cursor-pointer ${isFirst ? 'text-outline/30 cursor-not-allowed' : 'text-primary hover:bg-primary/10'}`}
+                                  title="Moure cap a l'esquerra (primer)"
+                                >
+                                  <ArrowLeft className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLast}
+                                  onClick={() => handleMoveImage(idx, idx + 1)}
+                                  className={`p-1 rounded text-xs transition-colors cursor-pointer ${isLast ? 'text-outline/30 cursor-not-allowed' : 'text-primary hover:bg-primary/10'}`}
+                                  title="Moure cap a la dreta (després)"
+                                >
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveImage(idx)}
+                                  className="p-1 rounded text-xs text-error hover:bg-error-container/30 transition-colors cursor-pointer ml-1"
+                                  title="Treure aquesta imatge"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Selecció Dinàmica de Gammes a les que pertany */}

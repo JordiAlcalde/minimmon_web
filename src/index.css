@@ -1,6 +1,40 @@
 @import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Caveat:wght@400..700&family=Cinzel:wght@400..800&family=Dancing+Script:wght@400..700&family=Hanken+Grotesk:ital,wght@0,100..900;1,100..900&family=Montserrat:ital,wght@0,400..800;1,400..800&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
+/* Tipografia Modernline (Fitxers locals a public/fonts/) */
+@font-face {
+  font-family: 'Modernline';
+  src: url('/fonts/modernline-personal-use.regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Modernline';
+  src: url('/fonts/modernline-personal-use.bold.otf') format('opentype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Modernline Bold';
+  src: url('/fonts/modernline-personal-use.bold.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-modernline {
+  font-family: 'Modernline', cursive, sans-serif;
+}
+
+.font-modernline-bold {
+  font-family: 'Modernline Bold', 'Modernline', cursive, sans-serif;
+  font-weight: bold;
+}
+
 html {
   scroll-behavior: smooth;
 }
