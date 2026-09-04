@@ -1422,7 +1422,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         ordrePerGamma: updatedOrdrePerGamma,
         simulador: editingProducte.simulador || 'auto',
         preuPerForat: editingProducte.preuPerForat !== undefined ? (Number(editingProducte.preuPerForat) || 0) : 0,
-        preusPerMida: editingProducte.preusPerMida || null,
+        preusPerMida: getAvailableMidesForProduct(editingProducte).length > 0 ? (editingProducte.preusPerMida || null) : null,
         actiu: editingProducte.actiu !== false,
         novetat: editingProducte.novetat === true,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()

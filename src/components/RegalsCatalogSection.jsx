@@ -100,6 +100,64 @@ export function computeOptionSurcharges(product, selectedOptions = {}) {
   return totalSurcharge;
 }
 
+// Helper automàtic per determinar si un producte té variació de preu ("PREU DES DE:")
+// o si el seu preu és fix ("PREU:"), fins i tot si té personalització (quan aquesta no té sobrecost).
+export function checkHasPriceVariation(product) {
+  if (!product) return false;
+
+  // 1. Trams de preu per quantitat (descomptes per volum)
+  if (product.preuPerQuantitat?.actiu === true) {
+    return true;
+  }
+
+  // 2. Preus diferents segons la mida (només si el producte té mides reals definides)
+  const availableMides = getAvailableMidesForProduct(product);
+  if (availableMides.length > 1) {
+    const basePreusPerMida = Object.values(product.preusPerMida || {})
+      .map(Number)
+      .filter(n => !isNaN(n) && n > 0);
+    if (basePreusPerMida.length > 1) {
+      const minMida = Math.min(...basePreusPerMida);
+      const maxMida = Math.max(...basePreusPerMida);
+      if (maxMida > minMida) {
+        return true;
+      }
+    }
+  }
+
+  // 3. Opcions de personalització amb sobrecost
+  const opcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
+  for (const opc of opcions) {
+    if (!opc || typeof opc !== 'object') continue;
+    if (opc.tipus === 'desplegable') {
+      const preusValors = opc.preusValors || {};
+      for (const valPrice of Object.values(preusValors)) {
+        if (!isNaN(Number(valPrice)) && Number(valPrice) > 0) {
+          return true;
+        }
+      }
+    } else {
+      if (opc.preu && !isNaN(Number(opc.preu)) && Number(opc.preu) > 0) {
+        return true;
+      }
+    }
+  }
+
+  // 4. Preu addicional per forat (ex. etiquetes)
+  if (Number(product.preuPerForat || 0) > 0) {
+    return true;
+  }
+
+  // 5. Si té personalització i cap opció té sobrecost, el preu és FIX
+  // (la personalització està inclosa a l'escandall o preu base)
+  if (opcions.length > 0) {
+    return false;
+  }
+
+  // 6. Si no té personalització, respectar el flag manual si s'hagués marcat expressament
+  return product.preuDesDe === true || product.isPreuDesDe === true;
+}
+
 export function InformacioCard({ info }) {
   if (!info || info.actiu === false) return null;
 
@@ -896,15 +954,18 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
     ? Math.min(...allTier2) 
     : Number(product.preuPerQuantitat?.preuMesLlindar ?? rawPrice);
 
-  // Preu base inferior per mida si no té preus per volum
-  const basePreusPerMida = Object.values(product.preusPerMida || {}).map(Number).filter(n => !isNaN(n) && n > 0);
+  // Preu base inferior per mida si no té preus per volum (només si té múltiples mides reals)
+  const availableMides = getAvailableMidesForProduct(product);
+  const basePreusPerMida = availableMides.length > 1
+    ? Object.values(product.preusPerMida || {}).map(Number).filter(n => !isNaN(n) && n > 0)
+    : [];
   const minBasePrice = basePreusPerMida.length > 0 ? Math.min(...basePreusPerMida) : rawPrice;
 
   // Preu de referència a mostrar a la targeta (el preu inferior per volum o per mida)
   const displayedPrice = hasQtyPricing ? priceTier2 : minBasePrice;
   const isZeroPrice = !displayedPrice || isNaN(displayedPrice) || displayedPrice <= 0;
   const isBudgetRequired = product.requereixPressupost === true && !hasQtyPricing;
-  const isPreuDesDe = hasQtyPricing ? true : ((basePreusPerMida.length > 1) || product.preuDesDe === true || product.isPreuDesDe === true);
+  const isPreuDesDe = checkHasPriceVariation(product);
 
   const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
   const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
@@ -967,7 +1028,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
       <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
         <div className="flex items-baseline gap-1.5 min-w-0">
           <span className="text-[10px] text-on-surface-variant/75 uppercase tracking-wider font-mono font-medium whitespace-nowrap">
-            {isPreuDesDe ? "PREU DES DE:" : (isBudgetRequired ? "Preu orientatiu:" : "Preu:")}
+            {isPreuDesDe ? "PREU DES DE:" : (isBudgetRequired ? "Preu orientatiu:" : "PREU:")}
           </span>
           <span className={textPriceValue ? "font-sans text-xs font-semibold text-primary" : "font-sans text-xs sm:text-sm font-bold text-primary tracking-tight whitespace-nowrap"}>
             {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${displayedPrice.toFixed(2).replace('.', ',')} €`)}
@@ -1325,7 +1386,8 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
     ? Number(matchedBaseEntry[1])
     : rawPrice;
 
-  const isPreuDesDe = hasQtyPricing ? true : (product.preuDesDe === true || product.isPreuDesDe === true);
+  const isPreuDesDe = checkHasPriceVariation(product);
+  const hasCustomization = Array.isArray(product.opcionsPersonalitzacio) && product.opcionsPersonalitzacio.length > 0;
 
   // Preu base dinàmic segons quantitat i mida (utilitzant el llindar específic de la mida)
   const activeBasePrice = hasQtyPricing
@@ -1766,6 +1828,12 @@ Pots deixar-ho en blanc si ho prefereixes.`}
           </span>
           {!isBudgetRequired && !isZeroPrice && (
             <span className="text-xs text-on-surface-variant/80 font-mono">(IVA inclòs)</span>
+          )}
+          {!isBudgetRequired && !isZeroPrice && hasCustomization && !isPreuDesDe && !hasQtyPricing && currentSurcharge === 0 && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-mono font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 shadow-2xs">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Personalització inclosa</span>
+            </span>
           )}
           {!isBudgetRequired && !isZeroPrice && quantity > 1 && (
             <span className="text-xs font-mono font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
