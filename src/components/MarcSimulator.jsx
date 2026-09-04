@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw, Upload, Trash2, Smartphone, Monitor } from 'lucide-react';
 import { resolveMediaUrl } from '../utils/mediaUtils';
 import VisualOptionCarousel from './common/VisualOptionCarousel';
+import { analyzeNameContour, buildBottomPath } from '../utils/contourGenerator';
 
 // Els 17 models de marcs gravats disponibles per a Marcs Zenit (abans Tradicional)
 export const MARC_MODELS = [
@@ -173,6 +174,27 @@ export default function MarcSimulator({
       segonaLiniaText: foundSegonaKey ? String(selectedOptions[foundSegonaKey] || '').trim() : ''
     };
   }, [selectedOptions, product]);
+
+  // Estat per forçar re-càlcul un cop les tipografies estiguin llestes
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  useEffect(() => {
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => {
+        setFontsLoaded(true);
+      });
+    } else {
+      setFontsLoaded(true);
+    }
+  }, []);
+
+  // Generació de la silueta inferior adaptada al perfil del nom per a Finestra
+  const dynamicContour = useMemo(() => {
+    if (!isFinestra) return { points: [], bottomPathD: '' };
+    const effectiveText = nomText || 'Nom';
+    const points = analyzeNameContour(effectiveText, 457, 646);
+    const bottomPathD = buildBottomPath(points, currentModel.id);
+    return { points, bottomPathD };
+  }, [isFinestra, nomText, currentModel.id, fontsLoaded]);
 
   // Llista de fotos de mostra segons l'orientació activa
   const samplePhotosList = isHorizontal ? SAMPLE_PHOTOS_H : SAMPLE_PHOTOS_V;
@@ -452,9 +474,9 @@ export default function MarcSimulator({
               )}
             </div>
 
-            {/* Capa 2: Marc de Fusta Gravat (marc_xxxxx.png amb centre transparent) */}
+            {/* Capa 2: Marc de Fusta Gravat */}
             {isHorizontal ? (
-              /* En horitzontal: el marc es gira 90 graus per encaixar de forma exacta */
+              /* En horitzontal: el marc es gira 90 graus per encaixar de forma exacta (Zenit) */
               <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center overflow-hidden">
                 <img
                   key={currentFrameOverlayUrl + '-horiz'}
@@ -469,12 +491,95 @@ export default function MarcSimulator({
               </div>
             ) : (
               /* En vertical: el marc s'ajusta directament a la mida completa */
-              <img
-                key={currentFrameOverlayUrl + '-vert'}
-                src={currentFrameOverlayUrl}
-                alt={`Marc ${currentModel.nom}`}
-                className="absolute inset-0 w-full h-full object-fill z-30 pointer-events-none drop-shadow-[0_1px_2px_rgba(43,24,13,0.35)]"
-              />
+              <div className="absolute inset-0 z-30 pointer-events-none">
+                {/* Per al model Onada de Finestra: es genera completament en vectorial amb fusta de til·ler i filet làser per eliminar qualsevol interferència de línies estàtiques */}
+                {isFinestra && currentModel.id === 'onada' ? (
+                  <svg
+                    viewBox="0 0 457 646"
+                    className="absolute inset-0 w-full h-full pointer-events-none drop-shadow-[0_1px_2px_rgba(43,24,13,0.35)]"
+                    style={{ zIndex: 35 }}
+                  >
+                    <defs>
+                      <pattern id="tilLerWoodPatternOnada" patternUnits="userSpaceOnUse" width="457" height="646" y="0">
+                        <image
+                          href="/images/fusta_de_til%C2%B7ler.png"
+                          x="0"
+                          y="0"
+                          width="457"
+                          height="646"
+                          preserveAspectRatio="none"
+                        />
+                      </pattern>
+                    </defs>
+
+                    {/* Marc complet de fusta amb obertura interior adaptada a l'onada dinàmica */}
+                    <path
+                      d={`M 0 0 L 457 0 L 457 646 L 0 646 Z M 54 59 L 54 498 ${dynamicContour.bottomPathD || 'L 54 498'} L 403 59 Z`}
+                      fill="url(#tilLerWoodPatternOnada)"
+                      fillRule="evenodd"
+                    />
+
+                    {/* Filet de tall làser (#473636 / rgb(71, 54, 54)) que perfila tota la finestra interior incloent l'onada */}
+                    <path
+                      d={`M 54 59 L 54 498 ${dynamicContour.bottomPathD || 'L 54 498'} L 403 59 Z`}
+                      fill="none"
+                      stroke="#473636"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <>
+                    <img
+                      key={currentFrameOverlayUrl + '-vert'}
+                      src={currentFrameOverlayUrl}
+                      alt={`Marc ${currentModel.nom}`}
+                      className="absolute inset-0 w-full h-full object-fill pointer-events-none drop-shadow-[0_1px_2px_rgba(43,24,13,0.35)]"
+                      style={isFinestra ? { clipPath: 'polygon(0% 0%, 100% 0%, 100% 77.09%, 0% 77.09%)' } : undefined}
+                    />
+
+                    {/* Per a Marc Finestra (Núvol i Batec): Capa inferior de fusta de til·ler amb filet de tall làser #473636 que s'adapta al perfil del nom */}
+                    {isFinestra && dynamicContour.bottomPathD && (
+                      <svg
+                        viewBox="0 0 457 646"
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                        style={{ zIndex: 35 }}
+                      >
+                        <defs>
+                          {/* Patró de textura de fusta de til·ler aplicat a la zona inferior */}
+                          <pattern id="tilLerWoodPattern" patternUnits="userSpaceOnUse" width="457" height="646" y="0">
+                            <image
+                              href="/images/fusta_de_til%C2%B7ler.png"
+                              x="0"
+                              y="0"
+                              width="457"
+                              height="646"
+                              preserveAspectRatio="none"
+                            />
+                          </pattern>
+                        </defs>
+
+                        {/* Faldó de fusta inferior que s'uneix als laterals a Y=498 */}
+                        <path
+                          d={`M 0 646 L 0 498 L 54 498 ${dynamicContour.bottomPathD} L 403 498 L 457 498 L 457 646 Z`}
+                          fill="url(#tilLerWoodPattern)"
+                        />
+
+                        {/* Filet de tall làser (#473636 / rgb(71, 54, 54)) que perfila la corba dinàmica del nom */}
+                        <path
+                          d={`M 54 498 ${dynamicContour.bottomPathD} L 403 498`}
+                          fill="none"
+                          stroke="#473636"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </>
+                )}
+              </div>
             )}
 
             {/* Capa 2.5: Text personalitzat per a Marcs Finestra */}
@@ -482,31 +587,34 @@ export default function MarcSimulator({
               <>
                 {/* Quadrat 1: Nom (Opció 1) amb tipologia Modernline Bold a la zona de fusta sota la silueta */}
                 <div
-                  className="absolute pointer-events-none flex items-center justify-center text-center px-2 overflow-hidden"
+                  className="absolute pointer-events-none flex items-center justify-center text-center px-2"
                   style={{
                     zIndex: 45,
-                    top: '78%',
+                    top: '73%',
                     bottom: '8.5%',
-                    left: '5%',
-                    right: '5%'
+                    left: '4%',
+                    right: '4%',
+                    overflow: 'visible'
                   }}
                 >
                   {nomText ? (
                     <span
-                      className="font-bold leading-none select-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-200 truncate max-w-full"
+                      className="font-bold select-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-200 whitespace-nowrap overflow-visible max-w-full"
                       style={{
                         fontFamily: "'Modernline Bold', 'Modernline', cursive, sans-serif",
                         fontWeight: 'bold',
-                        fontSize: nomText.length > 20 ? '1.2rem' : (nomText.length > 14 ? '1.45rem' : (nomText.length > 9 ? '1.8rem' : '2.3rem')),
-                        color: '#1a0d05'
+                        fontSize: nomText.length > 20 ? '1.05rem' : (nomText.length > 14 ? '1.25rem' : (nomText.length > 9 ? '1.55rem' : '1.95rem')),
+                        color: '#1a0d05',
+                        lineHeight: 1.25,
+                        display: 'inline-block'
                       }}
                     >
                       {nomText}
                     </span>
                   ) : (
                     <span
-                      className="text-primary/40 italic font-bold leading-none select-none text-xs border border-dashed border-primary/30 rounded px-1.5 py-0.5 bg-amber-50/20"
-                      style={{ fontFamily: "'Modernline Bold', 'Modernline', cursive, sans-serif", fontWeight: 'bold' }}
+                      className="text-primary/40 italic font-bold select-none text-xs border border-dashed border-primary/30 rounded px-1.5 py-0.5 bg-amber-50/20 whitespace-nowrap"
+                      style={{ fontFamily: "'Modernline Bold', 'Modernline', cursive, sans-serif", fontWeight: 'bold', lineHeight: 1.25 }}
                     >
                       Nom (Modernline Bold)
                     </span>
@@ -515,29 +623,31 @@ export default function MarcSimulator({
 
                 {/* Quadrat 2: Segona línia (Opció 2) amb tipologia Montserrat al llindar inferior de fusta */}
                 <div
-                  className="absolute pointer-events-none flex items-center justify-center text-center px-2 overflow-hidden"
+                  className="absolute pointer-events-none flex items-center justify-center text-center px-2"
                   style={{
                     zIndex: 45,
-                    top: '91.5%',
+                    top: '91%',
                     bottom: '1%',
                     left: '4%',
-                    right: '4%'
+                    right: '4%',
+                    overflow: 'visible'
                   }}
                 >
                   {segonaLiniaText ? (
                     <span
-                      className="font-semibold tracking-wider select-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.35)] transition-all duration-200 truncate max-w-full leading-none"
+                      className="font-semibold tracking-wider select-none drop-shadow-[0_1px_1px_rgba(255,255,255,0.35)] transition-all duration-200 whitespace-nowrap overflow-visible max-w-full"
                       style={{
                         fontFamily: "'Montserrat', sans-serif",
                         fontSize: segonaLiniaText.length > 28 ? '0.55rem' : (segonaLiniaText.length > 18 ? '0.65rem' : '0.75rem'),
-                        color: '#1a0d05'
+                        color: '#1a0d05',
+                        lineHeight: 1.2
                       }}
                     >
                       {segonaLiniaText}
                     </span>
                   ) : (
                     <span
-                      className="text-primary/40 font-medium tracking-wider select-none text-[8px] border border-dashed border-primary/25 rounded px-1 py-0.5 bg-amber-50/20"
+                      className="text-primary/40 font-medium tracking-wider select-none text-[8px] border border-dashed border-primary/25 rounded px-1 py-0.5 bg-amber-50/20 whitespace-nowrap"
                       style={{ fontFamily: "'Montserrat', sans-serif" }}
                     >
                       Segona línia (Montserrat)
