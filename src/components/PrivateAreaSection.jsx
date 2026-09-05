@@ -3,11 +3,13 @@ import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../fi
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
 import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
-import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification } from '../utils/telegramUtils';
+import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification, sendTelegramScheduleNotification } from '../utils/telegramUtils';
+import { getItemScheduleStatus, formatShortDateTime, syncAndCheckScheduleNotifications } from '../utils/scheduleUtils';
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../utils/numberUtils';
 import DecimalInput from './common/DecimalInput';
 import { 
+  Bell,
   Lock, 
   Boxes,
   Key, 
@@ -574,8 +576,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
       const qProd = query(collection(db, "productes"), orderBy("dataCreacio", "desc"));
       const unsubProd = onSnapshot(qProd, (snapshot) => {
-        setDbProductesAdmin(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const loadedProds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setDbProductesAdmin(loadedProds);
         setLoadingProductesAdmin(false);
+        syncAndCheckScheduleNotifications(loadedProds, "productes", "producte");
       }, () => setLoadingProductesAdmin(false));
 
       const qFam = query(collection(db, "families"), orderBy("ordre", "asc"));
@@ -852,6 +856,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
       }));
       setDbProjects(docs);
       setLoadingProjects(false);
+      syncAndCheckScheduleNotifications(docs, "projectes", "projecte");
     }, (err) => {
       console.warn("Error carregant projectes des de Firestore:", err);
       setLoadingProjects(false);
@@ -1304,9 +1309,31 @@ export default function PrivateAreaSection({ setActiveTab }) {
         titolVideo: editingProject.titolVideo || '',
         ordre: Number(editingProject.ordre || 1),
         actiu: editingProject.actiu !== false,
+        esborrany: editingProject.esborrany === true,
         novetat: editingProject.novetat === true,
+        programacio: editingProject.programacio?.activa ? {
+          activa: true,
+          tipus: editingProject.programacio.tipus || 'llancament',
+          dataInici: editingProject.programacio.dataInici || '',
+          dataFi: editingProject.programacio.dataFi || '',
+          modePrevi: editingProject.programacio.modePrevi || 'ocult',
+          accioFinal: editingProject.programacio.accioFinal || 'esborrany',
+          notificarTelegram: editingProject.programacio.notificarTelegram !== false,
+          notificatInici: editingProject.programacio.notificatInici === true,
+          notificatFi: editingProject.programacio.notificatFi === true,
+        } : { activa: false },
         media: resolvedMedia
       }, { merge: true });
+
+      if (editingProject.programacio?.activa && editingProject.programacio?.notificarTelegram) {
+        sendTelegramScheduleNotification({
+          itemNom: editingProject.titol || editingProject.title,
+          tipusItem: 'projecte',
+          eventTipus: 'programacio_confirmada',
+          dataInici: editingProject.programacio.dataInici,
+          dataFi: editingProject.programacio.dataFi
+        }).catch(console.warn);
+      }
 
       // Save branca to 'branques' collection automatically
       if (editingProject.branca) {
@@ -1424,9 +1451,33 @@ export default function PrivateAreaSection({ setActiveTab }) {
         preuPerForat: editingProducte.preuPerForat !== undefined ? (Number(editingProducte.preuPerForat) || 0) : 0,
         preusPerMida: getAvailableMidesForProduct(editingProducte).length > 0 ? (editingProducte.preusPerMida || null) : null,
         actiu: editingProducte.actiu !== false,
+        esborrany: editingProducte.esborrany === true,
         novetat: editingProducte.novetat === true,
+        programacio: editingProducte.programacio?.activa ? {
+          activa: true,
+          tipus: editingProducte.programacio.tipus || 'llancament',
+          dataInici: editingProducte.programacio.dataInici || '',
+          dataFi: editingProducte.programacio.dataFi || '',
+          modePrevi: editingProducte.programacio.modePrevi || 'ocult',
+          accioFinal: editingProducte.programacio.accioFinal || 'esborrany',
+          preuOferta: editingProducte.programacio.preuOferta ? Number(editingProducte.programacio.preuOferta) : null,
+          notificarTelegram: editingProducte.programacio.notificarTelegram !== false,
+          notificatInici: editingProducte.programacio.notificatInici === true,
+          notificatFi: editingProducte.programacio.notificatFi === true,
+        } : { activa: false },
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
+
+      if (editingProducte.programacio?.activa && editingProducte.programacio?.notificarTelegram) {
+        sendTelegramScheduleNotification({
+          itemNom: editingProducte.nom,
+          tipusItem: 'producte',
+          eventTipus: 'programacio_confirmada',
+          dataInici: editingProducte.programacio.dataInici,
+          dataFi: editingProducte.programacio.dataFi,
+          preuOferta: editingProducte.programacio.preuOferta
+        }).catch(console.warn);
+      }
 
       lastEditedProductId.current = docId;
       setEditingProducte(null);
@@ -4512,8 +4563,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 })()}
               </div>
 
-              {/* Switches d'Estat: Actiu / Inactiu, Requereix Pressupost, Preu des de i Novetat */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+              {/* Switches d'Estat: Actiu / Inactiu, Mode Esborrany, Requereix Pressupost, Preu des de i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 p-4 bg-surface rounded-lg border border-outline/15">
                 <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
                   <input
                     type="checkbox"
@@ -4523,7 +4574,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   />
                   <div>
                     <span className="block font-bold">Actiu al Catàleg</span>
-                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment al públic.</span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta completament per a tothom.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 text-xs font-semibold text-amber-950 dark:text-amber-300 cursor-pointer p-2.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300/80">
+                  <input
+                    type="checkbox"
+                    checked={editingProducte.esborrany === true}
+                    onChange={(e) => setEditingProducte({ ...editingProducte, esborrany: e.target.checked })}
+                    className="w-4 h-4 rounded text-amber-700 accent-amber-600"
+                  />
+                  <div>
+                    <span className="block font-bold flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Mode Esborrany</span>
+                    </span>
+                    <span className="text-[11px] text-amber-800 dark:text-amber-400 font-normal">
+                      Només visible per a tu (administrador) per provar com queda.
+                    </span>
                   </div>
                 </label>
 
@@ -4583,21 +4652,272 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </label>
               </div>
 
+              {/* Secció de Programació i Campanyes Temporals */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="font-bold text-sm text-primary">Programació i Campanyes Temporals</span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-primary">
+                    <input
+                      type="checkbox"
+                      checked={editingProducte.programacio?.activa === true}
+                      onChange={(e) => {
+                        const isActiva = e.target.checked;
+                        setEditingProducte({
+                          ...editingProducte,
+                          programacio: {
+                            ...(editingProducte.programacio || {}),
+                            activa: isActiva,
+                            tipus: editingProducte.programacio?.tipus || 'llancament',
+                            modePrevi: editingProducte.programacio?.modePrevi || 'ocult',
+                            accioFinal: editingProducte.programacio?.accioFinal || 'esborrany',
+                            notificarTelegram: editingProducte.programacio?.notificarTelegram !== false
+                          }
+                        });
+                      }}
+                      className="w-4 h-4 rounded text-primary accent-primary"
+                    />
+                    <span>Activar programació temporal</span>
+                  </label>
+                </div>
+
+                {editingProducte.programacio?.activa && (
+                  <div className="space-y-4 pt-2 border-t border-primary/15 animate-fadeIn">
+                    {/* Tipus de programació */}
+                    <div>
+                      <label className="block text-xs font-bold text-on-surface-variant mb-1.5">Tipus de programació:</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProducte({
+                            ...editingProducte,
+                            programacio: { ...editingProducte.programacio, tipus: 'llancament' }
+                          })}
+                          className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                            (editingProducte.programacio?.tipus || 'llancament') === 'llancament'
+                              ? 'border-primary bg-surface shadow-xs text-primary font-semibold'
+                              : 'border-outline/20 bg-surface/50 text-on-surface-variant hover:bg-surface'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                            <Clock className="w-3.5 h-3.5 text-primary" />
+                            <span>Llançament futur</span>
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant font-normal">
+                            S'activa a partir d'una data i hora concreta.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingProducte({
+                            ...editingProducte,
+                            programacio: { ...editingProducte.programacio, tipus: 'periode' }
+                          })}
+                          className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                            editingProducte.programacio?.tipus === 'periode'
+                              ? 'border-primary bg-surface shadow-xs text-primary font-semibold'
+                              : 'border-outline/20 bg-surface/50 text-on-surface-variant hover:bg-surface'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                            <Tag className="w-3.5 h-3.5 text-primary" />
+                            <span>Campanya temporal (Inici i Fi)</span>
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant font-normal">
+                            Vigent durant un període concret (ofertes, Nadal, Sant Jordi...).
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Camps de Data i Hora */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-primary mb-1">
+                          {(editingProducte.programacio?.tipus === 'periode') ? "Data i hora d'inici de campanya:" : "Data i hora de llançament:"}
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editingProducte.programacio?.dataInici || ''}
+                          onChange={(e) => setEditingProducte({
+                            ...editingProducte,
+                            programacio: { ...editingProducte.programacio, dataInici: e.target.value }
+                          })}
+                          className="w-full bg-surface border border-outline/30 rounded-lg px-3 py-2 text-xs text-primary outline-none focus:border-primary font-mono"
+                        />
+                      </div>
+
+                      {editingProducte.programacio?.tipus === 'periode' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-primary mb-1">
+                            Data i hora de finalització:
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={editingProducte.programacio?.dataFi || ''}
+                            onChange={(e) => setEditingProducte({
+                              ...editingProducte,
+                              programacio: { ...editingProducte.programacio, dataFi: e.target.value }
+                            })}
+                            className="w-full bg-surface border border-outline/30 rounded-lg px-3 py-2 text-xs text-primary outline-none focus:border-primary font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Comportament previ a la data d'inici */}
+                    <div>
+                      <label className="block text-xs font-bold text-on-surface-variant mb-1">Estat abans de la data d'inici:</label>
+                      <div className="flex flex-wrap gap-4 text-xs">
+                        <label className="flex items-center gap-2 cursor-pointer text-primary">
+                          <input
+                            type="radio"
+                            name="prod_mode_previ"
+                            checked={(editingProducte.programacio?.modePrevi || 'ocult') === 'ocult'}
+                            onChange={() => setEditingProducte({
+                              ...editingProducte,
+                              programacio: { ...editingProducte.programacio, modePrevi: 'ocult' }
+                            })}
+                            className="text-primary accent-primary"
+                          />
+                          <span>🔒 <strong>Ocult / Esborrany privat</strong> (amagat fins al dia d'inici)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-primary">
+                          <input
+                            type="radio"
+                            name="prod_mode_previ"
+                            checked={editingProducte.programacio?.modePrevi === 'properament'}
+                            onChange={() => setEditingProducte({
+                              ...editingProducte,
+                              programacio: { ...editingProducte.programacio, modePrevi: 'properament' }
+                            })}
+                            className="text-primary accent-primary"
+                          />
+                          <span>✨ <strong>Mode "Properament"</strong> (visible amb xapa de proper llançament, comanda desactivada)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Comportament posterior a la data fi (si és període) */}
+                    {editingProducte.programacio?.tipus === 'periode' && (
+                      <div className="space-y-3 pt-2 border-t border-primary/10">
+                        <div>
+                          <label className="block text-xs font-bold text-on-surface-variant mb-1">Estat en finalitzar el període:</label>
+                          <div className="flex flex-wrap gap-4 text-xs">
+                            <label className="flex items-center gap-2 cursor-pointer text-primary">
+                              <input
+                                type="radio"
+                                name="prod_accio_final"
+                                checked={(editingProducte.programacio?.accioFinal || 'esborrany') === 'esborrany'}
+                                onChange={() => setEditingProducte({
+                                  ...editingProducte,
+                                  programacio: { ...editingProducte.programacio, accioFinal: 'esborrany' }
+                                })}
+                                className="text-primary accent-primary"
+                              />
+                              <span>🔒 <strong>Tornar a Esborrany</strong> (s'oculta automàticament de la botiga)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-primary">
+                              <input
+                                type="radio"
+                                name="prod_accio_final"
+                                checked={editingProducte.programacio?.accioFinal === 'arxivat'}
+                                onChange={() => setEditingProducte({
+                                  ...editingProducte,
+                                  programacio: { ...editingProducte.programacio, accioFinal: 'arxivat' }
+                                })}
+                                className="text-primary accent-primary"
+                              />
+                              <span>📦 <strong>Fora de temporada</strong> (es manté visible com a edició passada)</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Preu d'oferta opcional */}
+                        <div className="w-full sm:w-1/2">
+                          <label className="block text-xs font-semibold text-primary mb-1">
+                            Preu especial d'oferta durant la campanya (€):
+                          </label>
+                          <DecimalInput
+                            value={editingProducte.programacio?.preuOferta ?? ''}
+                            onChange={(val) => setEditingProducte({
+                              ...editingProducte,
+                              programacio: { ...editingProducte.programacio, preuOferta: val }
+                            })}
+                            placeholder="Opcional (ex: 19,90)"
+                            className="w-full bg-surface border border-outline/30 rounded-lg px-3 py-1.5 text-xs text-primary font-mono outline-none focus:border-primary"
+                          />
+                          <p className="text-[11px] text-on-surface-variant mt-0.5">
+                            Si s'indica, es mostrarà el preu regular ratllat i aquest preu rebaixat.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Toggle de Notificació a Telegram */}
+                    <div className="pt-2 border-t border-primary/10">
+                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-sky-950 dark:text-sky-300 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                        <input
+                          type="checkbox"
+                          checked={editingProducte.programacio?.notificarTelegram !== false}
+                          onChange={(e) => setEditingProducte({
+                            ...editingProducte,
+                            programacio: { ...editingProducte.programacio, notificarTelegram: e.target.checked }
+                          })}
+                          className="w-4 h-4 rounded text-sky-600 accent-sky-600"
+                        />
+                        <div className="flex-1">
+                          <span className="block font-bold flex items-center gap-1">
+                            <Bell className="w-3.5 h-3.5 text-sky-700 dark:text-sky-400" />
+                            <span>Notificar canvis a Telegram</span>
+                          </span>
+                          <span className="text-[11px] text-on-surface-variant font-normal">
+                            Rebràs un missatge al teu Telegram quan s'activi i/o desactivi el producte a la data indicada.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Botons d'Acció */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-outline/15">
-                <button
-                  type="button"
-                  onClick={() => setEditingProducte(null)}
-                  className="px-4 py-2 bg-surface border hover:bg-surface-container text-xs rounded cursor-pointer"
-                >
-                  Cancel·lar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer"
-                >
-                  Desar Producte a Firestore
-                </button>
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-outline/15">
+                <div>
+                  {editingProducte.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('regals');
+                        window.location.hash = `#producte-${editingProducte.id}`;
+                      }}
+                      className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Veure aquest producte al web en el seu lloc real"
+                    >
+                      <Eye className="w-4 h-4 text-amber-700" />
+                      <span>Veure com queda al web</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProducte(null)}
+                    className="px-4 py-2 bg-surface border hover:bg-surface-container text-xs rounded cursor-pointer"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer"
+                  >
+                    Desar Producte a Firestore
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
@@ -4774,6 +5094,32 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                     <Sparkles className="w-3 h-3 text-amber-600" /> NOVETAT
                                   </span>
                                 )}
+                                {p.esborrany === true && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/90 text-amber-950 border border-amber-400 inline-flex items-center gap-1 shadow-2xs">
+                                    <Lock className="w-3 h-3 text-amber-800" /> Esborrany
+                                  </span>
+                                )}
+                                {p.programacio?.activa && (() => {
+                                  const sched = getItemScheduleStatus(p);
+                                  return (
+                                    <span 
+                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs ${
+                                        sched.rawStatus === 'properament'
+                                          ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                          : sched.rawStatus === 'actiu_programat'
+                                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                            : sched.rawStatus === 'arxivat'
+                                              ? 'bg-stone-200 text-stone-800 border border-stone-400'
+                                              : 'bg-purple-100 text-purple-900 border border-purple-300'
+                                      }`}
+                                      title={sched.scheduledSummary || 'Programat'}
+                                    >
+                                      <Clock className="w-3 h-3" />
+                                      <span>{sched.badgeText || 'Programat'}</span>
+                                      {p.programacio.notificarTelegram && <span title="Notificacions Telegram actives">🔔</span>}
+                                    </span>
+                                  );
+                                })()}
                                 {p.actiu === false && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 border border-gray-400 inline-flex items-center gap-0.5">
                                     Inactiu
@@ -6282,8 +6628,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
-              {/* Switches d'Estat: Actiu / Inactiu i Novetat */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
+              {/* Switches d'Estat: Actiu / Inactiu, Mode Esborrany i Novetat */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-surface rounded-lg border border-outline/15">
                 <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer">
                   <input
                     type="checkbox"
@@ -6293,7 +6639,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   />
                   <div>
                     <span className="block font-bold">Actiu a Mons Mínims</span>
-                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta temporalment de la galeria pública.</span>
+                    <span className="text-[11px] text-on-surface-variant font-normal">Si es desmarca, s'oculta completament per a tothom.</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2.5 text-xs font-semibold text-amber-950 dark:text-amber-300 cursor-pointer p-2.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300/80">
+                  <input
+                    type="checkbox"
+                    checked={editingProject.esborrany === true}
+                    onChange={(e) => setEditingProject({ ...editingProject, esborrany: e.target.checked })}
+                    className="w-4 h-4 rounded text-amber-700 accent-amber-600"
+                  />
+                  <div>
+                    <span className="block font-bold flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Mode Esborrany</span>
+                    </span>
+                    <span className="text-[11px] text-amber-800 dark:text-amber-400 font-normal">
+                      Només visible per a tu (administrador) a Mons Mínims per provar com queda.
+                    </span>
                   </div>
                 </label>
 
@@ -6313,21 +6677,253 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </label>
               </div>
 
+              {/* Secció de Programació i Campanyes Temporals (Projectes) */}
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="font-bold text-sm text-primary">Programació i Campanyes Temporals</span>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-primary">
+                    <input
+                      type="checkbox"
+                      checked={editingProject.programacio?.activa === true}
+                      onChange={(e) => {
+                        const isActiva = e.target.checked;
+                        setEditingProject({
+                          ...editingProject,
+                          programacio: {
+                            ...(editingProject.programacio || {}),
+                            activa: isActiva,
+                            tipus: editingProject.programacio?.tipus || 'llancament',
+                            modePrevi: editingProject.programacio?.modePrevi || 'ocult',
+                            accioFinal: editingProject.programacio?.accioFinal || 'esborrany',
+                            notificarTelegram: editingProject.programacio?.notificarTelegram !== false
+                          }
+                        });
+                      }}
+                      className="w-4 h-4 rounded text-primary accent-primary"
+                    />
+                    <span>Activar programació temporal</span>
+                  </label>
+                </div>
+
+                {editingProject.programacio?.activa && (
+                  <div className="space-y-4 pt-2 border-t border-primary/15 animate-fadeIn">
+                    {/* Tipus de programació */}
+                    <div>
+                      <label className="block text-xs font-bold text-on-surface-variant mb-1.5">Tipus de programació:</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProject({
+                            ...editingProject,
+                            programacio: { ...editingProject.programacio, tipus: 'llancament' }
+                          })}
+                          className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                            (editingProject.programacio?.tipus || 'llancament') === 'llancament'
+                              ? 'border-primary bg-surface shadow-xs text-primary font-semibold'
+                              : 'border-outline/20 bg-surface/50 text-on-surface-variant hover:bg-surface'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                            <Clock className="w-3.5 h-3.5 text-primary" />
+                            <span>Llançament futur</span>
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant font-normal">
+                            S'activa a partir d'una data i hora concreta.
+                          </p>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingProject({
+                            ...editingProject,
+                            programacio: { ...editingProject.programacio, tipus: 'periode' }
+                          })}
+                          className={`p-3 rounded-lg border text-left text-xs transition-all ${
+                            editingProject.programacio?.tipus === 'periode'
+                              ? 'border-primary bg-surface shadow-xs text-primary font-semibold'
+                              : 'border-outline/20 bg-surface/50 text-on-surface-variant hover:bg-surface'
+                          }`}
+                        >
+                          <div className="font-bold flex items-center gap-1.5 mb-0.5">
+                            <Tag className="w-3.5 h-3.5 text-primary" />
+                            <span>Campanya temporal (Inici i Fi)</span>
+                          </div>
+                          <p className="text-[11px] text-on-surface-variant font-normal">
+                            Vigent durant un període concret a Mons Mínims.
+                          </p>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Camps de Data i Hora */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-primary mb-1">
+                          {(editingProject.programacio?.tipus === 'periode') ? "Data i hora d'inici de campanya:" : "Data i hora de llançament:"}
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editingProject.programacio?.dataInici || ''}
+                          onChange={(e) => setEditingProject({
+                            ...editingProject,
+                            programacio: { ...editingProject.programacio, dataInici: e.target.value }
+                          })}
+                          className="w-full bg-surface border border-outline/30 rounded-lg px-3 py-2 text-xs text-primary outline-none focus:border-primary font-mono"
+                        />
+                      </div>
+
+                      {editingProject.programacio?.tipus === 'periode' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-primary mb-1">
+                            Data i hora de finalització:
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={editingProject.programacio?.dataFi || ''}
+                            onChange={(e) => setEditingProject({
+                              ...editingProject,
+                              programacio: { ...editingProject.programacio, dataFi: e.target.value }
+                            })}
+                            className="w-full bg-surface border border-outline/30 rounded-lg px-3 py-2 text-xs text-primary outline-none focus:border-primary font-mono"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Comportament previ a la data d'inici */}
+                    <div>
+                      <label className="block text-xs font-bold text-on-surface-variant mb-1">Estat abans de la data d'inici:</label>
+                      <div className="flex flex-wrap gap-4 text-xs">
+                        <label className="flex items-center gap-2 cursor-pointer text-primary">
+                          <input
+                            type="radio"
+                            name="proj_mode_previ"
+                            checked={(editingProject.programacio?.modePrevi || 'ocult') === 'ocult'}
+                            onChange={() => setEditingProject({
+                              ...editingProject,
+                              programacio: { ...editingProject.programacio, modePrevi: 'ocult' }
+                            })}
+                            className="text-primary accent-primary"
+                          />
+                          <span>🔒 <strong>Ocult / Esborrany privat</strong> (amagat fins al dia d'inici)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-primary">
+                          <input
+                            type="radio"
+                            name="proj_mode_previ"
+                            checked={editingProject.programacio?.modePrevi === 'properament'}
+                            onChange={() => setEditingProject({
+                              ...editingProject,
+                              programacio: { ...editingProject.programacio, modePrevi: 'properament' }
+                            })}
+                            className="text-primary accent-primary"
+                          />
+                          <span>✨ <strong>Mode "Properament"</strong> (visible amb xapa de proper llançament a Mons Mínims)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Comportament posterior a la data fi (si és període) */}
+                    {editingProject.programacio?.tipus === 'periode' && (
+                      <div className="space-y-3 pt-2 border-t border-primary/10">
+                        <div>
+                          <label className="block text-xs font-bold text-on-surface-variant mb-1">Estat en finalitzar el període:</label>
+                          <div className="flex flex-wrap gap-4 text-xs">
+                            <label className="flex items-center gap-2 cursor-pointer text-primary">
+                              <input
+                                type="radio"
+                                name="proj_accio_final"
+                                checked={(editingProject.programacio?.accioFinal || 'esborrany') === 'esborrany'}
+                                onChange={() => setEditingProject({
+                                  ...editingProject,
+                                  programacio: { ...editingProject.programacio, accioFinal: 'esborrany' }
+                                })}
+                                className="text-primary accent-primary"
+                              />
+                              <span>🔒 <strong>Tornar a Esborrany</strong> (s'oculta automàticament de la galeria)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer text-primary">
+                              <input
+                                type="radio"
+                                name="proj_accio_final"
+                                checked={editingProject.programacio?.accioFinal === 'arxivat'}
+                                onChange={() => setEditingProject({
+                                  ...editingProject,
+                                  programacio: { ...editingProject.programacio, accioFinal: 'arxivat' }
+                                })}
+                                className="text-primary accent-primary"
+                              />
+                              <span>📦 <strong>Fora de temporada</strong> (es manté visible com a edició passada)</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Toggle de Notificació a Telegram */}
+                    <div className="pt-2 border-t border-primary/10">
+                      <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-sky-950 dark:text-sky-300 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                        <input
+                          type="checkbox"
+                          checked={editingProject.programacio?.notificarTelegram !== false}
+                          onChange={(e) => setEditingProject({
+                            ...editingProject,
+                            programacio: { ...editingProject.programacio, notificarTelegram: e.target.checked }
+                          })}
+                          className="w-4 h-4 rounded text-sky-600 accent-sky-600"
+                        />
+                        <div className="flex-1">
+                          <span className="block font-bold flex items-center gap-1">
+                            <Bell className="w-3.5 h-3.5 text-sky-700 dark:text-sky-400" />
+                            <span>Notificar canvis a Telegram</span>
+                          </span>
+                          <span className="text-[11px] text-on-surface-variant font-normal">
+                            Rebràs un missatge al teu Telegram quan s'activi i/o desactivi el projecte a la data indicada.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Form Buttons */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-outline/15">
-                <button 
-                  type="button"
-                  onClick={() => setEditingProject(null)}
-                  className="px-5 py-2.5 bg-surface hover:bg-surface-container text-on-surface border rounded-lg text-sm cursor-pointer"
-                >
-                  Cancel·lar
-                </button>
-                <button 
-                  type="submit"
-                  className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-sm font-medium shadow cursor-pointer"
-                >
-                  Desar Projecte a Firestore
-                </button>
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 pt-4 border-t border-outline/15">
+                <div>
+                  {editingProject.id && (
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('monsminims');
+                        window.location.hash = `#projecte-${editingProject.id}`;
+                      }}
+                      className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Veure aquest projecte al web"
+                    >
+                      <Eye className="w-4 h-4 text-amber-700" />
+                      <span>Veure com queda al web</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingProject(null)}
+                    className="px-5 py-2.5 bg-surface hover:bg-surface-container text-on-surface border rounded-lg text-sm cursor-pointer"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-sm font-medium shadow cursor-pointer"
+                  >
+                    Desar Projecte a Firestore
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
@@ -6368,6 +6964,32 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                   <Sparkles className="w-3 h-3 text-amber-600" /> NOVETAT
                                 </span>
                               )}
+                              {p.esborrany === true && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/90 text-amber-950 border border-amber-400 inline-flex items-center gap-1 shadow-2xs">
+                                  <Lock className="w-3 h-3 text-amber-800" /> Esborrany
+                                </span>
+                              )}
+                              {p.programacio?.activa && (() => {
+                                const sched = getItemScheduleStatus(p);
+                                return (
+                                  <span 
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 shadow-2xs ${
+                                      sched.rawStatus === 'properament'
+                                        ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                        : sched.rawStatus === 'actiu_programat'
+                                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                          : sched.rawStatus === 'arxivat'
+                                            ? 'bg-stone-200 text-stone-800 border border-stone-400'
+                                            : 'bg-purple-100 text-purple-900 border border-purple-300'
+                                    }`}
+                                    title={sched.scheduledSummary || 'Programat'}
+                                  >
+                                    <Clock className="w-3 h-3" />
+                                    <span>{sched.badgeText || 'Programat'}</span>
+                                    {p.programacio.notificarTelegram && <span title="Notificacions Telegram actives">🔔</span>}
+                                  </span>
+                                );
+                              })()}
                               {p.actiu === false && (
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-700 border border-gray-400 inline-flex items-center gap-0.5">
                                   Inactiu

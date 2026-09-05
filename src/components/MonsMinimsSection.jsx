@@ -3,7 +3,8 @@ import { STITCH_PROJECTS, DEFAULT_BRANQUES } from '../data/stitchData';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { resolveMediaUrl, formatDateDDMMAAAA } from '../utils/mediaUtils';
-import { Sparkles, Calendar } from 'lucide-react';
+import { Sparkles, Calendar, Lock, Clock, Tag } from 'lucide-react';
+import { getItemScheduleStatus } from '../utils/scheduleUtils';
 import { WhatsAppIcon, getWhatsAppLink } from './WhatsAppButton';
 import { formatDecimal } from '../utils/numberUtils';
 import { StarRating } from './CommentsSection';
@@ -52,10 +53,15 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
     const qProjects = query(collection(db, "projectes"), orderBy("ordre", "asc"));
     const unsubscribeProjects = onSnapshot(qProjects, (snapshot) => {
       if (!snapshot.empty) {
+        const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('minimmon_admin_auth') === 'true';
         const loadedProjects = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
-        })).filter(p => p.actiu !== false);
+        })).filter(p => {
+          if (p.actiu === false) return false;
+          const sched = getItemScheduleStatus(p);
+          return sched.isVisible || isAdmin;
+        });
 
         if (loadedProjects.length > 0) {
           setProjectsList(loadedProjects);
@@ -291,6 +297,33 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                             <span>NOVETAT</span>
                           </span>
                         )}
+                        {(() => {
+                          const sched = getItemScheduleStatus(project);
+                          if (sched.isProperament) {
+                            return (
+                              <span className="px-3 py-1 bg-indigo-900 text-indigo-100 font-bold font-sans text-xs uppercase tracking-wider rounded-full shadow-sm inline-flex items-center gap-1.5 border border-indigo-400/40">
+                                <Clock className="w-3.5 h-3.5 text-indigo-300" />
+                                <span>PROPERAMENT</span>
+                              </span>
+                            );
+                          }
+                          if (sched.isArxivat) {
+                            return (
+                              <span className="px-3 py-1 bg-stone-800 text-stone-200 font-bold font-sans text-xs uppercase tracking-wider rounded-full shadow-sm inline-flex items-center gap-1.5 border border-stone-500/40">
+                                <span>FORA DE TEMPORADA</span>
+                              </span>
+                            );
+                          }
+                          if (project.esborrany || sched.rawStatus === 'programat_futur') {
+                            return (
+                              <span className="px-3 py-1 bg-amber-800 text-amber-100 font-bold font-sans text-xs uppercase tracking-wider rounded-full shadow-sm inline-flex items-center gap-1.5 border border-amber-300/40" title="Només visible per a l'administrador">
+                                <Lock className="w-3.5 h-3.5 text-amber-300" />
+                                <span>{sched.rawStatus === 'programat_futur' ? 'PROGRAMAT' : 'ESBORRANY PRIVAT'}</span>
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
 
                       <h2 className="font-headline-lg-mobile md:font-headline-lg text-headline-lg-mobile md:text-headline-lg text-primary mb-4 font-serif text-3xl">

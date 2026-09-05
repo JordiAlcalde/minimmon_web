@@ -1,0 +1,28 @@
+name: Comprovador de Programació i Avisos Telegram
+
+on:
+  schedule:
+    # S'executa cada hora al minut 0 (100% gratuït dins dels 2.000 minuts/mes de GitHub Actions)
+    - cron: '0 * * * *'
+  # Permet executar-lo manualment des de la pestanya 'Actions' de GitHub quan es vulgui
+  workflow_dispatch:
+
+jobs:
+  check-schedules:
+    name: Comprovar dates i notificar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositori
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instal·lar dependències
+        run: npm ci
+
+      - name: Executar comprovador de programació
+        run: node scripts/check_schedules.mjs

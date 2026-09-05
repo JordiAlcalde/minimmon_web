@@ -7,8 +7,9 @@ import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers, Leaf, ShieldCheck, Wrench, Heart, Flame, AlertTriangle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers, Leaf, ShieldCheck, Wrench, Heart, Flame, AlertTriangle, CheckCircle2, HelpCircle, Lock } from 'lucide-react';
 import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions, normalizeGammaName, isProductInGamma } from './PrivateAreaSection';
+import { getItemScheduleStatus } from '../utils/scheduleUtils';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
 import PuzzleSimulator from './PuzzleSimulator';
@@ -389,10 +390,18 @@ export default function RegalsCatalogSection({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Sessió d'administrador activa (iniciada des de l'Àrea Privada)
+  const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('minimmon_admin_auth') === 'true';
+
   // Filtrar i ordenar productes per la jerarquia Família / Gamma / Ordre o per la Cerca Activa
   const rawFilteredProducts = dbProducts.filter(p => {
     if (!p) return false;
+    // 1. Si està marcat com a inactiu (actiu === false), MAI no es veu (ni com a públic ni com a administrador)
     if (p.actiu === false) return false;
+
+    // 2. Avaluació d'estat de programació temporal i esborrany
+    const sched = getItemScheduleStatus(p);
+    if (!sched.isVisible && !isAdmin) return false;
 
     // Si el producte pertany a gammes i cap d'elles és activa al web, s'oculta temporalment
     if (Array.isArray(p.gammaIds) && p.gammaIds.length > 0 && dbGammes.length > 0) {
@@ -402,9 +411,16 @@ export default function RegalsCatalogSection({
       if (!hasAnyActiveGamma) return false;
     }
 
-    // Si el producte pertany a famílies i cap d'elles és activa al catàleg, s'oculta temporalment
-    if (Array.isArray(p.familaIds) && p.familaIds.length > 0 && activeFamilies.length > 0) {
-      const hasAnyActiveFamily = p.familaIds.some(fName =>
+    // Si el producte pertany a famílies o gammes i cap d'elles és activa al catàleg, s'oculta temporalment
+    const effectiveFamNames = [
+      ...(Array.isArray(p.familaIds) ? p.familaIds : []),
+      ...(Array.isArray(p.gammaIds) 
+        ? p.gammaIds.map(gName => dbGammes.find(g => isProductInGamma([gName], g.nom, dbGammes))?.familiaNom).filter(Boolean)
+        : [])
+    ];
+
+    if (effectiveFamNames.length > 0 && activeFamilies.length > 0) {
+      const hasAnyActiveFamily = effectiveFamNames.some(fName =>
         activeFamilies.some(af => String(af.nom || '').toLowerCase() === String(fName || '').toLowerCase())
       );
       if (!hasAnyActiveFamily) return false;
@@ -1001,6 +1017,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
   const deliveryTime = product.terminiFabricacio || product.terminiLliurament || '3-5 dies';
   const ratingScore = product.rating || 5.0;
   const commentsCount = Array.isArray(product.comentaris) ? product.comentaris.length : (product.numComentaris || 0);
+  const sched = getItemScheduleStatus(product);
 
   return (
     <div 
@@ -1023,6 +1040,26 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
           {product.novetat && (
             <span className="absolute top-1 left-1 bg-amber-400 text-amber-950 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs">
               NOU
+            </span>
+          )}
+          {sched.isProperament && (
+            <span className="absolute top-1 right-1 bg-indigo-800 text-indigo-100 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+              <Clock className="w-2.5 h-2.5 text-indigo-200" /> PROPERAMENT
+            </span>
+          )}
+          {sched.isOferta && (
+            <span className="absolute top-1 right-1 bg-emerald-800 text-emerald-100 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+              <Tag className="w-2.5 h-2.5 text-emerald-200" /> OFERTA
+            </span>
+          )}
+          {sched.isArxivat && (
+            <span className="absolute top-1 right-1 bg-stone-700 text-stone-100 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs">
+              FORA TEMPORADA
+            </span>
+          )}
+          {!sched.isProperament && !sched.isOferta && !sched.isArxivat && (product.esborrany || sched.rawStatus === 'programat_futur') && (
+            <span className="absolute top-1 right-1 bg-amber-800 text-amber-100 font-bold text-[9px] px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5" title="Mode Esborrany (Només visible per a l'administrador)">
+              <Lock className="w-2.5 h-2.5 text-amber-200" /> {sched.rawStatus === 'programat_futur' ? 'PROGRAMAT' : 'ESBORRANY'}
             </span>
           )}
         </div>
@@ -1056,17 +1093,54 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
 
       {/* Barra Inferior: Preu i Botó d'Acció en una sola línia */}
       <div className="mt-3.5 pt-2.5 border-t border-outline/10 flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
-        <div className="flex items-baseline gap-1.5 min-w-0">
-          <span className="text-[10px] text-on-surface-variant/75 uppercase tracking-wider font-mono font-medium whitespace-nowrap">
-            {isPreuDesDe ? "PREU DES DE:" : (isBudgetRequired ? "Preu orientatiu:" : "PREU:")}
-          </span>
-          <span className={textPriceValue ? "font-sans text-xs font-semibold text-primary" : "font-sans text-xs sm:text-sm font-bold text-primary tracking-tight whitespace-nowrap"}>
-            {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${displayedPrice.toFixed(2).replace('.', ',')} €`)}
-          </span>
-        </div>
+        {sched.isOferta && sched.preuEfectiu ? (
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-[10px] text-emerald-800 dark:text-emerald-400 uppercase tracking-wider font-mono font-bold whitespace-nowrap">
+              OFERTA:
+            </span>
+            <span className="font-sans text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 tracking-tight whitespace-nowrap">
+              {Number(sched.preuEfectiu).toFixed(2).replace('.', ',')} €
+            </span>
+            <span className="text-[11px] text-outline line-through whitespace-nowrap">
+              {displayedPrice.toFixed(2).replace('.', ',')} €
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-baseline gap-1.5 min-w-0">
+            <span className="text-[10px] text-on-surface-variant/75 uppercase tracking-wider font-mono font-medium whitespace-nowrap">
+              {isPreuDesDe ? "PREU DES DE:" : (isBudgetRequired ? "Preu orientatiu:" : "PREU:")}
+            </span>
+            <span className={textPriceValue ? "font-sans text-xs font-semibold text-primary" : "font-sans text-xs sm:text-sm font-bold text-primary tracking-tight whitespace-nowrap"}>
+              {textPriceValue ? textPriceValue : (isZeroPrice ? "- - -" : `${displayedPrice.toFixed(2).replace('.', ',')} €`)}
+            </span>
+          </div>
+        )}
 
-        {/* Botó segons si té personalització o és compra/pressupost */}
-        {hasCustomization ? (
+        {/* Botó segons si és properament, té personalització o és compra/pressupost */}
+        {sched.isProperament ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick(1);
+            }}
+            className="px-3.5 py-1.5 bg-indigo-900 text-indigo-100 text-xs font-semibold rounded-xl hover:bg-indigo-800 transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
+          >
+            <Clock className="w-3.5 h-3.5 text-indigo-300" />
+            <span>Properament</span>
+          </button>
+        ) : sched.isArxivat ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onClick) onClick(1);
+            }}
+            className="px-3.5 py-1.5 bg-stone-700 text-stone-200 text-xs font-semibold rounded-xl hover:bg-stone-600 transition-all duration-200 cursor-pointer shadow-2xs active:scale-95 flex items-center gap-1.5 shrink-0"
+          >
+            <span>Arxivat</span>
+          </button>
+        ) : hasCustomization ? (
           <button
             type="button"
             onClick={(e) => {
@@ -1448,6 +1522,8 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
     setTimeout(() => setAddedToast(false), 3000);
   };
 
+  const sched = getItemScheduleStatus(product);
+
   return (
     <article id={`producte-${product.id}`} className={`${isModalView ? 'bg-transparent border-0 shadow-none p-0 w-full' : 'bg-surface-container-lowest rounded-xl border border-outline/15 shadow-sm p-6 md:p-8'} overflow-hidden grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start`}>
 
@@ -1473,6 +1549,29 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
             <div className="absolute top-3 left-3 bg-[#3D2B1F] text-amber-200 font-bold font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-amber-200/30">
               <Sparkles className="w-3 h-3 text-amber-400" />
               <span>NOVETAT</span>
+            </div>
+          )}
+          {sched.isProperament && (
+            <div className="absolute top-3 right-3 bg-indigo-900 text-indigo-100 font-bold font-sans text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-indigo-400/40">
+              <Clock className="w-3 h-3 text-indigo-300" />
+              <span>PROPERAMENT</span>
+            </div>
+          )}
+          {sched.isOferta && (
+            <div className="absolute top-3 right-3 bg-emerald-900 text-emerald-100 font-bold font-sans text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-emerald-400/40">
+              <Tag className="w-3 h-3 text-emerald-300" />
+              <span>OFERTA TEMPORAL</span>
+            </div>
+          )}
+          {sched.isArxivat && (
+            <div className="absolute top-3 right-3 bg-stone-800 text-stone-200 font-bold font-sans text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-stone-500/40">
+              <span>FORA DE TEMPORADA</span>
+            </div>
+          )}
+          {!sched.isProperament && !sched.isOferta && !sched.isArxivat && (product.esborrany || sched.rawStatus === 'programat_futur') && (
+            <div className="absolute top-3 right-3 bg-amber-900 text-amber-100 font-bold font-sans text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-amber-300/40" title="Aquest producte és en mode esborrany i només el pots veure tu perquè ets administrador">
+              <Lock className="w-3 h-3 text-amber-300" />
+              <span>{sched.rawStatus === 'programat_futur' ? 'PROGRAMAT' : 'ESBORRANY PRIVAT'}</span>
             </div>
           )}
           {currentDisplayImg ? (
@@ -1948,23 +2047,34 @@ Pots deixar-ho en blanc si ho prefereixes.`}
 
           {/* Botó Afegir a la Cistella o Demanar Pressupost */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="w-full sm:w-auto bg-primary text-on-primary px-8 py-3.5 rounded font-body-md text-sm hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
-            >
-              {isBudgetRequired ? (
-                <>
-                  <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
-                  <span>Demanar pressupost</span>
-                </>
-              ) : (
-                <>
-                  <img src="/images/icon-cistella.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
-                  <span>Afegir a la cistella</span>
-                </>
-              )}
-            </button>
+            {sched.isProperament ? (
+              <div className="w-full sm:w-auto bg-indigo-950/80 text-indigo-200 border border-indigo-500/40 px-6 py-3.5 rounded font-body-md text-sm flex items-center justify-center gap-2.5 shadow-sm">
+                <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
+                <span>Properament disponible ({sched.scheduledSummary || 'Llançament proper'})</span>
+              </div>
+            ) : sched.isArxivat ? (
+              <div className="w-full sm:w-auto bg-stone-900/80 text-stone-300 border border-stone-600/40 px-6 py-3.5 rounded font-body-md text-sm flex items-center justify-center gap-2.5 shadow-sm">
+                <span>Edició fora de temporada</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="w-full sm:w-auto bg-primary text-on-primary px-8 py-3.5 rounded font-body-md text-sm hover:bg-primary-container transition-colors shadow-md flex items-center justify-center gap-2.5 cursor-pointer"
+              >
+                {isBudgetRequired ? (
+                  <>
+                    <img src="/images/icon-pressupost.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
+                    <span>Demanar pressupost</span>
+                  </>
+                ) : (
+                  <>
+                    <img src="/images/icon-cistella.png" alt="" className="w-5 h-5 object-contain brightness-0 invert shrink-0" />
+                    <span>Afegir a la cistella</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {addedToast && (
               <span className="text-xs text-emerald-800 dark:text-emerald-300 font-semibold flex items-center gap-1 animate-fadeIn">

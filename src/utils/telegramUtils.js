@@ -123,3 +123,87 @@ export async function sendTelegramCommentNotification({ autor, puntuacio, coment
     return false;
   }
 }
+
+export async function sendTelegramScheduleNotification({ 
+  itemNom, 
+  tipusItem = 'producte', 
+  eventTipus = 'llancament_activat', 
+  dataInici = '', 
+  dataFi = '', 
+  preu = null, 
+  preuOferta = null,
+  accioFinal = 'esborrany'
+}) {
+  try {
+    const { botToken, chatId } = await getTelegramConfig();
+
+    if (!botToken || !chatId) {
+      console.log('Notificació de Telegram pendent de configurar Token i Chat ID');
+      return false;
+    }
+
+    const cleanNom = itemNom || 'Element sense nom';
+    const cleanTipus = tipusItem === 'projecte' ? 'Projecte' : 'Producte';
+    let capcalera = '📅 <b>AVÍS DE PROGRAMACIÓ TEMPORAL</b>';
+    let detalls = '';
+
+    if (eventTipus === 'llancament_activat') {
+      capcalera = '🚀 <b>LLANÇAMENT ACTIVAT AL WEB!</b>';
+      detalls = `
+🎨 <b>${cleanTipus}:</b> ${cleanNom}
+⏰ <b>Activació:</b> Automàtica segons programació
+${preu ? `💰 <b>Preu:</b> ${preu}€\n` : ''}
+🌐 <i>Ja és visible i disponible a minimmon.cat!</i>
+      `.trim();
+    } else if (eventTipus === 'campanya_iniciada') {
+      capcalera = '🏷️ <b>CAMPANYA TEMPORAL INICIADA!</b>';
+      detalls = `
+🎨 <b>${cleanTipus}:</b> ${cleanNom}
+📅 <b>Vigència:</b> ${dataInici ? `Des de ${dataInici}` : ''} ${dataFi ? `fins a ${dataFi}` : ''}
+${preuOferta ? `🔥 <b>Preu especial oferta:</b> ${preuOferta}€ ${preu ? `(Preu habitual: ${preu}€)` : ''}\n` : ''}
+🌐 <i>Visible a la botiga de minimmon.cat</i>
+      `.trim();
+    } else if (eventTipus === 'campanya_finalitzada') {
+      capcalera = '⏳ <b>CAMPANYA PROGRAMADA FINALITZADA</b>';
+      detalls = `
+🎨 <b>${cleanTipus}:</b> ${cleanNom}
+🏁 <b>Data fi complerta:</b> ${dataFi || 'Avui'}
+📌 <b>Nou estat aplicat:</b> ${accioFinal === 'arxivat' ? 'Fora de temporada (Arxivat)' : 'Ocult (Esborrany)'}
+      `.trim();
+    } else if (eventTipus === 'programacio_confirmada') {
+      capcalera = '📅 <b>PROGRAMACIÓ TEMPORAL DESADA</b>';
+      detalls = `
+🎨 <b>${cleanTipus}:</b> ${cleanNom}
+⏰ <b>Inici programat:</b> ${dataInici || 'No indicat'}
+${dataFi ? `🏁 <b>Final programat:</b> ${dataFi}\n` : ''}
+${preuOferta ? `🏷️ <b>Preu d'oferta:</b> ${preuOferta}€\n` : ''}
+🔔 <i>Rebràs un missatge aquí quan s'activi o finalitzi automàticament.</i>
+      `.trim();
+    }
+
+    const text = `
+${capcalera}
+
+${detalls}
+
+--------------------------------
+<i>Notificació automàtica de Mínim Món</i>
+    `.trim();
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.warn('Error enviant notificació de programació a Telegram:', err);
+    return false;
+  }
+}
+

@@ -124,7 +124,8 @@ export default function IniciSection({ setActiveTab, onSelectProject }) {
     const qProjects = query(collection(db, "projectes"), orderBy("ordre", "asc"));
     const unsubscribe = onSnapshot(qProjects, (snapshot) => {
       if (!snapshot.empty) {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.actiu !== false);
+        const isAdmin = typeof window !== 'undefined' && sessionStorage.getItem('minimmon_admin_auth') === 'true';
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.actiu !== false && (p.esborrany !== true || isAdmin));
         if (docs.length > 0) {
           setAllProjects(docs);
           return;
