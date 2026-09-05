@@ -348,10 +348,32 @@ export default function RegalsCatalogSection({
     };
   }, []);
 
-  // Llista de Famílies activa i dinàmica de Firestore (ordenada per ordre)
-  const activeFamilies = dbFamilies && dbFamilies.length > 0
-    ? [...dbFamilies].sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
-    : DEFAULT_FAMILIES;
+  // Llista de Famílies activa i dinàmica de Firestore:
+  // Una família només és visible al web si:
+  // 1. fam.actiu !== false (activada a l'àrea privada)
+  // 2. Té com a mínim 1 gamma activa a dbGammes (protecció contra contingut buit)
+  const activeFamilies = (dbFamilies && dbFamilies.length > 0 ? dbFamilies : DEFAULT_FAMILIES)
+    .filter(fam => {
+      if (!fam) return false;
+      if (fam.actiu === false) return false;
+      const famNameLower = String(fam.nom || '').toLowerCase();
+      const hasActiveGamma = dbGammes.some(g =>
+        g && g.actiu !== false && g.familiaNom && String(g.familiaNom).toLowerCase().includes(famNameLower)
+      );
+      return hasActiveGamma;
+    })
+    .sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
+
+  // Si la família seleccionada actualment deixa d'estar activa al web, resetejar a 'Tots'
+  useEffect(() => {
+    if (selectedFamilia !== 'Tots' && selectedFamilia !== 'Novetats') {
+      const stillActive = activeFamilies.some(f => String(f.nom || '').toLowerCase() === String(selectedFamilia || '').toLowerCase());
+      if (!stillActive && activeFamilies.length > 0) {
+        setSelectedFamilia('Tots');
+        setSelectedGamma('Tots');
+      }
+    }
+  }, [selectedFamilia, activeFamilies]);
 
   const handleSelectFamilia = (famName) => {
     setSelectedFamilia(famName);
@@ -378,6 +400,14 @@ export default function RegalsCatalogSection({
         dbGammes.some(g => (g.actiu !== false) && isProductInGamma([gName], g.nom, dbGammes))
       );
       if (!hasAnyActiveGamma) return false;
+    }
+
+    // Si el producte pertany a famílies i cap d'elles és activa al catàleg, s'oculta temporalment
+    if (Array.isArray(p.familaIds) && p.familaIds.length > 0 && activeFamilies.length > 0) {
+      const hasAnyActiveFamily = p.familaIds.some(fName =>
+        activeFamilies.some(af => String(af.nom || '').toLowerCase() === String(fName || '').toLowerCase())
+      );
+      if (!hasAnyActiveFamily) return false;
     }
 
     // 1. Filtrar per Cerca Activa des del Header (si hi ha text d'usuari)
@@ -428,13 +458,13 @@ export default function RegalsCatalogSection({
     ? resolveMediaUrl(currentFamObj.imatge)
     : resolveMediaUrl('images/tots_productes.jpg');
 
-  // Obtenir les gammes disponibles per a la família seleccionada
+  // Obtenir les gammes disponibles per a la família seleccionada (només actives)
   const getSubGammesForSelectedFamily = () => {
     if (selectedFamilia === 'Tots') return [];
     const selFamLower = String(selectedFamilia || '').toLowerCase();
 
     return dbGammes
-      .filter(g => g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(selFamLower))
+      .filter(g => g && g.actiu !== false && g.familiaNom && String(g.familiaNom).toLowerCase().includes(selFamLower))
       .sort((a, b) => (a.ordre || 1) - (b.ordre || 1))
       .map(g => g.nom)
       .filter(Boolean);
@@ -463,9 +493,9 @@ export default function RegalsCatalogSection({
           {/* Grid 100% Dinàmic de Famílies de Firestore */}
           <section className="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 md:grid-cols-2 gap-gutter">
             {activeFamilies.map((fam) => {
-              // Obtenir les Gammes d'aquesta Família ordenades per ordre
+              // Obtenir les Gammes actives d'aquesta Família ordenades per ordre
               const famGammes = dbGammes.filter(g =>
-                g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(fam?.nom || '').toLowerCase())
+                g && g.actiu !== false && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(fam?.nom || '').toLowerCase())
               ).sort((a, b) => (a.ordre || 1) - (b.ordre || 1));
 
               const cardImg = fam.imatge ? resolveMediaUrl(fam.imatge) : '';

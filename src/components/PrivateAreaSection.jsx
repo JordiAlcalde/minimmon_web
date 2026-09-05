@@ -1567,7 +1567,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
         nom: newName,
         descripcio: editingFamilia.descripcio || '',
         imatge: imgResolved || editingFamilia.imatge || '',
-        ordre: Number(editingFamilia.ordre || 1)
+        ordre: Number(editingFamilia.ordre || 1),
+        actiu: editingFamilia.actiu !== false
       }, { merge: true });
 
       // Si s'ha canviat el nom d'una família existent, actualitzar gammes i productes en cascada
@@ -1947,6 +1948,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
         </div>
 
         <div className="flex items-center gap-3 self-stretch md:self-auto justify-end">
+          <button 
+            onClick={() => setActiveTab('posting')}
+            className="px-4 py-2 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-stone-900 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            title="Accedir a l'aplicació Posting (Estudi de continguts per a Instagram)"
+          >
+            <Share2 className="w-4 h-4 text-amber-300" />
+            <span>Posting</span>
+          </button>
+
           <button 
             onClick={() => setActiveTab('producc')}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
@@ -5307,7 +5317,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingFamilia({ id: `fam-${Date.now()}`, nom: '', ordre: dbFamilies.length + 1 })}
+                onClick={() => setEditingFamilia({ id: `fam-${Date.now()}`, nom: '', ordre: dbFamilies.length + 1, actiu: true })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -5360,6 +5370,24 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="w-full px-3 py-2 rounded bg-surface border text-xs font-mono"
                   />
                 </div>
+
+                <div className="pt-2 border-t border-outline/10">
+                  <label className="flex items-center gap-3 text-xs font-semibold text-primary cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingFamilia.actiu !== false}
+                      onChange={(e) => setEditingFamilia({ ...editingFamilia, actiu: e.target.checked })}
+                      className="w-4 h-4 rounded text-primary accent-primary cursor-pointer"
+                    />
+                    <div>
+                      <span className="block font-bold">Família Activa al web</span>
+                      <span className="text-[11px] text-on-surface-variant font-normal block leading-tight">
+                        Si es desmarca, s'oculta del catàleg públic juntament amb totes les seves gammes.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-2">
                   <button type="button" onClick={() => setEditingFamilia(null)} className="px-3 py-1.5 bg-surface border text-xs rounded">Cancel·lar</button>
                   <button type="submit" className="px-4 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded">Desar Família</button>
@@ -5374,32 +5402,54 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       <th className="p-3">Imatge</th>
                       <th className="p-3">Nom de la Família</th>
                       <th className="p-3">Descripció</th>
+                      <th className="p-3 font-mono">Estat</th>
                       <th className="p-3 font-mono">ID</th>
                       <th className="p-3 text-right">Accions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline/10">
-                    {dbFamilies.map(f => (
-                      <tr key={f.id} className="hover:bg-surface-container/40">
-                        <td className="p-3 font-mono text-xs">{f.ordre || 1}</td>
-                        <td className="p-3">
-                          <div className="w-12 h-9 rounded bg-surface-container overflow-hidden border">
-                            {f.imatge ? (
-                              <img src={resolveMediaUrl(f.imatge)} alt="" className="w-full h-full object-cover" />
+                    {dbFamilies.map(f => {
+                      const activeGammesCount = dbGammes.filter(g =>
+                        g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(f.nom || '').toLowerCase()) && g.actiu !== false
+                      ).length;
+
+                      return (
+                        <tr key={f.id} className="hover:bg-surface-container/40">
+                          <td className="p-3 font-mono text-xs">{f.ordre || 1}</td>
+                          <td className="p-3">
+                            <div className="w-12 h-9 rounded bg-surface-container overflow-hidden border">
+                              {f.imatge ? (
+                                <img src={resolveMediaUrl(f.imatge)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[9px] text-outline">Sense foto</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 font-semibold text-primary">{f.nom}</td>
+                          <td className="p-3 text-xs text-on-surface-variant max-w-xs truncate">{f.descripcio || '-'}</td>
+                          <td className="p-3">
+                            {f.actiu === false ? (
+                              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                Inactiva
+                              </span>
+                            ) : activeGammesCount === 0 ? (
+                              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30" title="Marcada activa però té 0 gammes actives">
+                                Sense gammes
+                              </span>
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-[9px] text-outline">Sense foto</div>
+                              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                Activa
+                              </span>
                             )}
-                          </div>
-                        </td>
-                        <td className="p-3 font-semibold text-primary">{f.nom}</td>
-                        <td className="p-3 text-xs text-on-surface-variant max-w-xs truncate">{f.descripcio || '-'}</td>
-                        <td className="p-3 font-mono text-xs text-outline">{f.id}</td>
-                        <td className="p-3 text-right space-x-2">
-                          <button onClick={() => setEditingFamilia(f)} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
-                          <button onClick={() => handleDeleteFamilia(f.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="p-3 font-mono text-xs text-outline">{f.id}</td>
+                          <td className="p-3 text-right space-x-2">
+                            <button onClick={() => setEditingFamilia({ actiu: f.actiu !== false, ...f })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                            <button onClick={() => handleDeleteFamilia(f.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -5453,16 +5503,43 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </div>
 
                     <div>
-                      <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Família a la que pertany *</label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-xs uppercase font-semibold text-on-surface-variant">Família a la que pertany *</label>
+                        {(() => {
+                          const selectedParentFam = dbFamilies.find(f => (f.nom || '').toLowerCase() === (editingGamma.familiaNom || '').toLowerCase());
+                          if (selectedParentFam && selectedParentFam.actiu === false) {
+                            return (
+                              <span className="text-[10px] font-mono font-bold text-rose-700 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">
+                                Família inactiva
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                       <select
                         value={editingGamma.familiaNom || ''}
                         onChange={(e) => setEditingGamma({ ...editingGamma, familiaNom: e.target.value })}
                         className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary font-semibold focus:outline-none focus:border-primary"
                       >
                         {dbFamilies.map(fam => (
-                          <option key={fam.id} value={fam.nom}>{fam.nom}</option>
+                          <option key={fam.id} value={fam.nom}>
+                            {fam.nom} {fam.actiu === false ? '(Inactiva)' : ''}
+                          </option>
                         ))}
                       </select>
+                      {(() => {
+                        const selectedParentFam = dbFamilies.find(f => (f.nom || '').toLowerCase() === (editingGamma.familiaNom || '').toLowerCase());
+                        if (selectedParentFam && selectedParentFam.actiu === false) {
+                          return (
+                            <p className="text-[10px] text-rose-700 dark:text-rose-400 mt-1 leading-tight flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 shrink-0" />
+                              <span>La família seleccionada està desactivada. Aquesta gamma no serà visible al catàleg fins que activis la família.</span>
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
 
                     <div>
@@ -5697,23 +5774,44 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         return (a.ordre || 1) - (b.ordre || 1); // Després per l'Ordre intern
                       });
 
-                      return sortedGammes.map(g => (
-                        <tr key={g.id} className="hover:bg-surface-container/40">
-                          <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
-                          <td className="p-3 font-semibold text-primary">{g.nom}</td>
-                          <td className="p-3 text-xs text-on-surface-variant">{g.familiaNom}</td>
-                          <td className="p-3">
-                            <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full ${g.actiu !== false ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'}`}>
-                              {g.actiu !== false ? 'Activa' : 'Inactiva'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
-                          <td className="p-3 text-right space-x-2">
-                            <button onClick={() => setEditingGamma({ textInformatiu: '', imatges: [], actiu: g.actiu !== false, ...g })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
-                            <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
-                          </td>
-                        </tr>
-                      ));
+                      return sortedGammes.map(g => {
+                        const parentFam = dbFamilies.find(f => (f.nom || '').toLowerCase() === (g.familiaNom || '').toLowerCase());
+                        const isParentFamInactive = Boolean(parentFam && parentFam.actiu === false);
+                        const isGammaActive = g.actiu !== false;
+
+                        return (
+                          <tr key={g.id} className={`hover:bg-surface-container/40 ${isParentFamInactive ? 'bg-amber-500/[0.03]' : ''}`}>
+                            <td className="p-3 font-mono text-xs">{g.ordre || 1}</td>
+                            <td className="p-3 font-semibold text-primary">{g.nom}</td>
+                            <td className="p-3 text-xs text-on-surface-variant">
+                              {g.familiaNom || '-'}
+                            </td>
+                            <td className="p-3">
+                              {!isGammaActive ? (
+                                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                                  Inactiva
+                                </span>
+                              ) : isParentFamInactive ? (
+                                <span
+                                  className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 inline-flex items-center gap-1 cursor-help"
+                                  title="Aquesta gamma està configurada com a activa, però roman oculta al web perquè la seva Família Pare està desactivada."
+                                >
+                                  Pausada
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                  Activa
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 font-mono text-xs text-outline">{g.id}</td>
+                            <td className="p-3 text-right space-x-2">
+                              <button onClick={() => setEditingGamma({ textInformatiu: '', imatges: [], actiu: g.actiu !== false, ...g })} className="px-2.5 py-1 bg-primary/10 text-primary text-xs font-semibold rounded">Editar</button>
+                              <button onClick={() => handleDeleteGamma(g.id)} className="px-2.5 py-1 bg-error-container/20 text-error text-xs font-semibold rounded">Esborrar</button>
+                            </td>
+                          </tr>
+                        );
+                      });
                     })()}
                   </tbody>
                 </table>

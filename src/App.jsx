@@ -9,6 +9,7 @@ import ContacteSection from './components/ContacteSection';
 import PrivateAreaSection from './components/PrivateAreaSection';
 import ProduccApp from './components/producc/ProduccApp';
 import ProjeccApp from './components/projecc/ProjeccApp';
+import PostingApp from './components/posting/PostingApp';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
@@ -85,8 +86,14 @@ export default function App() {
       const seccioParam = urlParams.get('seccio') || (hash.startsWith('#seccio-') ? hash.replace('#seccio-', '') : null);
       const isProduccDirect = urlParams.get('producc') !== null || seccioParam === 'producc' || hash === '#producc';
       const isProjeccDirect = urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc';
+      const isPostingDirect = urlParams.get('posting') !== null || seccioParam === 'posting' || hash === '#posting';
 
-      if (isProjeccDirect) {
+      if (isPostingDirect) {
+        setActiveTab('posting');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (isProjeccDirect) {
         setActiveTab('projecc');
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -149,6 +156,8 @@ export default function App() {
       document.title = 'Mínim Món | PRODUCC';
     } else if (activeTab === 'projecc') {
       document.title = 'Mínim Món | PROJECC';
+    } else if (activeTab === 'posting') {
+      document.title = 'Mínim Món | POSTING';
     } else {
       document.title = 'Mínim Món | Essències en Miniatura';
     }
@@ -174,8 +183,8 @@ export default function App() {
         {/* Texture overlay */}
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-        {/* Header (Amagat quan s'està a l'aplicació Producc o Projecc) */}
-        {activeTab !== 'producc' && activeTab !== 'projecc' && (
+        {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc o Posting) */}
+        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && (
           <Header 
             activeTab={activeTab} 
             setActiveTab={handleSelectTab} 
@@ -230,10 +239,14 @@ export default function App() {
         {activeTab === 'projecc' && (
           <ProjeccApp setActiveTab={setActiveTab} />
         )}
+
+        {activeTab === 'posting' && (
+          <PostingApp setActiveTab={setActiveTab} />
+        )}
       </main>
 
-      {/* Footer (Amagat quan s'està a l'aplicació Producc o Projecc) */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && (
+      {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc o Posting) */}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && (
         <Footer 
           setActiveTab={setActiveTab} 
           onOpenLegal={(title) => setLegalTitle(title)} 
@@ -253,7 +266,7 @@ export default function App() {
       />
 
       {/* Floating WhatsApp Button */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && <FloatingWhatsApp />}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
       <BudgetDrawer />

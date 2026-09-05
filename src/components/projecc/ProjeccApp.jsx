@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Sun, Moon, Sparkles, FolderKanban, 
   Layers, Plus, Clock, Database, Cloud, RefreshCw, ListChecks,
-  Globe, Boxes
+  Globe, Boxes, Share2
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { 
@@ -365,6 +365,20 @@ export default function ProjeccApp({ setActiveTab }) {
             >
               <Boxes className="w-3.5 h-3.5 text-amber-500" />
               <span>Producc</span>
+            </button>
+          )}
+
+          {/* Botó Posting */}
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('posting')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                isDark ? 'bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 border-amber-800/50' : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+              }`}
+              title="Anar a l'Estudi de Continguts Posting"
+            >
+              <Share2 className="w-3.5 h-3.5 text-amber-500" />
+              <span>Posting</span>
             </button>
           )}
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock
+  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -310,6 +310,15 @@ export default function ProduccApp({ setActiveTab }) {
             >
               <Lock className="w-4 h-4 text-slate-600" />
               <span className="hidden sm:inline">Àrea Privada</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('posting')}
+              className="p-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              title="Anar a l'Estudi de Continguts Posting"
+            >
+              <Share2 className="w-4 h-4 text-amber-700" />
+              <span className="hidden sm:inline">Posting</span>
             </button>
           </div>
 
