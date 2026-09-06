@@ -1841,11 +1841,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
       for (const b of DEFAULT_BRANQUES) {
         await setDoc(doc(db, "branques", b.id), b);
       }
-      // Seed projectes
-      for (const p of STITCH_PROJECTS) {
-        await setDoc(doc(db, "projectes", p.id), p);
-      }
-      setSeedingStatus('✓ Base de dades inicialitzada correctament!');
+      setSeedingStatus('✓ Branques inicialitzades correctament!');
       setTimeout(() => setSeedingStatus(''), 4000);
     } catch (err) {
       alert("Error inicialitzant DB: " + err.message);

@@ -5,8 +5,6 @@ import {
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
   Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare
 } from 'lucide-react';
-import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
-import { STITCH_PROJECTS } from '../../data/stitchData';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
@@ -48,6 +46,8 @@ export default function EscandallsManager({
   operacions = [], 
   maquinaria = [], 
   productes = [], 
+  projectes = [], 
+  projeccItems = [], 
   families = [], 
   gammes = [], 
   isDark 
@@ -90,7 +90,8 @@ export default function EscandallsManager({
 
   // Finestra Flotant de Selecció de Projecte
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
-  const [projectPickerType, setProjectPickerType] = useState('stitch'); // 'stitch' | 'worlds' | 'custom'
+  const [projectPickerType, setProjectPickerType] = useState('projectes'); // 'projectes' | 'projecc' | 'custom'
+  const [projectPickerSearch, setProjectPickerSearch] = useState('');
 
   // Finestra Flotant de Duplicació d'Escandall (Triar producte destí sense escandall)
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
@@ -198,6 +199,31 @@ export default function EscandallsManager({
     });
   }, [allCatalogProducts, pickerFamilia, pickerGamma, pickerSearch, families]);
 
+  // Llistes filtrades de projectes reals per a la finestra de selecció de projectes
+  const filteredProjectes = useMemo(() => {
+    return (projectes || []).filter(p => {
+      if (!projectPickerSearch.trim()) return true;
+      const q = projectPickerSearch.toLowerCase();
+      const nom = (p.titol || p.title || p.nom || '').toLowerCase();
+      const escala = (p.escala || '').toLowerCase();
+      const desc = (p.descripcio || '').toLowerCase();
+      const cat = (p.categoria || p.branca || '').toLowerCase();
+      return nom.includes(q) || escala.includes(q) || desc.includes(q) || cat.includes(q);
+    });
+  }, [projectes, projectPickerSearch]);
+
+  const filteredProjeccItems = useMemo(() => {
+    return (projeccItems || []).filter(p => {
+      if (!projectPickerSearch.trim()) return true;
+      const q = projectPickerSearch.toLowerCase();
+      const nom = (p.nomDefinitiu || p.nomProvisional || p.nom || '').toLowerCase();
+      const client = (p.nomClient || '').toLowerCase();
+      const desc = (p.descripcio || '').toLowerCase();
+      const estat = (p.estat || '').toLowerCase();
+      return nom.includes(q) || client.includes(q) || desc.includes(q) || estat.includes(q);
+    });
+  }, [projeccItems, projectPickerSearch]);
+
   // Obrir el selector segons l'àmbit actiu
   const handleOpenCreateClick = () => {
     if (activeScope === 'productes') {
@@ -206,7 +232,8 @@ export default function EscandallsManager({
       setPickerSearch('');
       setProductPickerOpen(true);
     } else {
-      setProjectPickerType('stitch');
+      setProjectPickerType('projectes');
+      setProjectPickerSearch('');
       setProjectPickerOpen(true);
     }
   };
@@ -276,19 +303,24 @@ export default function EscandallsManager({
 
   // En seleccionar un projecte des de la finestra flotant
   const handleSelectProjectAndOpenEdit = (proj, tipusLabel) => {
+    const nom = proj.titol || proj.title || proj.nomDefinitiu || proj.nomProvisional || proj.nom || 'Sense nom';
+    const codi = proj.codi || proj.id || '';
+    const rawImage = proj.imatgePrincipal || (Array.isArray(proj.imatges) && proj.imatges[0]) || proj.imatge || proj.image || '';
+    const preu = Number(proj.preu || proj.price || proj.pressupost || 0);
+
     setEditingEscandall(null);
     setActiveModalTab('base');
     setExpandedOptionKey(null);
     setFormData({
-      producteNom: proj.titol || proj.title || 'Projecte Nou',
+      producteNom: nom,
       producteId: proj.id || `proj-${Date.now()}`,
-      producteCodi: proj.codi || proj.id || '',
-      producteImatge: proj.imatge || proj.image || '',
-      preuWebActual: Number(proj.price || 0),
-      tipus: tipusLabel,
+      producteCodi: codi,
+      producteImatge: rawImage,
+      preuWebActual: preu,
+      tipus: tipusLabel || (proj.nomClient ? 'Encàrrec Taller' : 'Projecte Món Mínim'),
       mermePercent: 8,
       margePercent: 65,
-      notes: '',
+      notes: proj.descripcio || (proj.nomClient ? `Client: ${proj.nomClient}` : ''),
       materials: [],
       operacions: [],
       maquinaria: [],
@@ -1208,7 +1240,7 @@ export default function EscandallsManager({
                   <span>Selecciona el Projecte a Escandallar</span>
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Tria entre projectes de Mons Mínims, obres singulars o crea'n un a mida.
+                  Tria entre els projectes existents de Món Mínim, encàrrecs de taller o crea'n un a mida.
                 </p>
               </div>
 
@@ -1222,93 +1254,274 @@ export default function EscandallsManager({
               </button>
             </div>
 
-            <div className={`p-4 border-b flex items-center gap-2 shrink-0 ${
+            <div className={`p-4 border-b flex flex-wrap items-center gap-2 shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
               <button
                 type="button"
-                onClick={() => setProjectPickerType('stitch')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  projectPickerType === 'stitch' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                onClick={() => {
+                  setProjectPickerType('projectes');
+                  setProjectPickerSearch('');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                  projectPickerType === 'projectes' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                Mons Mínims
+                <Layers className="w-3.5 h-3.5" />
+                <span>Projectes Món Mínim</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  projectPickerType === 'projectes' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {projectes.length}
+                </span>
               </button>
+
               <button
                 type="button"
-                onClick={() => setProjectPickerType('worlds')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  projectPickerType === 'worlds' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                onClick={() => {
+                  setProjectPickerType('projecc');
+                  setProjectPickerSearch('');
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                  projectPickerType === 'projecc' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                Obres Singulars
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Encàrrecs de Taller</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  projectPickerType === 'projecc' ? 'bg-amber-800 text-white' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {projeccItems.length}
+                </span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setProjectPickerType('custom')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-                  projectPickerType === 'custom' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:bg-slate-800'
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+                  projectPickerType === 'custom' ? 'bg-amber-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-800'
                 }`}
               >
-                Nou a Mida
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nou a Mida</span>
               </button>
             </div>
 
+            {/* Camp de Cerca (excepte si és Nou a Mida) */}
+            {projectPickerType !== 'custom' && (
+              <div className={`px-4 pt-3 pb-1 border-b shrink-0 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={projectPickerSearch}
+                    onChange={(e) => setProjectPickerSearch(e.target.value)}
+                    placeholder={
+                      projectPickerType === 'projectes'
+                        ? 'Cercar projecte per títol, escala o categoria...'
+                        : 'Cercar encàrrec per nom, client o estat...'
+                    }
+                    className={`w-full pl-9 pr-8 py-2 text-xs rounded-xl border outline-none transition-colors ${
+                      isDark
+                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-amber-500'
+                        : 'bg-slate-50 border-slate-300 text-slate-800 placeholder-slate-400 focus:border-amber-500'
+                    }`}
+                  />
+                  {projectPickerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setProjectPickerSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {projectPickerType === 'stitch' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {STITCH_PROJECTS.map(sp => (
-                    <div
-                      key={sp.id}
-                      onClick={() => handleSelectProjectAndOpenEdit(sp, 'Projecte Món Mínim')}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isDark ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/60' : 'bg-white border-slate-200 hover:border-amber-500'
-                      }`}
+              {/* Pestanya 1: Projectes Món Mínim */}
+              {projectPickerType === 'projectes' && (
+                filteredProjectes.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filteredProjectes.map(p => {
+                      const rawImg = p.imatgePrincipal || (Array.isArray(p.imatges) && p.imatges[0]) || p.imatge || p.image || '';
+                      const resolvedImg = resolveMediaUrl(rawImg);
+                      const titol = p.titol || p.title || p.nom || 'Sense títol';
+                      const preuVal = Number(p.preu || p.price || 0);
+
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => handleSelectProjectAndOpenEdit(p, 'Projecte Món Mínim')}
+                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                            isDark
+                              ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/60 hover:bg-slate-800/40'
+                              : 'bg-white border-slate-200 hover:border-amber-500 hover:bg-amber-50/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {resolvedImg ? (
+                              <img
+                                src={resolvedImg}
+                                alt={titol}
+                                className="w-12 h-12 rounded-xl object-cover border border-slate-700/60 shrink-0 shadow-sm"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                                <Palette className="w-6 h-6 text-amber-500/70" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {p.escala && (
+                                  <span className="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
+                                    {p.escala}
+                                  </span>
+                                )}
+                                {(p.categoria || p.branca) && (
+                                  <span className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                                    {p.categoria || p.branca}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="font-bold text-slate-100 text-xs truncate mt-0.5" title={titol}>
+                                {titol}
+                              </h4>
+                              {preuVal > 0 && (
+                                <span className="text-[11px] text-emerald-400 font-semibold font-mono block mt-0.5">
+                                  {formatCurrency(preuVal)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-xs text-amber-400 font-semibold shrink-0 flex items-center gap-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                            Triar <ArrowRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center space-y-3">
+                    <p className="text-xs text-slate-400">
+                      {projectPickerSearch.trim()
+                        ? `No s'ha trobat cap projecte que coincideixi amb "${projectPickerSearch}".`
+                        : "No hi ha projectes registrats a la col·lecció 'projectes' de Món Mínim."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer transition-all"
                     >
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-amber-400 font-mono block">{sp.escala || 'Món Mínim'}</span>
-                        <h4 className="font-bold text-slate-100 text-xs truncate">{sp.titol}</h4>
-                      </div>
-                      <span className="text-xs text-amber-400 font-semibold shrink-0 flex items-center gap-1">
-                        Triar <ArrowRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      Començar a Mida
+                    </button>
+                  </div>
+                )
               )}
 
-              {projectPickerType === 'worlds' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {MINIATURE_WORLDS.map(mw => (
-                    <div
-                      key={mw.id}
-                      onClick={() => handleSelectProjectAndOpenEdit(mw, 'Obra Singular')}
-                      className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                        isDark ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/60' : 'bg-white border-slate-200 hover:border-amber-500'
-                      }`}
+              {/* Pestanya 2: Encàrrecs de Taller (Projecc) */}
+              {projectPickerType === 'projecc' && (
+                filteredProjeccItems.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filteredProjeccItems.map(p => {
+                      const titol = p.nomDefinitiu || p.nomProvisional || p.nom || 'Sense títol';
+                      const client = p.nomClient || '';
+                      const estat = p.estat || '';
+                      const pressupostVal = Number(p.pressupost || p.preu || 0);
+                      const resolvedImg = p.imatge ? resolveMediaUrl(p.imatge) : '';
+
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => handleSelectProjectAndOpenEdit(p, 'Encàrrec Taller')}
+                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 group ${
+                            isDark
+                              ? 'bg-slate-950/60 border-slate-800 hover:border-amber-500/60 hover:bg-slate-800/40'
+                              : 'bg-white border-slate-200 hover:border-amber-500 hover:bg-amber-50/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            {resolvedImg ? (
+                              <img
+                                src={resolvedImg}
+                                alt={titol}
+                                className="w-12 h-12 rounded-xl object-cover border border-slate-700/60 shrink-0 shadow-sm"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                                <Wrench className="w-6 h-6 text-amber-500/70" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {client && (
+                                  <span className="text-[10px] text-amber-400 font-medium truncate max-w-[130px]">
+                                    {client}
+                                  </span>
+                                )}
+                                {estat && (
+                                  <span className="text-[9px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded">
+                                    {estat}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="font-bold text-slate-100 text-xs truncate mt-0.5" title={titol}>
+                                {titol}
+                              </h4>
+                              {pressupostVal > 0 && (
+                                <span className="text-[11px] text-emerald-400 font-semibold font-mono block mt-0.5">
+                                  {formatCurrency(pressupostVal)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-xs text-amber-400 font-semibold shrink-0 flex items-center gap-1 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">
+                            Triar <ArrowRight className="w-3 h-3" />
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center space-y-3">
+                    <p className="text-xs text-slate-400">
+                      {projectPickerSearch.trim()
+                        ? `No s'ha trobat cap encàrrec que coincideixi amb "${projectPickerSearch}".`
+                        : "No hi ha encàrrecs registrats a la secció de Projecc del taller."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer transition-all"
                     >
-                      <div className="min-w-0">
-                        <span className="text-[10px] text-amber-400 font-mono block">{mw.price ? `${Number(mw.price).toFixed(2)} €` : 'Exposició'}</span>
-                        <h4 className="font-bold text-slate-100 text-xs truncate">{mw.title}</h4>
-                      </div>
-                      <span className="text-xs text-amber-400 font-semibold shrink-0 flex items-center gap-1">
-                        Triar <ArrowRight className="w-3 h-3" />
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                      Començar a Mida
+                    </button>
+                  </div>
+                )
               )}
 
+              {/* Pestanya 3: Nou a Mida */}
               {projectPickerType === 'custom' && (
                 <div className="p-6 text-center space-y-4">
-                  <p className="text-xs text-slate-300">
-                    Crea un escandall per a un projecte personalitzat o encàrrec a mida des de zero.
-                  </p>
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Plus className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-100">Projecte o Encàrrec a Mida</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                      Crea un escandall tècnic per a un projecte personalitzat o nou encàrrec des de zero sense haver d'estar donat d'alta prèviament.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
-                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all cursor-pointer shadow-md"
+                    className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
                   >
+                    <Plus className="w-4 h-4" />
                     Començar Escandall a Mida
                   </button>
                 </div>

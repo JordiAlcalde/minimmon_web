@@ -87,6 +87,8 @@ export default function ProduccApp({ setActiveTab }) {
   const [productes, setProductes] = useState([]);
   const [families, setFamilies] = useState([]);
   const [gammes, setGammes] = useState([]);
+  const [projectes, setProjectes] = useState([]);
+  const [projeccItems, setProjeccItems] = useState([]);
 
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
@@ -151,7 +153,7 @@ export default function ProduccApp({ setActiveTab }) {
     // Ordres de Fabricació: mai repoblar automàticament amb dades de prova si queda buida
     const unsubOF = syncCollection("producc_ordres_fabricacio", setOrdresFabricacio, null);
 
-    // Carregar catàleg de la botiga (productes, famílies, gammes)
+    // Carregar catàleg de la botiga i projectes (productes, famílies, gammes, projectes Món Mínim i Projecc)
     const unsubProductes = onSnapshot(collection(db, "productes"), (snapshot) => {
       setProductes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (e) => console.warn("Error onSnapshot productes:", e));
@@ -163,6 +165,14 @@ export default function ProduccApp({ setActiveTab }) {
     const unsubGammes = onSnapshot(collection(db, "gammes"), (snapshot) => {
       setGammes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (e) => console.warn("Error onSnapshot gammes:", e));
+
+    const unsubProjectes = onSnapshot(collection(db, "projectes"), (snapshot) => {
+      setProjectes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot projectes:", e));
+
+    const unsubProjeccItems = onSnapshot(collection(db, "projecc_items"), (snapshot) => {
+      setProjeccItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot projecc_items:", e));
 
     return () => {
       unsubGrups();
@@ -179,6 +189,8 @@ export default function ProduccApp({ setActiveTab }) {
       unsubProductes();
       unsubFamilies();
       unsubGammes();
+      unsubProjectes();
+      unsubProjeccItems();
     };
   }, []);
 
@@ -710,6 +722,8 @@ export default function ProduccApp({ setActiveTab }) {
             operacions={operacions}
             maquinaria={maquinaria}
             productes={productes}
+            projectes={projectes}
+            projeccItems={projeccItems}
             families={families}
             gammes={gammes}
             isDark={isDark}
