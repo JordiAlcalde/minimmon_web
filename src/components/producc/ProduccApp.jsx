@@ -44,8 +44,29 @@ function sanitizeData(obj) {
 }
 
 export default function ProduccApp({ setActiveTab }) {
-  const [activeGroup, setActiveGroup] = useState('principal'); // 'principal' | 'complementaris' | 'produccio'
-  const [activeProduccSubtab, setActiveProduccSubtab] = useState('materials');
+  const [activeGroup, setActiveGroup] = useState(() => {
+    try {
+      const initSub = sessionStorage.getItem('producc_initial_subtab');
+      if (initSub === 'ordres_fabricacio') return 'produccio';
+      if (initSub === 'escandalls') return 'principal';
+    } catch (e) {
+      console.warn(e);
+    }
+    return 'principal';
+  });
+
+  const [activeProduccSubtab, setActiveProduccSubtab] = useState(() => {
+    try {
+      const initSub = sessionStorage.getItem('producc_initial_subtab');
+      if (initSub) {
+        sessionStorage.removeItem('producc_initial_subtab');
+        return initSub;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return 'materials';
+  });
   const [isDark, setIsDark] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -60,7 +81,7 @@ export default function ProduccApp({ setActiveTab }) {
   const [operacions, setOperacions] = useState(INITIAL_OPERACIONS);
   const [escandalls, setEscandalls] = useState(INITIAL_ESCANDALLS);
   const [compres, setCompres] = useState(INITIAL_COMPRES);
-  const [ordresFabricacio, setOrdresFabricacio] = useState(INITIAL_ORDRES_FABRICACIO);
+  const [ordresFabricacio, setOrdresFabricacio] = useState([]);
 
   // Dades del Catàleg Web per als Escandalls
   const [productes, setProductes] = useState([]);
@@ -87,18 +108,29 @@ export default function ProduccApp({ setActiveTab }) {
         if (!snapshot.empty) {
           const docsData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
           setLocal(docsData);
-        } else if (initialData && initialData.length > 0) {
-          // Inicialitzar Firestore automàticament si la col·lecció és buida
-          try {
-            const batch = writeBatch(db);
-            initialData.forEach(item => {
-              const docRef = doc(db, collName, item.id);
-              const { id, ...itemData } = item;
-              batch.set(docRef, sanitizeData(itemData));
-            });
-            await batch.commit();
-          } catch (e) {
-            console.warn(`Inicialització Firestore per ${collName}:`, e);
+        } else {
+          // Si la col·lecció és buida a Firestore, actualitzar sempre l'estat local a buit
+          setLocal([]);
+
+          // Només inicialitzar Firestore si hi ha dades inicials i mai s'ha marcat com a inicialitzat
+          if (initialData && initialData.length > 0) {
+            const seedKey = `producc_seeded_${collName}`;
+            if (localStorage.getItem(seedKey)) {
+              // Ja s'havia inicialitzat en el passat; si ara és buida és perquè l'usuari ho ha esborrat voluntàriament
+              return;
+            }
+            try {
+              const batch = writeBatch(db);
+              initialData.forEach(item => {
+                const docRef = doc(db, collName, item.id);
+                const { id, ...itemData } = item;
+                batch.set(docRef, sanitizeData(itemData));
+              });
+              await batch.commit();
+              localStorage.setItem(seedKey, 'true');
+            } catch (e) {
+              console.warn(`Inicialització Firestore per ${collName}:`, e);
+            }
           }
         }
       }, (error) => {
@@ -115,8 +147,9 @@ export default function ProduccApp({ setActiveTab }) {
     const unsubMaquinaria = syncCollection("producc_maquinaria", setMaquinaria, INITIAL_MAQUINARIA);
     const unsubOperacions = syncCollection("producc_operacions", setOperacions, INITIAL_OPERACIONS);
     const unsubEscandalls = syncCollection("producc_escandalls", setEscandalls, INITIAL_ESCANDALLS);
-    const unsubCompres = syncCollection("producc_compres", setCompres, INITIAL_COMPRES);
-    const unsubOF = syncCollection("producc_ordres_fabricacio", setOrdresFabricacio, INITIAL_ORDRES_FABRICACIO);
+    const unsubCompres = syncCollection("producc_compres", setCompres, null);
+    // Ordres de Fabricació: mai repoblar automàticament amb dades de prova si queda buida
+    const unsubOF = syncCollection("producc_ordres_fabricacio", setOrdresFabricacio, null);
 
     // Carregar catàleg de la botiga (productes, famílies, gammes)
     const unsubProductes = onSnapshot(collection(db, "productes"), (snapshot) => {

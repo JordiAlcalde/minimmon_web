@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useBudget } from '../context/BudgetContext';
-import { ShoppingBag, Lock, Search, X, Boxes } from 'lucide-react';
+import { ShoppingBag, Lock, Search, X, Boxes, Truck } from 'lucide-react';
 
 export default function Header({ 
   activeTab, 
   setActiveTab, 
   catalogSearchQuery = '', 
-  setCatalogSearchQuery = () => {} 
+  setCatalogSearchQuery = () => {},
+  onOpenTracking = () => {}
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
-  const { totalItems, setIsDrawerOpen } = useBudget();
+  const { totalItems, setIsDrawerOpen, hasActiveOrders, activeOrdersCount, openCart, openTrackingDrawer } = useBudget();
 
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
@@ -191,18 +192,36 @@ export default function Header({
                   </button>
                 )}
 
-                {/* 2. Botó Cistella */}
+                {/* 2. Botó Unificat Cistella & Comandes */}
                 <button
                   type="button"
-                  onClick={() => setIsDrawerOpen(true)}
+                  onClick={() => {
+                    if (totalItems === 0 && hasActiveOrders) {
+                      openTrackingDrawer();
+                    } else {
+                      openCart();
+                    }
+                  }}
                   className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-all cursor-pointer border border-primary/20 shadow-xs hover:shadow hover:scale-105"
-                  title="Cistella"
-                  aria-label="Cistella"
+                  title={hasActiveOrders ? (totalItems > 0 ? `Cistella (${totalItems}) i comandes en curs (${activeOrdersCount})` : `Comandes en curs (${activeOrdersCount})`) : 'La teva Cistella'}
+                  aria-label="Cistella i Comandes"
                 >
                   <img src="/images/icon-cistella.png" alt="Cistella" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
+                  
+                  {/* Badge de peces a la cistella */}
                   {totalItems > 0 && (
                     <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-on-primary font-mono text-[10px] flex items-center justify-center font-bold shadow-xs">
                       {totalItems}
+                    </span>
+                  )}
+
+                  {/* Badge de comanda activa en curs / transport */}
+                  {hasActiveOrders && (
+                    <span 
+                      className={`absolute ${totalItems > 0 ? '-bottom-1 -left-1' : '-top-1 -right-1'} flex items-center justify-center w-5 h-5 rounded-full bg-amber-600 dark:bg-amber-500 text-white shadow-xs ring-2 ring-surface animate-bounce-subtle`}
+                      title={`${activeOrdersCount} comanda/es en curs`}
+                    >
+                      <Truck className="w-3 h-3 shrink-0" />
                     </span>
                   )}
                 </button>
@@ -225,7 +244,7 @@ export default function Header({
               </div>
             </div>
 
-            {/* Mobile Actions: Lupa, Cistella, Menú */}
+            {/* Mobile Actions: Lupa, Cistella & Comandes Unificat, Menú */}
             <div className="flex items-center gap-2 text-primary dark:text-primary-fixed md:hidden">
               {/* Botó Lupa Mòbil */}
               <button
@@ -241,17 +260,36 @@ export default function Header({
                 <Search className="w-4 h-4 shrink-0" />
               </button>
 
-              {/* Mobile Cart Button */}
+              {/* Mobile Unified Cart & Orders Button */}
               <button
-                onClick={() => setIsDrawerOpen(true)}
+                type="button"
+                onClick={() => {
+                  if (totalItems === 0 && hasActiveOrders) {
+                    openTrackingDrawer();
+                  } else {
+                    openCart();
+                  }
+                }}
                 className="relative flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary transition-all cursor-pointer border border-primary/20 active:scale-95"
-                title="Cistella"
-                aria-label="Cistella"
+                title={hasActiveOrders ? (totalItems > 0 ? `Cistella (${totalItems}) i comandes en curs` : `Comandes en curs (${activeOrdersCount})`) : 'Cistella'}
+                aria-label="Cistella i Comandes"
               >
                 <img src="/images/icon-cistella.png" alt="Cistella" className="w-4 h-4 object-contain dark:brightness-0 dark:invert shrink-0" />
+                
+                {/* Badge d'articles a la cistella */}
                 {totalItems > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary text-on-primary font-mono text-[9px] flex items-center justify-center font-bold">
                     {totalItems}
+                  </span>
+                )}
+
+                {/* Badge de comanda activa */}
+                {hasActiveOrders && (
+                  <span 
+                    className={`absolute ${totalItems > 0 ? '-bottom-1 -left-1' : '-top-1 -right-1'} flex items-center justify-center w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] ring-2 ring-surface`}
+                    title={`${activeOrdersCount} comanda/es en curs`}
+                  >
+                    <Truck className="w-2.5 h-2.5 shrink-0" />
                   </span>
                 )}
               </button>
@@ -301,6 +339,35 @@ export default function Header({
             className={`text-left font-body-md text-lg uppercase tracking-wider py-2 ${activeTab === 'contacte' ? 'text-primary font-bold' : 'text-on-surface-variant'}`}
           >
             Connectar
+          </button>
+          <button 
+            onClick={() => {
+              setMobileMenuOpen(false);
+              if (totalItems === 0 && hasActiveOrders) {
+                openTrackingDrawer();
+              } else {
+                openCart();
+              }
+            }}
+            className="text-left font-body-md text-lg uppercase tracking-wider py-2 text-primary font-bold flex items-center justify-between pt-3 border-t border-outline/10 cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <img src="/images/icon-cistella.png" alt="Cistella" className="w-5 h-5 object-contain dark:brightness-0 dark:invert shrink-0" />
+              <span>Cistella i Comandes</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {totalItems > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-primary text-on-primary text-xs font-mono font-bold">
+                  {totalItems}
+                </span>
+              )}
+              {hasActiveOrders && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-600 text-white text-xs font-semibold">
+                  <Truck className="w-3 h-3" />
+                  <span>{activeOrdersCount}</span>
+                </span>
+              )}
+            </div>
           </button>
         </div>
       )}

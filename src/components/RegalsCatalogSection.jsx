@@ -8,7 +8,7 @@ import { renderFormattedText } from '../utils/textUtils';
 import { formatDecimal, formatCurrency, parseDecimal } from '../utils/numberUtils';
 import { useBudget } from '../context/BudgetContext';
 import { ShoppingBag, Plus, Minus, Check, Clock, ArrowLeft, ArrowRight, Sparkles, Upload, FileText, Trash2, Paperclip, Share2, Info, X, ChevronDown, Search, Star, Tag, Layers, Leaf, ShieldCheck, Wrench, Heart, Flame, AlertTriangle, CheckCircle2, HelpCircle, Lock } from 'lucide-react';
-import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions, normalizeGammaName, isProductInGamma } from './PrivateAreaSection';
+import { DEFAULT_FAMILIES, DEFAULT_INFORMACIONS, renderCatalogInformacioIcon, getEffectiveProductOrder, sortProductsWithGammaOrder, getProductEscandallData, getAvailableMidesForProduct, matchMidaKey, cleanMidaKey, extractMidaDimensions, normalizeGammaName, isProductInGamma, getSingularGammaName, getProductGammaLabel, formatProductWithGamma } from './PrivateAreaSection';
 import { getItemScheduleStatus } from '../utils/scheduleUtils';
 import { copyDirectLink } from '../utils/shareUtils';
 import ProductSimulator from './ProductSimulator';
@@ -1505,9 +1505,15 @@ function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = 
   const isZeroPrice = !finalUnitPrice || isNaN(finalUnitPrice) || finalUnitPrice <= 0;
 
   const handleAdd = () => {
+    const gammaLabel = matchedGammaObj?.nom 
+      ? getSingularGammaName(matchedGammaObj.nom) 
+      : getProductGammaLabel(product, dbGammes);
+    const displayName = formatProductWithGamma(product.nom, gammaLabel);
+
     onAddToCart({
       producteId: product.id,
-      nom: product.nom,
+      nom: displayName,
+      gamma: gammaLabel,
       imatge: currentDisplayImg || product.imatgePrincipal,
       quantitat: quantity,
       observacions: notes,

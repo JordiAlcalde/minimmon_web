@@ -9,18 +9,8 @@ export function subscribeProduccCollection(collectionName, initialData = [], onU
   const colRef = collection(db, collectionName);
 
   const unsubscribe = onSnapshot(colRef, async (snapshot) => {
-    if (snapshot.empty && initialData && initialData.length > 0) {
-      // Inicialització automàtica a Firestore
-      try {
-        const batch = writeBatch(db);
-        initialData.forEach((item) => {
-          const docRef = doc(db, collectionName, String(item.id));
-          batch.set(docRef, item);
-        });
-        await batch.commit();
-      } catch (err) {
-        console.warn(`Error inicialitzant col·lecció ${collectionName} a Firestore:`, err);
-      }
+    if (snapshot.empty) {
+      onUpdate([]);
     } else {
       const items = snapshot.docs.map(d => ({
         id: d.id,

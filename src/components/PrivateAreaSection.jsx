@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch, getDocs, getDoc } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
 import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification, sendTelegramScheduleNotification } from '../utils/telegramUtils';
 import { getItemScheduleStatus, formatShortDateTime, syncAndCheckScheduleNotifications } from '../utils/scheduleUtils';
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../utils/numberUtils';
+import { getShippingConfig, saveShippingConfig, DEFAULT_SHIPPING_CONFIG } from '../utils/shippingUtils';
+import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
 import { 
   Bell,
@@ -33,6 +35,11 @@ import {
   Plus,
   Edit3,
   Layers,
+  Truck,
+  MapPin,
+  CreditCard,
+  Hammer,
+  Factory,
   Database,
   Image as ImageIcon,
   Film,
@@ -256,6 +263,131 @@ export const matchMidaKey = (targetMida, keyMida) => {
   return false;
 };
 
+// Obtenir el nom singular i natural de la gamma (ex: "Clauers" -> "Clauer", "Punts de llibre" -> "Punt de llibre")
+export const getSingularGammaName = (rawGamma = '') => {
+  if (!rawGamma) return '';
+  const trimmed = String(rawGamma).trim();
+  const lower = trimmed.toLowerCase();
+
+  const map = {
+    'clauers': 'Clauer',
+    'clauer': 'Clauer',
+    'punts de llibre': 'Punt de llibre',
+    'punt de llibre': 'Punt de llibre',
+    'arracades': 'Arracada',
+    'arracada': 'Arracada',
+    'penjolls': 'Penjoll',
+    'penjoll': 'Penjoll',
+    'imants': 'Imant',
+    'imant': 'Imant',
+    'marcs': 'Marc',
+    'marc': 'Marc',
+    'figures': 'Figura',
+    'figura': 'Figura',
+    'làmines': 'Làmina',
+    'lamines': 'Làmina',
+    'portaespelmes': 'Portaespelmes',
+    'caixes': 'Caixa',
+    'caixa': 'Caixa',
+    'brotxes': 'Brotxa',
+    'detalls': 'Detall',
+    'plaques': 'Placa',
+    'placa': 'Placa'
+  };
+
+  if (map[lower]) return map[lower];
+
+  if (lower.endsWith('s') && !lower.endsWith('ss')) {
+    if (lower.endsWith('es') && trimmed.length > 3) {
+      return trimmed.slice(0, -2) + 'a';
+    }
+    return trimmed.slice(0, -1);
+  }
+  return trimmed;
+};
+
+// Obtenir l'etiqueta de gamma d'un producte o línia de comanda
+export const getProductGammaLabel = (productOrItem, dbGammes = []) => {
+  if (!productOrItem) return '';
+  let raw = productOrItem.gamma || productOrItem.gammaNom;
+
+  if (!raw && Array.isArray(productOrItem.gammaIds) && productOrItem.gammaIds.length > 0) {
+    const firstG = productOrItem.gammaIds[0];
+    if (dbGammes && dbGammes.length > 0) {
+      const found = dbGammes.find(g => g && (g.id === firstG || g.nom === firstG));
+      raw = found?.nom || firstG;
+    } else {
+      raw = firstG;
+    }
+  }
+
+  if (!raw && productOrItem.familiaGamma && typeof productOrItem.familiaGamma === 'string' && productOrItem.familiaGamma.includes('/')) {
+    raw = productOrItem.familiaGamma.split('/')[1]?.trim();
+  }
+
+  return getSingularGammaName(raw);
+};
+
+// Formatar el nom del producte amb la gamma com a prefix (Ex: "Clauer: Onades", "Punt de llibre: Sant Jordi")
+export const formatProductWithGamma = (productName = '', gammaLabel = '') => {
+  if (!productName) return '';
+  if (!gammaLabel) return productName;
+
+  const normProd = productName.toLowerCase().trim();
+  const normGam = gammaLabel.toLowerCase().trim();
+
+  // Si ja conté la gamma al principi, assegurem que tingui dos punts
+  if (normProd.startsWith(normGam)) {
+    if (!productName.includes(':')) {
+      const rest = productName.slice(gammaLabel.length).replace(/^[\s\-_:]+/, '');
+      return rest ? `${gammaLabel}: ${rest}` : productName;
+    }
+    return productName;
+  }
+
+  return `${gammaLabel}: ${productName}`;
+};
+
+// Funció robusta per trobar la gamma d'una peça (a través de l'item, catàleg, escandall o diccionari de taller)
+export const resolveProductGamma = (item, esc = {}, dbProductes = [], dbGammes = []) => {
+  if (!item) return '';
+  let gamma = getProductGammaLabel(item, dbGammes);
+  if (gamma) return gamma;
+
+  if (Array.isArray(dbProductes) && dbProductes.length > 0) {
+    const matched = dbProductes.find(p => 
+      (item.producteId && p.id === item.producteId) || 
+      (p.nom && p.nom.toLowerCase().trim() === (item.nom || '').toLowerCase().trim()) ||
+      (p.nom && (item.nom || '').toLowerCase().includes(p.nom.toLowerCase()))
+    );
+    if (matched) {
+      gamma = getProductGammaLabel(matched, dbGammes);
+      if (gamma) return gamma;
+    }
+  }
+
+  if (esc && (esc.gamma || esc.familiaNom)) {
+    gamma = getSingularGammaName(esc.gamma || esc.familiaNom);
+    if (gamma) return gamma;
+  }
+
+  const lowerNom = (item.nom || esc?.producteNom || '').toLowerCase();
+  if (lowerNom.includes('mans amigues') || lowerNom.includes('onades') || lowerNom.includes('clauer') || lowerNom.includes('clau')) {
+    return 'Clauer';
+  } else if (lowerNom.includes('punt') || lowerNom.includes('sant jordi') || lowerNom.includes('llibre')) {
+    return 'Punt de llibre';
+  } else if (lowerNom.includes('arracada')) {
+    return 'Arracada';
+  } else if (lowerNom.includes('imant')) {
+    return 'Imant';
+  } else if (lowerNom.includes('penjoll')) {
+    return 'Penjoll';
+  } else if (lowerNom.includes('marc') || lowerNom.includes('foto')) {
+    return 'Marc';
+  }
+  return '';
+};
+
 export const getAvailableMidesForProduct = (product) => {
   if (!product) return [];
   const safeOpcions = Array.isArray(product.opcionsPersonalitzacio) ? product.opcionsPersonalitzacio : [];
@@ -379,6 +511,29 @@ export const getProductEscandallData = (product, dbEscandalls = [], dbMaterials 
   };
 };
 
+// Helper per cercar si un producte d'una comanda web disposa d'escandall a Producc
+export const findEscandallForItem = (item, dbEscandalls = []) => {
+  if (!item || !Array.isArray(dbEscandalls)) return null;
+  const targetId = item.producteId ? String(item.producteId).trim() : '';
+  const targetCode = item.codi ? String(item.codi).trim().toLowerCase() : '';
+  const targetName = item.nom ? String(item.nom).trim().toLowerCase() : '';
+
+  return dbEscandalls.find(e => {
+    if (targetId && e.producteId && String(e.producteId).trim() === targetId) return true;
+    if (targetCode && e.producteCodi && String(e.producteCodi).trim().toLowerCase() === targetCode) return true;
+    if (targetName) {
+      const eProdName = (e.producteNom || '').trim().toLowerCase();
+      if (eProdName && eProdName === targetName) return true;
+      const eName = (e.nom || '').trim().toLowerCase();
+      if (eName && eName === targetName) return true;
+      // Coincidència de contingut parcial
+      if (eProdName && (eProdName.includes(targetName) || targetName.includes(eProdName))) return true;
+      if (eName && (eName.includes(targetName) || targetName.includes(eName))) return true;
+    }
+    return false;
+  }) || null;
+};
+
 export const calculateSmartNextProductOrder = (selectedGammes, allProducts) => {
   if (!allProducts || allProducts.length === 0) return 1;
   const gammas = (selectedGammes || []).filter(g => g && g !== 'Totes' && g !== 'Tots');
@@ -478,11 +633,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [loadingBranques, setLoadingBranques] = useState(true);
   const [editingBranca, setEditingBranca] = useState(null); // null = list, {} = form
 
-  // Pressupostos state
+  // Pressupostos i Comandes state
   const [pressupostos, setPressupostos] = useState([]);
   const [loadingPressupostos, setLoadingPressupostos] = useState(true);
   const [selectedPressupost, setSelectedPressupost] = useState(null);
   const [pressupostFilter, setPressupostFilter] = useState('tots');
+
+  // Gestió de Tarifes de Correos i Modals de Comanda
+  const [shippingRates, setShippingRates] = useState(DEFAULT_SHIPPING_CONFIG);
+  const [shippingSaveStatus, setShippingSaveStatus] = useState(null);
+  const [orderAcceptModal, setOrderAcceptModal] = useState({ isOpen: false, pressupost: null, diesPrevistos: 3, lineDays: {} });
+  const [orderShipModal, setOrderShipModal] = useState({ isOpen: false, pressupost: null, trackingCode: '' });
+  const [editingShippingCostId, setEditingShippingCostId] = useState(null);
+  const [customShippingCostVal, setCustomShippingCostVal] = useState('');
+
+  useEffect(() => {
+    getShippingConfig().then(cfg => {
+      if (cfg) setShippingRates(cfg);
+    });
+  }, []);
 
   // Productes state
   const [dbProductesAdmin, setDbProductesAdmin] = useState([]);
@@ -974,6 +1143,692 @@ export default function PrivateAreaSection({ setActiveTab }) {
       }
     } catch (err) {
       alert("Error eliminant pressupost: " + err.message);
+    }
+  };
+
+  // Helper per calcular la data límit en dies laborables (dilluns a divendres)
+  const calculateLimitDateStr = (startDate, daysCount = 3) => {
+    const d = startDate ? new Date(startDate.seconds ? startDate.seconds * 1000 : startDate) : new Date();
+    const safeDate = isNaN(d.getTime()) ? new Date() : new Date(d);
+    let addedDays = 0;
+    const days = Math.max(1, parseInt(daysCount, 10) || 3);
+    while (addedDays < days) {
+      safeDate.setDate(safeDate.getDate() + 1);
+      const dow = safeDate.getDay();
+      if (dow !== 0 && dow !== 6) {
+        addedDays++;
+      }
+    }
+    const dd = String(safeDate.getDate()).padStart(2, '0');
+    const mm = String(safeDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = safeDate.getFullYear();
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // --- GESTIÓ D'ESTATS DE COMANDES I SEGUIMENT PÚBLIC ---
+  const handleAcceptOrder = async (pressupost, dies, lineDaysMap = {}) => {
+    const diesNum = Math.max(1, parseInt(dies, 10) || 3);
+    try {
+      const dataAcc = new Date().toISOString();
+      const updatedProducts = (pressupost.productes || []).map((p, idx) => {
+        const itemDay = lineDaysMap && lineDaysMap[idx] !== undefined && lineDaysMap[idx] !== '' 
+          ? parseInt(lineDaysMap[idx], 10) 
+          : (p.diesFabricacio || diesNum);
+        return {
+          ...p,
+          diesFabricacio: Math.max(1, itemDay || diesNum)
+        };
+      });
+
+      const maxDays = Math.max(...updatedProducts.map(p => Number(p.diesFabricacio) || diesNum), diesNum);
+      const dataLimitCalculada = calculateLimitDateStr(dataAcc, maxDays);
+
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estatComanda: 'acceptada',
+        productes: updatedProducts,
+        diesFabricacioPrevistos: maxDays,
+        dataLimitEntrega: dataLimitCalculada,
+        dataAcceptada: dataAcc,
+        estat: 'ates'
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          estatComanda: 'acceptada',
+          productes: updatedProducts,
+          diesFabricacioPrevistos: maxDays,
+          dataLimitEntrega: dataLimitCalculada,
+          dataAcceptada: dataAcc,
+          estat: 'ates'
+        }));
+      }
+      setOrderAcceptModal({ isOpen: false, pressupost: null, diesPrevistos: 3, lineDays: {} });
+    } catch (err) {
+      alert("Error acceptant la comanda: " + err.message);
+    }
+  };
+
+  const handleStartProduction = async (pressupost) => {
+    const products = pressupost.productes || [];
+    const dataInici = new Date().toISOString();
+
+    // Si la comanda té productes, comprovem si cal generar les OFs que faltin
+    if (products.length > 0) {
+      const escandallats = [];
+      const noEscandallats = [];
+
+      products.forEach((p, idx) => {
+        const esc = findEscandallForItem(p, dbEscandalls);
+        if (esc) {
+          escandallats.push({ item: p, idx, esc });
+        } else {
+          noEscandallats.push({ item: p, idx });
+        }
+      });
+
+      const pendentsGenerar = escandallats.filter(({ item }) => !item.ofId);
+
+      // Si cap peça està escandallada i no té cap OF
+      if (escandallats.length === 0 && (!pressupost.ofId || pressupost.ofId.trim() === '')) {
+        alert(`⚠️ Cap dels ${products.length} productes d'aquesta comanda està escandallat a Producc.\n\nPer poder iniciar la producció al taller, cal crear prèviament l'escandall a Producc -> Escandalls.`);
+        return;
+      }
+
+      if (noEscandallats.length > 0 && pendentsGenerar.length > 0) {
+        const confirmar = window.confirm(`⚠️ Hi ha ${noEscandallats.length} peces d'aquesta comanda que NO estan escandallades a Producc i no se'ls podrà generar OF fins a tenir l'escandall.\n\nVols continuar i iniciar la producció generant les OFs de les ${pendentsGenerar.length} peces escandallades?`);
+        if (!confirmar) return;
+      }
+
+      try {
+        let updatedProducts = [...products];
+        const createdOFIds = [];
+
+        if (pendentsGenerar.length > 0) {
+          const ofSnap = await getDocs(collection(db, "producc_ordres_fabricacio"));
+          let currentOFList = ofSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+          for (const { item, idx, esc } of pendentsGenerar) {
+            const nextId = getNextOFId(currentOFList);
+            currentOFList.push({ id: nextId });
+
+            const qty = Number(item.quantitat) || 1;
+            const opc = item.opcionsTriades || {};
+            const midaVal = opc['Mida de l\'etiqueta'] || opc['Mida'] || '';
+            const codiVal = opc['Codi Model Generat'] || '';
+            const tipoVal = opc['Tipografia'] || '';
+            const textAVal = opc['Text (Cara A)'] || opc['Text Cara A'] || '';
+            const textBVal = opc['Text (Cara B)'] || opc['Text Cara B'] || '';
+            const diesLania = Number(item.diesFabricacio || pressupost.diesFabricacioPrevistos || 3);
+            const limitDateStr = pressupost.dataLimitEntrega || calculateLimitDateStr(pressupost.dataAcceptada || pressupost.data, diesLania);
+
+            const gammaLabel = resolveProductGamma(item, esc, dbProductesAdmin, dbGammes);
+            const fullProducteNom = formatProductWithGamma(item.nom || esc.producteNom || 'Producte Web', gammaLabel);
+
+            const calculatedMaterials = (esc.materials || []).map(em => {
+              const matObj = (dbMaterials || []).find(m => m.id === em.materialId);
+              const qUnit = Number(em.quantitat) || 0;
+              const qTotal = qUnit * qty;
+              return {
+                materialId: em.materialId,
+                nom: matObj?.material || em.nom || 'Material',
+                quantitatTeoricaUnitat: qUnit,
+                quantitatTotal: qTotal,
+                unitat: matObj?.unitat || 'u',
+                estocReservat: qTotal,
+                estocDescomptat: false
+              };
+            });
+
+            const calculatedOperacions = (esc.operacions || []).map((eo, opIdx) => {
+              const opObj = (dbOperacions || []).find(o => o.id === eo.operacioId);
+              const tempsU = Number(eo.tempsMinuts) || 0;
+              return {
+                id: `op-${opIdx + 1}`,
+                nom: opObj?.operacio || eo.nom || `Operació ${opIdx + 1}`,
+                tempsTeoricMinuts: tempsU * qty,
+                tempsRealMinuts: 0,
+                completada: false
+              };
+            });
+
+            const newOF = {
+              id: nextId,
+              comandaRef: pressupost.codiReferencia || pressupost.id,
+              pressupostId: pressupost.id,
+              liniaIndex: idx,
+              clientNom: pressupost.clientNom || 'Client Web',
+              clientContacte: pressupost.clientContacte || '',
+              estat: 'cua',
+              prioritat: 'normal',
+              origen: 'web_pressupost',
+              tipusItem: 'producte',
+              producteId: item.producteId || esc.producteId || '',
+              producteNom: fullProducteNom,
+              gamma: gammaLabel,
+              producteCodi: item.codi || esc.producteCodi || '',
+              escandallId: esc.id,
+              quantitat: qty,
+              mida: midaVal,
+              codiModelGenerat: codiVal,
+              tipografia: tipoVal,
+              textCaraA: textAVal,
+              textCaraB: textBVal,
+              notesTaller: item.observacions || pressupost.observacionsGenerals || '',
+              diesPrevistos: diesLania,
+              dataLimitEntrega: limitDateStr,
+              operacions: calculatedOperacions,
+              materials: calculatedMaterials,
+              dataCreacio: new Date().toISOString(),
+              dataModificacio: new Date().toISOString()
+            };
+
+            await setDoc(doc(db, "producc_ordres_fabricacio", nextId), newOF);
+            updatedProducts[idx] = { ...item, ofId: nextId, diesFabricacio: diesLania, nom: fullProducteNom, gamma: gammaLabel };
+            createdOFIds.push(nextId);
+          }
+        }
+
+        const allOfIds = updatedProducts.map(p => p.ofId).filter(Boolean);
+
+        const updateData = {
+          estatComanda: 'en_produccio',
+          dataIniciProduccio: dataInici,
+          productes: updatedProducts
+        };
+        if (allOfIds.length > 0) {
+          updateData.ofId = allOfIds.join(', ');
+          updateData.ofIds = allOfIds;
+        }
+
+        await updateDoc(doc(db, "pressupostos", pressupost.id), updateData);
+
+        if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+          setSelectedPressupost(prev => ({
+            ...prev,
+            ...updateData
+          }));
+        }
+
+        let alertMsg = `🔨 S'ha iniciat la producció al taller!`;
+        if (createdOFIds.length > 0) {
+          alertMsg += `\n\n✨ S'han generat automàticament ${createdOFIds.length} Ordres de Fabricació individuals: ${createdOFIds.join(', ')}.`;
+        }
+        if (noEscandallats.length > 0) {
+          alertMsg += `\n\n⚠️ Recordatori: ${noEscandallats.length} peces no tenen escandall i estan pendents.`;
+        }
+        alert(alertMsg);
+      } catch (err) {
+        console.error("Error iniciant producció:", err);
+        alert("Error iniciant la producció al taller: " + err.message);
+      }
+    } else {
+      try {
+        await updateDoc(doc(db, "pressupostos", pressupost.id), {
+          estatComanda: 'en_produccio',
+          dataIniciProduccio: dataInici
+        });
+        if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+          setSelectedPressupost(prev => ({
+            ...prev,
+            estatComanda: 'en_produccio',
+            dataIniciProduccio: dataInici
+          }));
+        }
+      } catch (err) {
+        alert("Error passant a producció: " + err.message);
+      }
+    }
+  };
+
+  const handleFinishProduction = async (pressupost) => {
+    try {
+      const dataFin = new Date();
+      let diesCalculats = 1;
+      const dataIniciRef = pressupost.dataIniciProduccio || pressupost.dataAcceptada;
+      if (dataIniciRef) {
+        const dataInici = new Date(dataIniciRef.seconds ? dataIniciRef.seconds * 1000 : dataIniciRef);
+        const diffMs = Math.max(0, dataFin - dataInici);
+        diesCalculats = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      }
+      const dataFinIso = dataFin.toISOString();
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estatComanda: 'acabat',
+        dataAcabat: dataFinIso,
+        diesRealsFabricacio: diesCalculats
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          estatComanda: 'acabat',
+          dataAcabat: dataFinIso,
+          diesRealsFabricacio: diesCalculats
+        }));
+      }
+    } catch (err) {
+      alert("Error finalitzant la producció: " + err.message);
+    }
+  };
+
+  const handleShipOrder = async (pressupost, trackingCode) => {
+    try {
+      const dataEnv = new Date().toISOString();
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estatComanda: 'enviat',
+        dataEnviat: dataEnv,
+        numeroSeguimentCorreos: (trackingCode || '').trim()
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          estatComanda: 'enviat',
+          dataEnviat: dataEnv,
+          numeroSeguimentCorreos: (trackingCode || '').trim()
+        }));
+      }
+      setOrderShipModal({ isOpen: false, pressupost: null, trackingCode: '' });
+    } catch (err) {
+      alert("Error marcant la comanda com enviada: " + err.message);
+    }
+  };
+
+  const handleDeliverOrder = async (pressupost) => {
+    try {
+      const dataLliur = new Date().toISOString();
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estatComanda: 'lliurat',
+        dataLliurat: dataLliur
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          estatComanda: 'lliurat',
+          dataLliurat: dataLliur
+        }));
+      }
+    } catch (err) {
+      alert("Error marcant la comanda com lliurada: " + err.message);
+    }
+  };
+
+  const handleTogglePaymentStatus = async (pressupost) => {
+    try {
+      const nouEstat = pressupost.estatPagament === 'pagat' ? 'pendent' : 'pagat';
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        estatPagament: nouEstat
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({ ...prev, estatPagament: nouEstat }));
+      }
+    } catch (err) {
+      alert("Error canviant l'estat de pagament: " + err.message);
+    }
+  };
+
+  const handleUpdateOrderShippingCost = async (pressupost, nouCost) => {
+    try {
+      const costNum = parseFloat(nouCost) || 0;
+      const totalNou = (Number(pressupost.totalPreuTancat) || 0) + costNum;
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        costEnviament: costNum,
+        totalFinalAmbEnviament: totalNou
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          costEnviament: costNum,
+          totalFinalAmbEnviament: totalNou
+        }));
+      }
+      setEditingShippingCostId(null);
+    } catch (err) {
+      alert("Error modificant el cost d'enviament: " + err.message);
+    }
+  };
+
+  // --- NAVEGACIÓ RÀPIDA A SECCIONS DE PRODUCC ---
+  const handleGoToEscandalls = () => {
+    try {
+      sessionStorage.setItem('producc_initial_subtab', 'escandalls');
+    } catch (e) {
+      console.warn(e);
+    }
+    setActiveTab('producc');
+  };
+
+  const handleGoToOFs = () => {
+    try {
+      sessionStorage.setItem('producc_initial_subtab', 'ordres_fabricacio');
+    } catch (e) {
+      console.warn(e);
+    }
+    setActiveTab('producc');
+  };
+
+  // --- ACTUALITZAR DIES DE FABRICACIÓ PER A UNA LÍNIA CONCRETA ---
+  const handleUpdateItemDays = async (pressupost, itemIdx, days) => {
+    const daysNum = Math.max(1, parseInt(days, 10) || 3);
+    const updatedProducts = (pressupost.productes || []).map((p, idx) => {
+      if (idx === itemIdx) {
+        return { ...p, diesFabricacio: daysNum };
+      }
+      return p;
+    });
+    const maxDays = Math.max(...updatedProducts.map(p => Number(p.diesFabricacio) || 3));
+
+    try {
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        productes: updatedProducts,
+        diesFabricacioPrevistos: maxDays
+      });
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          productes: updatedProducts,
+          diesFabricacioPrevistos: maxDays
+        }));
+      }
+    } catch (err) {
+      console.error("Error actualitzant dies de fabricació de línia:", err);
+    }
+  };
+
+  // --- CREAR ORDRE DE FABRICACIÓ (OF) PER A UNA LÍNIA ESPECÍFICA ---
+  const handleCreateOFForLine = async (pressupost, itemIdx) => {
+    const item = (pressupost.productes || [])[itemIdx];
+    if (!item) return;
+
+    // 1. Validar que el producte estigui degudament escandallat a Producc
+    const matchedEsc = findEscandallForItem(item, dbEscandalls);
+    if (!matchedEsc) {
+      alert(`⚠️ No es pot generar l'Ordre de Fabricació per a "${item.nom}".\n\nAquest producte no disposa de cap escandall creat a Producc.\nPer poder fabricar-lo, cal escandallar-lo prèviament a la secció Producc -> Escandalls.`);
+      return;
+    }
+
+    if (item.ofId) {
+      if (!window.confirm(`Aquesta línia ja té assignada l'OF ${item.ofId}. Vols generar-ne una de nova i substituir-la?`)) {
+        return;
+      }
+    }
+
+    try {
+      // 2. Llegir OFs actuals per a generar el següent ID correlatiu
+      const ofSnap = await getDocs(collection(db, "producc_ordres_fabricacio"));
+      const existingOFs = ofSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const nextId = getNextOFId(existingOFs);
+
+      const qty = Number(item.quantitat) || 1;
+      const opc = item.opcionsTriades || {};
+      const midaVal = opc['Mida de l\'etiqueta'] || opc['Mida'] || '';
+      const codiVal = opc['Codi Model Generat'] || '';
+      const tipoVal = opc['Tipografia'] || '';
+      const textAVal = opc['Text (Cara A)'] || opc['Text Cara A'] || '';
+      const textBVal = opc['Text (Cara B)'] || opc['Text Cara B'] || '';
+      const diesLania = Number(item.diesFabricacio || pressupost.diesFabricacioPrevistos || 3);
+      const limitDateStr = pressupost.dataLimitEntrega || calculateLimitDateStr(pressupost.dataAcceptada || pressupost.data, diesLania);
+
+      // 3. Materials de l'escandall
+      const calculatedMaterials = (matchedEsc.materials || []).map(em => {
+        const matObj = (dbMaterials || []).find(m => m.id === em.materialId);
+        const qUnit = Number(em.quantitat) || 0;
+        const qTotal = qUnit * qty;
+        return {
+          materialId: em.materialId,
+          nom: matObj?.material || em.nom || 'Material',
+          quantitatTeoricaUnitat: qUnit,
+          quantitatTotal: qTotal,
+          unitat: matObj?.unitat || 'u',
+          estocReservat: qTotal,
+          estocDescomptat: false
+        };
+      });
+
+      // 4. Operacions de l'escandall
+      const calculatedOperacions = (matchedEsc.operacions || []).map((eo, idx) => {
+        const opObj = (dbOperacions || []).find(o => o.id === eo.operacioId);
+        const tempsU = Number(eo.tempsMinuts) || 0;
+        return {
+          id: `op-${idx + 1}`,
+          nom: opObj?.operacio || eo.nom || `Operació ${idx + 1}`,
+          tempsTeoricMinuts: tempsU * qty,
+          tempsRealMinuts: 0,
+          completada: false
+        };
+      });
+
+      const gammaLabel = resolveProductGamma(item, matchedEsc, dbProductesAdmin, dbGammes);
+      const fullProducteNom = formatProductWithGamma(item.nom || matchedEsc.producteNom || 'Producte Web', gammaLabel);
+
+      // 5. Construir l'Ordre de Fabricació individual
+      const newOF = {
+        id: nextId,
+        comandaRef: pressupost.codiReferencia || pressupost.id,
+        pressupostId: pressupost.id,
+        liniaIndex: itemIdx,
+        clientNom: pressupost.clientNom || 'Client Web',
+        clientContacte: pressupost.clientContacte || '',
+        estat: 'cua',
+        prioritat: 'normal',
+        origen: 'web_pressupost',
+        tipusItem: 'producte',
+        producteId: item.producteId || matchedEsc.producteId || '',
+        producteNom: fullProducteNom,
+        gamma: gammaLabel,
+        producteCodi: item.codi || matchedEsc.producteCodi || '',
+        escandallId: matchedEsc.id,
+        quantitat: qty,
+        mida: midaVal,
+        codiModelGenerat: codiVal,
+        tipografia: tipoVal,
+        textCaraA: textAVal,
+        textCaraB: textBVal,
+        notesTaller: item.observacions || pressupost.observacionsGenerals || '',
+        diesPrevistos: diesLania,
+        dataLimitEntrega: limitDateStr,
+        operacions: calculatedOperacions,
+        materials: calculatedMaterials,
+        dataCreacio: new Date().toISOString(),
+        dataModificacio: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, "producc_ordres_fabricacio", nextId), newOF);
+
+      // 6. Actualitzar la línia a la comanda amb el seu nou ofId
+      const updatedProducts = (pressupost.productes || []).map((p, idx) => {
+        if (idx === itemIdx) {
+          return { ...p, ofId: nextId, diesFabricacio: diesLania, nom: fullProducteNom, gamma: gammaLabel };
+        }
+        return p;
+      });
+
+      const allOfIds = updatedProducts.map(p => p.ofId).filter(Boolean);
+
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        productes: updatedProducts,
+        ofId: allOfIds.join(', '),
+        ofIds: allOfIds
+      });
+
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          productes: updatedProducts,
+          ofId: allOfIds.join(', '),
+          ofIds: allOfIds
+        }));
+      }
+
+      alert(`✨ S'ha creat correctament l'Ordre de Fabricació ${nextId} per a "${item.nom}" a Producc!`);
+    } catch (err) {
+      console.error("Error creant OF per a línia:", err);
+      alert("Error creant l'OF: " + err.message);
+    }
+  };
+
+  // --- CREAR OFS PER A TOTES LES LÍNIES ESCANDALLADES DE LA COMANDA ---
+  const handleCreateAllOFsForOrder = async (pressupost) => {
+    const products = pressupost.productes || [];
+    if (products.length === 0) return;
+
+    const escandallats = [];
+    const noEscandallats = [];
+
+    products.forEach((p, idx) => {
+      const esc = findEscandallForItem(p, dbEscandalls);
+      if (esc) {
+        escandallats.push({ item: p, idx, esc });
+      } else {
+        noEscandallats.push({ item: p, idx });
+      }
+    });
+
+    if (escandallats.length === 0) {
+      alert(`⚠️ Cap dels ${products.length} productes d'aquesta comanda està escandallat a Producc.\n\nPer normativa de fabricació, cal crear prèviament l'escandall de cada producte a Producc -> Escandalls abans de poder generar les Ordres de Fabricació.`);
+      return;
+    }
+
+    const pendentsGenerar = escandallats.filter(({ item }) => !item.ofId);
+    if (pendentsGenerar.length === 0) {
+      alert("Totes les peces escandallades d'aquesta comanda ja tenen una OF generada.");
+      return;
+    }
+
+    let confirmMsg = `Es generaran ${pendentsGenerar.length} Ordres de Fabricació (OFs) individuals a Producc, una per a cada peça escandallada.`;
+    if (noEscandallats.length > 0) {
+      confirmMsg += `\n\n⚠️ Atenció: ${noEscandallats.length} peces NO estan escandallades i quedaran pendents fins que es creï el seu escandall.`;
+    }
+    confirmMsg += `\n\nVols continuar?`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const ofSnap = await getDocs(collection(db, "producc_ordres_fabricacio"));
+      let currentOFList = ofSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const updatedProducts = [...products];
+      const createdOFIds = [];
+
+      for (const { item, idx, esc } of pendentsGenerar) {
+        const nextId = getNextOFId(currentOFList);
+        currentOFList.push({ id: nextId });
+
+        const qty = Number(item.quantitat) || 1;
+        const opc = item.opcionsTriades || {};
+        const midaVal = opc['Mida de l\'etiqueta'] || opc['Mida'] || '';
+        const codiVal = opc['Codi Model Generat'] || '';
+        const tipoVal = opc['Tipografia'] || '';
+        const textAVal = opc['Text (Cara A)'] || opc['Text Cara A'] || '';
+        const textBVal = opc['Text (Cara B)'] || opc['Text Cara B'] || '';
+        const diesLania = Number(item.diesFabricacio || pressupost.diesFabricacioPrevistos || 3);
+        const limitDateStr = pressupost.dataLimitEntrega || calculateLimitDateStr(pressupost.dataAcceptada || pressupost.data, diesLania);
+
+        const calculatedMaterials = (esc.materials || []).map(em => {
+          const matObj = (dbMaterials || []).find(m => m.id === em.materialId);
+          const qUnit = Number(em.quantitat) || 0;
+          const qTotal = qUnit * qty;
+          return {
+            materialId: em.materialId,
+            nom: matObj?.material || em.nom || 'Material',
+            quantitatTeoricaUnitat: qUnit,
+            quantitatTotal: qTotal,
+            unitat: matObj?.unitat || 'u',
+            estocReservat: qTotal,
+            estocDescomptat: false
+          };
+        });
+
+        const calculatedOperacions = (esc.operacions || []).map((eo, opIdx) => {
+          const opObj = (dbOperacions || []).find(o => o.id === eo.operacioId);
+          const tempsU = Number(eo.tempsMinuts) || 0;
+          return {
+            id: `op-${opIdx + 1}`,
+            nom: opObj?.operacio || eo.nom || `Operació ${opIdx + 1}`,
+            tempsTeoricMinuts: tempsU * qty,
+            tempsRealMinuts: 0,
+            completada: false
+          };
+        });
+
+        const gammaLabel = resolveProductGamma(item, esc, dbProductesAdmin, dbGammes);
+        const fullProducteNom = formatProductWithGamma(item.nom || esc.producteNom || 'Producte Web', gammaLabel);
+
+        const newOF = {
+          id: nextId,
+          comandaRef: pressupost.codiReferencia || pressupost.id,
+          pressupostId: pressupost.id,
+          liniaIndex: idx,
+          clientNom: pressupost.clientNom || 'Client Web',
+          clientContacte: pressupost.clientContacte || '',
+          estat: 'cua',
+          prioritat: 'normal',
+          origen: 'web_pressupost',
+          tipusItem: 'producte',
+          producteId: item.producteId || esc.producteId || '',
+          producteNom: fullProducteNom,
+          gamma: gammaLabel,
+          producteCodi: item.codi || esc.producteCodi || '',
+          escandallId: esc.id,
+          quantitat: qty,
+          mida: midaVal,
+          codiModelGenerat: codiVal,
+          tipografia: tipoVal,
+          textCaraA: textAVal,
+          textCaraB: textBVal,
+          notesTaller: item.observacions || pressupost.observacionsGenerals || '',
+          diesPrevistos: diesLania,
+          dataLimitEntrega: limitDateStr,
+          operacions: calculatedOperacions,
+          materials: calculatedMaterials,
+          dataCreacio: new Date().toISOString(),
+          dataModificacio: new Date().toISOString()
+        };
+
+        await setDoc(doc(db, "producc_ordres_fabricacio", nextId), newOF);
+        updatedProducts[idx] = { ...item, ofId: nextId, diesFabricacio: diesLania, nom: fullProducteNom, gamma: gammaLabel };
+        createdOFIds.push(nextId);
+      }
+
+      const allOfIds = updatedProducts.map(p => p.ofId).filter(Boolean);
+
+      await updateDoc(doc(db, "pressupostos", pressupost.id), {
+        productes: updatedProducts,
+        ofId: allOfIds.join(', '),
+        ofIds: allOfIds
+      });
+
+      if (selectedPressupost && selectedPressupost.id === pressupost.id) {
+        setSelectedPressupost(prev => ({
+          ...prev,
+          productes: updatedProducts,
+          ofId: allOfIds.join(', '),
+          ofIds: allOfIds
+        }));
+      }
+
+      let resMsg = `✨ S'han creat ${createdOFIds.length} Ordres de Fabricació individuals a Producc: ${createdOFIds.join(', ')}.`;
+      if (noEscandallats.length > 0) {
+        resMsg += `\n\n⚠️ ${noEscandallats.length} peces no tenen escandall i caldrà escandallar-les abans de generar la seva OF.`;
+      }
+      alert(resMsg);
+    } catch (err) {
+      console.error("Error creant totes les OFs:", err);
+      alert("Error creant les OFs: " + err.message);
+    }
+  };
+
+  // Àlies de compatibilitat
+  const handleCreateOFFromOrder = handleCreateAllOFsForOrder;
+
+  // --- DESAR TARIFES D'ENVIAMENT GENERALS A FIRESTORE ---
+  const handleSaveShippingRates = async (e) => {
+    e.preventDefault();
+    setShippingSaveStatus('Desant tarifes a Firestore...');
+    const ok = await saveShippingConfig(shippingRates);
+    if (ok) {
+      setShippingSaveStatus('✅ Tarifes actualitzades correctament!');
+      setTimeout(() => setShippingSaveStatus(null), 3500);
+    } else {
+      setShippingSaveStatus('❌ Error guardant a Firestore.');
+      setTimeout(() => setShippingSaveStatus(null), 4000);
     }
   };
 
@@ -2529,11 +3384,38 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2 gap-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isAtes ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></span>
                           <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
                             {p.codiReferencia || p.id}
                           </span>
+                          {/* Xapa d'estat de comanda / seguiment */}
+                          {p.estatComanda && (
+                            <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                              p.estatComanda === 'enviat' || p.estatComanda === 'lliurat'
+                                ? 'bg-primary/15 text-primary border-primary/30'
+                                : p.estatComanda === 'acabat'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-500/30'
+                                  : p.estatComanda === 'en_produccio'
+                                    ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border-amber-500/30'
+                                    : p.estatComanda === 'acceptada'
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-500/30'
+                                      : 'bg-surface-container text-on-surface-variant border-outline/20'
+                            }`}>
+                              {p.estatComanda === 'rebuda' && 'Rebuda'}
+                              {p.estatComanda === 'acceptada' && 'Acceptada'}
+                              {p.estatComanda === 'en_produccio' && 'En Producció'}
+                              {p.estatComanda === 'acabat' && 'Acabat'}
+                              {p.estatComanda === 'enviat' && 'Enviat Correos'}
+                              {p.estatComanda === 'lliurat' && 'Lliurat'}
+                            </span>
+                          )}
+                          {/* Indicador OF */}
+                          {p.ofId && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                              {p.ofId}
+                            </span>
+                          )}
                         </div>
 
                         <span className="text-xs font-mono text-on-surface-variant">
@@ -2545,7 +3427,28 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                       <div className="text-xs text-on-surface-variant space-y-1 mb-3">
                         <p>Contacte: <strong className="text-primary font-mono">{p.clientContacte}</strong></p>
-                        <p>Peces demanades: <strong className="text-primary font-mono font-bold">{(p.productes || []).reduce((acc, i) => acc + (Number(i.quantitat) || 1), 0)} unitats</strong> <span className="text-[11px] text-on-surface-variant font-normal">({(p.productes || []).length} {(p.productes || []).length === 1 ? 'model' : 'models'})</span></p>
+                        <p>Peces: <strong className="text-primary font-mono font-bold">{(p.productes || []).reduce((acc, i) => acc + (Number(i.quantitat) || 1), 0)} u.</strong> <span className="text-[11px] text-on-surface-variant font-normal">({(p.productes || []).length} {(p.productes || []).length === 1 ? 'model' : 'models'})</span></p>
+                        {/* Indicador de Lliurament i Pagament */}
+                        <div className="flex items-center gap-2 pt-1 flex-wrap text-[11px]">
+                          <span className="inline-flex items-center gap-1 font-medium text-primary">
+                            <Truck className="w-3 h-3 text-primary" />
+                            {p.metodeLliurament === 'certificat' 
+                              ? 'Correos Certificat' 
+                              : p.metodeLliurament === 'ordinari' 
+                                ? 'Correos Ordinari' 
+                                : 'Recollida acordada'}
+                          </span>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 font-medium text-primary capitalize">
+                            <CreditCard className="w-3 h-3 text-primary" />
+                            {p.metodePagament === 'bizum' ? 'Bizum' : 'En recollir'}
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded font-mono ${
+                              p.estatPagament === 'pagat' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                            }`}>
+                              {p.estatPagament === 'pagat' ? 'Pagat' : 'Pendent'}
+                            </span>
+                          </span>
+                        </div>
                       </div>
 
                       <div className="pt-3 border-t border-outline/10 flex flex-wrap items-center justify-between gap-2">
@@ -2600,6 +3503,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       <span className="font-mono text-xs font-bold text-primary px-2 py-0.5 bg-primary/10 rounded">
                         {selectedPressupost.codiReferencia || selectedPressupost.id}
                       </span>
+                      {selectedPressupost.ofId && (
+                        <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20">
+                          {selectedPressupost.ofId}
+                        </span>
+                      )}
                     </div>
                     <h3 className="font-serif text-2xl text-primary font-semibold mt-1">{selectedPressupost.clientNom}</h3>
                     <p className="text-xs text-on-surface-variant font-mono">{selectedPressupost.clientContacte}</p>
@@ -2612,47 +3520,414 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </button>
                 </div>
 
+                {/* 1. PANNELL D'ESTAT DEL PROCÉS I SEGUIMENT DE COMANDA */}
+                <div className="bg-surface-container p-4 rounded-xl border border-outline/15 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <Hammer className="w-3.5 h-3.5 text-primary" />
+                      <span>Estat de Fabricació i Seguiment:</span>
+                    </span>
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                      {selectedPressupost.estatComanda === 'rebuda' && '1. Rebuda'}
+                      {selectedPressupost.estatComanda === 'acceptada' && '2. Acceptada'}
+                      {selectedPressupost.estatComanda === 'en_produccio' && '3. En Producció'}
+                      {selectedPressupost.estatComanda === 'acabat' && '4. Acabat al taller'}
+                      {selectedPressupost.estatComanda === 'enviat' && '5. Enviat (Correos)'}
+                      {selectedPressupost.estatComanda === 'lliurat' && '5. Lliurat en mà'}
+                      {!selectedPressupost.estatComanda && 'Pendent de revisar'}
+                    </span>
+                  </div>
+
+                  {/* Detalls de dies i fabricació */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-surface p-3 rounded-lg border border-outline/10">
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Dies previstos:</span>
+                      <strong className="text-primary font-mono">
+                        {selectedPressupost.diesFabricacioPrevistos ? `${selectedPressupost.diesFabricacioPrevistos} dies` : 'No definit'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Dies reals durada:</span>
+                      <strong className="text-primary font-mono">
+                        {selectedPressupost.diesRealsFabricacio ? `${selectedPressupost.diesRealsFabricacio} dies` : 'En curs'}
+                      </strong>
+                    </div>
+                    {selectedPressupost.numeroSeguimentCorreos && (
+                      <div className="col-span-2 pt-1 border-t border-outline/10">
+                        <span className="text-on-surface-variant block text-[11px]">Codi Correos:</span>
+                        <a 
+                          href={`https://www.correos.es/es/es/herramientas/localizador/envios/detalle?tracking-number=${encodeURIComponent(selectedPressupost.numeroSeguimentCorreos)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono font-bold text-primary hover:underline inline-flex items-center gap-1 text-xs"
+                        >
+                          <span>{selectedPressupost.numeroSeguimentCorreos}</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botons d'acció per canviar d'estat pas a pas */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {/* Botó Acceptar comanda */}
+                    {(!selectedPressupost.estatComanda || selectedPressupost.estatComanda === 'rebuda') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const initialLineDays = {};
+                          (selectedPressupost.productes || []).forEach((p, idx) => {
+                            initialLineDays[idx] = p.diesFabricacio || 3;
+                          });
+                          setOrderAcceptModal({
+                            isOpen: true,
+                            pressupost: selectedPressupost,
+                            diesPrevistos: selectedPressupost.diesFabricacioPrevistos || 3,
+                            lineDays: initialLineDays
+                          });
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Acceptar comanda (fixar dies)</span>
+                      </button>
+                    )}
+
+                    {/* Botó Passar a Producció */}
+                    {selectedPressupost.estatComanda === 'acceptada' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartProduction(selectedPressupost)}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Hammer className="w-3.5 h-3.5" />
+                        <span>Iniciar producció al taller</span>
+                      </button>
+                    )}
+
+                    {/* Botó Finalitzar Producció */}
+                    {selectedPressupost.estatComanda === 'en_produccio' && (
+                      <button
+                        type="button"
+                        onClick={() => handleFinishProduction(selectedPressupost)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Finalitzar fabricació (Acabat)</span>
+                      </button>
+                    )}
+
+                    {/* Botó Enviar per Correos o Lliurar */}
+                    {selectedPressupost.estatComanda === 'acabat' && (
+                      selectedPressupost.metodeLliurament !== 'recollida' ? (
+                        <button
+                          type="button"
+                          onClick={() => setOrderShipModal({ isOpen: true, pressupost: selectedPressupost, trackingCode: '' })}
+                          className="px-3 py-1.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <Truck className="w-3.5 h-3.5" />
+                          <span>Marcar com Enviat per Correos</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDeliverOrder(selectedPressupost)}
+                          className="px-3 py-1.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Marcar com Lliurat en mà</span>
+                        </button>
+                      )
+                    )}
+
+                    {/* Botó Vinculació amb OFs a Producc (visible un cop creades) */}
+                    {selectedPressupost.ofId && (
+                      <button
+                        type="button"
+                        onClick={handleGoToOFs}
+                        className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-primary/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        title="Obrir les Ordres de Fabricació a Producc"
+                      >
+                        <Factory className="w-3.5 h-3.5 text-primary" />
+                        <span>Obrir OFs ({selectedPressupost.ofId}) a Producc</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. TARGETA DE LLIURAMENT, TRANSPORT I PAGAMENT */}
+                <div className="bg-surface-container p-4 rounded-xl border border-outline/15 space-y-3">
+                  <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                    <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-primary" />
+                      <span>Lliurament i Despeses de Transport</span>
+                    </span>
+                    <span className="font-serif text-xs font-bold text-primary">
+                      {selectedPressupost.metodeLliurament === 'certificat' 
+                        ? 'Correos Carta Certificada' 
+                        : selectedPressupost.metodeLliurament === 'ordinari' 
+                          ? 'Correos Carta Ordinària' 
+                          : 'Recollida acordada'}
+                    </span>
+                  </div>
+
+                  {/* Adreça postal */}
+                  {selectedPressupost.adrecaEnviament && (
+                    <div className="text-xs bg-surface p-3 rounded-lg border border-outline/10 space-y-0.5">
+                      <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-primary" />
+                        <span>Adreça de tramesa:</span>
+                      </span>
+                      <strong className="text-primary block font-medium">
+                        {selectedPressupost.adrecaEnviament.carrer}
+                      </strong>
+                      <span className="text-primary font-mono text-[11px] block">
+                        {selectedPressupost.adrecaEnviament.codiPostal} {selectedPressupost.adrecaEnviament.poblacio} {selectedPressupost.adrecaEnviament.provincia ? `(${selectedPressupost.adrecaEnviament.provincia})` : ''}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Despeses d'enviament puntuals */}
+                  <div className="flex items-center justify-between text-xs bg-surface p-3 rounded-lg border border-outline/10">
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Cost enviament comanda:</span>
+                      <strong className="text-primary font-mono text-sm">
+                        {formatCurrency(Number(selectedPressupost.costEnviament || 0))}
+                      </strong>
+                    </div>
+
+                    {editingShippingCostId === selectedPressupost.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          step="0.10"
+                          value={customShippingCostVal}
+                          onChange={(e) => setCustomShippingCostVal(e.target.value)}
+                          className="w-20 px-2 py-1 bg-surface-container border border-primary rounded text-xs font-mono"
+                          placeholder="0.00"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateOrderShippingCost(selectedPressupost, customShippingCostVal)}
+                          className="px-2 py-1 bg-primary text-on-primary rounded text-xs font-bold cursor-pointer"
+                        >
+                          Desar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingShippingCostId(null)}
+                          className="px-2 py-1 border text-xs rounded cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingShippingCostId(selectedPressupost.id);
+                          setCustomShippingCostVal(String(selectedPressupost.costEnviament || 0));
+                        }}
+                        className="px-2 py-1 text-[11px] border border-outline/20 hover:bg-surface-container rounded text-primary transition-colors cursor-pointer"
+                        title="Modificar puntualment el transport per aquesta comanda"
+                      >
+                        ✏️ Ajustar enviament puntual
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mètode i Estat de Pagament */}
+                  <div className="flex items-center justify-between text-xs bg-surface p-3 rounded-lg border border-outline/10">
+                    <div>
+                      <span className="text-on-surface-variant block text-[11px]">Pagament:</span>
+                      <strong className="text-primary capitalize flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-primary" />
+                        <span>{selectedPressupost.metodePagament === 'bizum' ? 'Bizum (699 592 326)' : 'Pagament en recollir'}</span>
+                      </strong>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePaymentStatus(selectedPressupost)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold font-mono transition-colors flex items-center gap-1.5 cursor-pointer ${
+                        selectedPressupost.estatPagament === 'pagat'
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-500/30'
+                          : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-500/30'
+                      }`}
+                      title="Fes clic per commutar l'estat de pagament"
+                    >
+                      {selectedPressupost.estatPagament === 'pagat' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>PAGAT</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>PENDENT</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. LLISTAT DE PECES SOL·LICITADES I ORDRES DE FABRICACIÓ (OF) PER LÍNIA */}
                 <div className="space-y-4">
-                  <h4 className="text-xs uppercase font-mono font-semibold text-primary tracking-wider">Peces Sol·licitades:</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-xs uppercase font-mono font-semibold text-primary tracking-wider">
+                      Peces Sol·licitades ({(selectedPressupost.productes || []).length}):
+                    </h4>
+                    {(selectedPressupost.productes || []).some(p => !findEscandallForItem(p, dbEscandalls)) && (
+                      <span className="text-[11px] font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>Hi ha peces sense escandall</span>
+                      </span>
+                    )}
+                  </div>
                   
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    {(selectedPressupost.productes || []).map((item, idx) => (
-                      <div key={idx} className="bg-surface p-3.5 rounded-lg border border-outline/15 text-xs space-y-1.5">
-                        <div className="flex justify-between font-semibold text-primary text-sm items-start gap-2">
-                          <div>
-                            <span>{idx + 1}. {item.nom}</span>
-                            <div className="mt-0.5">
-                              {item.preuUnitari ? (
-                                <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/20">
-                                  Preu tancat: {Number(item.preuUnitari).toFixed(2).replace('.', ',')} € (Total: {(Number(item.preuUnitari) * (Number(item.quantitat) || 1)).toFixed(2).replace('.', ',')} €)
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    {(selectedPressupost.productes || []).map((item, idx) => {
+                      const esc = findEscandallForItem(item, dbEscandalls);
+                      const isEscandallat = !!esc;
+                      const lineDays = Number(item.diesFabricacio || selectedPressupost.diesFabricacioPrevistos || 3);
+
+                      return (
+                        <div 
+                          key={idx} 
+                          className={`p-4 rounded-xl border transition-all text-xs space-y-3 shadow-2xs ${
+                            !isEscandallat 
+                              ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-400/40' 
+                              : (item.ofId ? 'bg-surface border-emerald-500/40' : 'bg-surface border-outline/15')
+                          }`}
+                        >
+                          {/* Capçalera de la peça */}
+                          <div className="flex justify-between font-semibold text-primary text-sm items-start gap-2">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold">{idx + 1}. {formatProductWithGamma(item.nom, resolveProductGamma(item, esc, dbProductesAdmin, dbGammes))}</span>
+                                {item.ofId ? (
+                                  <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                    <Factory className="w-3 h-3" />
+                                    <span>{item.ofId}</span>
+                                  </span>
+                                ) : (
+                                  isEscandallat ? (
+                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                                      🟢 Escandallat
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                                      🔴 Pendent d'escandallar
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {item.preuUnitari ? (
+                                  <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                    Preu unitari: {Number(item.preuUnitari).toFixed(2).replace('.', ',')} € (Total: {(Number(item.preuUnitari) * (Number(item.quantitat) || 1)).toFixed(2).replace('.', ',')} €)
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                    Sol·licitud de pressupost
+                                  </span>
+                                )}
+                                {isEscandallat && esc && (
+                                  <span className="text-[10px] font-mono text-on-surface-variant">
+                                    Escandall: <strong className="text-primary">{esc.producteNom || esc.id}</strong>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-surface-container border border-outline/10 text-primary">
+                              x{item.quantitat || 1}
+                            </span>
+                          </div>
+
+                          {/* Opcions de personalització */}
+                          {Object.keys(item.opcionsTriades || {}).length > 0 && (
+                            <div className="flex flex-wrap gap-1 text-[11px] text-on-surface-variant">
+                              {Object.entries(item.opcionsTriades).map(([k, v]) => (
+                                <span key={k} className="bg-surface-container px-2 py-0.5 rounded font-mono">
+                                  {k}: <strong>{v}</strong>
                                 </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Observacions */}
+                          {item.observacions && (
+                            <p className="text-xs text-on-surface-variant italic bg-surface-container/50 p-2 rounded">
+                              💬 Notes: {item.observacions}
+                            </p>
+                          )}
+
+                          {/* Subpanell de Fabricació i Escandall d'aquesta línia */}
+                          <div className="pt-2 border-t border-outline/10 flex flex-wrap items-center justify-between gap-3">
+                            {/* Input de dies de fabricació específics per a aquesta peça */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-mono text-on-surface-variant flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-primary" />
+                                <span>Dies fabricació previstos:</span>
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <input 
+                                  type="number"
+                                  min="1"
+                                  max="60"
+                                  key={`days-${idx}-${item.diesFabricacio || selectedPressupost.diesFabricacioPrevistos || 3}`}
+                                  defaultValue={lineDays}
+                                  onBlur={(e) => handleUpdateItemDays(selectedPressupost, idx, e.target.value)}
+                                  className="w-14 px-2 py-1 bg-surface-container border border-outline/30 focus:border-primary rounded text-center font-mono font-bold text-xs text-primary"
+                                  title="Termini de fabricació estimat per a aquesta peça específica"
+                                />
+                                <span className="text-[11px] font-mono text-on-surface-variant">dies</span>
+                              </div>
+                            </div>
+
+                            {/* Accions de fabricació individuals */}
+                            <div className="flex items-center gap-2">
+                              {!isEscandallat ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                                    No es pot fabricar sense escandall
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={handleGoToEscandalls}
+                                    className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Anar a la secció Escandalls de Producc"
+                                  >
+                                    <Wrench className="w-3 h-3 text-amber-600" />
+                                    <span>Crear escandall</span>
+                                  </button>
+                                </div>
+                              ) : item.ofId ? (
+                                <button
+                                  type="button"
+                                  onClick={handleGoToOFs}
+                                  className="px-2.5 py-1 bg-surface-container hover:bg-primary/10 text-primary border border-primary/30 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Obrir l'Ordre de Fabricació a Producc"
+                                >
+                                  <Factory className="w-3 h-3 text-primary" />
+                                  <span>Obrir OF {item.ofId}</span>
+                                </button>
                               ) : (
-                                <span className="text-[10px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/20">
-                                  Sol·licitud de pressupost
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateOFForLine(selectedPressupost, idx)}
+                                  className="px-3 py-1 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                                  title="Generar l'Ordre de Fabricació individual per a aquesta peça a Producc"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Generar OF d'aquesta peça</span>
+                                </button>
                               )}
                             </div>
                           </div>
-                          <span className="font-mono text-xs">x{item.quantitat}</span>
                         </div>
-
-                        {Object.keys(item.opcionsTriades || {}).length > 0 && (
-                          <div className="flex flex-wrap gap-1 text-[11px] text-on-surface-variant">
-                            {Object.entries(item.opcionsTriades).map(([k, v]) => (
-                              <span key={k} className="bg-surface-container px-2 py-0.5 rounded font-mono">
-                                {k}: <strong>{v}</strong>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        {item.observacions && (
-                          <p className="text-xs text-on-surface-variant italic bg-surface-container/50 p-2 rounded">
-                            💬 Notes: {item.observacions}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {selectedPressupost.observacionsGenerals && (
@@ -2704,8 +3979,192 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </div>
                 </div>
               </div>
-            )}
+              )}
           </div>
+
+          {/* Modal per Acceptar Comanda i Fixar Dies de Fabricació per Línia */}
+          {orderAcceptModal.isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+              <div className="bg-surface text-on-surface rounded-2xl border border-outline/20 p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between border-b border-outline/15 pb-3 shrink-0">
+                  <h3 className="font-serif text-lg font-bold text-primary flex items-center gap-2">
+                    <Check className="w-5 h-5 text-emerald-600" />
+                    <span>Acceptar Comanda i Fixar Terminis</span>
+                  </h3>
+                  <button 
+                    onClick={() => setOrderAcceptModal({ isOpen: false, pressupost: null, diesPrevistos: 3, lineDays: {} })}
+                    className="p-1 text-on-surface-variant hover:text-primary rounded cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="overflow-y-auto space-y-4 pr-1">
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    En acceptar la comanda <strong>{orderAcceptModal.pressupost?.codiReferencia || orderAcceptModal.pressupost?.id}</strong>, el client podrà seguir l'evolució al seguiment públic en viu. Pots definir els dies estimats de fabricació per a cadascuna de les peces segons la seva dificultat.
+                  </p>
+
+                  {/* Llistat de peces amb dies individuals */}
+                  <div className="space-y-2.5">
+                    <label className="block text-xs font-semibold text-primary uppercase font-mono tracking-wider">
+                      Terminis de Fabricació per Peça:
+                    </label>
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {(orderAcceptModal.pressupost?.productes || []).map((item, idx) => {
+                        const esc = findEscandallForItem(item, dbEscandalls);
+                        const isEscandallat = !!esc;
+                        const currentDays = orderAcceptModal.lineDays?.[idx] !== undefined 
+                          ? orderAcceptModal.lineDays[idx] 
+                          : (item.diesFabricacio || orderAcceptModal.diesPrevistos || 3);
+
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`p-3 rounded-xl border text-xs flex items-center justify-between gap-3 ${
+                              !isEscandallat 
+                                ? 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-400/40' 
+                                : 'bg-surface-container/50 border-outline/15'
+                            }`}
+                          >
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <strong className="text-primary truncate">{idx + 1}. {formatProductWithGamma(item.nom, resolveProductGamma(item, esc, dbProductesAdmin, dbGammes))}</strong>
+                                <span className="text-[10px] font-mono text-on-surface-variant font-bold">
+                                  x{item.quantitat || 1}
+                                </span>
+                              </div>
+                              <div>
+                                {isEscandallat ? (
+                                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono font-medium">
+                                    🟢 Escandallat ({esc.producteNom || esc.id})
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-rose-600 dark:text-rose-400 font-mono font-medium flex items-center gap-1">
+                                    🔴 Pendent d'escandallar a Producc
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <input 
+                                type="number"
+                                min="1"
+                                max="60"
+                                value={currentDays}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  const newLineDays = { ...(orderAcceptModal.lineDays || {}), [idx]: val };
+                                  const allVals = Object.values(newLineDays).map(v => parseInt(v, 10) || 3);
+                                  const maxD = Math.max(...allVals, 1);
+                                  setOrderAcceptModal({
+                                    ...orderAcceptModal,
+                                    lineDays: newLineDays,
+                                    diesPrevistos: maxD
+                                  });
+                                }}
+                                className="w-16 px-2 py-1.5 bg-surface border border-primary/50 focus:border-primary rounded-lg text-center font-mono font-bold text-xs text-primary"
+                              />
+                              <span className="text-[11px] font-mono text-on-surface-variant">dies</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Termini global estimat de la comanda */}
+                  <div className="bg-surface-container p-3.5 rounded-xl border border-outline/15 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-primary font-mono uppercase tracking-wider">
+                        Termini global comanda (seguiment client):
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono font-bold text-base text-primary">
+                          {orderAcceptModal.diesPrevistos}
+                        </span>
+                        <span className="text-xs font-mono text-on-surface-variant">dies laborables</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant/80 italic">
+                      💡 S'ha calculat automàticament com el termini màxim entre les peces sol·licitades.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-outline/10 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setOrderAcceptModal({ isOpen: false, pressupost: null, diesPrevistos: 3, lineDays: {} })}
+                    className="px-4 py-2 border rounded-xl text-xs font-medium cursor-pointer hover:bg-surface-container"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAcceptOrder(orderAcceptModal.pressupost, orderAcceptModal.diesPrevistos, orderAcceptModal.lineDays)}
+                    className="px-4 py-2 bg-primary text-on-primary rounded-xl text-xs font-bold cursor-pointer hover:bg-primary-container shadow"
+                  >
+                    Acceptar i Publicar al Seguiment
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal per Tramesa Correos i Codi de Seguiment */}
+          {orderShipModal.isOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+              <div className="bg-surface text-on-surface rounded-2xl border border-outline/20 p-6 max-w-md w-full shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-outline/15 pb-3">
+                  <h3 className="font-serif text-lg font-bold text-primary flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-primary" />
+                    <span>Marcar Comanda com a Enviada (Correos)</span>
+                  </h3>
+                  <button 
+                    onClick={() => setOrderShipModal({ isOpen: false, pressupost: null, trackingCode: '' })}
+                    className="p-1 text-on-surface-variant hover:text-primary rounded cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  Confirma l'enviament de la comanda <strong>{orderShipModal.pressupost?.codiReferencia || orderShipModal.pressupost?.id}</strong>. Si disposes del número de seguiment de Correos (ex: certificat), afegeix-lo perquè el client pugui consultar el localitzador oficial en un sol clic.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-primary uppercase font-mono tracking-wider">
+                    Número de Seguiment Correos (Localitzador):
+                  </label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: PQ4F123456789012345678B"
+                    value={orderShipModal.trackingCode}
+                    onChange={(e) => setOrderShipModal({ ...orderShipModal, trackingCode: e.target.value })}
+                    className="w-full px-3 py-2 bg-surface-container border border-outline/25 rounded-xl font-mono text-xs text-primary focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-outline/10">
+                  <button
+                    type="button"
+                    onClick={() => setOrderShipModal({ isOpen: false, pressupost: null, trackingCode: '' })}
+                    className="px-4 py-2 border rounded-xl text-xs font-medium cursor-pointer hover:bg-surface-container"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShipOrder(orderShipModal.pressupost, orderShipModal.trackingCode)}
+                    className="px-4 py-2 bg-primary text-on-primary rounded-xl text-xs font-bold cursor-pointer hover:bg-primary-container shadow"
+                  >
+                    Confirmar Enviament
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -7784,6 +9243,158 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   ⚡ Provar Notificació al Mòbil
                 </button>
               </div>
+            </form>
+          </div>
+
+          {/* Correos Shipping Rates Management Card */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 shadow-sm space-y-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono font-semibold uppercase flex items-center gap-1">
+                  <Truck className="w-3.5 h-3.5" />
+                  Tarifes Generals de Transport
+                </span>
+              </div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Tarifes d'Enviament Correos (Web)</h2>
+              <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+                Modifica fàcilment els preus generals d'enviament per Correos que s'apliquen a la cistella dels clients sense necessitat de tocar el codi font.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveShippingRates} className="space-y-6">
+              {/* Carta Ordinària */}
+              <div className="bg-surface p-4 rounded-xl border border-outline/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                  <strong className="text-xs font-bold text-primary flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-primary" />
+                    <span>Carta Ordinària (Correos)</span>
+                  </strong>
+                  <span className="text-[11px] font-mono text-on-surface-variant">Fins a 2 kg</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Preu (€) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      required
+                      value={shippingRates.cartaOrdinaria?.preu ?? 2.50}
+                      onChange={(e) => setShippingRates({
+                        ...shippingRates,
+                        cartaOrdinaria: { ...shippingRates.cartaOrdinaria, preu: parseFloat(e.target.value) || 0 }
+                      })}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/30 font-mono text-sm font-bold text-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Termini de Trànsit
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingRates.cartaOrdinaria?.termini ?? '2 - 4 dies de trànsit'}
+                      onChange={(e) => setShippingRates({
+                        ...shippingRates,
+                        cartaOrdinaria: { ...shippingRates.cartaOrdinaria, termini: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/30 text-xs text-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-on-surface-variant mb-1">Descripció per al client</label>
+                  <input
+                    type="text"
+                    value={shippingRates.cartaOrdinaria?.descripcio ?? ''}
+                    onChange={(e) => setShippingRates({
+                      ...shippingRates,
+                      cartaOrdinaria: { ...shippingRates.cartaOrdinaria, descripcio: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container border border-outline/30 text-xs text-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Carta Certificada */}
+              <div className="bg-surface p-4 rounded-xl border border-outline/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-emerald-600" />
+                      <span>Carta Certificada (Correos)</span>
+                    </strong>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.2 rounded font-mono font-bold">
+                      Recomanat
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-on-surface-variant">Fins a 2 kg amb seguiment</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Preu (€) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      required
+                      value={shippingRates.cartaCertificada?.preu ?? 6.00}
+                      onChange={(e) => setShippingRates({
+                        ...shippingRates,
+                        cartaCertificada: { ...shippingRates.cartaCertificada, preu: parseFloat(e.target.value) || 0 }
+                      })}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/30 font-mono text-sm font-bold text-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                      Termini de Trànsit
+                    </label>
+                    <input
+                      type="text"
+                      value={shippingRates.cartaCertificada?.termini ?? '2 - 4 dies de trànsit'}
+                      onChange={(e) => setShippingRates({
+                        ...shippingRates,
+                        cartaCertificada: { ...shippingRates.cartaCertificada, termini: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/30 text-xs text-primary"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-on-surface-variant mb-1">Descripció per al client</label>
+                  <input
+                    type="text"
+                    value={shippingRates.cartaCertificada?.descripcio ?? ''}
+                    onChange={(e) => setShippingRates({
+                      ...shippingRates,
+                      cartaCertificada: { ...shippingRates.cartaCertificada, descripcio: e.target.value }
+                    })}
+                    className="w-full px-3 py-1.5 rounded-lg bg-surface-container border border-outline/30 text-xs text-primary"
+                  />
+                </div>
+              </div>
+
+              {shippingSaveStatus && (
+                <div className="p-3 bg-surface-container border border-primary/20 rounded-lg text-xs font-mono text-primary animate-fadeIn">
+                  {shippingSaveStatus}
+                </div>
+              )}
+
+              <button 
+                type="submit"
+                className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow"
+              >
+                Desar Tarifes d'Enviament a Firestore
+              </button>
             </form>
           </div>
         </div>

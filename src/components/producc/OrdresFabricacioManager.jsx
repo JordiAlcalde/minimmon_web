@@ -12,6 +12,84 @@ import { formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import DecimalInput from '../common/DecimalInput';
 import { AVAILABLE_FONTS } from '../FontSelectorDropdown';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
+import { formatProductWithGamma, getSingularGammaName, getProductGammaLabel } from '../PrivateAreaSection';
+
+// Helper per resoldre i separar la gamma i el nom del producte per a qualsevol OF
+export const resolveOFGammaAndName = (of, productes = [], escandalls = [], gammes = []) => {
+  if (!of) return { gamma: '', nom: '' };
+
+  let rawNom = of.producteNom || '';
+  let gamma = of.gamma || '';
+
+  // 1. Si rawNom ja conté dos punts (ex: "Clauer: Mans amigues")
+  if (rawNom.includes(':')) {
+    const parts = rawNom.split(':');
+    const possibleGamma = parts[0].trim();
+    const possibleNom = parts.slice(1).join(':').trim();
+    if (possibleGamma && possibleNom) {
+      return {
+        gamma: getSingularGammaName(possibleGamma),
+        nom: possibleNom
+      };
+    }
+  }
+
+  // 2. Si no té gamma guardada a l'OF, cerquem al catàleg de productes
+  if (!gamma && Array.isArray(productes) && productes.length > 0) {
+    const matchedProd = productes.find(p => 
+      (of.producteId && p.id === of.producteId) || 
+      (p.nom && p.nom.toLowerCase().trim() === rawNom.toLowerCase().trim()) ||
+      (p.nom && rawNom.toLowerCase().includes(p.nom.toLowerCase())) ||
+      (p.nom && p.nom.toLowerCase().includes(rawNom.toLowerCase()))
+    );
+
+    if (matchedProd) {
+      gamma = getProductGammaLabel(matchedProd, gammes);
+    }
+  }
+
+  // 3. Si encara no, cerquem als escandalls
+  if (!gamma && Array.isArray(escandalls) && escandalls.length > 0) {
+    const matchedEsc = escandalls.find(e => 
+      (of.escandallId && e.id === of.escandallId) ||
+      (e.producteNom && e.producteNom.toLowerCase().trim() === rawNom.toLowerCase().trim()) ||
+      (e.producteNom && rawNom.toLowerCase().includes(e.producteNom.toLowerCase()))
+    );
+    if (matchedEsc) {
+      gamma = getSingularGammaName(matchedEsc.gamma || matchedEsc.familiaNom || '');
+      if (!gamma && matchedEsc.producteId && Array.isArray(productes)) {
+        const p = productes.find(prod => prod.id === matchedEsc.producteId);
+        if (p) gamma = getProductGammaLabel(p, gammes);
+      }
+    }
+  }
+
+  // 4. Regles de suport segons les tipologies habituals del taller
+  if (!gamma) {
+    const lower = rawNom.toLowerCase();
+    if (lower.includes('mans amigues') || lower.includes('onades') || lower.includes('clauer') || lower.includes('clau')) {
+      gamma = 'Clauer';
+    } else if (lower.includes('punt') || lower.includes('llibre') || lower.includes('sant jordi')) {
+      gamma = 'Punt de llibre';
+    } else if (lower.includes('arracada')) {
+      gamma = 'Arracada';
+    } else if (lower.includes('imant')) {
+      gamma = 'Imant';
+    } else if (lower.includes('penjoll')) {
+      gamma = 'Penjoll';
+    } else if (lower.includes('marc') || lower.includes('foto')) {
+      gamma = 'Marc';
+    }
+  }
+
+  gamma = getSingularGammaName(gamma);
+  const cleanNom = rawNom.replace(new RegExp(`^${gamma}[:\\s\\-_]+`, 'i'), '').trim();
+
+  return {
+    gamma,
+    nom: cleanNom || rawNom
+  };
+};
 
 // Helper per generar el següent ID correlatiu OF-[ANY]-0001
 export function getNextOFId(existingOFs = [], targetYear = new Date().getFullYear()) {
@@ -31,6 +109,36 @@ export function getNextOFId(existingOFs = [], targetYear = new Date().getFullYea
   const nextNum = maxNum + 1;
   return `${prefix}${String(nextNum).padStart(4, '0')}`;
 }
+
+export const formatOFDateTime = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr.seconds ? dateStr.seconds * 1000 : dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+  } catch {
+    return String(dateStr);
+  }
+};
+
+export const formatOFDateOnly = (dateStr) => {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr.seconds ? dateStr.seconds * 1000 : dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  } catch {
+    return String(dateStr);
+  }
+};
 
 export default function OrdresFabricacioManager({
   ordresFabricacio = [],
@@ -396,7 +504,7 @@ export default function OrdresFabricacioManager({
                 <th className="py-3.5 px-4">Codi OF</th>
                 <th className="py-3.5 px-4">Dates</th>
                 <th className="py-3.5 px-4">Client & Origen</th>
-                <th className="py-3.5 px-4">Concepte & Model</th>
+                <th className="py-3.5 px-4">Concepte</th>
                 <th className="py-3.5 px-4 text-center">Quantitat</th>
                 <th className="py-3.5 px-4">Full de Ruta</th>
                 <th className="py-3.5 px-4 text-center">Estat</th>
@@ -446,11 +554,11 @@ export default function OrdresFabricacioManager({
                       <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
                         <div className="space-y-0.5">
                           <div className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-                            Llançament: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{of.dataCreacio || '-'}</span>
+                            Llançament: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatOFDateTime(of.dataCreacio)}</span>
                           </div>
                           {of.dataLimitEntrega && (
                             <div className={isDark ? 'text-amber-300' : 'text-amber-700'}>
-                              Límit: <span className="font-bold underline">{of.dataLimitEntrega}</span>
+                              Límit: <span className="font-bold underline">{formatOFDateOnly(of.dataLimitEntrega)}</span>
                             </div>
                           )}
                         </div>
@@ -479,24 +587,36 @@ export default function OrdresFabricacioManager({
 
                       {/* Producte / Projecte, Model & Personalització */}
                       <td className="py-3.5 px-4 max-w-[240px]">
-                        <div className="space-y-0.5">
-                          <p className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                            {of.producteNom}
-                          </p>
-                          <div className="flex items-center gap-2 text-[11px] font-mono">
-                            {of.codiModelGenerat && (
-                              <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                                {of.codiModelGenerat}
-                              </span>
-                            )}
-                            {of.mida && <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>({of.mida})</span>}
-                          </div>
-                          {(of.textCaraA || of.tipografia) && (
-                            <p className={`text-[11px] italic truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} style={{ fontFamily: of.tipografia ? AVAILABLE_FONTS.find(f => f.name === of.tipografia)?.fontFamily : undefined }}>
-                              {of.textCaraA ? `"${of.textCaraA}"` : ''} {of.tipografia ? `[${of.tipografia}]` : ''}
-                            </p>
-                          )}
-                        </div>
+                        {(() => {
+                          const itemInfo = resolveOFGammaAndName(of, productes, escandalls, gammes);
+                          return (
+                            <div className="space-y-0.5">
+                              {itemInfo.gamma && (
+                                <span className={`text-[10.5px] font-mono font-bold uppercase tracking-wider block ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                                  {itemInfo.gamma}:
+                                </span>
+                              )}
+                              <p className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                {itemInfo.nom}
+                              </p>
+                              {(of.codiModelGenerat || of.mida) && (
+                                <div className="flex items-center gap-2 text-[11px] font-mono">
+                                  {of.codiModelGenerat && (
+                                    <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                                      {of.codiModelGenerat}
+                                    </span>
+                                  )}
+                                  {of.mida && <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>({of.mida})</span>}
+                                </div>
+                              )}
+                              {(of.textCaraA || of.textCaraB) && (
+                                <p className={`text-[11px] italic truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} style={{ fontFamily: of.tipografia ? AVAILABLE_FONTS.find(f => f.name === of.tipografia)?.fontFamily : undefined }}>
+                                  {of.textCaraA ? `"${of.textCaraA}"` : (of.textCaraB ? `"${of.textCaraB}"` : '')} {of.tipografia ? `[${of.tipografia}]` : ''}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Quantitat */}
@@ -1717,9 +1837,15 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
                   </span>
                 )}
               </div>
-              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                {activeOF.producteNom} • <span className="font-bold text-amber-500">{activeOF.quantitat} u</span>
-              </p>
+              {(() => {
+                const itemInfo = resolveOFGammaAndName(activeOF, [], [], []);
+                return (
+                  <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {itemInfo.gamma && <span className="font-mono font-bold text-amber-500 uppercase">{itemInfo.gamma}: </span>}
+                    <strong className={isDark ? 'text-white' : 'text-slate-900'}>{itemInfo.nom}</strong> • <span className="font-bold text-amber-500">{activeOF.quantitat} u</span>
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
@@ -1762,7 +1888,7 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
                 <p>Client: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.clientNom || 'Estoc Taller'}</span></p>
                 <p>Contacte: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.clientContacte || '-'}</span></p>
                 <p>Ref. Comanda: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.comandaRef || 'Llançament Manual'}</span></p>
-                <p>Data Límit: <span className="font-bold text-amber-500">{activeOF.dataLimitEntrega || 'Sense límit'}</span></p>
+                <p>Data Límit: <span className="font-bold text-amber-500">{formatOFDateOnly(activeOF.dataLimitEntrega)}</span></p>
               </div>
             </div>
 
@@ -1773,31 +1899,46 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
               <p className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-2 text-xs font-mono uppercase">
                 <Sparkles className="w-4 h-4" /> Especificacions de Gravat
               </p>
-              <div className={`space-y-1 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                <p>Mida: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.mida || '-'}</span></p>
-                <p>Model / Forats: <span className="font-bold text-amber-400">{activeOF.codiModelGenerat || '-'}</span></p>
-                <p>Tipografia: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.tipografia || 'Playfair Display'}</span> ({activeOF.midaFont || 'Mitjana'})</p>
-              </div>
+              
+              {!activeOF.tipografia && !activeOF.textCaraA && !activeOF.textCaraB && (!activeOF.mida || activeOF.mida === '-') && (!activeOF.codiModelGenerat || activeOF.codiModelGenerat === '-') ? (
+                <p className={`text-xs italic py-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Aquest producte no requereix especificacions de gravat personalitzat.
+                </p>
+              ) : (
+                <>
+                  <div className={`space-y-1 font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    {activeOF.mida && activeOF.mida !== '-' && (
+                      <p>Mida: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.mida}</span></p>
+                    )}
+                    {activeOF.codiModelGenerat && activeOF.codiModelGenerat !== '-' && (
+                      <p>Model / Forats: <span className="font-bold text-amber-400">{activeOF.codiModelGenerat}</span></p>
+                    )}
+                    {activeOF.tipografia && (
+                      <p>Tipografia: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.tipografia}</span> {activeOF.midaFont ? `(${activeOF.midaFont})` : ''}</p>
+                    )}
+                  </div>
 
-              {(activeOF.textCaraA || activeOF.textCaraB) && (
-                <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
-                  {activeOF.textCaraA && (
-                    <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-750' : 'bg-white border-slate-200'}`}>
-                      <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Cara A (Frontal):</span>
-                      <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ fontFamily: fontObj?.fontFamily }}>
-                        "{activeOF.textCaraA}"
-                      </p>
+                  {(activeOF.textCaraA || activeOF.textCaraB) && (
+                    <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                      {activeOF.textCaraA && (
+                        <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-750' : 'bg-white border-slate-200'}`}>
+                          <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Cara A (Frontal):</span>
+                          <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ fontFamily: fontObj?.fontFamily }}>
+                            "{activeOF.textCaraA}"
+                          </p>
+                        </div>
+                      )}
+                      {activeOF.textCaraB && (
+                        <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-750' : 'bg-white border-slate-200'}`}>
+                          <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Cara B (Posterior):</span>
+                          <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ fontFamily: fontObj?.fontFamily }}>
+                            "{activeOF.textCaraB}"
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {activeOF.textCaraB && (
-                    <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-900 border-slate-750' : 'bg-white border-slate-200'}`}>
-                      <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Cara B (Posterior):</span>
-                      <p className={`text-sm font-bold mt-0.5 ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ fontFamily: fontObj?.fontFamily }}>
-                        "{activeOF.textCaraB}"
-                      </p>
-                    </div>
-                  )}
-                </div>
+                </>
               )}
             </div>
           </div>
@@ -2044,7 +2185,14 @@ function PrintWorkshopDossier({ ofData, onClose }) {
             <div>
               <p className="text-[10px] font-mono uppercase tracking-widest text-slate-600">Mínim Món • Full de Treball Taller</p>
               <h1 className="text-3xl font-black font-mono tracking-tight">{ofData.id}</h1>
-              <p className="text-sm font-bold text-slate-800">{ofData.producteNom}</p>
+              {(() => {
+                const itemInfo = resolveOFGammaAndName(ofData, [], [], []);
+                return (
+                  <p className="text-sm font-bold text-slate-800">
+                    {itemInfo.gamma ? `${itemInfo.gamma}: ` : ''}{itemInfo.nom}
+                  </p>
+                );
+              })()}
             </div>
             <div className="text-right font-mono text-xs space-y-0.5">
               <p className="text-lg font-black bg-black text-white px-3 py-1 rounded">

@@ -12,6 +12,7 @@ import ProjeccApp from './components/projecc/ProjeccApp';
 import PostingApp from './components/posting/PostingApp';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
+import OrderTrackingModal from './components/OrderTrackingModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
 import { BudgetProvider } from './context/BudgetContext';
 import BudgetDrawer from './components/BudgetDrawer';
@@ -74,9 +75,11 @@ export default function App() {
   const [catalogResetKey, setCatalogResetKey] = useState(0);
   const [selectedProject, setSelectedProject] = useState(null);
   const [legalTitle, setLegalTitle] = useState(null);
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  const [trackingInitialRef, setTrackingInitialRef] = useState('');
 
   useEffect(() => {
-    // Gestió d'enllaços directes per a màrqueting (?projecte=... / ?producte=... / ?seccio=...)
+    // Gestió d'enllaços directes per a màrqueting (?projecte=... / ?producte=... / ?seccio=... / ?comanda=...)
     const processDeepLink = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
@@ -88,7 +91,16 @@ export default function App() {
       const isProjeccDirect = urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc';
       const isPostingDirect = urlParams.get('posting') !== null || seccioParam === 'posting' || hash === '#posting';
 
-      if (isPostingDirect) {
+      // Enllaç directe a seguiment de comanda (?comanda=REF o #seguiment-REF)
+      const comandaParam = urlParams.get('comanda') || urlParams.get('seguiment') || (hash.startsWith('#seguiment-') ? hash.replace('#seguiment-', '') : null);
+
+      if (comandaParam) {
+        setTrackingInitialRef(comandaParam);
+        setIsTrackingOpen(true);
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (isPostingDirect) {
         setActiveTab('posting');
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -190,6 +202,10 @@ export default function App() {
             setActiveTab={handleSelectTab} 
             catalogSearchQuery={catalogSearchQuery}
             setCatalogSearchQuery={setCatalogSearchQuery}
+            onOpenTracking={(ref) => {
+              if (ref) setTrackingInitialRef(ref);
+              setIsTrackingOpen(true);
+            }}
           />
         )}
 
@@ -269,7 +285,19 @@ export default function App() {
       {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
-      <BudgetDrawer />
+      <BudgetDrawer 
+        onOpenTracking={(ref) => {
+          if (ref) setTrackingInitialRef(ref);
+          setIsTrackingOpen(true);
+        }} 
+      />
+
+      {/* Order Tracking Modal */}
+      <OrderTrackingModal 
+        isOpen={isTrackingOpen} 
+        initialRef={trackingInitialRef} 
+        onClose={() => setIsTrackingOpen(false)} 
+      />
     </div>
     </BudgetProvider>
     </GlobalErrorBoundary>
