@@ -147,10 +147,12 @@ export default function OrdresFabricacioManager({
   setMaterials,
   escandalls = [],
   productes = [],
+  setProductes,
   families = [],
   gammes = [],
   maquinaria = [],
   operacions = [],
+  setActiveProduccSubtab,
   isDark = true
 }) {
   // Filtres i cerques
@@ -164,6 +166,7 @@ export default function OrdresFabricacioManager({
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [selectedOFDetail, setSelectedOFDetail] = useState(null);
   const [printOF, setPrintOF] = useState(null);
+  const [stockAllocationModal, setStockAllocationModal] = useState(null);
 
   // Sol·licituds / Pressupostos web pendents (llegits en temps real de Firestore)
   const [webBudgets, setWebBudgets] = useState([]);
@@ -310,6 +313,27 @@ export default function OrdresFabricacioManager({
 
       return prevOFs.map(o => o.id === ofId ? { ...o, estat: newStatus } : o);
     });
+
+    // Si passa a finalitzada, oferir assignar les peces fabricades a l'estoc del producte
+    const targetOF = ordresFabricacio.find(o => o.id === ofId);
+    if (targetOF && newStatus === 'finalitzada' && targetOF.estat !== 'finalitzada') {
+      if (setProductes && Array.isArray(productes) && productes.length > 0) {
+        const ofProdId = targetOF.producteId;
+        const ofNom = (targetOF.producteNom || targetOF.nom || '').toLowerCase();
+        const matchedProd = productes.find(p => 
+          (ofProdId && p.id === ofProdId) ||
+          (p.nom && (p.nom.toLowerCase() === ofNom || ofNom.includes(p.nom.toLowerCase()) || p.nom.toLowerCase().includes(ofNom)))
+        );
+        if (matchedProd) {
+          setStockAllocationModal({
+            ofId: targetOF.id,
+            ofNom: targetOF.producteNom || targetOF.nom,
+            product: matchedProd,
+            qty: Number(targetOF.quantitat || 1)
+          });
+        }
+      }
+    }
 
     if (selectedOFDetail && selectedOFDetail.id === ofId) {
       setSelectedOFDetail(prev => prev ? { ...prev, estat: newStatus } : null);
@@ -768,8 +792,12 @@ export default function OrdresFabricacioManager({
           ofData={selectedOFDetail}
           onClose={() => setSelectedOFDetail(null)}
           onUpdateOF={(updatedOF) => {
-            setOrdresFabricacio(prev => prev.map(o => o.id === updatedOF.id ? updatedOF : o));
-            setSelectedOFDetail(updatedOF);
+            if (updatedOF.estat === 'finalitzada' && selectedOFDetail?.estat !== 'finalitzada') {
+              handleChangeStatus(updatedOF.id, 'finalitzada');
+            } else {
+              setOrdresFabricacio(prev => prev.map(o => o.id === updatedOF.id ? updatedOF : o));
+              setSelectedOFDetail(updatedOF);
+            }
           }}
           materials={materials}
           isDark={isDark}
@@ -777,6 +805,90 @@ export default function OrdresFabricacioManager({
             setPrintOF(selectedOFDetail);
           }}
         />
+      )}
+
+      {/* MODAL: ASSIGNACIÓ D'ESTOC EN FINALITZAR OF */}
+      {stockAllocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className={`max-w-md w-full rounded-2xl border p-6 shadow-2xl space-y-4 ${
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+                <Boxes className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-serif font-bold text-base">Assignació d'Estoc de Fabricació</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Ordre <span className="font-mono font-bold text-amber-500">{stockAllocationModal.ofId}</span> finalitzada
+                </p>
+              </div>
+            </div>
+
+            <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
+              isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <p className="font-medium">
+                S'han completat <strong>{stockAllocationModal.qty} unitats</strong> de <strong>{stockAllocationModal.product.nom}</strong>.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                On vols destinar aquestes peces acabades?
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (setProductes) {
+                    setProductes(prev => prev.map(p => 
+                      p.id === stockAllocationModal.product.id 
+                        ? { ...p, estocActual: (Number(p.estocActual) || 0) + stockAllocationModal.qty }
+                        : p
+                    ));
+                  }
+                  setStockAllocationModal(null);
+                }}
+                className="w-full p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  <span>Sumar a <strong>Estoc per a Venda</strong></span>
+                </span>
+                <span className="font-mono font-bold">+{stockAllocationModal.qty} u.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (setProductes) {
+                    setProductes(prev => prev.map(p => 
+                      p.id === stockAllocationModal.product.id 
+                        ? { ...p, estocMostres: (Number(p.estocMostres) || 0) + stockAllocationModal.qty }
+                        : p
+                    ));
+                  }
+                  setStockAllocationModal(null);
+                }}
+                className="w-full p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Sumar a <strong>Mostres de Taller</strong></span>
+                </span>
+                <span className="font-mono font-bold">+{stockAllocationModal.qty} u.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStockAllocationModal(null)}
+                className="w-full p-2.5 rounded-xl border border-slate-700/50 hover:bg-slate-800/50 text-slate-400 text-xs font-medium cursor-pointer text-center transition-all"
+              >
+                No alterar estoc (lliurament directe a client / encàrrec previ)
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODAL / VISTA IMPRIMIBLE DE DOSSIER DE TALLER */}

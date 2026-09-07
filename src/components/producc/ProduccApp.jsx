@@ -21,6 +21,7 @@ import UnitatsManager from './UnitatsManager';
 import UnitatsCompraManager from './UnitatsCompraManager';
 import FabricantsManager from './FabricantsManager';
 import OrdresFabricacioManager from './OrdresFabricacioManager';
+import EstocProductesManager from './EstocProductesManager';
 import { ControlProduccioManager } from './ProduccioPlaceholders';
 
 import { 
@@ -48,7 +49,7 @@ export default function ProduccApp({ setActiveTab }) {
     try {
       const initSub = sessionStorage.getItem('producc_initial_subtab');
       if (initSub === 'ordres_fabricacio') return 'produccio';
-      if (initSub === 'escandalls') return 'principal';
+      if (initSub === 'escandalls' || initSub === 'estoc_productes') return 'principal';
     } catch (e) {
       console.warn(e);
     }
@@ -93,15 +94,15 @@ export default function ProduccApp({ setActiveTab }) {
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
     grups, unitats, unitatsCompra, fabricants, proveidors,
-    materials, maquinaria, operacions, escandalls, compres, ordresFabricacio
+    materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes
   });
 
   useEffect(() => {
     stateRefs.current = {
       grups, unitats, unitatsCompra, fabricants, proveidors,
-      materials, maquinaria, operacions, escandalls, compres, ordresFabricacio
+      materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes
     };
-  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres, ordresFabricacio]);
+  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes]);
 
   // Sincronització en temps real amb Firestore per a cadascuna de les col·leccions
   useEffect(() => {
@@ -238,6 +239,7 @@ export default function ProduccApp({ setActiveTab }) {
   const setEscandallsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_escandalls", updater, stateRefs.current.escandalls, setEscandalls);
   const setCompresWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_compres", updater, stateRefs.current.compres, setCompres);
   const setOrdresFabricacioWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_ordres_fabricacio", updater, stateRefs.current.ordresFabricacio, setOrdresFabricacio);
+  const setProductesWithFirestore = (updater) => handleUpdateFirestoreCollection("productes", updater, stateRefs.current.productes, setProductes);
 
   // Auto-normalització de possibles IDs antics amb timestamps llargs cap a IDs seqüencials nets
   useEffect(() => {
@@ -303,6 +305,7 @@ export default function ProduccApp({ setActiveTab }) {
 
   // Quick stats
   const lowStockCount = materials.filter(m => Number(m.estocActual) <= Number(m.estocMinim)).length;
+  const lowStockProductsCount = productes.filter(p => Number(p.estocActual || 0) <= (p.estocMinim !== undefined ? Number(p.estocMinim) : 2)).length;
   const pendingOrdersCount = compres.filter(c => c.estat === 'Pendent' || c.estat === 'Demanat').length;
 
   // Handle switching navigation group
@@ -393,6 +396,20 @@ export default function ProduccApp({ setActiveTab }) {
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
                 <span>{lowStockCount} Estoc Faltant</span>
+              </button>
+            )}
+
+            {lowStockProductsCount > 0 && (
+              <button
+                onClick={() => {
+                  setActiveGroup('principal');
+                  setActiveProduccSubtab('estoc_productes');
+                }}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-semibold cursor-pointer shadow-xs"
+                title="Productes amb estoc de venda igual o inferior al límit mínim"
+              >
+                <Boxes className="w-3.5 h-3.5 text-amber-700" />
+                <span>{lowStockProductsCount} Prod. Baix Estoc</span>
               </button>
             )}
 
@@ -534,6 +551,23 @@ export default function ProduccApp({ setActiveTab }) {
                       {compres.length}
                     </span>
                   </button>
+
+                  <button
+                    onClick={() => setActiveProduccSubtab('estoc_productes')}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
+                      activeProduccSubtab === 'estoc_productes'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                    }`}
+                  >
+                    <Boxes className="w-4 h-4" />
+                    <span>Estoc Productes</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {productes.length}
+                    </span>
+                  </button>
                 </>
               )}
 
@@ -669,6 +703,23 @@ export default function ProduccApp({ setActiveTab }) {
                   </button>
 
                   <button
+                    onClick={() => setActiveProduccSubtab('estoc_productes')}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
+                      activeProduccSubtab === 'estoc_productes'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                    }`}
+                  >
+                    <Boxes className="w-4 h-4" />
+                    <span>Estoc Productes</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {productes.length}
+                    </span>
+                  </button>
+
+                  <button
                     onClick={() => setActiveProduccSubtab('control_produccio')}
                     className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
                       activeProduccSubtab === 'control_produccio'
@@ -801,10 +852,25 @@ export default function ProduccApp({ setActiveTab }) {
             setMaterials={setMaterialsWithFirestore}
             escandalls={escandalls}
             productes={productes}
+            setProductes={setProductesWithFirestore}
             families={families}
             gammes={gammes}
             maquinaria={maquinaria}
             operacions={operacions}
+            setActiveProduccSubtab={setActiveProduccSubtab}
+            isDark={isDark}
+          />
+        )}
+
+        {activeProduccSubtab === 'estoc_productes' && (
+          <EstocProductesManager
+            productes={productes}
+            setProductes={setProductesWithFirestore}
+            families={families}
+            gammes={gammes}
+            escandalls={escandalls}
+            ordresFabricacio={ordresFabricacio}
+            setActiveProduccSubtab={setActiveProduccSubtab}
             isDark={isDark}
           />
         )}

@@ -2291,6 +2291,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
         cost: String(editingProducte.cost || ''),
         preu: String(editingProducte.preu || ''),
         terminiFabricacio: editingProducte.terminiFabricacio || '3 - 5 dies feiners',
+        estocActual: Math.max(0, parseInt(editingProducte.estocActual, 10) || 0),
+        estocMostres: Math.max(0, parseInt(editingProducte.estocMostres, 10) || 0),
+        estocMinim: Math.max(0, parseInt(editingProducte.estocMinim, 10) || 0),
+        ubicacioTaller: editingProducte.ubicacioTaller || '',
         material: editingProducte.material || '',
         dimensions: editingProducte.dimensions || '',
         gruix: editingProducte.gruix || '',
@@ -2395,6 +2399,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
       descripcio: `AIXÒ ÉS UNA CÒPIA. CAL REVISAR\n\n${p.descripcio || ''}`,
       imatgePrincipal: '',
       imatges: [],
+      estocActual: 0,
+      estocMostres: 0,
+      estocMinim: p.estocMinim !== undefined ? p.estocMinim : 2,
+      ubicacioTaller: p.ubicacioTaller || '',
       ordre: nextOrdre,
       ordrePerGamma: nextOrdrePerGamma,
       dataCreacio: new Date().toISOString()
@@ -4937,6 +4945,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         cost: 0,
                         preu: 0,
                         terminiFabricacio: '3 - 5 dies feiners',
+                        estocActual: 0,
+                        estocMostres: 0,
+                        estocMinim: 2,
+                        ubicacioTaller: '',
                         material: 'Fusta de til·ler',
                         acabat: 'Vernís mat',
                         ordre: initialOrdre,
@@ -5719,6 +5731,155 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* Control d'Estoc i Mostres de Taller */}
+              <div className="bg-surface p-4 rounded-xl border border-amber-500/30 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                  <label className="text-xs uppercase font-bold text-primary flex items-center gap-2">
+                    <Boxes className="w-4 h-4 text-amber-600" />
+                    <span>Control d'Estoc i Mostres de Taller</span>
+                  </label>
+                  <span className="text-[11px] text-on-surface-variant font-mono">
+                    Sincronitzat amb Producc i la Botiga
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Estoc per a Venda */}
+                  <div className="p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/30">
+                    <label className="block text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-1 flex items-center justify-between">
+                      <span>🟢 Estoc per a Venda</span>
+                      <span className="text-[10px] font-mono opacity-80">Web Públic</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProducte({ 
+                          ...editingProducte, 
+                          estocActual: Math.max(0, (parseInt(editingProducte.estocActual, 10) || 0) - 1) 
+                        })}
+                        className="w-7 h-7 rounded-md bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 font-bold hover:bg-emerald-100 flex items-center justify-center text-sm cursor-pointer shadow-2xs"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={editingProducte.estocActual !== undefined ? editingProducte.estocActual : 0}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          setEditingProducte({ 
+                            ...editingProducte, 
+                            estocActual: val === '' ? 0 : Math.max(0, parseInt(val, 10) || 0) 
+                          });
+                        }}
+                        className="w-full text-center px-2 py-1 rounded bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-xs font-mono font-bold text-emerald-900 dark:text-emerald-200 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingProducte({ 
+                          ...editingProducte, 
+                          estocActual: (parseInt(editingProducte.estocActual, 10) || 0) + 1 
+                        })}
+                        className="w-7 h-7 rounded-md bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 font-bold hover:bg-emerald-100 flex items-center justify-center text-sm cursor-pointer shadow-2xs"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400 mt-1 leading-tight">
+                      {Number(editingProducte.estocActual || 0) > 0 
+                        ? '✓ Badge: En estoc (24/48h)' 
+                        : 'ℹ Badge: Termini de lliurament'}
+                    </p>
+                  </div>
+
+                  {/* Mostres de Taller */}
+                  <div className="p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-500/30">
+                    <label className="block text-xs font-bold text-amber-800 dark:text-amber-300 mb-1 flex items-center justify-between">
+                      <span>🟡 Mostres de Taller</span>
+                      <span className="text-[10px] font-mono opacity-80">Exposició</span>
+                    </label>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProducte({ 
+                          ...editingProducte, 
+                          estocMostres: Math.max(0, (parseInt(editingProducte.estocMostres, 10) || 0) - 1) 
+                        })}
+                        className="w-7 h-7 rounded-md bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold hover:bg-amber-100 flex items-center justify-center text-sm cursor-pointer shadow-2xs"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editingProducte.estocMostres !== undefined ? editingProducte.estocMostres : 0}
+                        onChange={(e) => setEditingProducte({ 
+                          ...editingProducte, 
+                          estocMostres: Math.max(0, parseInt(e.target.value, 10) || 0) 
+                        })}
+                        className="w-full text-center px-2 py-1 rounded bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-xs font-mono font-bold text-amber-900 dark:text-amber-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingProducte({ 
+                          ...editingProducte, 
+                          estocMostres: (parseInt(editingProducte.estocMostres, 10) || 0) + 1 
+                        })}
+                        className="w-7 h-7 rounded-md bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 font-bold hover:bg-amber-100 flex items-center justify-center text-sm cursor-pointer shadow-2xs"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-amber-700/80 dark:text-amber-400 mt-1 leading-tight">
+                      Peces per a mostrar o fotografiar a Posting.
+                    </p>
+                  </div>
+
+                  {/* Estoc Mínim */}
+                  <div className="p-3 rounded-lg bg-surface-container border border-outline/20">
+                    <label className="block text-xs font-semibold text-primary mb-1">
+                      ⚠️ Estoc Mínim (Alarma)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Ex: 2"
+                      value={editingProducte.estocMinim !== undefined ? editingProducte.estocMinim : 2}
+                      onChange={(e) => setEditingProducte({ 
+                        ...editingProducte, 
+                        estocMinim: Math.max(0, parseInt(e.target.value, 10) || 0) 
+                      })}
+                      className="w-full px-3 py-1.5 rounded bg-surface border text-xs font-mono font-semibold mt-1"
+                    />
+                    <p className="text-[10px] text-on-surface-variant mt-1 leading-tight">
+                      Dispara l'avís de reposició a Producc si l'estoc baixa d'aquest límit.
+                    </p>
+                  </div>
+
+                  {/* Ubicació Física */}
+                  <div className="p-3 rounded-lg bg-surface-container border border-outline/20">
+                    <label className="block text-xs font-semibold text-primary mb-1">
+                      📍 Ubicació al Taller
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Calaix B4 / Mostrador"
+                      value={editingProducte.ubicacioTaller || ''}
+                      onChange={(e) => setEditingProducte({ 
+                        ...editingProducte, 
+                        ubicacioTaller: e.target.value 
+                      })}
+                      className="w-full px-3 py-1.5 rounded bg-surface border text-xs font-mono mt-1"
+                    />
+                    <p className="text-[10px] text-on-surface-variant mt-1 leading-tight">
+                      Localització física de les peces al taller.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Preus base per mida (si el producte té mides definides i no s'activa preu per volum) */}
               {!editingProducte.preuPerQuantitat?.actiu && (() => {
                 const detectedMides = getAvailableMidesForProduct(editingProducte);
@@ -6449,6 +6610,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         <th className="p-4">Gammes</th>
                         <th className="p-4 font-mono">Cost (€)</th>
                         <th className="p-4 font-mono">Preu (€)</th>
+                        <th className="p-4 font-mono">Estoc</th>
                         <th className="p-4 text-right">Accions</th>
                       </tr>
                     </thead>
@@ -6475,7 +6637,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         if (filteredAdminProducts.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="9" className="p-8 text-center text-xs text-on-surface-variant">
+                              <td colSpan="10" className="p-8 text-center text-xs text-on-surface-variant">
                                 No hi ha cap producte que coincideixi amb els filtres seleccionats.
                               </td>
                             </tr>
@@ -6637,6 +6799,32 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                  </>
                                );
                              })()}
+                            <td className="p-4 font-mono text-xs">
+                              <div className="flex flex-col gap-0.5">
+                                {Number(p.estocActual || 0) > 0 ? (
+                                  <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                    {p.estocActual} venda
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-slate-400 font-normal">
+                                    <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0"></span>
+                                    0 venda
+                                  </span>
+                                )}
+                                {Number(p.estocMostres || 0) > 0 && (
+                                  <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                    {p.estocMostres} mostres
+                                  </span>
+                                )}
+                                {p.ubicacioTaller && (
+                                  <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[120px]" title={`Ubicació: ${p.ubicacioTaller}`}>
+                                    📍 {p.ubicacioTaller}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td className="p-4 text-right">
                               <div className="inline-flex items-center justify-end gap-1.5">
                                 <button

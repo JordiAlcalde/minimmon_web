@@ -1083,11 +1083,18 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
             )}
           </div>
 
-          {/* Termini de Lliurament */}
-          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-on-surface-variant/80">
-            <Clock className="w-3.5 h-3.5 text-primary/60 shrink-0" />
-            <span>Lliurament: <strong className="text-primary font-medium">{deliveryTime}</strong></span>
-          </div>
+          {/* Termini de Lliurament o En estoc */}
+          {Number(product.estocActual || 0) > 0 ? (
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+              <span>En estoc <strong className="font-bold text-emerald-800 dark:text-emerald-300">(24/48h)</strong></span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-[10px] sm:text-[11px] text-on-surface-variant/80">
+              <Clock className="w-3.5 h-3.5 text-primary/60 shrink-0" />
+              <span>Termini de lliurament: <strong className="text-primary font-medium">{deliveryTime}</strong></span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -2043,11 +2050,16 @@ Pots deixar-ho en blanc si ho prefereixes.`}
             </div>
           </div>
 
-          {/* Termini de fabricació estimat (Just abans del botó) */}
-          {(product.terminiFabricacio || product.terminiLliurament) && (
+          {/* Termini de lliurament o En estoc */}
+          {Number(product.estocActual || 0) > 0 ? (
+            <div className="flex items-center gap-2 text-xs font-mono pt-1 text-emerald-700 dark:text-emerald-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+              <span>En estoc: <strong className="font-bold">Lliurament immediat (24/48h)</strong></span>
+            </div>
+          ) : (
             <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-mono pt-1">
               <Clock className="w-3.5 h-3.5 text-primary" />
-              <span>Termini de fabricació estimat: <strong>{product.terminiFabricacio || product.terminiLliurament}</strong></span>
+              <span>Termini de lliurament: <strong>{product.terminiFabricacio || product.terminiLliurament || '3 - 5 dies feiners'}</strong></span>
             </div>
           )}
 
