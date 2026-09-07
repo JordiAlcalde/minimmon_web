@@ -206,7 +206,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
               </div>
             </div>
 
-            <form id="prov-modal-form" onSubmit={handleSave} className="p-6 space-y-4 text-xs overflow-y-auto max-h-[75vh]">
+            <form id="prov-modal-form" onSubmit={handleSave} autoComplete="off" className="p-6 space-y-4 text-xs overflow-y-auto max-h-[75vh]">
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">Nom de l'Empresa *</label>
                 <input
@@ -217,7 +217,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
                   className={`w-full p-2.5 rounded-xl border outline-none ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                   }`}
-                  placeholder="P. ex. Fustes Girona S.L."
+                  placeholder=""
                 />
               </div>
 
@@ -230,7 +230,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
                   className={`w-full p-2.5 rounded-xl border outline-none ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                   }`}
-                  placeholder="+34 93..."
+                  placeholder=""
                 />
               </div>
 
@@ -243,7 +243,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
                   className={`w-full p-2.5 rounded-xl border outline-none ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                   }`}
-                  placeholder="comandes@empresa.com"
+                  placeholder=""
                 />
               </div>
 
@@ -256,7 +256,7 @@ export default function ProveidorsManager({ proveidors, setProveidors, isDark })
                   className={`w-full p-2.5 rounded-xl border outline-none ${
                     isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                   }`}
-                  placeholder="https://www.empresa.com"
+                  placeholder=""
                 />
               </div>
             </form>

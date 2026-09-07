@@ -4857,7 +4857,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         <div className="space-y-6">
             <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
               <div>
-                <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Regals / Productes</h2>
+                <h2 className="font-serif text-xl font-semibold text-primary">Gestió del Catàleg de Productes</h2>
                 <p className="text-xs text-on-surface-variant mt-1">
                   Estructura de taula <code className="font-mono text-primary font-bold">productes</code> amb codis autonumèrics (`PRDT-XXXX`), descripció formatada, opcions i preus privats.
                 </p>
@@ -4930,6 +4930,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         requereixPressupost: false,
                         preuDesDe: false,
                         isPreuDesDe: false,
+                        simulador: 'cap',
                         opcionsPersonalitzacio: [
                           { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
                         ],
@@ -4946,7 +4947,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow shrink-0"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Nou Producte (Regal)</span>
+                    <span>Nou Producte</span>
                   </button>
                 )}
 
@@ -5029,11 +5030,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <span>Simulador Interactiu Assignat a la Fitxa Pública</span>
                   </label>
                   <select
-                    value={editingProducte.simulador || 'auto'}
+                    value={editingProducte.simulador || 'cap'}
                     onChange={(e) => setEditingProducte({ ...editingProducte, simulador: e.target.value })}
                     className="w-full bg-surface border border-amber-500/40 rounded-lg px-3 py-2.5 text-xs text-primary font-bold outline-none focus:border-primary cursor-pointer shadow-2xs"
                   >
-                    <option value="auto">✨ Detecció automàtica (segons el nom del regal o la família)</option>
+                    <option value="cap">🚫 Sense Simulador (Fitxa Estàndard)</option>
+                    <option value="auto">✨ Detecció automàtica (segons el nom del producte o la família)</option>
                     <option value="marc">🖼️ Simulador de Marcs Zenit (Carrusel 17 gravats)</option>
                     <option value="marc_finestra">🖼️ Simulador de Marcs Finestra (Carrusel Onada, Núvol, Batec)</option>
                     <option value="etiqueta">🏷️ Simulador d'Etiquetes (Auto-detecta forma)</option>
@@ -5045,10 +5047,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <option value="inicial">🔤 Simulador de Clauer Inicial</option>
                     <option value="clauer_celebrar">🎉 Simulador de Clauer Celebrar (Plantilla rodona / 2 cares + logo)</option>
                     <option value="puzle">🧩 Simulador de Puzle</option>
-                    <option value="cap">🚫 Sense Simulador (Fitxa Estàndard de regal)</option>
                   </select>
                   <p className="text-[11px] text-on-surface-variant leading-tight">
-                    Tria quin simulador 2D interactiu en temps real s'activarà quan el client obri aquest regal al web.
+                    Tria quin simulador 2D interactiu en temps real s'activarà quan el client obri aquest producte al web.
                   </p>
                 </div>
 
@@ -6433,7 +6434,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 <div className="p-12 text-center text-on-surface-variant space-y-3">
                   <Package className="w-10 h-10 text-outline mx-auto" />
                   <p className="font-serif text-lg text-primary">No hi ha cap producte creat a Firestore encara</p>
-                  <p className="text-xs">El catàleg públic està utilitzant les dades inicials de mostra. Fes clic a "Nou Producte" per crear el teu primer regal.</p>
+                  <p className="text-xs">El catàleg públic està utilitzant les dades inicials de mostra. Fes clic a "Nou Producte" per crear el teu primer producte.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -6712,7 +6713,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           {dbInformacions.some(i => i.id === editingInformacio.id) ? 'Editar Informació del Catàleg' : 'Nova Informació del Catàleg'}
                         </h3>
                         <p className="text-xs text-on-surface-variant">
-                          Text informatiu global per al catàleg de regals
+                          Text informatiu global per al catàleg de productes
                         </p>
                       </div>
                     </div>
@@ -7111,7 +7112,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline/15 pb-4">
               <div>
-                <h2 className="font-serif text-xl font-semibold text-primary">1. Famílies de Regals (Nivell Principal)</h2>
+                <h2 className="font-serif text-xl font-semibold text-primary">1. Famílies de Productes (Nivell Principal)</h2>
                 <p className="text-xs text-on-surface-variant mt-1">
                   Les famílies agrupen les diferents gammes de productes del catàleg.
                 </p>
@@ -7263,7 +7264,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               <div>
                 <h2 className="font-serif text-xl font-semibold text-primary">2. Gammes de Productes (Subnivell)</h2>
                 <p className="text-xs text-on-surface-variant mt-1">
-                  Les gammes apareixen com a opcions de selecció dinàmica quan crees o edites un regal.
+                  Les gammes apareixen com a opcions de selecció dinàmica quan crees o edites un producte.
                 </p>
               </div>
 

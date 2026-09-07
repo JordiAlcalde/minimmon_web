@@ -38,7 +38,7 @@ export default function CompresManager({
   const handleOpenCreate = () => {
     setEditingComanda(null);
     setFormData({
-      proveidorId: proveidors[0]?.id || '',
+      proveidorId: '',
       dataCreacio: new Date().toISOString().split('T')[0],
       estat: 'Pendent',
       numAlbara: '',
@@ -413,6 +413,7 @@ export default function CompresManager({
                       isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                     }`}
                   >
+                    <option value="">-- Selecciona proveïdor --</option>
                     {[...proveidors].sort((a, b) => (a.empresa || '').localeCompare(b.empresa || '', 'ca')).map(p => (
                       <option key={p.id} value={p.id}>{p.empresa}</option>
                     ))}

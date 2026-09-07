@@ -113,14 +113,14 @@ export default function MaterialsManager({
     if (!mat) {
       return [{
         id: `supp-main-${Date.now()}`,
-        proveidorId: proveidors[0]?.id || '',
+        proveidorId: '',
         codi: '',
         enllac: '',
         preu: 0,
         preuPack: 0,
         termini: '',
-        fabricantId: fabricants[0]?.id || '',
-        unitatCompraId: unitatsCompra[0]?.id || '',
+        fabricantId: '',
+        unitatCompraId: '',
         comentaris: '',
         isPrincipal: true
       }];
@@ -341,14 +341,14 @@ export default function MaterialsManager({
     const newId = `supp-${Date.now()}`;
     const newSupp = {
       id: newId,
-      proveidorId: proveidors[0]?.id || '',
+      proveidorId: '',
       codi: '',
       enllac: '',
       preu: 0,
       preuPack: 0,
       termini: '',
-      fabricantId: fabricants[0]?.id || '',
-      unitatCompraId: unitatsCompra[0]?.id || '',
+      fabricantId: '',
+      unitatCompraId: '',
       comentaris: '',
       isPrincipal: formData.proveidorsList.length === 0
     };
