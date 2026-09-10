@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch, getDocs, getDoc } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
-import { resolveMediaUrl, resolveProducteMediaUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE } from '../utils/mediaUtils';
+import { resolveMediaUrl, resolveProducteMediaUrl, resolveProjecteMediaUrl, toRawProjecteUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE, GITHUB_RAW_PROJECTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification, sendTelegramScheduleNotification } from '../utils/telegramUtils';
 import { getItemScheduleStatus, formatShortDateTime, syncAndCheckScheduleNotifications } from '../utils/scheduleUtils';
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
@@ -2129,10 +2129,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
       return;
     }
 
-    // Auto-resolve media URLs that are short paths
+    // Auto-resolve media URLs that are short paths or need expansion to projectes Raw URL
     const resolvedMedia = (editingProject.media || []).map(m => ({
       ...m,
-      imatge: resolveMediaUrl(m.imatge)
+      imatge: toRawProjecteUrl(m.imatge)
     }));
 
     const resolvedVideo = resolveMediaUrl(editingProject.video || '');
@@ -8108,8 +8108,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
 
                 <p className="text-xs text-on-surface-variant bg-surface-container p-3 rounded-lg border border-outline/15 leading-relaxed">
-                  💡 <strong>Auto-expansió de camins de GitHub Desktop:</strong> Pots escriure només el nom del fitxer o el camí relatiu (ex: <code className="font-mono bg-surface px-1 py-0.5 rounded font-bold text-primary">foto1.png</code> o <code className="font-mono bg-surface px-1 py-0.5 rounded font-bold text-primary">imatges/20251206_114500.jpg</code>). Al fer clic fora o prémer el botó <strong>⚡ Expandir URL</strong>, es convertirà immediatament a la URL Raw de GitHub:
-                  <code className="font-mono text-primary text-[11px] block mt-1 select-all">{GITHUB_RAW_BASE}</code>
+                  💡 <strong>Auto-expansió de camins de GitHub Desktop:</strong> Pots escriure només el nom del fitxer o el camí relatiu (ex: <code className="font-mono bg-surface px-1 py-0.5 rounded font-bold text-primary">foto1.png</code> o <code className="font-mono bg-surface px-1 py-0.5 rounded font-bold text-primary">imatges/projectes/20251206_114500.jpg</code>). Al fer clic fora o prémer el botó <strong>⚡ Expandir URL</strong>, es convertirà immediatament a la URL Raw de GitHub a <code className="font-mono bg-surface px-1 py-0.5 rounded font-bold text-primary">imatges/projectes/</code>:
+                  <code className="font-mono text-primary text-[11px] block mt-1 select-all">{GITHUB_RAW_PROJECTES_BASE}</code>
                 </p>
 
                 <div className="space-y-3">
@@ -8153,7 +8153,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             onBlur={() => {
                               if (isShort) {
                                 const updated = [...editingProject.media];
-                                updated[idx].imatge = resolveMediaUrl(m.imatge);
+                                updated[idx].imatge = toRawProjecteUrl(m.imatge);
                                 setEditingProject({...editingProject, media: updated});
                               }
                             }}
@@ -8170,11 +8170,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               type="button"
                               onClick={() => {
                                 const updated = [...editingProject.media];
-                                updated[idx].imatge = resolveMediaUrl(m.imatge);
+                                updated[idx].imatge = toRawProjecteUrl(m.imatge);
                                 setEditingProject({...editingProject, media: updated});
                               }}
                               className="px-2.5 py-1.5 bg-primary text-on-primary text-xs rounded font-semibold whitespace-nowrap cursor-pointer hover:bg-primary-container shadow-sm"
-                              title="Expandir a URL completa de GitHub Raw"
+                              title="Expandir a URL completa de GitHub Raw a /imatges/projectes/"
                             >
                               ⚡ Expandir URL
                             </button>

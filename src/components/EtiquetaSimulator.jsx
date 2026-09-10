@@ -9,8 +9,8 @@ export const ETIQUETA_SHAPES = {
     id: 'rectangular',
     nom: 'Rectangular',
     prefix: 'XR',
-    templateImg: 'images/etiqueta_plantilla_r_blank.png',
-    overviewImg: 'images/etiqueta_rectangular.png',
+    templateImg: 'imatges/productes/etiqueta_plantilla_r_blank.png',
+    overviewImg: 'imatges/productes/etiqueta_rectangular.png',
     hasCustomHoles: true,
     canvasW: 283,
     canvasH: 132,
@@ -34,7 +34,7 @@ export const ETIQUETA_SHAPES = {
         id: '1550',
         label: '15 x 50 mm',
         codeNum: '1550',
-        img: 'images/etiqueta_xr1550.png',
+        img: 'imatges/productes/etiqueta_xr1550.png',
         wMm: 50,
         hMm: 15,
         holes: {
@@ -52,7 +52,7 @@ export const ETIQUETA_SHAPES = {
         id: '2060',
         label: '20 x 60 mm',
         codeNum: '2060',
-        img: 'images/etiqueta_xr2060.png',
+        img: 'imatges/productes/etiqueta_xr2060.png',
         wMm: 60,
         hMm: 20,
         holes: {
@@ -70,7 +70,7 @@ export const ETIQUETA_SHAPES = {
         id: '2560',
         label: '25 x 60 mm',
         codeNum: '2560',
-        img: 'images/etiqueta_xr2560.png',
+        img: 'imatges/productes/etiqueta_xr2560.png',
         wMm: 60,
         hMm: 25,
         holes: {
@@ -90,8 +90,8 @@ export const ETIQUETA_SHAPES = {
     id: 'arrodonida',
     nom: 'Arrodonida',
     prefix: 'XD',
-    templateImg: 'images/etiqueta_plantilla_d_blank.png',
-    overviewImg: 'images/etiqueta_arrodonida.png',
+    templateImg: 'imatges/productes/etiqueta_plantilla_d_blank.png',
+    overviewImg: 'imatges/productes/etiqueta_arrodonida.png',
     hasCustomHoles: true,
     canvasW: 283,
     canvasH: 132,
@@ -109,7 +109,7 @@ export const ETIQUETA_SHAPES = {
         id: '1550',
         label: '15 x 50 mm',
         codeNum: '1550',
-        img: 'images/etiqueta_xd1550.png',
+        img: 'imatges/productes/etiqueta_xd1550.png',
         wMm: 50,
         hMm: 15,
         holes: {
@@ -121,7 +121,7 @@ export const ETIQUETA_SHAPES = {
         id: '2060',
         label: '20 x 60 mm',
         codeNum: '2060',
-        img: 'images/etiqueta_xd2060.png',
+        img: 'imatges/productes/etiqueta_xd2060.png',
         wMm: 60,
         hMm: 20,
         holes: {
@@ -133,7 +133,7 @@ export const ETIQUETA_SHAPES = {
         id: '2560',
         label: '25 x 60 mm',
         codeNum: '2560',
-        img: 'images/etiqueta_xd2560.png',
+        img: 'imatges/productes/etiqueta_xd2560.png',
         wMm: 60,
         hMm: 25,
         holes: {
@@ -147,8 +147,8 @@ export const ETIQUETA_SHAPES = {
     id: 'circular',
     nom: 'Circular',
     prefix: 'XC',
-    templateImg: 'images/etiqueta_plantilla_c_blank.png',
-    overviewImg: 'images/etiqueta_circular.png',
+    templateImg: 'imatges/productes/etiqueta_plantilla_c_blank.png',
+    overviewImg: 'imatges/productes/etiqueta_circular.png',
     hasCustomHoles: true,
     canvasW: 265,
     canvasH: 265,
@@ -168,7 +168,7 @@ export const ETIQUETA_SHAPES = {
         id: '40',
         label: 'Ø 40 mm',
         codeNum: '40',
-        img: 'images/etiqueta_xc40.png',
+        img: 'imatges/productes/etiqueta_xc40.png',
         wMm: 40,
         hMm: 40,
         holes: {
@@ -182,7 +182,7 @@ export const ETIQUETA_SHAPES = {
         id: '50',
         label: 'Ø 50 mm',
         codeNum: '50',
-        img: 'images/etiqueta_xc50.png',
+        img: 'imatges/productes/etiqueta_xc50.png',
         wMm: 50,
         hMm: 50,
         holes: {
@@ -196,7 +196,7 @@ export const ETIQUETA_SHAPES = {
         id: '60',
         label: 'Ø 60 mm',
         codeNum: '60',
-        img: 'images/etiqueta_xc60.png',
+        img: 'imatges/productes/etiqueta_xc60.png',
         wMm: 60,
         hMm: 60,
         holes: {
@@ -212,8 +212,8 @@ export const ETIQUETA_SHAPES = {
     id: 'ovalada',
     nom: 'Ovalada',
     prefix: 'XV',
-    templateImg: 'images/etiqueta_plantilla_v_blank.png',
-    overviewImg: 'images/etiqueta_ovalada.png',
+    templateImg: 'imatges/productes/etiqueta_plantilla_v_blank.png',
+    overviewImg: 'imatges/productes/etiqueta_ovalada.png',
     hasCustomHoles: true,
     canvasW: 283,
     canvasH: 208,
@@ -233,7 +233,7 @@ export const ETIQUETA_SHAPES = {
         id: '3550',
         label: '35 x 50 mm',
         codeNum: '3550',
-        img: 'images/etiqueta_xv3550.png',
+        img: 'imatges/productes/etiqueta_xv3550.png',
         wMm: 50,
         hMm: 35,
         holes: {
@@ -247,7 +247,7 @@ export const ETIQUETA_SHAPES = {
         id: '4560',
         label: '45 x 60 mm',
         codeNum: '4560',
-        img: 'images/etiqueta_xv4560.png',
+        img: 'imatges/productes/etiqueta_xv4560.png',
         wMm: 60,
         hMm: 45,
         holes: {
@@ -261,7 +261,7 @@ export const ETIQUETA_SHAPES = {
         id: '5575',
         label: '55 x 75 mm',
         codeNum: '5575',
-        img: 'images/etiqueta_xv5575.png',
+        img: 'imatges/productes/etiqueta_xv5575.png',
         wMm: 75,
         hMm: 55,
         holes: {
@@ -278,17 +278,17 @@ export const ETIQUETA_SHAPES = {
     nom: 'Medalla',
     prefix: 'XM',
     templateImg: null,
-    overviewImg: 'images/etiqueta_medalla.png',
+    overviewImg: 'imatges/productes/etiqueta_medalla.png',
     hasCustomHoles: false,
     canvasW: 283,
     canvasH: 283,
     aspect: '1 / 1',
     defaultMides: ['Ø 45 mm', 'Ø 50 mm', 'Ø 55 mm', 'Ø 60 mm'],
     mides: [
-      { id: '45', label: 'Ø 45 mm', codeNum: '45', img: 'images/etiqueta_xm45.png', wMm: 45, hMm: 45 },
-      { id: '50', label: 'Ø 50 mm', codeNum: '50', img: 'images/etiqueta_xm50.png', wMm: 50, hMm: 50 },
-      { id: '55', label: 'Ø 55 mm', codeNum: '55', img: 'images/etiqueta_xm55.png', wMm: 55, hMm: 55 },
-      { id: '60', label: 'Ø 60 mm', codeNum: '60', img: 'images/etiqueta_xm60.png', wMm: 60, hMm: 60 }
+      { id: '45', label: 'Ø 45 mm', codeNum: '45', img: 'imatges/productes/etiqueta_xm45.png', wMm: 45, hMm: 45 },
+      { id: '50', label: 'Ø 50 mm', codeNum: '50', img: 'imatges/productes/etiqueta_xm50.png', wMm: 50, hMm: 50 },
+      { id: '55', label: 'Ø 55 mm', codeNum: '55', img: 'imatges/productes/etiqueta_xm55.png', wMm: 55, hMm: 55 },
+      { id: '60', label: 'Ø 60 mm', codeNum: '60', img: 'imatges/productes/etiqueta_xm60.png', wMm: 60, hMm: 60 }
     ]
   }
 };
