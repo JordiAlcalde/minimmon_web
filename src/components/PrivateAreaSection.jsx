@@ -8591,9 +8591,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       <tr>
                         <th className="p-4">Ordre</th>
                         <th className="p-4">Projecte</th>
-                        <th className="p-4">Branca</th>
+                        <th className="p-4">Branca / Branques</th>
                         <th className="p-4">Imatges / Vídeo</th>
-                        <th className="p-4 text-right">Accions</th>
+                        <th className="p-4 text-right whitespace-nowrap">Accions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline/10">
@@ -8643,9 +8643,26 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             <div className="text-xs text-on-surface-variant">{p.subtitol || p.subtitle}</div>
                           </td>
                           <td className="p-4">
-                            <span className="px-2.5 py-1 bg-surface-container rounded text-xs font-medium">
-                              {p.branca || p.category}
-                            </span>
+                            <div className="flex flex-wrap gap-1.5 items-center">
+                              {(() => {
+                                const bList = Array.isArray(p.branques) && p.branques.length > 0
+                                  ? p.branques
+                                  : (p.branca ? [p.branca] : (p.category ? [p.category] : []));
+                                
+                                if (bList.length === 0) {
+                                  return <span className="text-xs text-outline italic">Sense branca</span>;
+                                }
+
+                                return bList.map((bName, bIdx) => (
+                                  <span 
+                                    key={bIdx} 
+                                    className="px-2.5 py-1 bg-surface-container text-on-surface-variant border border-outline/10 rounded text-xs font-medium inline-block whitespace-nowrap"
+                                  >
+                                    {bName}
+                                  </span>
+                                ));
+                              })()}
+                            </div>
                           </td>
                           <td className="p-4 text-xs">
                             <div className="flex items-center gap-2">
@@ -8653,30 +8670,35 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               {p.video && <Film className="w-3.5 h-3.5 text-primary" title="Té vídeo" />}
                             </div>
                           </td>
-                          <td className="p-4 text-right space-x-2">
-                            <button
-                              onClick={async () => {
-                                const res = await copyDirectLink('projecte', p.id);
-                                alert(`Enllaç directe del projecte copiat al portapapers:\n\n${res.link}`);
-                              }}
-                              className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-outline/20 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
-                              title="Copiar enllaç directe per a màrqueting"
-                            >
-                              <Share2 className="w-3 h-3 text-primary" />
-                              <span>Enllaç</span>
-                            </button>
-                            <button 
-                              onClick={() => setEditingProject(p)}
-                              className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              Editar
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteProject(p.id)}
-                              className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer"
-                            >
-                              Esborrar
-                            </button>
+                          <td className="p-4 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const res = await copyDirectLink('projecte', p.id);
+                                  alert(`Enllaç directe del projecte copiat al portapapers:\n\n${res.link}`);
+                                }}
+                                className="px-3 py-1.5 bg-surface hover:bg-surface-container text-primary border border-outline/20 rounded text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 shadow-2xs"
+                                title="Copiar enllaç directe per a màrqueting"
+                              >
+                                <Share2 className="w-3.5 h-3.5 text-primary" />
+                                <span>Enllaç</span>
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setEditingProject(p)}
+                                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                              >
+                                Editar
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleDeleteProject(p.id)}
+                                className="px-3 py-1.5 bg-error-container/20 hover:bg-error-container/40 text-error rounded text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                              >
+                                Esborrar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
