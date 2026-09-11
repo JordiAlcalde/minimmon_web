@@ -401,23 +401,33 @@ export const getAvailableMidesForProduct = (product) => {
 
   const sim = String(product.simulador || '').toLowerCase();
   const nom = String(product.nom || '').toLowerCase();
+  const gam = String(product.gamma || product.gammaNom || '').toLowerCase();
+  const cat = String(product.categoria || '').toLowerCase();
 
-  if (sim === 'etiqueta_rectangular' || (!sim.startsWith('etiqueta_') && nom.includes('rectangular'))) {
-    return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+  // Si no té simulador, o el simulador és 'cap', no s'apliquen mides automàtiques d'etiqueta
+  if (sim === 'cap' || sim === 'none') {
+    return [];
   }
-  if (sim === 'etiqueta_arrodonida' || (!sim.startsWith('etiqueta_') && nom.includes('arrodonid'))) {
-    return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
-  }
-  if (sim === 'etiqueta_circular' || (!sim.startsWith('etiqueta_') && (nom.includes('circular') || /\b(rodona|rodo|rodó|rodons|rodones)\b/i.test(nom)))) {
-    return ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'];
-  }
-  if (sim === 'etiqueta_ovalada' || (!sim.startsWith('etiqueta_') && (nom.includes('ovalad') || nom.includes('oval')))) {
-    return ['35 x 50 mm', '45 x 60 mm', '55 x 75 mm'];
-  }
-  if (sim === 'etiqueta_medalla' || (!sim.startsWith('etiqueta_') && nom.includes('medalla'))) {
-    return ['Ø 45 mm', 'Ø 50 mm', 'Ø 55 mm', 'Ø 60 mm'];
-  }
-  if (sim.includes('etiqueta') || nom.includes('etiqueta')) {
+
+  // Només detectem mides automàtiques si el simulador és explícitament d'etiquetes o el producte pertany a etiquetes
+  const isEtiqueta = sim.startsWith('etiqueta') || sim === 'xapa' || nom.includes('etiqueta') || gam.includes('etiqueta') || cat.includes('etiqueta');
+  
+  if (isEtiqueta) {
+    if (sim === 'etiqueta_rectangular' || nom.includes('rectangular')) {
+      return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+    }
+    if (sim === 'etiqueta_arrodonida' || nom.includes('arrodonid')) {
+      return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
+    }
+    if (sim === 'etiqueta_circular' || nom.includes('circular') || /\b(rodona|rodo|rodó|rodons|rodones)\b/i.test(nom)) {
+      return ['Ø 40 mm', 'Ø 50 mm', 'Ø 60 mm'];
+    }
+    if (sim === 'etiqueta_ovalada' || nom.includes('ovalad') || nom.includes('oval')) {
+      return ['35 x 50 mm', '45 x 60 mm', '55 x 75 mm'];
+    }
+    if (sim === 'etiqueta_medalla' || nom.includes('medalla')) {
+      return ['Ø 45 mm', 'Ø 50 mm', 'Ø 55 mm', 'Ø 60 mm'];
+    }
     return ['15 x 50 mm', '20 x 60 mm', '25 x 60 mm'];
   }
 
