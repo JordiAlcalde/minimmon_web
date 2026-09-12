@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2
+  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2, Store
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -22,6 +22,7 @@ import UnitatsCompraManager from './UnitatsCompraManager';
 import FabricantsManager from './FabricantsManager';
 import OrdresFabricacioManager from './OrdresFabricacioManager';
 import EstocProductesManager from './EstocProductesManager';
+import EsdevenimentsManager from './EsdevenimentsManager';
 import { ControlProduccioManager } from './ProduccioPlaceholders';
 
 import { 
@@ -83,6 +84,7 @@ export default function ProduccApp({ setActiveTab }) {
   const [escandalls, setEscandalls] = useState(INITIAL_ESCANDALLS);
   const [compres, setCompres] = useState(INITIAL_COMPRES);
   const [ordresFabricacio, setOrdresFabricacio] = useState([]);
+  const [esdeveniments, setEsdeveniments] = useState([]);
 
   // Dades del Catàleg Web per als Escandalls
   const [productes, setProductes] = useState([]);
@@ -94,15 +96,15 @@ export default function ProduccApp({ setActiveTab }) {
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
     grups, unitats, unitatsCompra, fabricants, proveidors,
-    materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes
+    materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes, esdeveniments
   });
 
   useEffect(() => {
     stateRefs.current = {
       grups, unitats, unitatsCompra, fabricants, proveidors,
-      materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes
+      materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes, esdeveniments
     };
-  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes]);
+  }, [grups, unitats, unitatsCompra, fabricants, proveidors, materials, maquinaria, operacions, escandalls, compres, ordresFabricacio, productes, esdeveniments]);
 
   // Sincronització en temps real amb Firestore per a cadascuna de les col·leccions
   useEffect(() => {
@@ -153,6 +155,7 @@ export default function ProduccApp({ setActiveTab }) {
     const unsubCompres = syncCollection("producc_compres", setCompres, null);
     // Ordres de Fabricació: mai repoblar automàticament amb dades de prova si queda buida
     const unsubOF = syncCollection("producc_ordres_fabricacio", setOrdresFabricacio, null);
+    const unsubEsdeveniments = syncCollection("producc_esdeveniments", setEsdeveniments, null);
 
     // Carregar catàleg de la botiga i projectes (productes, famílies, gammes, projectes Món Mínim i Projecc)
     const unsubProductes = onSnapshot(collection(db, "productes"), (snapshot) => {
@@ -187,6 +190,7 @@ export default function ProduccApp({ setActiveTab }) {
       unsubEscandalls();
       unsubCompres();
       unsubOF();
+      unsubEsdeveniments();
       unsubProductes();
       unsubFamilies();
       unsubGammes();
@@ -239,6 +243,7 @@ export default function ProduccApp({ setActiveTab }) {
   const setEscandallsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_escandalls", updater, stateRefs.current.escandalls, setEscandalls);
   const setCompresWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_compres", updater, stateRefs.current.compres, setCompres);
   const setOrdresFabricacioWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_ordres_fabricacio", updater, stateRefs.current.ordresFabricacio, setOrdresFabricacio);
+  const setEsdevenimentsWithFirestore = (updater) => handleUpdateFirestoreCollection("producc_esdeveniments", updater, stateRefs.current.esdeveniments, setEsdeveniments);
   const setProductesWithFirestore = (updater) => handleUpdateFirestoreCollection("productes", updater, stateRefs.current.productes, setProductes);
 
   // Auto-normalització de possibles IDs antics amb timestamps llargs cap a IDs seqüencials nets
@@ -720,6 +725,24 @@ export default function ProduccApp({ setActiveTab }) {
                   </button>
 
                   <button
+                    onClick={() => setActiveProduccSubtab('esdeveniments')}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
+                      activeProduccSubtab === 'esdeveniments'
+                        ? 'bg-amber-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                    }`}
+                    title="Gestió d'esdeveniments i fires d'artesans"
+                  >
+                    <Store className="w-4 h-4" />
+                    <span>Esdeveniments</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      activeProduccSubtab === 'esdeveniments' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {esdeveniments.length}
+                    </span>
+                  </button>
+
+                  <button
                     onClick={() => setActiveProduccSubtab('control_produccio')}
                     className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
                       activeProduccSubtab === 'control_produccio'
@@ -870,6 +893,20 @@ export default function ProduccApp({ setActiveTab }) {
             gammes={gammes}
             escandalls={escandalls}
             ordresFabricacio={ordresFabricacio}
+            setActiveProduccSubtab={setActiveProduccSubtab}
+            isDark={isDark}
+          />
+        )}
+
+        {activeProduccSubtab === 'esdeveniments' && (
+          <EsdevenimentsManager
+            esdeveniments={esdeveniments}
+            setEsdeveniments={setEsdevenimentsWithFirestore}
+            productes={productes}
+            setProductes={setProductesWithFirestore}
+            ordresFabricacio={ordresFabricacio}
+            setOrdresFabricacio={setOrdresFabricacioWithFirestore}
+            escandalls={escandalls}
             setActiveProduccSubtab={setActiveProduccSubtab}
             isDark={isDark}
           />
