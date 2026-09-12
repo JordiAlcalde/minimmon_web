@@ -3,33 +3,57 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { Star, MessageSquare, Send, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { sendTelegramCommentNotification } from '../utils/telegramUtils';
-import { formatDecimal } from '../utils/numberUtils';
+import { formatDecimal, parseDecimal } from '../utils/numberUtils';
 
 export function StarRating({ rating = 5, size = "w-4 h-4", interactive = false, onSelect = () => {} }) {
   const [hoverRating, setHoverRating] = useState(0);
+  const numericRating = typeof rating === 'number'
+    ? (isNaN(rating) ? 0 : rating)
+    : parseDecimal(rating, 0);
 
   return (
-    <div className="flex items-center gap-0.5 select-none">
+    <div className="flex items-center gap-0.5 select-none" title={!interactive && numericRating > 0 ? `${numericRating.toFixed(1)} de 5 estrelles` : undefined}>
       {[1, 2, 3, 4, 5].map((star) => {
-        const active = interactive ? (hoverRating || rating) >= star : rating >= star;
+        if (interactive) {
+          const active = (hoverRating || numericRating) >= star;
+          return (
+            <button
+              key={star}
+              type="button"
+              onClick={() => onSelect(star)}
+              onMouseEnter={() => setHoverRating(star)}
+              onMouseLeave={() => setHoverRating(0)}
+              className="transition-transform cursor-pointer hover:scale-110 p-0.5"
+              aria-label={`${star} estrelles`}
+            >
+              <Star
+                className={`${size} ${
+                  active
+                    ? 'fill-amber-400 text-amber-400'
+                    : 'fill-transparent text-outline/30'
+                }`}
+              />
+            </button>
+          );
+        }
+
+        // Mode visualització estàtica (suporta estrelles plenes, mitges i proporcionals)
+        const fillPercent = Math.max(0, Math.min(100, Math.round((numericRating - (star - 1)) * 100)));
+
         return (
-          <button
-            key={star}
-            type={interactive ? "button" : "button"}
-            disabled={!interactive}
-            onClick={() => interactive && onSelect(star)}
-            onMouseEnter={() => interactive && setHoverRating(star)}
-            onMouseLeave={() => interactive && setHoverRating(0)}
-            className={`transition-transform ${interactive ? 'cursor-pointer hover:scale-110 p-0.5' : 'cursor-default'}`}
-          >
-            <Star
-              className={`${size} ${
-                active
-                  ? 'fill-amber-500 text-amber-500'
-                  : 'fill-transparent text-outline/40'
-              }`}
-            />
-          </button>
+          <span key={star} className="relative inline-flex items-center justify-center">
+            {/* Estrella de fons buida */}
+            <Star className={`${size} fill-transparent text-outline/30`} />
+            {/* Estrella d'ompliment daurat proporcional */}
+            {fillPercent > 0 && (
+              <span
+                className="absolute top-0 left-0 h-full overflow-hidden pointer-events-none"
+                style={{ width: `${fillPercent}%` }}
+              >
+                <Star className={`${size} shrink-0 max-w-none fill-amber-400 text-amber-400`} />
+              </span>
+            )}
+          </span>
         );
       })}
     </div>
@@ -84,8 +108,11 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
   }, [targetId]);
 
   const totalReviews = comments.length;
+  const rawAvg = totalReviews > 0
+    ? (comments.reduce((acc, c) => acc + (Number(c.puntuacio) || 5), 0) / totalReviews)
+    : 0;
   const avgRating = totalReviews > 0
-    ? formatDecimal(comments.reduce((acc, c) => acc + (Number(c.puntuacio) || 5), 0) / totalReviews, 1)
+    ? formatDecimal(rawAvg, 1)
     : 0;
 
   const handleSubmit = async (e) => {
@@ -145,7 +172,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
           {totalReviews > 0 ? (
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-bold text-primary">{avgRating}</span>
-              <StarRating rating={Math.round(Number(avgRating))} size="w-3.5 h-3.5" />
+              <StarRating rating={rawAvg} size="w-3.5 h-3.5" />
               <span className="text-xs text-on-surface-variant font-mono">({totalReviews} {totalReviews === 1 ? 'valoració' : 'valoracions'})</span>
             </div>
           ) : (

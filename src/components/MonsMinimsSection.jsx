@@ -350,7 +350,8 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                         {(() => {
                           const projId = project.id || project.titol;
                           const rData = ratingsMap[projId] || ratingsMap[project.id] || { total: 0, sum: 0 };
-                          const avg = rData.total > 0 ? formatDecimal(rData.sum / rData.total, 1) : 0;
+                          const rawAvg = rData.total > 0 ? (rData.sum / rData.total) : 0;
+                          const avg = rData.total > 0 ? formatDecimal(rawAvg, 1) : 0;
 
                           return (
                             <button
@@ -362,7 +363,7 @@ export default function MonsMinimsSection({ onSelectProject, setActiveTab }) {
                               className="group/val text-xs text-on-surface-variant hover:text-primary transition-colors flex items-center gap-2 cursor-pointer font-mono pt-1"
                               title="Veure o afegir comentaris d'aquest projecte"
                             >
-                              <StarRating rating={Math.round(Number(avg))} size="w-3.5 h-3.5" />
+                              <StarRating rating={rawAvg} size="w-3.5 h-3.5" />
                               {rData.total > 0 ? (
                                 <span className="font-bold text-primary">
                                   {avg} <span className="font-normal text-on-surface-variant/70">({rData.total} {rData.total === 1 ? 'valoració' : 'valoracions'})</span>
