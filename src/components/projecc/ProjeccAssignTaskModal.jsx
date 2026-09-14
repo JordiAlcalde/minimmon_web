@@ -24,8 +24,8 @@ export function ProjeccAssignTaskModal({
 
   const currentTaskIds = new Set((item.tasques || []).map(t => t.nom.toLowerCase().trim()));
 
-  // Filtrar tasques per tipus de projecte o producte
-  const relevantMestre = mestreTasques.filter(t => t.tipus === item.tipus || !t.tipus);
+  // Totes les tasques mestres són vàlides per a qualsevol peça
+  const relevantMestre = mestreTasques;
 
   const handleSelectFromMestre = (mTask, startImmediately = false) => {
     // Comprovar si ja està afegida
@@ -112,7 +112,7 @@ export function ProjeccAssignTaskModal({
                   : isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-200 text-slate-700'
               }`}
             >
-              Catàleg Comú de Tasques ({relevantMestre.length})
+              Catàleg de Tasques ({relevantMestre.length})
             </button>
 
             <button
@@ -147,7 +147,7 @@ export function ProjeccAssignTaskModal({
             <div className="space-y-2.5">
               {relevantMestre.length === 0 ? (
                 <div className="text-center py-8 text-xs text-slate-400">
-                  No hi ha tasques al catàleg mestre per aquest tipus. Pots afegir-ne una a mida.
+                  No hi ha tasques al catàleg mestre. Pots afegir-ne una a mida o gestionar el catàleg.
                 </div>
               ) : (
                 relevantMestre.map((mTask, idx) => {

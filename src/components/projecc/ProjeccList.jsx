@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { 
   FolderPlus, Package, Search, Clock, Calendar, User, 
   ChevronRight, Lock, Unlock, Play, Plus, BarChart3, 
-  Layers, CheckCircle, Sparkles, Filter, ListChecks, Settings 
+  Layers, CheckCircle, Sparkles, Filter, ListChecks, Settings,
+  Trash2
 } from 'lucide-react';
 import { formatSecondsToHMS, formatSecondsHuman, formatDateDMY } from '../../data/projeccInitialData';
 
 export function ProjeccList({ 
   items, 
   isDark, 
+  activeTimers = [],
   onSelectItem, 
   onNewItem, 
   onStartTimerQuick,
-  onOpenMestreCatalog 
+  onOpenMestreCatalog,
+  onDeleteItem
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('tots'); // 'tots' | 'projecte' | 'producte'
@@ -199,6 +202,9 @@ export function ProjeccList({
         ) : (
           filteredItems.map(item => {
             const isClosed = item.estat === 'tancat';
+            const runningTimersForItem = (activeTimers || []).filter(t => t.itemId === item.id);
+            const hasActiveTimers = runningTimersForItem.length > 0;
+
             let itemTotalSeconds = 0;
             let itemSessionsCount = 0;
             (item.tasques || []).forEach(t => {
@@ -213,9 +219,13 @@ export function ProjeccList({
                 key={item.id}
                 onClick={() => onSelectItem(item)}
                 className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group ${
-                  isDark 
-                    ? 'bg-slate-900/80 border-slate-800 hover:border-amber-500/50 hover:bg-slate-900' 
-                    : 'bg-white border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md'
+                  hasActiveTimers
+                    ? isDark 
+                      ? 'bg-slate-900/95 border-emerald-500/60 shadow-lg shadow-emerald-950/30 ring-1 ring-emerald-500/30 hover:border-emerald-400' 
+                      : 'bg-emerald-50/50 border-emerald-400 shadow-md ring-1 ring-emerald-400/40 hover:border-emerald-500'
+                    : isDark 
+                      ? 'bg-slate-900/80 border-slate-800 hover:border-amber-500/50 hover:bg-slate-900' 
+                      : 'bg-white border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md'
                 }`}
               >
                 <div className="space-y-2 flex-1">
@@ -227,6 +237,13 @@ export function ProjeccList({
                     }`}>
                       {item.tipus === 'projecte' ? 'Projecte' : 'Producte'}
                     </span>
+
+                    {hasActiveTimers && (
+                      <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center gap-1.5 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                        {runningTimersForItem.length === 1 ? '1 cronòmetre actiu' : `${runningTimersForItem.length} cronòmetres actius`}
+                      </span>
+                    )}
 
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
                       isClosed
@@ -278,6 +295,20 @@ export function ProjeccList({
                     </span>
                     <span className="text-[10px] text-slate-400 block">{formatSecondsHuman(itemTotalSeconds)}</span>
                   </div>
+
+                  {onDeleteItem && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteItem(item.id);
+                      }}
+                      className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/15 rounded-xl transition-all cursor-pointer shrink-0"
+                      title="Eliminar aquest registre definitivament"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
 
                   <div className="w-9 h-9 rounded-xl bg-slate-800 group-hover:bg-amber-600 text-slate-400 group-hover:text-white flex items-center justify-center transition-all">
                     <ChevronRight className="w-5 h-5" />

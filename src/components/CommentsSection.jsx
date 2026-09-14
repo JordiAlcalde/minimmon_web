@@ -162,8 +162,35 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
 
   return (
     <div id="seccio-comentaris" className="space-y-3 pt-4 border-t border-outline/15">
-      {/* Capçalera resum i desglòs d'estrelles */}
+      {/* Capçalera resum i desglòs d'estrelles (botó a l'esquerra i resum a la dreta) */}
       <div className="flex items-center justify-between gap-4 flex-wrap bg-surface-container/40 p-3 rounded-xl border border-outline/10">
+        {/* Costat esquerre: Botons d'acció */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setShowForm(!showForm); setIsExpanded(true); }}
+            className={`text-xs px-3.5 py-1.5 rounded-lg font-mono transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs font-semibold ${
+              showForm 
+                ? 'bg-outline/20 text-on-surface hover:bg-outline/30 border border-outline/30' 
+                : 'bg-amber-700 hover:bg-amber-600 text-white border border-amber-800/20 dark:bg-amber-600 dark:hover:bg-amber-500'
+            }`}
+          >
+            <span>{showForm ? 'Cancel·lar' : 'Deixar una opinió'}</span>
+          </button>
+
+          {totalReviews > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="text-xs text-primary hover:text-primary-container font-mono flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-outline/20 hover:bg-surface transition-all cursor-pointer"
+            >
+              <span>{isExpanded ? 'Ocultar opinions' : 'Veure opinions'}</span>
+              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Costat dret: Missatge / Resum d'estrelles */}
         <div className="flex items-center gap-3">
           <div className="p-2 bg-amber-500/10 text-amber-600 rounded-lg">
             <MessageSquare className="w-4 h-4" />
@@ -180,27 +207,6 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
               Sigues el primer en valorar aquesta peça.
             </span>
           )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {totalReviews > 0 && (
-            <button
-              type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="text-xs text-primary hover:text-primary-container font-mono flex items-center gap-1 px-2.5 py-1 rounded-lg border border-outline/20 hover:bg-surface transition-all cursor-pointer"
-            >
-              <span>{isExpanded ? 'Ocultar opinions' : 'Veure opinions'}</span>
-              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => { setShowForm(!showForm); setIsExpanded(true); }}
-            className="text-xs bg-primary text-on-primary hover:bg-primary-container px-3 py-1.5 rounded-lg font-mono transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
-          >
-            <span>{showForm ? 'Cancel·lar' : 'Deixar una opinió'}</span>
-          </button>
         </div>
       </div>
 

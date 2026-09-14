@@ -2878,6 +2878,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
           </button>
 
           <button 
+            onClick={() => setActiveTab('projecc')}
+            className="px-4 py-2 bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            title="Accedir a l'aplicació Projecc (Control de Desenvolupament i Temps)"
+          >
+            <Clock className="w-4 h-4 text-amber-200" />
+            <span>Projecc</span>
+          </button>
+
+          <button 
             onClick={() => setActiveTab('producc')}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
             title="Accedir a l'aplicació Producc (Gestió de Producció)"

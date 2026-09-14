@@ -811,6 +811,8 @@ export default function ProduccApp({ setActiveTab }) {
             materials={materials}
             setMaterials={setMaterialsWithFirestore}
             proveidors={proveidors}
+            fabricants={fabricants}
+            unitatsCompra={unitatsCompra}
             isDark={isDark}
           />
         )}

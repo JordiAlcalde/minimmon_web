@@ -1,24 +1,21 @@
-// Catàleg mestre inicial de tasques per al taller (Projectes i Productes)
+// Catàleg mestre inicial de tasques per al taller
 export const INITIAL_MESTRE_TASQUES = [
-  // Tasques de Projectes
-  { id: 'task_disseny_3d', tipus: 'projecte', nom: 'Estudi previ i Disseny 3D / CAD', descripcio: 'Modelat 3D, presa de mides, renderitzat i validació de proporcions' },
-  { id: 'task_prototip', tipus: 'projecte', nom: 'Prototipatge inicial', descripcio: 'Proves d\'escala, assajos d\'encaixos i validació estructural' },
-  { id: 'task_mecanitzat', tipus: 'projecte', nom: 'Mecanitzat Làser / CNC / Fusteria', descripcio: 'Tall, gravat, fresat i preparació de peces de fusta i materials' },
-  { id: 'task_muntatge', tipus: 'projecte', nom: 'Muntatge, Ajust i Encolat', descripcio: 'Encaix de peces, encolat de precisió i integració de components' },
-  { id: 'task_electricitat', tipus: 'projecte', nom: 'Instal·lació elèctrica / Il·luminació LED', descripcio: 'Cablejat, soldadures, micro-LEDs i interruptors' },
-  { id: 'task_acabats', tipus: 'projecte', nom: 'Acabats, Poliment i Pintura', descripcio: 'Poliment fi, vernissos, tints, pàtines i detalls manuals' },
-  { id: 'task_qualitat', tipus: 'projecte', nom: 'Control de Qualitat i Embalatge', descripcio: 'Revisió final de detalls, prova de llums i protecció per al lliurament' },
-
-  // Tasques de Productes de Catàleg
-  { id: 'task_concepte', tipus: 'producte', nom: 'Conceptualització i Disseny per a Fabricació', descripcio: 'Adaptació del model per a optimització de material i temps de sèrie' },
-  { id: 'task_fitxer_matriu', tipus: 'producte', nom: 'Creació de Matrius i Fitxers de Producció', descripcio: 'Parametrització de talls làser, optimització de plans de tall (nesting)' },
-  { id: 'task_mostra_zero', tipus: 'producte', nom: 'Fabricació de Mostra Zero', descripcio: 'Elaboració de la primera unitat de sèrie per cronometratge i validació' },
-  { id: 'task_ajust_parametres', tipus: 'producte', nom: 'Ajust de Paràmetres de Maquinària i Utillatges', descripcio: 'Creació de plantilles de muntatge ràpid i calibratge d\'eines' },
-  { id: 'task_guia_muntatge', tipus: 'producte', nom: 'Elaboració de Guia de Muntatge i Escandall Final', descripcio: 'Documentació del mètode de fabricació i tancament d\'escandall' }
+  { id: 'task_disseny_3d', nom: 'Estudi previ i Disseny 3D / CAD', descripcio: 'Modelat 3D, presa de mides, renderitzat i validació de proporcions' },
+  { id: 'task_prototip', nom: 'Prototipatge inicial', descripcio: 'Proves d\'escala, assajos d\'encaixos i validació estructural' },
+  { id: 'task_mecanitzat', nom: 'Mecanitzat Làser / CNC / Fusteria', descripcio: 'Tall, gravat, fresat i preparació de peces de fusta i materials' },
+  { id: 'task_muntatge', nom: 'Muntatge, Ajust i Encolat', descripcio: 'Encaix de peces, encolat de precisió i integració de components' },
+  { id: 'task_electricitat', nom: 'Instal·lació elèctrica / Il·luminació LED', descripcio: 'Cablejat, soldadures, micro-LEDs i interruptors' },
+  { id: 'task_acabats', nom: 'Acabats, Poliment i Pintura', descripcio: 'Poliment fi, vernissos, tints, pàtines i detalls manuals' },
+  { id: 'task_qualitat', nom: 'Control de Qualitat i Embalatge', descripcio: 'Revisió final de detalls, prova de llums i protecció per al lliurament' },
+  { id: 'task_concepte', nom: 'Conceptualització i Disseny per a Fabricació', descripcio: 'Adaptació del model per a optimització de material i temps de sèrie' },
+  { id: 'task_fitxer_matriu', nom: 'Creació de Matrius i Fitxers de Producció', descripcio: 'Parametrització de talls làser, optimització de plans de tall (nesting)' },
+  { id: 'task_mostra_zero', nom: 'Fabricació de Mostra Zero', descripcio: 'Elaboració de la primera unitat de sèrie per cronometratge i validació' },
+  { id: 'task_ajust_parametres', nom: 'Ajust de Paràmetres de Maquinària i Utillatges', descripcio: 'Creació de plantilles de muntatge ràpid i calibratge d\'eines' },
+  { id: 'task_guia_muntatge', nom: 'Elaboració de Guia de Muntatge i Escandall Final', descripcio: 'Documentació del mètode de fabricació i tancament d\'escandall' }
 ];
 
-export const DEFAULT_TASKS_PROJECTE = INITIAL_MESTRE_TASQUES.filter(t => t.tipus === 'projecte');
-export const DEFAULT_TASKS_PRODUCTE = INITIAL_MESTRE_TASQUES.filter(t => t.tipus === 'producte');
+export const DEFAULT_TASKS_PROJECTE = INITIAL_MESTRE_TASQUES;
+export const DEFAULT_TASKS_PRODUCTE = INITIAL_MESTRE_TASQUES;
 
 // Helper per formatar dates en format DD-MM-AAAA
 export function formatDateDMY(dateInput) {

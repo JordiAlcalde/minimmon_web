@@ -17,6 +17,7 @@ import { ProjeccAnalytics } from './ProjeccAnalytics';
 import { ProjeccReportView } from './ProjeccReportView';
 import { ProjeccFormModal } from './ProjeccFormModal';
 import { ProjeccMestreTasquesModal } from './ProjeccMestreTasquesModal';
+import { ProjeccActiveTimersDock } from './ProjeccActiveTimersDock';
 import { INITIAL_MESTRE_TASQUES } from '../../data/projeccInitialData';
 
 // Helper per netejar valors 'undefined' per a Firestore
@@ -43,13 +44,28 @@ export default function ProjeccApp({ setActiveTab }) {
   // Vistes: 'list' | 'detail' | 'timer' | 'analytics' | 'report'
   const [currentView, setCurrentView] = useState('list');
   const [selectedItemId, setSelectedItemId] = useState(null);
-  const [activeTimerTask, setActiveTimerTask] = useState(null);
+  
+  // Cronòmetres simultanis en curs (fins a 3 ranures)
+  const [activeTimers, setActiveTimers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('minimmon_projecc_active_timers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn("Error llegint cronòmetres actius de localStorage:", e);
+    }
+    return [];
+  });
+  const [activeTimerId, setActiveTimerId] = useState(null);
   
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isMestreModalOpen, setIsMestreModalOpen] = useState(false);
   const [editingItemData, setEditingItemData] = useState(null);
   const [sessionModalTask, setSessionModalTask] = useState(null);
+  const [sessionModalInitialManual, setSessionModalInitialManual] = useState(false);
 
   // 1. Sincronització amb Firestore per a la col·lecció 'projecc_items'
   useEffect(() => {
@@ -98,6 +114,15 @@ export default function ProjeccApp({ setActiveTab }) {
       unsubProducts();
     };
   }, []);
+
+  // Persistència automàtica de les ranures de cronòmetre a localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('minimmon_projecc_active_timers', JSON.stringify(activeTimers));
+    } catch (e) {
+      console.warn("Error desant cronòmetres actius a localStorage:", e);
+    }
+  }, [activeTimers]);
 
   const selectedItem = items.find(i => i.id === selectedItemId) || null;
 
@@ -216,6 +241,28 @@ export default function ProjeccApp({ setActiveTab }) {
     });
   };
 
+  // Eliminar projecte o producte de Projecc
+  const handleDeleteItem = async (itemId) => {
+    const itemToDelete = items.find(i => i.id === itemId);
+    const nom = itemToDelete?.nomDefinitiu || itemToDelete?.nomProvisional || itemToDelete?.nom || 'aquest registre';
+    const tipusNom = itemToDelete?.tipus === 'projecte' ? 'el projecte' : 'el producte';
+
+    if (!window.confirm(`Vols eliminar definitivament ${tipusNom} "${nom}" i totes les seves tasques i temps registrats?\n\nAquesta acció no es pot desfer.`)) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "projecc_items", itemId));
+      if (selectedItemId === itemId) {
+        setSelectedItemId(null);
+        setCurrentView('list');
+      }
+    } catch (e) {
+      console.error("Error eliminant element de Projecc:", e);
+      alert("S'ha produït un error en eliminar el registre.");
+    }
+  };
+
   // Traspàs a BD oficial
   const handleTransferToDb = async (item) => {
     setIsSyncing(true);
@@ -266,22 +313,149 @@ export default function ProjeccApp({ setActiveTab }) {
     setIsFormModalOpen(true);
   };
 
-  // Iniciar pantalla de cronòmetre
+  // Iniciar o saltar a una ranura de cronòmetre (fins a 3 simultànies)
   const handleStartTimer = (item, task) => {
+    const timerKey = `${item.id}_${task.id}`;
+    const existing = activeTimers.find(t => t.id === timerKey);
+
+    if (existing) {
+      if (!existing.isRunning) {
+        setActiveTimers(prev => prev.map(t => t.id === timerKey ? {
+          ...t,
+          isRunning: true,
+          startTimestamp: Date.now()
+        } : t));
+      }
+      setSelectedItemId(item.id);
+      setActiveTimerId(timerKey);
+      setCurrentView('timer');
+      return;
+    }
+
+    if (activeTimers.length >= 3) {
+      alert("Ja tens 3 tasques simultànies en marxa al taller (el màxim permès).\n\nFinalitza o cancel·la alguna de les ranures actuals abans d'iniciar-ne una de nova.");
+      return;
+    }
+
+    const now = new Date();
+    const existingSessions = Array.isArray(task.sessions) ? task.sessions : [];
+    const prevSecs = existingSessions.reduce((acc, s) => acc + (Number(s.duradaSegons) || 0), 0);
+
+    const newTimer = {
+      id: timerKey,
+      itemId: item.id,
+      itemNom: item.nomDefinitiu || item.nomProvisional || item.nom || 'Sense títol',
+      itemTipus: item.tipus || 'projecte',
+      nomClient: item.nomClient || '',
+      taskId: task.id,
+      taskNom: task.nom,
+      taskDesc: task.descripcio || '',
+      horaInici: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      startTimestamp: Date.now(),
+      accumulatedSeconds: 0,
+      isRunning: true,
+      memoNotes: '',
+      sessionPhotos: [],
+      previousTaskSeconds: prevSecs
+    };
+
+    setActiveTimers(prev => [...prev, newTimer]);
     setSelectedItemId(item.id);
-    setActiveTimerTask(task);
+    setActiveTimerId(timerKey);
     setCurrentView('timer');
   };
 
-  // Rellotge / Timer View a pantalla completa per a l'operari
-  if (currentView === 'timer' && selectedItem && activeTimerTask) {
+  // Pausar o reprendre ranura de cronòmetre
+  const handleTogglePauseTimer = (timerId) => {
+    setActiveTimers(prev => prev.map(t => {
+      if (t.id === timerId) {
+        if (t.isRunning) {
+          const live = Math.floor((Date.now() - t.startTimestamp) / 1000);
+          return {
+            ...t,
+            isRunning: false,
+            accumulatedSeconds: (Number(t.accumulatedSeconds) || 0) + (live > 0 ? live : 0),
+            startTimestamp: null
+          };
+        } else {
+          return {
+            ...t,
+            isRunning: true,
+            startTimestamp: Date.now()
+          };
+        }
+      }
+      return t;
+    }));
+  };
+
+  // Actualitzar dades (notes o fotos) d'una ranura
+  const handleUpdateTimerData = (timerId, updates) => {
+    setActiveTimers(prev => prev.map(t => t.id === timerId ? { ...t, ...updates } : t));
+  };
+
+  // Finalitzar ranura i desar a Firestore
+  const handleFinishActiveTimer = async (timerId, sessionData) => {
+    const timer = activeTimers.find(t => t.id === timerId);
+    if (!timer) return;
+
+    await handleSaveSession(timer.itemId, timer.taskId, sessionData);
+
+    const remaining = activeTimers.filter(t => t.id !== timerId);
+    setActiveTimers(remaining);
+
+    if (remaining.length > 0) {
+      setActiveTimerId(remaining[0].id);
+      setSelectedItemId(remaining[0].itemId);
+    } else {
+      setActiveTimerId(null);
+      setCurrentView('detail');
+    }
+  };
+
+  // Descartar / cancel·lar ranura
+  const handleDiscardActiveTimer = (timerId) => {
+    const remaining = activeTimers.filter(t => t.id !== timerId);
+    setActiveTimers(remaining);
+
+    if (remaining.length > 0) {
+      setActiveTimerId(remaining[0].id);
+      setSelectedItemId(remaining[0].itemId);
+    } else {
+      setActiveTimerId(null);
+      setCurrentView('detail');
+    }
+  };
+
+  // Obrir des del dock
+  const handleOpenTimerFromDock = (timerId) => {
+    const timer = activeTimers.find(t => t.id === timerId);
+    if (timer) {
+      setSelectedItemId(timer.itemId);
+      setActiveTimerId(timer.id);
+      setCurrentView('timer');
+    }
+  };
+
+  // Rellotge / Timer View a pantalla completa per a l'operari (amb fins a 3 ranures simultànies)
+  if (currentView === 'timer' && activeTimers.length > 0) {
     return (
       <ProjeccTimerView
-        item={selectedItem}
-        task={activeTimerTask}
+        activeTimers={activeTimers}
+        activeTimerId={activeTimerId || activeTimers[0]?.id}
+        onSelectTimer={(id) => {
+          const t = activeTimers.find(x => x.id === id);
+          if (t) {
+            setSelectedItemId(t.itemId);
+            setActiveTimerId(id);
+          }
+        }}
+        onTogglePause={handleTogglePauseTimer}
+        onUpdateTimerData={handleUpdateTimerData}
+        onFinishTimer={handleFinishActiveTimer}
+        onDiscardTimer={handleDiscardActiveTimer}
+        onBack={() => setCurrentView(selectedItemId ? 'detail' : 'list')}
         isDark={isDark}
-        onBack={() => setCurrentView('detail')}
-        onSaveSession={handleSaveSession}
       />
     );
   }
@@ -409,6 +583,7 @@ export default function ProjeccApp({ setActiveTab }) {
           <ProjeccList
             items={items}
             isDark={isDark}
+            activeTimers={activeTimers}
             onSelectItem={(item) => {
               setSelectedItemId(item.id);
               setCurrentView('detail');
@@ -416,6 +591,7 @@ export default function ProjeccApp({ setActiveTab }) {
             onNewItem={handleOpenNewModal}
             onStartTimerQuick={(item, task) => handleStartTimer(item, task)}
             onOpenMestreCatalog={() => setIsMestreModalOpen(true)}
+            onDeleteItem={handleDeleteItem}
           />
         )}
 
@@ -423,10 +599,18 @@ export default function ProjeccApp({ setActiveTab }) {
           <ProjeccDetail
             item={selectedItem}
             isDark={isDark}
+            activeTimers={activeTimers}
             onBack={() => setCurrentView('list')}
             onEdit={handleOpenEditModal}
             onStartTimer={handleStartTimer}
-            onViewSessions={(task) => setSessionModalTask(task)}
+            onViewSessions={(task) => {
+              setSessionModalTask(task);
+              setSessionModalInitialManual(false);
+            }}
+            onAddManualTime={(task) => {
+              setSessionModalTask(task);
+              setSessionModalInitialManual(true);
+            }}
             onViewAnalytics={() => setCurrentView('analytics')}
             onViewReport={() => setCurrentView('report')}
             onToggleLock={handleToggleLock}
@@ -434,6 +618,7 @@ export default function ProjeccApp({ setActiveTab }) {
             onTransferToDb={handleTransferToDb}
             mestreTasques={mestreTasques}
             onOpenMestreCatalog={() => setIsMestreModalOpen(true)}
+            onDeleteItem={handleDeleteItem}
           />
         )}
       </main>
@@ -456,12 +641,16 @@ export default function ProjeccApp({ setActiveTab }) {
 
       {sessionModalTask && selectedItem && (
         <ProjeccSessionsModal
-          task={sessionModalTask}
+          task={selectedItem.tasques?.find(t => t.id === sessionModalTask.id) || sessionModalTask}
           item={selectedItem}
           isDark={isDark}
-          onClose={() => setSessionModalTask(null)}
+          onClose={() => {
+            setSessionModalTask(null);
+            setSessionModalInitialManual(false);
+          }}
           onUpdateSessions={handleUpdateSessions}
           onStartNewSession={(task) => handleStartTimer(selectedItem, task)}
+          initialOpenManual={sessionModalInitialManual}
         />
       )}
 
@@ -473,6 +662,16 @@ export default function ProjeccApp({ setActiveTab }) {
           isDark={isDark}
           mestreTasques={mestreTasques}
           onSaveMestreTasques={handleSaveMestreTasques}
+        />
+      )}
+
+      {/* Mini-dock flotant per a tasques simultànies */}
+      {currentView !== 'timer' && activeTimers.length > 0 && (
+        <ProjeccActiveTimersDock
+          activeTimers={activeTimers}
+          onOpenTimer={handleOpenTimerFromDock}
+          onTogglePause={handleTogglePauseTimer}
+          isDark={isDark}
         />
       )}
 
