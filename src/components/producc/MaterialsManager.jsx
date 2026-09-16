@@ -6,6 +6,7 @@ import {
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
 import DecimalInput from '../common/DecimalInput';
+import { resolveMaterialMediaUrl } from '../../utils/mediaUtils';
 
 // Base URL estàndard per a les imatges de materials allotjades a GitHub
 const RAW_MATERIALS_BASE_URL = 'https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/';
@@ -41,26 +42,38 @@ const getFilenameFromUrl = (imgUrl) => {
   return imgUrl;
 };
 
-// Component robust per renderitzar la imatge d'un material amb fallback automàtic
+// Component robust per renderitzar la imatge d'un material amb fallback automàtic (local <-> GitHub)
 function MaterialImage({ src, alt, className = "w-full h-full object-cover", fallbackIconClass = "w-6 h-6 text-amber-500/50" }) {
+  const [triedGitHub, setTriedGitHub] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const fullUrl = buildMaterialImageUrl(src);
+
+  const localUrl = resolveMaterialMediaUrl(src);
+  const rawGitHubUrl = buildMaterialImageUrl(src);
 
   React.useEffect(() => {
+    setTriedGitHub(false);
     setHasError(false);
-  }, [fullUrl]);
+  }, [src]);
 
-  if (!fullUrl || hasError) {
+  if (!src || hasError) {
     return <Package className={fallbackIconClass} />;
   }
 
+  const currentSrc = (!triedGitHub && localUrl) ? localUrl : rawGitHubUrl;
+
   return (
     <img 
-      key={fullUrl}
-      src={fullUrl} 
+      key={currentSrc}
+      src={currentSrc} 
       alt={alt || 'Material'} 
       className={className}
-      onError={() => setHasError(true)}
+      onError={() => {
+        if (!triedGitHub && rawGitHubUrl && rawGitHubUrl !== currentSrc) {
+          setTriedGitHub(true);
+        } else {
+          setHasError(true);
+        }
+      }}
     />
   );
 }
@@ -1590,9 +1603,15 @@ export default function MaterialsManager({
               </button>
             </div>
             <img
-              src={enlargedImage}
+              src={resolveMaterialMediaUrl(enlargedImage) || buildMaterialImageUrl(enlargedImage)}
               alt={enlargedImageTitle || "Imatge ampliada"}
               className="w-auto h-auto max-h-[80vh] max-w-full object-contain rounded-xl shadow-lg"
+              onError={(e) => {
+                const rawUrl = buildMaterialImageUrl(enlargedImage);
+                if (e.target.src !== rawUrl) {
+                  e.target.src = rawUrl;
+                }
+              }}
             />
           </div>
         </div>

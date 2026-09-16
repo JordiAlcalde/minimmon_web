@@ -115,6 +115,7 @@ export default function CompresManager({
     fabricantId: '',
     dataCreacio: new Date().toISOString().split('T')[0],
     dataPrevista: '',
+    dataRecepcio: '',
     numComandaProveidor: '',
     estat: 'Pendent',
     numAlbara: '',
@@ -125,7 +126,9 @@ export default function CompresManager({
   // Reception Form state
   const [receptionData, setReceptionData] = useState({
     numAlbara: '',
+    dataRecepcio: new Date().toISOString().split('T')[0],
     updatePrices: true,
+    forceComplete: false,
     receivedLines: []
   });
 
@@ -188,6 +191,7 @@ export default function CompresManager({
       fabricantId: '',
       dataCreacio: new Date().toISOString().split('T')[0],
       dataPrevista: '',
+      dataRecepcio: '',
       numComandaProveidor: '',
       estat: 'Pendent',
       numAlbara: '',
@@ -203,6 +207,7 @@ export default function CompresManager({
       ...com,
       fabricantId: com.fabricantId || '',
       dataPrevista: com.dataPrevista || '',
+      dataRecepcio: com.dataRecepcio || '',
       numComandaProveidor: com.numComandaProveidor || '',
       linies: com.linies ? com.linies.map(l => {
         const factor = l.factorConversio || getPackagingFactor(l.unitatCompraId, unitatsCompra);
@@ -366,56 +371,135 @@ export default function CompresManager({
   // Open Reception Modal workflow
   const handleOpenReception = (com) => {
     setSelectedComandaToReceive(com);
+    const todayStr = new Date().toISOString().split('T')[0];
     setReceptionData({
-      numAlbara: com.numAlbara || '',
+      numAlbara: '',
+      dataRecepcio: todayStr,
       updatePrices: true,
-      receivedLines: (com.linies || []).map(l => ({
-        materialId: l.materialId,
-        fabricantId: l.fabricantId || '',
-        unitatCompraId: l.unitatCompraId || '',
-        factorConversio: l.factorConversio || getPackagingFactor(l.unitatCompraId, unitatsCompra),
-        quantitatDemanada: Number(l.quantitatDemanada || 0),
-        quantitatRebuda: l.quantitatRebuda > 0 ? Number(l.quantitatRebuda) : Number(l.quantitatDemanada || 0),
-        preuPactat: Number(l.preuPactat || 0)
-      }))
+      forceComplete: false,
+      receivedLines: (com.linies || []).map(l => {
+        const factor = l.factorConversio || getPackagingFactor(l.unitatCompraId, unitatsCompra);
+        const dem = Number(l.quantitatDemanada || 0);
+        const prevRec = Number(l.quantitatRebuda || 0);
+        const pending = Math.max(0, dem - prevRec);
+
+        return {
+          materialId: l.materialId,
+          fabricantId: l.fabricantId || '',
+          unitatCompraId: l.unitatCompraId || '',
+          factorConversio: factor,
+          quantitatDemanada: dem,
+          quantitatRebudaAnterior: prevRec,
+          quantitatPendent: pending,
+          quantitatRebudaAra: pending, // Suggereix per defecte les unitats pendents
+          preuPactat: Number(l.preuPactat || 0)
+        };
+      })
     });
     setReceptionModalOpen(true);
   };
 
-  // Confirm Reception & Stock Update
+  // Confirm Reception & Stock Update (Incremental & Parcial)
   const handleConfirmReception = (e) => {
     e.preventDefault();
     if (!selectedComandaToReceive) return;
 
-    // 1. Update order status and received lines
+    const receptionDate = receptionData.dataRecepcio || new Date().toISOString().split('T')[0];
+    const numAlbaraTrimmed = (receptionData.numAlbara || '').trim();
+
+    // Comprovem si s'ha indicat alguna unitat en aquesta entrega
+    const totalQtyNow = receptionData.receivedLines.reduce((acc, l) => acc + Math.max(0, Number(l.quantitatRebudaAra || 0)), 0);
+    if (totalQtyNow <= 0 && !receptionData.forceComplete) {
+      alert('Has indicat 0 unitats rebudes en aquesta entrega. Si vols tancar la comanda sense rebre més peces, marca la casella "Donar comanda per finalitzada / tancada".');
+      return;
+    }
+
+    // 1. Calculem les línies amb la quantitat acumulada actualitzada
+    const updatedLinies = (selectedComandaToReceive.linies || []).map(originalLine => {
+      const recLine = receptionData.receivedLines.find(r => r.materialId === originalLine.materialId);
+      if (!recLine) return originalLine;
+
+      const qtyNow = Math.max(0, Number(recLine.quantitatRebudaAra || 0));
+      const prevQty = Number(originalLine.quantitatRebuda || 0);
+      const newTotalReceived = prevQty + qtyNow;
+
+      return {
+        ...originalLine,
+        quantitatRebuda: newTotalReceived
+      };
+    });
+
+    // 2. Determinem el nou estat de la comanda
+    let isFullyReceived = true;
+    let hasAnyReceived = false;
+
+    updatedLinies.forEach(l => {
+      const dem = Number(l.quantitatDemanada || 0);
+      const reb = Number(l.quantitatRebuda || 0);
+      if (reb < dem) {
+        isFullyReceived = false;
+      }
+      if (reb > 0) {
+        hasAnyReceived = true;
+      }
+    });
+
+    let newEstat = selectedComandaToReceive.estat;
+    if (receptionData.forceComplete || isFullyReceived) {
+      newEstat = 'Rebut';
+    } else if (hasAnyReceived) {
+      newEstat = 'Recepció Parcial';
+    }
+
+    // 3. Registre històric d'aquesta entrega específica
+    const newDeliveryRecord = {
+      id: `rec-${Date.now()}`,
+      numAlbara: numAlbaraTrimmed,
+      dataRecepcio: receptionDate,
+      linies: receptionData.receivedLines
+        .filter(l => Number(l.quantitatRebudaAra || 0) > 0)
+        .map(l => ({
+          materialId: l.materialId,
+          quantitatRebuda: Number(l.quantitatRebudaAra || 0),
+          factorConversio: l.factorConversio
+        }))
+    };
+
+    const existingAlbarans = Array.isArray(selectedComandaToReceive.albarans) ? selectedComandaToReceive.albarans : [];
+    const updatedAlbarans = totalQtyNow > 0 ? [...existingAlbarans, newDeliveryRecord] : existingAlbarans;
+
+    // 4. Actualitzem la comanda a l'estat local / Firestore
     setCompres(prev => prev.map(c => {
       if (c.id === selectedComandaToReceive.id) {
         return {
           ...c,
-          estat: 'Rebut',
-          numAlbara: receptionData.numAlbara,
-          linies: receptionData.receivedLines
+          estat: newEstat,
+          numAlbara: numAlbaraTrimmed || c.numAlbara,
+          dataRecepcio: receptionDate,
+          albarans: updatedAlbarans,
+          linies: updatedLinies
         };
       }
       return c;
     }));
 
-    // 2. Automatically update materials stock & prices (conversió d'unitats de compra a unitats d'estoc reals)
+    // 5. Actualitzem l'estoc dels materials NOMÉS amb l'increment rebut en AQUESTA entrega
     setMaterials(prevMaterials => {
       return prevMaterials.map(mat => {
-        const receivedItem = receptionData.receivedLines.find(r => r.materialId === mat.id);
-        if (receivedItem) {
-          const factor = Number(receivedItem.factorConversio || 1);
-          const qtyAdded = Number(receivedItem.quantitatRebuda || 0) * factor;
-          const newStock = Number(mat.estocActual || 0) + qtyAdded;
+        const recLine = receptionData.receivedLines.find(r => r.materialId === mat.id);
+        if (recLine) {
+          const qtyNow = Math.max(0, Number(recLine.quantitatRebudaAra || 0));
+          const factor = Number(recLine.factorConversio || 1);
+          const stockToAdd = qtyNow * factor;
+          const newStock = Number(mat.estocActual || 0) + stockToAdd;
           
           let updatedMat = {
             ...mat,
             estocActual: newStock
           };
 
-          if (receptionData.updatePrices) {
-            const packPrice = Number(receivedItem.preuPactat || 0);
+          if (receptionData.updatePrices && qtyNow > 0) {
+            const packPrice = Number(recLine.preuPactat || 0);
             const unitPrice = factor > 0 ? Number((packPrice / factor).toFixed(4)) : packPrice;
             
             updatedMat.preuProPrin = unitPrice;
@@ -430,8 +514,8 @@ export default function CompresManager({
                     ...p,
                     preu: unitPrice,
                     preuPack: packPrice,
-                    fabricantId: receivedItem.fabricantId || p.fabricantId,
-                    unitatCompraId: receivedItem.unitatCompraId || p.unitatCompraId
+                    fabricantId: recLine.fabricantId || p.fabricantId,
+                    unitatCompraId: recLine.unitatCompraId || p.unitatCompraId
                   };
                 }
                 return p;
@@ -446,7 +530,10 @@ export default function CompresManager({
     });
 
     setReceptionModalOpen(false);
-    alert('Comanda rebuda amb èxit! S\'ha actualitzat l\'estoc real i els preus dels materials.');
+    const msg = newEstat === 'Rebut'
+      ? 'Comanda rebuda completament! S\'ha actualitzat l\'estoc real.'
+      : 'Recepció parcial registrada amb èxit! L\'estoc s\'ha incrementat amb les peces rebudes i la comanda queda en "Recepció Parcial" per a les següents entregues.';
+    alert(msg);
   };
 
   // Helper to generate text copy format
@@ -456,8 +543,10 @@ export default function CompresManager({
     let text = `ORDRE DE COMPRA - MÍNIM MÓN\n`;
     text += `Data: ${com.dataCreacio}\n`;
     if (com.dataPrevista) text += `Data Prevista: ${com.dataPrevista}\n`;
+    if (com.dataRecepcio) text += `Data Recepció: ${com.dataRecepcio}\n`;
     text += `Proveïdor: ${prov ? prov.empresa : ''}\n`;
     if (com.numComandaProveidor) text += `Nº Comanda Proveïdor: ${com.numComandaProveidor}\n`;
+    if (com.numAlbara) text += `Nº Albarà / Factura: ${com.numAlbara}\n`;
     if (orderFab) text += `Fabricant: ${orderFab.fabricant}\n`;
     text += `Ref. Interna: ${com.id}\n`;
     text += `------------------------------------\n`;
@@ -497,7 +586,10 @@ export default function CompresManager({
                             prov?.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             fab?.fabricant.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             c.numComandaProveidor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            c.numAlbara?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            c.dataCreacio?.includes(searchTerm) ||
                             c.dataPrevista?.includes(searchTerm) ||
+                            c.dataRecepcio?.includes(searchTerm) ||
                             c.observacions?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesEstat = filterEstat === 'all' || c.estat === filterEstat;
       const matchesProv = filterProveidor === 'all' || c.proveidorId === filterProveidor;
@@ -589,6 +681,7 @@ export default function CompresManager({
             <option value="all">Tots els Estats</option>
             <option value="Pendent">Pendent</option>
             <option value="Demanat">Demanat</option>
+            <option value="Recepció Parcial">Recepció Parcial</option>
             <option value="Rebut">Rebut</option>
             <option value="Cancel·lat">Cancel·lat</option>
           </select>
@@ -631,9 +724,10 @@ export default function CompresManager({
 
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
                           com.estat === 'Rebut' ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30' :
+                          com.estat === 'Recepció Parcial' ? 'bg-amber-500/20 text-amber-500 border-amber-500/40 font-bold' :
                           com.estat === 'Demanat' ? 'bg-sky-500/20 text-sky-600 border-sky-500/30' :
                           com.estat === 'Cancel·lat' ? 'bg-red-500/20 text-red-600 border-red-500/30' :
-                          'bg-amber-500/20 text-amber-700 border-amber-500/30'
+                          'bg-slate-500/20 text-slate-700 border-slate-500/30'
                         }`}>
                           {com.estat}
                         </span>
@@ -653,22 +747,49 @@ export default function CompresManager({
                             <Clock className="w-3.5 h-3.5 shrink-0" /> Prevista: {com.dataPrevista}
                           </span>
                         )}
+                        {com.dataRecepcio && (
+                          <span className={`font-mono flex items-center gap-1 font-semibold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                            <CheckCircle className="w-3.5 h-3.5 shrink-0 text-emerald-500" /> Rebut: {com.dataRecepcio}
+                          </span>
+                        )}
                         {com.numAlbara && (
                           <span className={`font-mono flex items-center gap-1 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                             <FileText className="w-3.5 h-3.5 shrink-0" /> Albarà: {com.numAlbara}
                           </span>
                         )}
                       </div>
+
+                      {/* Historial d'Entregues (Albarans) */}
+                      {Array.isArray(com.albarans) && com.albarans.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <FileText className="w-3 h-3 text-amber-500" /> Entregues ({com.albarans.length}):
+                          </span>
+                          {com.albarans.map((alb, aIdx) => (
+                            <span key={aIdx} className={`px-2 py-0.5 rounded-md border font-mono text-[10px] ${
+                              isDark ? 'bg-slate-950/80 border-slate-800 text-amber-400/90' : 'bg-slate-50 border-slate-200 text-amber-800'
+                            }`}>
+                              {alb.numAlbara || `#${aIdx + 1}`} ({alb.dataRecepcio})
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {com.estat !== 'Rebut' && (
+                    {com.estat !== 'Rebut' && com.estat !== 'Cancel·lat' && (
                       <button
                         onClick={() => handleOpenReception(com)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                        className={`px-3 py-1.5 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all ${
+                          com.estat === 'Recepció Parcial'
+                            ? 'bg-amber-600 hover:bg-amber-500'
+                            : 'bg-emerald-600 hover:bg-emerald-500'
+                        }`}
+                        title={com.estat === 'Recepció Parcial' ? 'Continuar la recepció de peces o línies pendents' : 'Rebre comanda'}
                       >
-                        <CheckCircle className="w-3.5 h-3.5" /> Rebre Comanda
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>{com.estat === 'Recepció Parcial' ? 'Continuar Recepció' : 'Rebre Comanda'}</span>
                       </button>
                     )}
 
@@ -757,13 +878,41 @@ export default function CompresManager({
                               </td>
 
                               <td className="py-2.5 text-center font-mono">
-                                {l.quantitatRebuda > 0 ? (
-                                  <span className="text-emerald-500 font-semibold">
-                                    {l.quantitatRebuda} {packLabel} {factor > 1 ? `(${formatDecimal(receivedStock)} ${mat?.unitat || 'u'})` : ''}
-                                  </span>
-                                ) : (
-                                  <span className="text-slate-500">0</span>
-                                )}
+                                {(() => {
+                                  const dem = Number(l.quantitatDemanada || 0);
+                                  const reb = Number(l.quantitatRebuda || 0);
+                                  if (reb >= dem && dem > 0) {
+                                    return (
+                                      <div className="flex flex-col items-center">
+                                        <span className="text-emerald-500 font-bold">
+                                          {reb} / {dem} {packLabel} ✓
+                                        </span>
+                                        {factor > 1 && (
+                                          <span className="text-[10px] text-emerald-500/70">
+                                            ({formatDecimal(receivedStock)} {mat?.unitat || 'u'})
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  if (reb > 0) {
+                                    return (
+                                      <div className="flex flex-col items-center">
+                                        <span className="text-amber-500 font-bold">
+                                          {reb} / {dem} {packLabel}
+                                        </span>
+                                        <span className="text-[10px] text-amber-400/80">
+                                          (Pendent: {dem - reb})
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <span className="text-slate-500">
+                                      0 / {dem} {packLabel}
+                                    </span>
+                                  );
+                                })()}
                               </td>
 
                               <td className="py-2.5 text-right font-mono">
@@ -890,6 +1039,7 @@ export default function CompresManager({
                   >
                     <option value="Pendent">Pendent</option>
                     <option value="Demanat">Demanat</option>
+                    <option value="Recepció Parcial">Recepció Parcial</option>
                     <option value="Rebut">Rebut</option>
                     <option value="Cancel·lat">Cancel·lat</option>
                   </select>
@@ -944,6 +1094,42 @@ export default function CompresManager({
                   />
                 </div>
               </div>
+
+              {(formData.estat === 'Rebut' || formData.estat === 'Recepció Parcial') && (
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 rounded-xl border ${
+                  isDark ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
+                      <FileText className="w-3.5 h-3.5 text-amber-500" />
+                      Núm. d'Albarà / Factura d'Entrada
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.numAlbara || ''}
+                      onChange={(e) => setFormData({ ...formData, numAlbara: e.target.value })}
+                      placeholder="P. ex. ALB-2026-8812"
+                      className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-300'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                      Data Real de Recepció
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.dataRecepcio || ''}
+                      onChange={(e) => setFormData({ ...formData, dataRecepcio: e.target.value })}
+                      className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-white border-slate-300'
+                      }`}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-slate-400 mb-1 font-medium">Observacions</label>
@@ -1192,18 +1378,39 @@ export default function CompresManager({
             </div>
 
             <form id="reception-modal-form" onSubmit={handleConfirmReception} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
-              <div>
-                <label className="block text-slate-400 mb-1 font-medium">Núm. d'Albarà / Factura de Entrada *</label>
-                <input
-                  type="text"
-                  required
-                  value={receptionData.numAlbara}
-                  onChange={(e) => setReceptionData({ ...receptionData, numAlbara: e.target.value })}
-                  className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
-                    isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-                  }`}
-                  placeholder="P. ex. ALB-2026-8812"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-amber-500" />
+                    Núm. d'Albarà / Factura d'Entrada *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={receptionData.numAlbara}
+                    onChange={(e) => setReceptionData({ ...receptionData, numAlbara: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                    }`}
+                    placeholder="P. ex. ALB-2026-8812"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                    Data Real de Recepció *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={receptionData.dataRecepcio}
+                    onChange={(e) => setReceptionData({ ...receptionData, dataRecepcio: e.target.value })}
+                    className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  />
+                </div>
               </div>
 
               {(selectedComandaToReceive.numComandaProveidor || selectedComandaToReceive.dataPrevista) && (
@@ -1239,58 +1446,130 @@ export default function CompresManager({
               </div>
 
               <div className="space-y-3 pt-2">
-                <span className="font-semibold text-slate-300 block">Comprovació de Quantitats Rebudes:</span>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-300 block">Comprovació de Quantitats Rebudes:</span>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = receptionData.receivedLines.map(l => ({
+                          ...l,
+                          quantitatRebudaAra: l.quantitatPendent
+                        }));
+                        setReceptionData({ ...receptionData, receivedLines: updated });
+                      }}
+                      className="text-[11px] text-emerald-400 hover:text-emerald-300 underline cursor-pointer font-medium"
+                    >
+                      Rebre tot el pendent
+                    </button>
+                    <span className="text-slate-600">·</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = receptionData.receivedLines.map(l => ({
+                          ...l,
+                          quantitatRebudaAra: 0
+                        }));
+                        setReceptionData({ ...receptionData, receivedLines: updated });
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-slate-300 underline cursor-pointer font-medium"
+                    >
+                      Posar tot a 0
+                    </button>
+                  </div>
+                </div>
+
                 {receptionData.receivedLines && receptionData.receivedLines.map((l, idx) => {
                   const mat = materials.find(m => m.id === l.materialId);
                   const fab = fabricants.find(f => f.id === l.fabricantId);
                   const uc = unitatsCompra.find(u => u.id === l.unitatCompraId);
                   const packName = uc ? uc.unitatCompra : (mat?.unitat || 'u');
                   const factor = Number(l.factorConversio || 1);
-                  const stockToAdd = Number(l.quantitatRebuda || 0) * factor;
+                  const qtyNow = Number(l.quantitatRebudaAra || 0);
+                  const stockToAdd = qtyNow * factor;
+                  const isLineComplete = l.quantitatPendent <= 0;
 
                   return (
-                    <div key={idx} className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-200 text-sm">{mat?.material}</h4>
+                    <div key={idx} className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                      isLineComplete 
+                        ? isDark ? 'border-slate-800/60 bg-slate-950/20 opacity-70' : 'border-slate-200 bg-slate-50/50 opacity-75'
+                        : isDark ? 'border-slate-800 bg-slate-950/50' : 'border-slate-200 bg-white'
+                    }`}>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-slate-200 text-sm truncate">{mat?.material}</h4>
                           {fab && (
                             <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                               {fab.fabricant}
                             </span>
                           )}
+                          {isLineComplete && (
+                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                              Completat ✓
+                            </span>
+                          )}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex flex-wrap items-center gap-2">
-                          <span>Demanat: {l.quantitatDemanada} {packName}</span>
-                          <span>· Preu compra: {formatCurrency(l.preuPactat, 2)}</span>
+                        <div className="text-[11px] text-slate-400 font-mono mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>Demanat: <strong className="text-slate-200">{l.quantitatDemanada}</strong> {packName}</span>
+                          {l.quantitatRebudaAnterior > 0 && (
+                            <span className="text-emerald-400">
+                              Rebut anteriorment: <strong>{l.quantitatRebudaAnterior}</strong>
+                            </span>
+                          )}
+                          <span className={l.quantitatPendent > 0 ? "text-amber-400 font-semibold" : "text-slate-500"}>
+                            Pendent: <strong>{l.quantitatPendent}</strong>
+                          </span>
                           {factor > 1 && (
-                            <span className="text-cyan-400">
-                              (Factor: x{factor} {mat?.unitat || 'u'})
+                            <span className="text-cyan-400 text-[10px]">
+                              (x{factor} {mat?.unitat || 'u'})
                             </span>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="flex items-center gap-2">
-                          <label className="text-[11px] text-slate-400">Rebut ({packName}):</label>
+                      <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[11px] text-slate-400 whitespace-nowrap">Rebre ara ({packName}):</label>
                           <DecimalInput
-                            value={l.quantitatRebuda}
+                            value={l.quantitatRebudaAra}
                             onChange={(e, num) => {
                               const updated = [...receptionData.receivedLines];
-                              updated[idx].quantitatRebuda = num;
+                              updated[idx].quantitatRebudaAra = num;
                               setReceptionData({ ...receptionData, receivedLines: updated });
                             }}
-                            className="w-20 p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 font-mono text-center text-xs font-bold"
+                            className="w-20 p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 font-mono text-center text-xs font-bold focus:border-amber-500 outline-none"
                           />
                         </div>
 
-                        <div className="p-1.5 px-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-semibold">
+                        <div className={`p-1.5 px-2.5 rounded-lg font-mono text-xs font-semibold whitespace-nowrap ${
+                          stockToAdd > 0
+                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                            : 'bg-slate-800/40 border border-slate-700/40 text-slate-500'
+                        }`}>
                           +{formatDecimal(stockToAdd)} {mat?.unitat || 'u'} estoc
                         </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Checkbox per forçar tancament complet */}
+              <div className={`p-3.5 rounded-xl border flex items-center gap-2.5 ${
+                receptionData.forceComplete 
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' 
+                  : isDark ? 'border-slate-800 bg-slate-950/40 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
+              }`}>
+                <input
+                  type="checkbox"
+                  id="forceCompleteCheck"
+                  checked={receptionData.forceComplete}
+                  onChange={(e) => setReceptionData({ ...receptionData, forceComplete: e.target.checked })}
+                  className="rounded text-amber-500 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="forceCompleteCheck" className="text-xs cursor-pointer select-none">
+                  <strong>Donar comanda per finalitzada / tancada</strong> (marca l'estat com a "Rebut" encara que quedin peces pendents per cancel·lació o trencament d'estoc del proveïdor).
+                </label>
               </div>
             </form>
           </div>

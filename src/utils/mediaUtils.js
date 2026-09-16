@@ -1,6 +1,7 @@
 export const GITHUB_RAW_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/";
 export const GITHUB_RAW_PRODUCTES_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/productes/";
 export const GITHUB_RAW_PROJECTES_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/projectes/";
+export const GITHUB_RAW_MATERIALS_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/";
 export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/";
 
 export function toRawProjecteUrl(input) {
@@ -248,6 +249,60 @@ export function resolveProjecteMediaUrl(url) {
   }
 
   return safeEncodeURI(`${prefix}imatges/projectes/${cleanPath}`);
+}
+
+export function resolveMaterialMediaUrl(url) {
+  if (!url) return '';
+  const trimmed = url.trim();
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/materials/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/')) {
+      const rel = trimmed.replace('https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/imatges/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/materials/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/materials/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    if (trimmed.includes('cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/')) {
+      const rel = trimmed.replace('https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/', '');
+      return resolveMaterialMediaUrl(rel);
+    }
+    return safeEncodeURI(trimmed);
+  }
+
+  let cleanPath = trimmed;
+  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
+  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
+
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta?.env?.BASE_URL) || './';
+  const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
+  if (cleanPath.startsWith('imatges/materials/')) {
+    cleanPath = cleanPath.replace('imatges/materials/', '');
+  } else if (cleanPath.startsWith('imatges/')) {
+    cleanPath = cleanPath.replace('imatges/', '');
+  } else if (cleanPath.startsWith('materials/')) {
+    cleanPath = cleanPath.replace('materials/', '');
+  }
+
+  return safeEncodeURI(`${prefix}imatges/materials/${cleanPath}`);
 }
 
 export function handleImageFallback(e, fallbackUrl = 'images/tots_productes.jpg') {
