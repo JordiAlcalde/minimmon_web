@@ -4,6 +4,50 @@ export const GITHUB_RAW_PROJECTES_BASE = "https://raw.githubusercontent.com/Jord
 export const GITHUB_RAW_MATERIALS_BASE = "https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/materials/";
 export const JSDELIVR_VIDEO_BASE = "https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/";
 
+export function sanitizeCleanPath(pathStr) {
+  if (!pathStr) return '';
+  let str = pathStr.trim();
+  
+  // Convert any Windows backslashes to forward slashes
+  str = str.replace(/\\+/g, '/');
+
+  // Decode URI component to inspect literal folder names
+  try {
+    str = decodeURI(str);
+  } catch (e) {}
+
+  // Repeatedly strip leading ./ and /
+  while (str.startsWith('./') || str.startsWith('/')) {
+    if (str.startsWith('./')) str = str.slice(2);
+    else if (str.startsWith('/')) str = str.slice(1);
+  }
+
+  // Strip public/ if present
+  if (str.startsWith('public/')) {
+    str = str.slice('public/'.length);
+    while (str.startsWith('./') || str.startsWith('/')) {
+      if (str.startsWith('./')) str = str.slice(2);
+      else if (str.startsWith('/')) str = str.slice(1);
+    }
+  }
+
+  // Normalize internal /./ to /
+  str = str.replace(/\/(\.\/)+/g, '/');
+
+  // Remove duplicated videos/ or ./videos/ (e.g. "videos/./videos/..." or "videos/videos/...")
+  while (/^videos\/(\.\/|\/|videos\/)+/i.test(str)) {
+    str = str.replace(/^videos\/(\.\/|\/|videos\/)+/i, 'videos/');
+  }
+
+  // Remove duplicated imatges/ (e.g. "imatges/projectes/imatges/projectes/...")
+  while (/^imatges\/(projectes|productes|materials|temporal)\/(\.\/|\/|imatges\/)/i.test(str)) {
+    str = str.replace(/^imatges\/(projectes|productes|materials|temporal)\/(\.\/|\/)+/i, 'imatges/$1/');
+    str = str.replace(/^imatges\/(projectes|productes|materials|temporal)\/imatges\/(projectes|productes|materials|temporal)\//i, 'imatges/$2/');
+  }
+
+  return str;
+}
+
 export function toRawProjecteUrl(input) {
   if (!input) return '';
   const trimmed = input.trim();
@@ -19,8 +63,7 @@ export function toRawProjecteUrl(input) {
     }
     return trimmed;
   }
-  let clean = trimmed.replace(/^\/+/, '');
-  if (clean.startsWith('public/')) clean = clean.replace('public/', '');
+  let clean = sanitizeCleanPath(trimmed);
   if (clean.startsWith('imatges/projectes/')) clean = clean.replace('imatges/projectes/', '');
   else if (clean.startsWith('imatges/')) clean = clean.replace('imatges/', '');
   else if (clean.startsWith('projectes/')) clean = clean.replace('projectes/', '');
@@ -73,9 +116,7 @@ export function resolveMediaUrl(url) {
     return safeEncodeURI(trimmed);
   }
   
-  let cleanPath = trimmed;
-  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
-  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
+  let cleanPath = sanitizeCleanPath(trimmed);
   
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta?.env?.BASE_URL) || './';
   const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -172,9 +213,7 @@ export function resolveProducteMediaUrl(url) {
     return safeEncodeURI(trimmed);
   }
   
-  let cleanPath = trimmed;
-  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
-  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
+  let cleanPath = sanitizeCleanPath(trimmed);
   
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta?.env?.BASE_URL) || './';
   const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -233,9 +272,7 @@ export function resolveProjecteMediaUrl(url) {
     return safeEncodeURI(trimmed);
   }
 
-  let cleanPath = trimmed;
-  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
-  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
+  let cleanPath = sanitizeCleanPath(trimmed);
 
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta?.env?.BASE_URL) || './';
   const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -287,9 +324,7 @@ export function resolveMaterialMediaUrl(url) {
     return safeEncodeURI(trimmed);
   }
 
-  let cleanPath = trimmed;
-  if (cleanPath.startsWith('/')) cleanPath = cleanPath.slice(1);
-  if (cleanPath.startsWith('public/')) cleanPath = cleanPath.replace('public/', '');
+  let cleanPath = sanitizeCleanPath(trimmed);
 
   const baseUrl = (typeof import.meta !== 'undefined' && import.meta?.env?.BASE_URL) || './';
   const prefix = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
