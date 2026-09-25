@@ -909,6 +909,9 @@ export default function ProduccApp({ setActiveTab }) {
             ordresFabricacio={ordresFabricacio}
             setOrdresFabricacio={setOrdresFabricacioWithFirestore}
             escandalls={escandalls}
+            materials={materials}
+            setMaterials={setMaterialsWithFirestore}
+            operacions={operacions}
             setActiveProduccSubtab={setActiveProduccSubtab}
             isDark={isDark}
           />

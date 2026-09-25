@@ -33,7 +33,9 @@ import {
   Flame, 
   Layers,
   ArrowUpDown,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Hammer,
+  PlusCircle
 } from 'lucide-react';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
@@ -47,6 +49,9 @@ export default function EsdevenimentsManager({
   ordresFabricacio = [],
   setOrdresFabricacio,
   escandalls = [],
+  materials = [],
+  setMaterials,
+  operacions = [],
   setActiveProduccSubtab,
   isDark = true
 }) {
@@ -62,8 +67,21 @@ export default function EsdevenimentsManager({
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedProductToAdd, setSelectedProductToAdd] = useState(null);
-  const [quantitatTraspas, setQuantitatTraspas] = useState(1);
+  const [quantitatTotalFira, setQuantitatTotalFira] = useState(5);
+  const [quantitatAgafadaEstoc, setQuantitatAgafadaEstoc] = useState(0);
+  const [crearOFPerPendent, setCrearOFPerPendent] = useState(true);
+  const [prioritatOFInput, setPrioritatOFInput] = useState('normal');
   const [preuFiraInput, setPreuFiraInput] = useState('');
+
+  // Editar condicions d'una línia assignada a la fira
+  const [editingLinia, setEditingLinia] = useState(null);
+  const [editLiniaForm, setEditLiniaForm] = useState({
+    unitatsPrevistes: 0,
+    unitatsInicials: 0,
+    preuFira: '',
+    crearOF: false,
+    prioritatOF: 'normal'
+  });
 
   // TPV Modal State
   const [tpvProducteSeleccionat, setTpvProducteSeleccionat] = useState(null);
@@ -245,35 +263,40 @@ export default function EsdevenimentsManager({
     }));
   };
 
-  // --- TRASPÀS D'ESTOC: TALLER -> FIRA ---
-  const handleTraspasAFira = () => {
+  // --- ASSIGNACIÓ DE PRODUCTE A LA FIRA: NOVA FILOSOFIA ---
+  // 1. Quantitat total que es vol portar a la fira (independent de l'estoc)
+  // 2. Dues decisions complementàries:
+  //    - quantitat que s'agafa de l'estoc (descomptada de l'estoc del taller)
+  //    - resta pendent per fabricar (amb opció de generar OF a la cua)
+  const handleAssignarAFira = () => {
     if (!currentEvent || !selectedProductToAdd) return;
-    const q = parseInt(quantitatTraspas, 10);
-    if (isNaN(q) || q <= 0) {
-      alert("Indica una quantitat vàlida més gran que 0.");
-      return;
-    }
 
-    const estocActualTaller = parseInt(selectedProductToAdd.estocActual, 10) || 0;
-    if (q > estocActualTaller) {
-      const confirma = window.confirm(
-        `⚠️ Al taller només consten ${estocActualTaller} unitats disponibles d'aquesta peça.\n\nVols continuar traspassant les ${q} unitats igualment (deixarà l'estoc en negatiu o zero)?`
-      );
-      if (!confirma) return;
-    }
+    const totalFira = Math.max(1, parseInt(quantitatTotalFira, 10) || 1);
+    const estocTaller = parseInt(selectedProductToAdd.estocActual, 10) || 0;
+    const estocDisponible = Math.max(0, estocTaller);
+    const agafadaEstoc = Math.max(0, Math.min(parseInt(quantitatAgafadaEstoc, 10) || 0, totalFira, estocDisponible));
+    const pendentFabricar = Math.max(0, totalFira - agafadaEstoc);
 
     const preuFiraNum = parseDecimal(preuFiraInput, Number(selectedProductToAdd.preu) || 0);
 
-    // 1. Descomptar de l'estoc general de productes del taller
-    setProductes(prev => prev.map(p => {
-      if (p.id === selectedProductToAdd.id) {
-        const nouEstoc = Math.max(0, (parseInt(p.estocActual, 10) || 0) - q);
-        return { ...p, estocActual: nouEstoc };
-      }
-      return p;
-    }));
+    // 1. Si s'agafen peces de l'estoc del taller, descomptar-les
+    if (agafadaEstoc > 0) {
+      setProductes(prev => prev.map(p => {
+        if (p.id === selectedProductToAdd.id) {
+          const nouEstoc = Math.max(0, (parseInt(p.estocActual, 10) || 0) - agafadaEstoc);
+          return { ...p, estocActual: nouEstoc };
+        }
+        return p;
+      }));
+    }
 
-    // 2. Afegir o actualitzar línia a l'esdeveniment
+    // 2. Si cal fabricar peces pendents i s'ha marcat crear OF
+    let ofGeneradaId = null;
+    if (pendentFabricar > 0 && crearOFPerPendent && setOrdresFabricacio) {
+      ofGeneradaId = handleLlençarOFPerAFalta(selectedProductToAdd, pendentFabricar, true, prioritatOFInput);
+    }
+
+    // 3. Afegir o actualitzar línia a l'esdeveniment
     setEsdeveniments(prev => prev.map(ev => {
       if (ev.id === currentEvent.id) {
         const liniesActuals = ev.linies || [];
@@ -283,12 +306,18 @@ export default function EsdevenimentsManager({
         if (indexExistent >= 0) {
           novesLinies = liniesActuals.map((l, idx) => {
             if (idx === indexExistent) {
-              const novesInicials = (l.unitatsInicials || 0) + q;
-              const restants = novesInicials - (l.unitatsVenudes || 0);
+              const previstAnterior = l.unitatsPrevistes || ((l.unitatsInicials || 0) + (l.unitatsPendentsFabricar || 0));
+              const novesPrevistes = previstAnterior + totalFira;
+              const novesInicials = (l.unitatsInicials || 0) + agafadaEstoc;
+              const novesPendents = (l.unitatsPendentsFabricar || 0) + pendentFabricar;
+              const novesRestants = Math.max(0, novesInicials - (l.unitatsVenudes || 0));
               return {
                 ...l,
+                unitatsPrevistes: novesPrevistes,
                 unitatsInicials: novesInicials,
-                unitatsRestants: Math.max(0, restants),
+                unitatsRestants: novesRestants,
+                unitatsPendentsFabricar: novesPendents,
+                ofId: ofGeneradaId || l.ofId || null,
                 preuFira: preuFiraNum
               };
             }
@@ -305,9 +334,12 @@ export default function EsdevenimentsManager({
               gammaId: selectedProductToAdd.gammaId || '',
               preuOriginal: Number(selectedProductToAdd.preu) || 0,
               preuFira: preuFiraNum,
-              unitatsInicials: q,
+              unitatsPrevistes: totalFira,
+              unitatsInicials: agafadaEstoc,
+              unitatsPendentsFabricar: pendentFabricar,
               unitatsVenudes: 0,
-              unitatsRestants: q,
+              unitatsRestants: agafadaEstoc,
+              ofId: ofGeneradaId || null,
               retornatAEstoc: false
             }
           ];
@@ -318,10 +350,169 @@ export default function EsdevenimentsManager({
       return ev;
     }));
 
+    // Tancar modal i reiniciar valors
     setShowAddProductModal(false);
     setSelectedProductToAdd(null);
-    setQuantitatTraspas(1);
+    setQuantitatTotalFira(5);
+    setQuantitatAgafadaEstoc(0);
+    setCrearOFPerPendent(true);
+    setPrioritatOFInput('normal');
     setPreuFiraInput('');
+
+    let msg = `✓ S'han assignat ${totalFira} unitats de "${selectedProductToAdd.nom}" a la fira:`;
+    msg += `\n• ${agafadaEstoc} unitats agafades de l'estoc del taller (disponibles ara mateix a la parada).`;
+    if (pendentFabricar > 0) {
+      if (ofGeneradaId) {
+        msg += `\n• ${pendentFabricar} unitats pendents de fabricar (Creada OF nº ${ofGeneradaId} amb client 'Estoc fira' i prioritat '${prioritatOFInput}').`;
+      } else {
+        msg += `\n• ${pendentFabricar} unitats pendents de fabricar.`;
+      }
+    }
+    alert(msg);
+  };
+
+  const handleTraspasAFira = handleAssignarAFira;
+
+  // Obrir modal d'edició de condicions d'una línia
+  const handleOpenEditLinia = (linia) => {
+    const prod = productes.find(p => p.id === linia.productId);
+    const totalObj = linia.unitatsPrevistes || ((linia.unitatsInicials || 0) + (linia.unitatsPendentsFabricar || 0));
+    setEditingLinia({
+      ...linia,
+      producteRef: prod || null
+    });
+    setEditLiniaForm({
+      unitatsPrevistes: totalObj,
+      unitatsInicials: linia.unitatsInicials || 0,
+      preuFira: linia.preuFira != null ? String(linia.preuFira) : (prod?.preu ? String(prod.preu) : ''),
+      crearOF: false,
+      prioritatOF: 'normal'
+    });
+  };
+
+  // Guardar canvis de condicions d'una línia
+  const handleSaveEditLinia = () => {
+    if (!currentEvent || !editingLinia) return;
+
+    const liniaOriginal = (currentEvent.linies || []).find(l => l.productId === editingLinia.productId);
+    if (!liniaOriginal) return;
+
+    const prod = productes.find(p => p.id === editingLinia.productId);
+    const estocTallerActual = prod ? (parseInt(prod.estocActual, 10) || 0) : 0;
+
+    const novesPrevistes = Math.max(1, parseInt(editLiniaForm.unitatsPrevistes, 10) || 1);
+    const novesInicials = Math.max(0, parseInt(editLiniaForm.unitatsInicials, 10) || 0);
+    const preuFiraNum = parseDecimal(editLiniaForm.preuFira, Number(liniaOriginal.preuFira || 0));
+
+    // Valida que novesInicials no sigui inferior a les venudes
+    const venudes = liniaOriginal.unitatsVenudes || 0;
+    if (novesInicials < venudes) {
+      alert(`No pots posar menys unitats d'estoc (${novesInicials}) que les que ja s'han venut a la fira (${venudes}).`);
+      return;
+    }
+
+    // Delta d'estoc amb el taller
+    const inicialsAntigues = liniaOriginal.unitatsInicials || 0;
+    const deltaEstoc = novesInicials - inicialsAntigues; // Si > 0 treu del taller; si < 0 retorna al taller
+
+    if (deltaEstoc > 0 && deltaEstoc > estocTallerActual) {
+      alert(`No hi ha prou estoc al taller per agafar ${deltaEstoc} unitats més. Disponible al taller: ${estocTallerActual}.`);
+      return;
+    }
+
+    // Actualitzar estoc del taller
+    if (deltaEstoc !== 0) {
+      setProductes(prev => prev.map(p => {
+        if (p.id === editingLinia.productId) {
+          return {
+            ...p,
+            estocActual: Math.max(0, (parseInt(p.estocActual, 10) || 0) - deltaEstoc)
+          };
+        }
+        return p;
+      }));
+    }
+
+    // Recalcular restants i pendents
+    const novesRestants = Math.max(0, novesInicials - venudes);
+    const novesPendents = Math.max(0, novesPrevistes - novesInicials);
+
+    let ofGeneradaId = liniaOriginal.ofId || null;
+    if (editLiniaForm.crearOF && novesPendents > 0 && prod && setOrdresFabricacio) {
+      ofGeneradaId = handleLlençarOFPerAFalta(prod, novesPendents, true, editLiniaForm.prioritatOF);
+    }
+
+    // Actualitzar l'esdeveniment
+    setEsdeveniments(prev => prev.map(ev => {
+      if (ev.id === currentEvent.id) {
+        return {
+          ...ev,
+          linies: (ev.linies || []).map(l => {
+            if (l.productId === editingLinia.productId) {
+              return {
+                ...l,
+                unitatsPrevistes: novesPrevistes,
+                unitatsInicials: novesInicials,
+                unitatsRestants: novesRestants,
+                unitatsPendentsFabricar: novesPendents,
+                preuFira: preuFiraNum,
+                ofId: ofGeneradaId
+              };
+            }
+            return l;
+          })
+        };
+      }
+      return ev;
+    }));
+
+    setEditingLinia(null);
+  };
+
+  // Eliminar peça assignada a la fira (amb retorn automàtic de peces restants a l'estoc del taller)
+  const handleEliminarLiniaFira = (linia) => {
+    if (!currentEvent || !linia) return;
+
+    const restants = linia.unitatsRestants || 0;
+    const venudes = linia.unitatsVenudes || 0;
+
+    let confirmMsg = `Segur que vols eliminar "${linia.nom}" de la fira?`;
+    if (restants > 0) {
+      confirmMsg += `\n\n• S'incorporaran automàticament les ${restants} unitats restants de la parada a l'estoc del taller.`;
+    }
+    if (venudes > 0) {
+      confirmMsg += `\n\n⚠️ Atenció: S'havien venut ${venudes} unitats d'aquesta peça durant l'esdeveniment.`;
+    }
+
+    if (!window.confirm(confirmMsg)) return;
+
+    // 1. Retornar les peces restants de la parada a l'estoc del taller
+    if (restants > 0) {
+      setProductes(prev => prev.map(p => {
+        if (p.id === linia.productId) {
+          return {
+            ...p,
+            estocActual: (parseInt(p.estocActual, 10) || 0) + restants
+          };
+        }
+        return p;
+      }));
+    }
+
+    // 2. Eliminar la línia de la fira
+    setEsdeveniments(prev => prev.map(ev => {
+      if (ev.id === currentEvent.id) {
+        return {
+          ...ev,
+          linies: (ev.linies || []).filter(l => l.productId !== linia.productId)
+        };
+      }
+      return ev;
+    }));
+
+    if (editingLinia && editingLinia.productId === linia.productId) {
+      setEditingLinia(null);
+    }
   };
 
   // Canviar manualment el Preu Fira d'una línia existent
@@ -382,15 +573,84 @@ export default function EsdevenimentsManager({
     }));
   };
 
-  // Llençar OF per a les peces que falten
-  const handleLlençarOFPerAFalta = (product, quantitatNecessaria) => {
+  // Llençar OF per a les peces que falten o pendents
+  const handleLlençarOFPerAFalta = (product, quantitatNecessaria, silent = false, prioritat = 'normal') => {
     if (!setOrdresFabricacio) {
-      alert("Gestor d'Ordres de Fabricació no disponible.");
-      return;
+      if (!silent) alert("Gestor d'Ordres de Fabricació no disponible.");
+      return null;
     }
 
-    const escandall = escandalls.find(e => e.productId === product.id || e.producteId === product.id);
+    const pId = product.id;
+    const pCodi = (product.codi || '').toLowerCase().trim();
+    const pNom = (product.nom || '').toLowerCase().trim();
+
+    const escandall = (escandalls || []).find(e => {
+      if (pId && (e.productId === pId || e.producteId === pId)) return true;
+      if (pCodi && (String(e.producteCodi || '').toLowerCase().trim() === pCodi || String(e.codi || '').toLowerCase().trim() === pCodi)) return true;
+      const eNom = String(e.producteNom || e.nom || '').toLowerCase().trim();
+      if (eNom && pNom) {
+        if (eNom === pNom) return true;
+        if (pNom.includes(eNom) || eNom.includes(pNom)) return true;
+      }
+      return false;
+    });
+
     const nextId = getNextOFId(ordresFabricacio);
+    const eventName = currentEvent?.nom || 'Esdeveniment';
+    const eventDate = currentEvent?.dataInici || null;
+
+    // Calcular materials de l'escandall per a la quantitat a fabricar
+    let calculatedMaterials = [];
+    if (escandall && Array.isArray(escandall.materials)) {
+      calculatedMaterials = escandall.materials.map(em => {
+        const matObj = (materials || []).find(m => m.id === em.materialId);
+        const qUnit = Number(em.quantitat) || 0;
+        const qTotal = qUnit * quantitatNecessaria;
+        return {
+          materialId: em.materialId,
+          nom: matObj?.material || em.nom || 'Material',
+          quantitatTeoricaUnitat: qUnit,
+          quantitatTotal: qTotal,
+          unitat: matObj?.unitat || 'u',
+          estocReservat: qTotal,
+          estocDescomptat: false
+        };
+      });
+
+      // Reservar estoc dels materials al magatzem
+      if (setMaterials && calculatedMaterials.length > 0) {
+        setMaterials(prevMats => {
+          return prevMats.map(mat => {
+            const ofMat = calculatedMaterials.find(m => m.materialId === mat.id);
+            if (!ofMat) return mat;
+            const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
+            const estocReservat = (mat.estocReservat || 0) + ofMat.quantitatTotal;
+            return {
+              ...mat,
+              estocFisic,
+              estocReservat,
+              estocDisponible: Math.max(0, estocFisic - estocReservat)
+            };
+          });
+        });
+      }
+    }
+
+    // Calcular operacions (full de ruta) de l'escandall per a la quantitat a fabricar
+    let calculatedOperacions = [];
+    if (escandall && Array.isArray(escandall.operacions)) {
+      calculatedOperacions = escandall.operacions.map((eo, idx) => {
+        const opObj = (operacions || []).find(o => o.id === eo.operacioId);
+        const tempsU = Number(eo.tempsMinuts) || 0;
+        return {
+          id: `op-${idx + 1}`,
+          nom: opObj?.operacio || eo.nom || `Operació ${idx + 1}`,
+          tempsTeoricMinuts: tempsU * quantitatNecessaria,
+          tempsRealMinuts: 0,
+          completada: false
+        };
+      });
+    }
 
     const newOF = {
       id: nextId,
@@ -399,19 +659,94 @@ export default function EsdevenimentsManager({
       producteNom: product.nom || 'Peça per a fira',
       producteCodi: product.codi || '',
       quantitat: quantitatNecessaria,
-      estat: 'Pendent',
-      prioritat: 'Alta',
+      estat: 'cua',
+      prioritat: prioritat || 'normal',
       dataCreacio: new Date().toISOString(),
-      origen: `Fira: ${currentEvent?.nom || 'Esdeveniment'}`,
-      notes: `Fabricació encarregada expressament per dotar la parada de la fira "${currentEvent?.nom}".`,
-      escandallId: escandall?.id || null
+      clientNom: 'Estoc fira',
+      comandaRef: eventName,
+      dataLimitEntrega: eventDate,
+      origen: `Fira: ${eventName}`,
+      notes: `Fabricació encarregada per dotar la parada de la fira "${eventName}".`,
+      escandallId: escandall?.id || null,
+      materials: calculatedMaterials,
+      operacions: calculatedOperacions,
+      parametresLaser: escandall?.parametresLaser || product.parametresLaser || { potencia: '', velocitat: '', passades: '' }
     };
 
     setOrdresFabricacio(prev => [newOF, ...prev]);
-    alert(`✓ S'ha creat correctament l'Ordre de Fabricació ${nextId} per a ${quantitatNecessaria} unitats de "${product.nom}".`);
-    
-    if (setActiveProduccSubtab) {
-      setActiveProduccSubtab('ordres_fabricacio');
+
+    if (!silent) {
+      alert(`✓ S'ha creat correctament l'Ordre de Fabricació ${nextId} per a ${quantitatNecessaria} unitats de "${product.nom}".`);
+      if (setActiveProduccSubtab) {
+        setActiveProduccSubtab('ordres_fabricacio');
+      }
+    }
+    return nextId;
+  };
+
+  // Incorporar peces fabricades a la parada de la fira
+  const handleIncorporarPecesFabricades = (linia, quantitat) => {
+    if (!currentEvent || !linia) return;
+    const q = parseInt(quantitat, 10);
+    if (isNaN(q) || q <= 0) return;
+
+    const pendentsActuals = linia.unitatsPendentsFabricar || 0;
+    if (q > pendentsActuals) {
+      alert(`No pots incorporar més unitats (${q}) de les que resten pendents de fabricar (${pendentsActuals}).`);
+      return;
+    }
+
+    setEsdeveniments(prev => prev.map(ev => {
+      if (ev.id === currentEvent.id) {
+        return {
+          ...ev,
+          linies: (ev.linies || []).map(l => {
+            if (l.productId === linia.productId) {
+              const novesInicials = (l.unitatsInicials || 0) + q;
+              const novesRestants = (l.unitatsRestants || 0) + q;
+              const novesPendents = Math.max(0, (l.unitatsPendentsFabricar || 0) - q);
+              return {
+                ...l,
+                unitatsInicials: novesInicials,
+                unitatsRestants: novesRestants,
+                unitatsPendentsFabricar: novesPendents
+              };
+            }
+            return l;
+          })
+        };
+      }
+      return ev;
+    }));
+
+    alert(`✓ S'han incorporat ${q} peces fabricades de "${linia.nom}" a la parada de la fira!`);
+  };
+
+  // Llençar manualment una OF per a una línia que té peces pendents de fabricar
+  const handleLlençarOFManualPerLinia = (linia) => {
+    const quantitat = linia.unitatsPendentsFabricar || 0;
+    if (quantitat <= 0) {
+      alert("Aquesta peça ja no té cap unitat pendent de fabricar.");
+      return;
+    }
+
+    const product = productes.find(p => p.id === linia.productId) || {
+      id: linia.productId,
+      nom: linia.nom,
+      codi: linia.codi
+    };
+
+    const nextId = handleLlençarOFPerAFalta(product, quantitat, false);
+    if (nextId) {
+      setEsdeveniments(prev => prev.map(ev => {
+        if (ev.id === currentEvent.id) {
+          return {
+            ...ev,
+            linies: (ev.linies || []).map(l => l.productId === linia.productId ? { ...l, ofId: nextId } : l)
+          };
+        }
+        return ev;
+      }));
     }
   };
 
@@ -665,9 +1000,11 @@ export default function EsdevenimentsManager({
     const linies = currentEvent.linies || [];
     const vendes = currentEvent.vendes || [];
 
+    const totalPecesPrevistes = linies.reduce((acc, l) => acc + (l.unitatsPrevistes || ((l.unitatsInicials || 0) + (l.unitatsPendentsFabricar || 0))), 0);
     const totalPecesInicials = linies.reduce((acc, l) => acc + (l.unitatsInicials || 0), 0);
     const totalPecesVenudes = linies.reduce((acc, l) => acc + (l.unitatsVenudes || 0), 0);
     const totalPecesRestants = linies.reduce((acc, l) => acc + (l.unitatsRestants || 0), 0);
+    const totalPecesPendentsFabricar = linies.reduce((acc, l) => acc + (l.unitatsPendentsFabricar || 0), 0);
 
     const totalRecaptat = vendes.reduce((acc, v) => acc + (v.total || 0), 0);
     const totalEfectiu = vendes.filter(v => v.metodePagament === 'efectiu').reduce((acc, v) => acc + (v.total || 0), 0);
@@ -685,9 +1022,11 @@ export default function EsdevenimentsManager({
     const percVendaGlobal = totalPecesInicials > 0 ? Math.round((totalPecesVenudes / totalPecesInicials) * 100) : 0;
 
     return {
+      totalPecesPrevistes,
       totalPecesInicials,
       totalPecesVenudes,
       totalPecesRestants,
+      totalPecesPendentsFabricar,
       totalRecaptat,
       totalEfectiu,
       totalBizum,
@@ -1304,21 +1643,24 @@ export default function EsdevenimentsManager({
             <div>
               <h3 className="text-sm font-serif font-bold text-primary">Peces Assignades a la Fira</h3>
               <p className="text-xs text-on-surface-variant">
-                En traspassar peces a la fira, es descompten de l'estoc general del taller per evitar vendes simultànies a la web.
+                En assignar peces, pots agafar les que tinguis a l'estoc del taller i deixar la resta com a pendents de fabricar.
               </p>
             </div>
             {currentEvent.estat !== 'tancat' && (
               <button
                 onClick={() => {
                   setSelectedProductToAdd(null);
-                  setQuantitatTraspas(1);
+                  setQuantitatTotalFira(5);
+                  setQuantitatAgafadaEstoc(0);
+                  setCrearOFPerPendent(true);
                   setProductSearch('');
+                  setPreuFiraInput('');
                   setShowAddProductModal(true);
                 }}
                 className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Traspassar Peça des del Taller</span>
+                <span>Assignar Peça a la Fira</span>
               </button>
             )}
           </div>
@@ -1329,7 +1671,7 @@ export default function EsdevenimentsManager({
               <Package className="w-8 h-8 text-on-surface-variant/40 mx-auto" />
               <p className="text-xs font-semibold text-primary">Encara no has assignat cap peça a aquesta fira</p>
               <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
-                Fes clic a "+ Traspassar Peça des del Taller" per triar quins productes i quantes unitats t'emportes a la parada.
+                Fes clic a "Assignar Peça a la Fira" per definir la quantitat objectiu, agafar les peces d'estoc disponibles i planificar la fabricació restant.
               </p>
             </div>
           ) : (
@@ -1339,26 +1681,33 @@ export default function EsdevenimentsManager({
                   <thead>
                     <tr className="bg-surface-container/50 border-b border-outline/15 text-on-surface-variant font-medium">
                       <th className="py-3 px-4">Peça</th>
-                      <th className="py-3 px-3">Codi</th>
                       <th className="py-3 px-3 text-right">PVP Normal</th>
                       <th className="py-3 px-3 text-right">Preu Fira (€)</th>
-                      <th className="py-3 px-3 text-center">Portades</th>
+                      <th className="py-3 px-3 text-center" title="Quantitat total objectiu per a la fira">Objectiu Fira</th>
+                      <th className="py-3 px-3 text-center" title="Unitats agafades de l'estoc del taller">De l'Estoc</th>
+                      <th className="py-3 px-3 text-center" title="Unitats pendents de fabricar per assolir l'objectiu">Pendent Fabricar</th>
+                      <th className="py-3 px-3 text-center" title="Unitats presents a la parada i a punt per vendre">A Parada</th>
                       <th className="py-3 px-3 text-center">Venudes</th>
-                      <th className="py-3 px-3 text-center">A Parada</th>
                       <th className="py-3 px-3">Progrés Venda</th>
                       <th className="py-3 px-4 text-right">Accions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline/10 font-sans">
                     {currentEvent.linies.map(linia => {
-                      const percVenut = linia.unitatsInicials > 0 ? Math.round((linia.unitatsVenudes / linia.unitatsInicials) * 100) : 0;
+                      const totalObj = linia.unitatsPrevistes || ((linia.unitatsInicials || 0) + (linia.unitatsPendentsFabricar || 0));
+                      const percVenut = totalObj > 0 ? Math.round(((linia.unitatsVenudes || 0) / totalObj) * 100) : 0;
+                      const pendentsFabricar = linia.unitatsPendentsFabricar || 0;
+
                       return (
                         <tr key={linia.productId} className="hover:bg-surface-container/30 transition-colors">
                           <td className="py-2.5 px-4">
                             {(() => {
                               const f = getProductImage(linia);
                               return (
-                                <div className="flex items-center gap-3">
+                                <div 
+                                  className="flex items-center gap-3 cursor-default"
+                                  title={linia.codi ? `Codi: ${linia.codi}` : undefined}
+                                >
                                   <div className="w-9 h-9 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 relative flex items-center justify-center">
                                     {f ? (
                                       <img 
@@ -1380,12 +1729,16 @@ export default function EsdevenimentsManager({
                                       <Package className="w-4 h-4" />
                                     </div>
                                   </div>
-                                  <span className="font-semibold text-primary font-serif">{linia.nom}</span>
+                                  <span 
+                                    className="font-semibold text-primary font-serif hover:text-amber-700 transition-colors"
+                                    title={linia.codi ? `Codi: ${linia.codi}` : undefined}
+                                  >
+                                    {linia.nom}
+                                  </span>
                                 </div>
                               );
                             })()}
                           </td>
-                          <td className="py-2.5 px-3 font-mono text-[11px] text-on-surface-variant">{linia.codi || '-'}</td>
                           <td className="py-2.5 px-3 text-right font-mono text-on-surface-variant line-through">{formatCurrency(linia.preuOriginal)}</td>
                           <td className="py-2.5 px-3 text-right font-mono">
                             {currentEvent.estat !== 'tancat' ? (
@@ -1401,17 +1754,43 @@ export default function EsdevenimentsManager({
                               <span className="font-bold text-amber-700 dark:text-amber-400">{formatCurrency(linia.preuFira)}</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-primary">{linia.unitatsInicials}</td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{linia.unitatsVenudes || 0}</td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-primary">{totalObj}</td>
+                          <td className="py-2.5 px-3 text-center font-mono font-medium text-on-surface-variant">{linia.unitatsInicials || 0}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            {pendentsFabricar > 0 ? (
+                              <div className="inline-flex flex-col items-center gap-0.5">
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                                  🔨 {pendentsFabricar} ptes.
+                                </span>
+                                {linia.ofId ? (
+                                  <span className="text-[10px] font-mono text-on-surface-variant/80" title="Ordre de Fabricació creada">
+                                    OF: {linia.ofId}
+                                  </span>
+                                ) : currentEvent.estat !== 'tancat' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLlençarOFManualPerLinia(linia)}
+                                    className="text-[10px] text-amber-700 dark:text-amber-400 hover:underline font-semibold cursor-pointer"
+                                    title="Llençar OF a taller per a les peces pendents"
+                                  >
+                                    + Llençar OF
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-on-surface-variant/40 font-mono text-[11px]">-</span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 text-center font-mono font-bold">
                             <span className={`px-2 py-0.5 rounded-full text-xs ${
-                              linia.unitatsRestants > 2 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                              linia.unitatsRestants > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                              'bg-red-50 text-red-700 border border-red-200'
+                              linia.unitatsRestants > 2 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
+                              linia.unitatsRestants > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' :
+                              'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800'
                             }`}>
                               {linia.unitatsRestants}
                             </span>
                           </td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{linia.unitatsVenudes || 0}</td>
                           <td className="py-2.5 px-3">
                             <div className="w-24 bg-surface-container rounded-full h-2 overflow-hidden border border-outline/10">
                               <div
@@ -1423,9 +1802,32 @@ export default function EsdevenimentsManager({
                           </td>
                           <td className="py-2.5 px-4 text-right">
                             {currentEvent.estat !== 'tancat' && (
-                              <div className="flex items-center justify-end gap-1.5">
+                              <div className="flex items-center justify-end gap-1 flex-wrap">
+                                {pendentsFabricar > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const qStr = prompt(`Quantes peces fabricades de "${linia.nom}" vols incorporar ara a la parada? (Màx pendents: ${pendentsFabricar})`, String(pendentsFabricar));
+                                      if (qStr) handleIncorporarPecesFabricades(linia, qStr);
+                                    }}
+                                    className="px-2 py-1 rounded-md text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300/60 dark:border-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-2xs"
+                                    title="Incorporar peces que ja s'han fabricat a la parada"
+                                  >
+                                    <PlusCircle className="w-3 h-3" />
+                                    <span>Incorporar</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditLinia(linia)}
+                                  className="p-1 rounded-md text-on-surface-variant hover:text-amber-700 hover:bg-surface transition-colors cursor-pointer"
+                                  title="Editar condicions (objectiu fira, estoc agafat, preu...)"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
                                 {linia.unitatsRestants > 0 && (
                                   <button
+                                    type="button"
                                     onClick={() => {
                                       const qStr = prompt(`Quantes unitats de "${linia.nom}" vols retornar al taller ara mateix? (Màx: ${linia.unitatsRestants})`, "1");
                                       if (qStr) handleRetornParcialPeça(linia.productId, parseInt(qStr, 10));
@@ -1436,6 +1838,14 @@ export default function EsdevenimentsManager({
                                     <RotateCcw className="w-3.5 h-3.5" />
                                   </button>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleEliminarLiniaFira(linia)}
+                                  className="p-1 rounded-md text-on-surface-variant hover:text-red-600 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  title="Eliminar aquesta peça de la fira (les unitats restants tornen al taller)"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             )}
                           </td>
@@ -1960,9 +2370,14 @@ export default function EsdevenimentsManager({
             <div className="flex items-center justify-between border-b border-outline/15 pb-3 shrink-0">
               <div className="flex items-center gap-2">
                 <Boxes className="w-5 h-5 text-amber-600" />
-                <h3 className="text-base font-serif font-bold text-primary">
-                  Traspassar Peça del Taller a la Fira
-                </h3>
+                <div>
+                  <h3 className="text-base font-serif font-bold text-primary">
+                    Assignar Peça a l'Esdeveniment
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    Defineix quantes en vols portar, quantes n'agafes d'estoc i la resta quedarà pendent per fabricar.
+                  </p>
+                </div>
               </div>
               <button onClick={() => setShowAddProductModal(false)} className="p-1 rounded-lg text-on-surface-variant hover:bg-surface">
                 <X className="w-4 h-4" />
@@ -1992,6 +2407,7 @@ export default function EsdevenimentsManager({
                 .slice(0, 30)
                 .map(p => {
                   const estocTaller = parseInt(p.estocActual, 10) || 0;
+                  const estocPositiu = Math.max(0, estocTaller);
                   const isSelected = selectedProductToAdd?.id === p.id;
                   const fotoUrl = getProductImage(p);
 
@@ -2001,6 +2417,11 @@ export default function EsdevenimentsManager({
                       onClick={() => {
                         setSelectedProductToAdd(p);
                         setPreuFiraInput(String(p.preu || ''));
+                        const defTot = 5;
+                        setQuantitatTotalFira(defTot);
+                        setQuantitatAgafadaEstoc(Math.min(defTot, estocPositiu));
+                        setCrearOFPerPendent(true);
+                        setPrioritatOFInput('normal');
                       }}
                       className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                         isSelected
@@ -2038,9 +2459,9 @@ export default function EsdevenimentsManager({
 
                       <div className="text-right shrink-0 text-xs font-mono">
                         <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                          estocTaller > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                          estocTaller > 0 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
                         }`}>
-                          {estocTaller} disp. taller
+                          {estocTaller > 0 ? `${estocTaller} disp. taller` : 'Sense estoc al taller'}
                         </span>
                       </div>
                     </div>
@@ -2048,14 +2469,21 @@ export default function EsdevenimentsManager({
                 })}
             </div>
 
-            {/* Opcions de traspàs si hi ha producte seleccionat */}
-            {selectedProductToAdd && (
-              <div className="p-4 bg-surface rounded-xl border border-outline/20 space-y-3 shrink-0 text-xs animate-fadeIn">
-                <div className="flex items-center gap-3 pb-3 border-b border-outline/10">
-                  {(() => {
-                    const selImg = getProductImage(selectedProductToAdd);
-                    return (
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+            {/* Opcions d'assignació quan hi ha un producte seleccionat */}
+            {selectedProductToAdd && (() => {
+              const estocTaller = parseInt(selectedProductToAdd.estocActual, 10) || 0;
+              const estocDisponible = Math.max(0, estocTaller);
+              const numTotalFira = Math.max(1, parseInt(quantitatTotalFira, 10) || 1);
+              const numAgafadaEstoc = Math.max(0, Math.min(parseInt(quantitatAgafadaEstoc, 10) || 0, numTotalFira, estocDisponible));
+              const numPendentFabricar = Math.max(0, numTotalFira - numAgafadaEstoc);
+              const selImg = getProductImage(selectedProductToAdd);
+
+              return (
+                <div className="p-4 bg-surface rounded-xl border border-outline/20 space-y-3 shrink-0 text-xs animate-fadeIn">
+                  {/* Capçalera del Producte Seleccionat amb Informació d'Estoc */}
+                  <div className="flex items-center justify-between gap-3 pb-3 border-b border-outline/10">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
                         {selImg ? (
                           <img 
                             src={selImg} 
@@ -2076,72 +2504,515 @@ export default function EsdevenimentsManager({
                           <Package className="w-5 h-5" />
                         </div>
                       </div>
-                    );
-                  })()}
-                  <div className="min-w-0">
-                    <h4 className="font-serif font-bold text-xs text-primary truncate">{selectedProductToAdd.nom}</h4>
-                    <p className="font-mono text-[10px] text-on-surface-variant">{selectedProductToAdd.codi || '-'}</p>
+                      <div className="min-w-0">
+                        <h4 className="font-serif font-bold text-sm text-primary truncate">{selectedProductToAdd.nom}</h4>
+                        <p className="font-mono text-[10px] text-on-surface-variant">{selectedProductToAdd.codi || '-'} • PVP: {formatCurrency(selectedProductToAdd.preu)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Estoc al taller</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 ${
+                        estocTaller > 0
+                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/50'
+                          : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300/50'
+                      }`}>
+                        {estocTaller} unitats
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-primary">Quantitat a traspassar a la fira:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={quantitatTraspas}
-                    onChange={(e) => setQuantitatTraspas(e.target.value)}
-                    className="w-24 p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary"
-                  />
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-primary block">Preu Fira Promocional (€):</span>
-                    <span className="text-[10px] text-on-surface-variant">PVP Normal de catàleg: {formatCurrency(selectedProductToAdd.preu)}</span>
+                  {/* 1. QUANTITAT TOTAL A PORTAR A LA FIRA (Independent de l'estoc) */}
+                  <div className="p-3 bg-surface-container/30 rounded-xl border border-outline/15 space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <span className="font-bold text-primary text-xs block">1. Quantitat total que vols portar a la fira:</span>
+                        <span className="text-[10px] text-on-surface-variant">Independent de l'estoc actual, quantes en vols tenir a la parada?</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="number"
+                          min="1"
+                          value={quantitatTotalFira}
+                          onChange={(e) => {
+                            const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                            setQuantitatTotalFira(val);
+                            if (parseInt(quantitatAgafadaEstoc, 10) > val) {
+                              setQuantitatAgafadaEstoc(Math.min(val, estocDisponible));
+                            }
+                          }}
+                          className="w-20 p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                        />
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setQuantitatTotalFira((parseInt(quantitatTotalFira, 10) || 0) + 1)}
+                            className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                          >
+                            +1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQuantitatTotalFira((parseInt(quantitatTotalFira, 10) || 0) + 5)}
+                            className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                          >
+                            +5
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="number"
-                    step="any"
-                    value={preuFiraInput}
-                    onChange={(e) => setPreuFiraInput(e.target.value)}
-                    className="w-24 p-1.5 text-right bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-amber-700"
-                  />
-                </div>
 
-                {/* Si no hi ha prou estoc al taller, oferir crear OF */}
-                {(parseInt(selectedProductToAdd.estocActual, 10) || 0) < parseInt(quantitatTraspas, 10) && (
-                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
-                    <span>⚠️ Manca estoc al taller ({selectedProductToAdd.estocActual || 0} de {quantitatTraspas}).</span>
-                    <button
-                      type="button"
-                      onClick={() => handleLlençarOFPerAFalta(selectedProductToAdd, Math.max(1, parseInt(quantitatTraspas, 10) - (parseInt(selectedProductToAdd.estocActual, 10) || 0)))}
-                      className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-md text-[11px] font-bold shrink-0 cursor-pointer shadow-xs"
-                    >
-                      Llençar OF a Taller
-                    </button>
+                  {/* 2. DUES DECISIONS COMPLEMENTÀRIES: ESTOC vs FABRICACIÓ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Decisió 2A: Quantitat a agafar de l'estoc */}
+                    <div className="p-3 bg-surface-container/20 rounded-xl border border-outline/15 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <span className="font-bold text-primary text-xs block">2A. Agafar de l'estoc del taller:</span>
+                        <span className="text-[10px] text-on-surface-variant block mt-0.5">
+                          Disponible: <strong className="font-mono text-primary">{estocDisponible}</strong> unitats
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 pt-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max={Math.min(numTotalFira, estocDisponible)}
+                          value={quantitatAgafadaEstoc}
+                          onChange={(e) => {
+                            const raw = parseInt(e.target.value, 10);
+                            if (isNaN(raw)) {
+                              setQuantitatAgafadaEstoc('');
+                            } else {
+                              setQuantitatAgafadaEstoc(Math.max(0, Math.min(raw, numTotalFira, estocDisponible)));
+                            }
+                          }}
+                          className="w-full p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setQuantitatAgafadaEstoc(Math.min(numTotalFira, estocDisponible))}
+                            className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-primary text-center cursor-pointer transition-colors"
+                            title="Agafar tot el que hi ha disponible d'estoc fins a cobrir l'objectiu"
+                          >
+                            Tot ({Math.min(numTotalFira, estocDisponible)})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setQuantitatAgafadaEstoc(0)}
+                            className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-on-surface-variant text-center cursor-pointer transition-colors"
+                            title="No tocar l'estoc del taller"
+                          >
+                            Gens (0)
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant/80 pt-0.5">
+                          📦 Es descomptaran <strong className="text-primary font-mono">{numAgafadaEstoc}</strong> unitats de l'estoc del taller (en restaran {Math.max(0, estocTaller - numAgafadaEstoc)}).
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Decisió 2B: Pendent per fabricar */}
+                    <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between transition-colors ${
+                      numPendentFabricar > 0
+                        ? 'bg-amber-500/10 border-amber-500/30'
+                        : 'bg-emerald-500/10 border-emerald-500/30'
+                    }`}>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                          <span className="font-bold text-xs text-primary">2B. Pendent per fabricar:</span>
+                        </div>
+                        <div className="mt-1 flex items-baseline gap-1.5">
+                          <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                            {numPendentFabricar}
+                          </span>
+                          <span className="text-[11px] text-on-surface-variant">unitats que falten</span>
+                        </div>
+                      </div>
+
+                      {numPendentFabricar > 0 ? (
+                        <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                          <label className="flex items-start gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={crearOFPerPendent}
+                              onChange={(e) => setCrearOFPerPendent(e.target.checked)}
+                              className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                            />
+                            <span className="text-[11px] font-semibold text-primary leading-tight">
+                              Llençar automàticament Ordre de Fabricació (OF) per a les {numPendentFabricar} unitats
+                            </span>
+                          </label>
+
+                          {crearOFPerPendent && (
+                            <div className="pl-5 space-y-1.5 pt-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold text-on-surface-variant shrink-0">Prioritat:</span>
+                                <select
+                                  value={prioritatOFInput}
+                                  onChange={(e) => setPrioritatOFInput(e.target.value)}
+                                  className="px-2 py-1 rounded-lg border border-outline/25 bg-surface text-xs font-mono font-bold text-primary outline-none focus:border-amber-500 cursor-pointer"
+                                >
+                                  <option value="normal">⚪ Normal (Per defecte)</option>
+                                  <option value="rapid">⚡ Ràpid</option>
+                                  <option value="urgent">🟠 Urgent</option>
+                                  <option value="tragic">🔴 Tràgic</option>
+                                </select>
+                              </div>
+                              <p className="text-[10px] text-on-surface-variant">
+                                Client: "Estoc fira" • Comanda: "{currentEvent.nom}" • Data límit: {currentEvent.dataInici || 'Fira'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-emerald-500/20">
+                          <p className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                            ✓ Objectiu cobert al 100% amb l'estoc del taller. No caldrà fabricar-ne cap.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Preu Fira Promocional */}
+                  <div className="flex items-center justify-between p-2.5 bg-surface-container/20 rounded-xl border border-outline/15">
+                    <div>
+                      <span className="font-semibold text-primary block text-xs">Preu Fira Promocional (€):</span>
+                      <span className="text-[10px] text-on-surface-variant">PVP Normal de catàleg: {formatCurrency(selectedProductToAdd.preu)}</span>
+                    </div>
+                    <input
+                      type="number"
+                      step="any"
+                      value={preuFiraInput}
+                      onChange={(e) => setPreuFiraInput(e.target.value)}
+                      className="w-24 p-1.5 text-right bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-amber-700 dark:text-amber-400 focus:border-amber-500 outline-none"
+                    />
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline/15 shrink-0">
               <button
                 onClick={() => setShowAddProductModal(false)}
-                className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold"
+                className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Cancel·lar
               </button>
               <button
                 disabled={!selectedProductToAdd}
-                onClick={handleTraspasAFira}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold disabled:opacity-40 cursor-pointer shadow-xs"
+                onClick={handleAssignarAFira}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold disabled:opacity-40 cursor-pointer shadow-xs transition-all"
               >
-                Confirmar Traspàs a Fira
+                Confirmar Assignació a la Fira
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ===================================================================
+          MODAL: EDITAR CONDICIONS DE LA PEÇA ASSIGNADA A LA FIRA
+          =================================================================== */}
+      {editingLinia && (() => {
+        const prod = productes.find(p => p.id === editingLinia.productId);
+        const estocTaller = prod ? (parseInt(prod.estocActual, 10) || 0) : 0;
+        const fotoUrl = getProductImage(editingLinia);
+        const venudes = editingLinia.unitatsVenudes || 0;
+        const inicialsOriginals = editingLinia.unitatsInicials || 0;
+
+        const numTotalFira = Math.max(1, parseInt(editLiniaForm.unitatsPrevistes, 10) || 1);
+        const numAgafadaEstoc = Math.max(0, parseInt(editLiniaForm.unitatsInicials, 10) || 0);
+        const deltaEstoc = numAgafadaEstoc - inicialsOriginals;
+        const numPendentFabricar = Math.max(0, numTotalFira - numAgafadaEstoc);
+        const maxDisponibleTotal = inicialsOriginals + Math.max(0, estocTaller);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-surface-container-lowest max-w-xl w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-4 animate-fadeIn max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-outline/15 pb-3 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <Edit3 className="w-5 h-5 text-amber-600" />
+                  <div>
+                    <h3 className="text-base font-serif font-bold text-primary">
+                      Modificar Condicions a la Fira
+                    </h3>
+                    <p className="text-[11px] text-on-surface-variant">
+                      Ajusta l'objectiu, la quantitat agafada de l'estoc del taller, les peces pendents o el preu promocional.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setEditingLinia(null)} 
+                  className="p-1 rounded-lg text-on-surface-variant hover:bg-surface cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto space-y-3 flex-1 pr-1 text-xs">
+                {/* Info Peça */}
+                <div className="flex items-center justify-between gap-3 p-3 bg-surface rounded-xl border border-outline/15">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                      {fotoUrl ? (
+                        <img 
+                          src={fotoUrl} 
+                          alt={editingLinia.nom} 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextElementSibling) {
+                              e.currentTarget.nextElementSibling.style.display = 'flex';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                        style={{ display: fotoUrl ? 'none' : 'flex' }}
+                      >
+                        <Package className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-serif font-bold text-sm text-primary truncate">{editingLinia.nom}</h4>
+                      <p className="font-mono text-[10px] text-on-surface-variant">
+                        {editingLinia.codi ? `Codi: ${editingLinia.codi} • ` : ''}PVP Normal: {formatCurrency(editingLinia.preuOriginal || prod?.preu)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Estoc al taller</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 ${
+                      estocTaller > 0
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/50'
+                        : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300/50'
+                    }`}>
+                      {estocTaller} disp. al taller
+                    </span>
+                  </div>
+                </div>
+
+                {/* Avis si ja hi ha vendes */}
+                {venudes > 0 && (
+                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50 flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-300">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>
+                      Ja s'han venut <strong>{venudes} unitats</strong> en aquesta fira. La quantitat portada no pot ser inferior a aquest nombre.
+                    </span>
+                  </div>
+                )}
+
+                {/* 1. Objectiu Total Fira */}
+                <div className="p-3 bg-surface-container/30 rounded-xl border border-outline/15 space-y-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <span className="font-bold text-primary text-xs block">1. Quantitat total objectiu per a la fira:</span>
+                      <span className="text-[10px] text-on-surface-variant">Quantes peces en total voldries portar/haver tingut a la parada.</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min={Math.max(1, venudes)}
+                        value={editLiniaForm.unitatsPrevistes}
+                        onChange={(e) => {
+                          const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+                          setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: val }));
+                        }}
+                        className="w-20 p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                      />
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: (parseInt(prev.unitatsPrevistes, 10) || 0) + 1 }))}
+                          className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                        >
+                          +1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: (parseInt(prev.unitatsPrevistes, 10) || 0) + 5 }))}
+                          className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                        >
+                          +5
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Dues decisions complementàries: Estoc vs Pendent */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 2A. Quantitat agafada de l'estoc */}
+                  <div className="p-3 bg-surface-container/20 rounded-xl border border-outline/15 space-y-2 flex flex-col justify-between">
+                    <div>
+                      <span className="font-bold text-primary text-xs block">2A. Agafades de l'estoc del taller:</span>
+                      <span className="text-[10px] text-on-surface-variant block mt-0.5">
+                        Actualment a parada: <strong className="font-mono text-primary">{editingLinia.unitatsRestants || 0}</strong> restants (de {inicialsOriginals} agafades inicialment).
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 pt-1">
+                      <input
+                        type="number"
+                        min={venudes}
+                        max={maxDisponibleTotal}
+                        value={editLiniaForm.unitatsInicials}
+                        onChange={(e) => {
+                          const raw = parseInt(e.target.value, 10);
+                          if (isNaN(raw)) {
+                            setEditLiniaForm(prev => ({ ...prev, unitatsInicials: '' }));
+                          } else {
+                            setEditLiniaForm(prev => ({ ...prev, unitatsInicials: Math.max(venudes, Math.min(raw, maxDisponibleTotal)) }));
+                          }
+                        }}
+                        className="w-full p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsInicials: Math.min(numTotalFira, maxDisponibleTotal) }))}
+                          className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-primary text-center cursor-pointer transition-colors"
+                          title="Agafar el màxim possible fins a cobrir l'objectiu"
+                        >
+                          Màx ({Math.min(numTotalFira, maxDisponibleTotal)})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsInicials: venudes }))}
+                          className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-on-surface-variant text-center cursor-pointer transition-colors"
+                          title="Deixar només les que ja s'han venut i retornar la resta al taller"
+                        >
+                          Mín ({venudes})
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-on-surface-variant/80 pt-0.5 leading-tight">
+                        {deltaEstoc > 0 ? (
+                          <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                            📦 Es trauran <strong>+{deltaEstoc}</strong> unitats més de l'estoc del taller (en restaran {Math.max(0, estocTaller - deltaEstoc)}).
+                          </span>
+                        ) : deltaEstoc < 0 ? (
+                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                            ↩️ Es retornaran <strong>{Math.abs(deltaEstoc)}</strong> unitats al taller (en passaran a haver {estocTaller + Math.abs(deltaEstoc)}).
+                          </span>
+                        ) : (
+                          <span>Sense canvi en l'estoc del taller.</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 2B. Pendent per fabricar */}
+                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between transition-colors ${
+                    numPendentFabricar > 0
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : 'bg-emerald-500/10 border-emerald-500/30'
+                  }`}>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                        <span className="font-bold text-xs text-primary">2B. Pendent per fabricar:</span>
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                          {numPendentFabricar}
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant">unitats</span>
+                      </div>
+                    </div>
+
+                    {numPendentFabricar > 0 ? (
+                      <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editLiniaForm.crearOF}
+                            onChange={(e) => setEditLiniaForm(prev => ({ ...prev, crearOF: e.target.checked }))}
+                            className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <span className="text-[11px] font-semibold text-primary leading-tight">
+                            Llençar Ordre de Fabricació (OF) per a les {numPendentFabricar} unitats
+                          </span>
+                        </label>
+
+                        {editLiniaForm.crearOF && (
+                          <div className="pl-5 space-y-1.5 pt-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] uppercase font-bold text-on-surface-variant shrink-0">Prioritat:</span>
+                              <select
+                                value={editLiniaForm.prioritatOF}
+                                onChange={(e) => setEditLiniaForm(prev => ({ ...prev, prioritatOF: e.target.value }))}
+                                className="px-2 py-1 rounded-lg border border-outline/25 bg-surface text-xs font-mono font-bold text-primary outline-none focus:border-amber-500 cursor-pointer"
+                              >
+                                <option value="normal">⚪ Normal</option>
+                                <option value="rapid">⚡ Ràpid</option>
+                                <option value="urgent">🟠 Urgent</option>
+                                <option value="tragic">🔴 Tràgic</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="pt-2 border-t border-emerald-500/20">
+                        <p className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                          ✓ Objectiu cobert al 100% amb l'estoc.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preu Fira Promocional */}
+                <div className="flex items-center justify-between p-2.5 bg-surface-container/20 rounded-xl border border-outline/15">
+                  <div>
+                    <span className="font-semibold text-primary block text-xs">Preu Fira Promocional (€):</span>
+                    <span className="text-[10px] text-on-surface-variant">PVP Normal de catàleg: {formatCurrency(editingLinia.preuOriginal || prod?.preu)}</span>
+                  </div>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editLiniaForm.preuFira}
+                    onChange={(e) => setEditLiniaForm(prev => ({ ...prev, preuFira: e.target.value }))}
+                    className="w-24 p-1.5 text-right bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-amber-700 dark:text-amber-400 focus:border-amber-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Botons peu de modal */}
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-outline/15 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleEliminarLiniaFira(editingLinia)}
+                  className="px-3 py-2 text-red-600 hover:bg-red-500/10 rounded-xl text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar de la fira</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingLinia(null)}
+                    className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEditLinia}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all"
+                  >
+                    Guardar Canvis
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===================================================================
           MODAL: CONFIRMACIÓ DE TANCAMENT I OPCIONS DE RETORN D'ESTOCS

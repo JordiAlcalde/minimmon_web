@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  ClipboardList, Plus, Search, Filter, Calendar, Clock, AlertTriangle, 
+  ClipboardList, Plus, Minus, Search, Filter, Calendar, Clock, AlertTriangle, 
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
   Package, Wrench, Layers, User, Phone, Sparkles, Check, ChevronDown, 
   ArrowLeft, RotateCw, FileText, Download, ChevronRight, BarChart2, Flame,
-  Boxes, Factory, HelpCircle
+  Boxes, Factory, HelpCircle, Zap
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -140,6 +140,37 @@ export const formatOFDateOnly = (dateStr) => {
   }
 };
 
+// Normalitza l'estat d'una OF per acceptar variants històriques o externes (ex: 'Pendent' o majúscules)
+export const normalizeOFStatus = (status) => {
+  if (!status) return 'cua';
+  const s = String(status).toLowerCase().trim();
+  if (s === 'cua' || s === 'en cua' || s === 'pendent' || s === 'en_espera' || s === 'espera') return 'cua';
+  if (s === 'en_curs' || s === 'en curs' || s === 'curs' || s === 'produccio' || s === 'en producció' || s === 'en produccio') return 'en_curs';
+  if (s === 'acabats' || s === 'en acabats' || s === 'en_acabats' || s === 'acabat') return 'acabats';
+  if (s === 'finalitzada' || s === 'finalitzat' || s === 'completat' || s === 'completada') return 'finalitzada';
+  if (s === 'cancel·lada' || s === 'cancel.lada' || s === 'cancelada' || s === 'anul·lada') return 'cancel·lada';
+  return s;
+};
+
+// Determina si una OF permet canviar la quantitat (només 'cua' o 'en_curs')
+export const isEditableOFStatus = (status) => {
+  const norm = normalizeOFStatus(status);
+  return norm === 'cua' || norm === 'en_curs';
+};
+
+// Retorna l'etiqueta descriptiva en català per a qualsevol estat d'OF
+export const getOFStatusLabel = (status) => {
+  const norm = normalizeOFStatus(status);
+  switch (norm) {
+    case 'cua': return 'En Cua';
+    case 'en_curs': return 'En Curs';
+    case 'acabats': return 'En Acabats';
+    case 'finalitzada': return 'Finalitzada';
+    case 'cancel·lada': return 'Cancel·lada';
+    default: return status || 'En Cua';
+  }
+};
+
 export default function OrdresFabricacioManager({
   ordresFabricacio = [],
   setOrdresFabricacio,
@@ -166,7 +197,7 @@ export default function OrdresFabricacioManager({
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [selectedOFDetail, setSelectedOFDetail] = useState(null);
   const [printOF, setPrintOF] = useState(null);
-  const [stockAllocationModal, setStockAllocationModal] = useState(null);
+  const [closingOFModal, setClosingOFModal] = useState(null);
 
   // Sol·licituds / Pressupostos web pendents (llegits en temps real de Firestore)
   const [webBudgets, setWebBudgets] = useState([]);
@@ -206,12 +237,17 @@ export default function OrdresFabricacioManager({
   // Recomptes per a les mètriques d'estat
   const stats = useMemo(() => {
     const total = ordresFabricacio.length;
-    const cua = ordresFabricacio.filter(o => o.estat === 'cua').length;
-    const enCurs = ordresFabricacio.filter(o => o.estat === 'en_curs').length;
-    const acabats = ordresFabricacio.filter(o => o.estat === 'acabats').length;
-    const finalitzada = ordresFabricacio.filter(o => o.estat === 'finalitzada').length;
-    const cancel·lada = ordresFabricacio.filter(o => o.estat === 'cancel·lada').length;
-    const urgents = ordresFabricacio.filter(o => o.prioritat === 'urgent' && o.estat !== 'finalitzada' && o.estat !== 'cancel·lada').length;
+    const cua = ordresFabricacio.filter(o => normalizeOFStatus(o.estat) === 'cua').length;
+    const enCurs = ordresFabricacio.filter(o => normalizeOFStatus(o.estat) === 'en_curs').length;
+    const acabats = ordresFabricacio.filter(o => normalizeOFStatus(o.estat) === 'acabats').length;
+    const finalitzada = ordresFabricacio.filter(o => normalizeOFStatus(o.estat) === 'finalitzada').length;
+    const cancel·lada = ordresFabricacio.filter(o => normalizeOFStatus(o.estat) === 'cancel·lada').length;
+    const urgents = ordresFabricacio.filter(o => {
+      const normEstat = normalizeOFStatus(o.estat);
+      const p = (o.prioritat || 'normal').toLowerCase();
+      const isUrgent = p === 'urgent' || p === 'tragic' || p === 'tràgic' || p === 'alta';
+      return isUrgent && normEstat !== 'finalitzada' && normEstat !== 'cancel·lada';
+    }).length;
 
     return { total, cua, enCurs, acabats, finalitzada, cancel·lada, urgents };
   }, [ordresFabricacio]);
@@ -226,13 +262,27 @@ export default function OrdresFabricacioManager({
       }
 
       // Filtre d'Estat
-      if (selectedStatusFilter !== 'all' && of.estat !== selectedStatusFilter) {
+      if (selectedStatusFilter !== 'all' && normalizeOFStatus(of.estat) !== selectedStatusFilter) {
         return false;
       }
 
-      // Filtre de Prioritat
-      if (selectedPriorityFilter !== 'all' && of.prioritat !== selectedPriorityFilter) {
-        return false;
+      // Filtre de Prioritat (Normal / Ràpid / Urgent / Tràgic)
+      if (selectedPriorityFilter !== 'all') {
+        const ofP = (of.prioritat || 'normal').toLowerCase();
+        const selP = selectedPriorityFilter.toLowerCase();
+        if (selP === 'urgent_only') {
+          if (ofP !== 'urgent' && ofP !== 'tragic' && ofP !== 'tràgic' && ofP !== 'alta') return false;
+        } else if (selP === 'tragic') {
+          if (ofP !== 'tragic' && ofP !== 'tràgic') return false;
+        } else if (selP === 'urgent') {
+          if (ofP !== 'urgent' && ofP !== 'alta') return false;
+        } else if (selP === 'rapid') {
+          if (ofP !== 'rapid' && ofP !== 'ràpid') return false;
+        } else if (selP === 'normal') {
+          if (ofP !== 'normal' && ofP !== '' && ofP !== 'baixa') return false;
+        } else if (ofP !== selP) {
+          return false;
+        }
       }
 
       // Filtre de Cerca (text)
@@ -251,21 +301,127 @@ export default function OrdresFabricacioManager({
 
       return true;
     }).sort((a, b) => {
-      // Prioritzar urgents i després data de creació descendent
-      if (a.prioritat === 'urgent' && b.prioritat !== 'urgent' && a.estat !== 'finalitzada' && a.estat !== 'cancel·lada') return -1;
-      if (b.prioritat === 'urgent' && a.prioritat !== 'urgent' && b.estat !== 'finalitzada' && b.estat !== 'cancel·lada') return 1;
+      // Prioritzar per nivell de prioritat (Tràgic > Urgent > Ràpid > Normal) i després data de creació descendent
+      const priorityWeights = {
+        'tragic': 4,
+        'tràgic': 4,
+        'urgent': 3,
+        'alta': 3,
+        'rapid': 2,
+        'ràpid': 2,
+        'normal': 1,
+        'baixa': 0
+      };
+      const aWeight = priorityWeights[(a.prioritat || 'normal').toLowerCase()] ?? 1;
+      const bWeight = priorityWeights[(b.prioritat || 'normal').toLowerCase()] ?? 1;
+      const aNorm = normalizeOFStatus(a.estat);
+      const bNorm = normalizeOFStatus(b.estat);
+      const aClosed = aNorm === 'finalitzada' || aNorm === 'cancel·lada';
+      const bClosed = bNorm === 'finalitzada' || bNorm === 'cancel·lada';
+
+      if (!aClosed && bClosed) return -1;
+      if (aClosed && !bClosed) return 1;
+
+      if (!aClosed && !bClosed && aWeight !== bWeight) {
+        return bWeight - aWeight; // Major prioritat primer
+      }
+
       return (b.id || '').localeCompare(a.id || '');
     });
   }, [ordresFabricacio, selectedYear, selectedStatusFilter, selectedPriorityFilter, searchQuery]);
 
-  // Canviar estat d'una OF amb gestió d'estoc (Reservat / Físic / Disponible)
-  const handleChangeStatus = (ofId, newStatus) => {
+  // Editar la quantitat d'una OF en estat 'cua' o 'en_curs' amb recalibrament de materials i estocs reservats
+  const handleUpdateOFQuantitat = (ofId, newQuantity) => {
+    const qty = parseInt(newQuantity, 10);
+    if (isNaN(qty) || qty <= 0) return;
+
     setOrdresFabricacio(prevOFs => {
       const targetOF = prevOFs.find(o => o.id === ofId);
       if (!targetOF) return prevOFs;
 
-      const oldStatus = targetOF.estat;
-      if (oldStatus === newStatus) return prevOFs;
+      if (!isEditableOFStatus(targetOF.estat)) {
+        alert("Només es pot editar la quantitat d'una OF si està 'En Cua' o 'En Curs'.");
+        return prevOFs;
+      }
+
+      const oldQty = targetOF.quantitat || 1;
+      if (oldQty === qty) return prevOFs;
+
+      // Recalcular materials de l'ordre
+      let updatedMaterials = targetOF.materials;
+      if (Array.isArray(targetOF.materials) && targetOF.materials.length > 0) {
+        updatedMaterials = targetOF.materials.map(m => {
+          const qUnit = m.quantitatTeoricaUnitat || (m.quantitatTotal ? (m.quantitatTotal / oldQty) : 0);
+          const newTotal = qUnit * qty;
+          return {
+            ...m,
+            quantitatTeoricaUnitat: qUnit,
+            quantitatTotal: newTotal,
+            estocReservat: newTotal
+          };
+        });
+
+        // Actualitzar l'estoc reservat de materials si el setter està disponible
+        if (setMaterials) {
+          setMaterials(prevMats => {
+            return prevMats.map(mat => {
+              const oldMatEntry = targetOF.materials.find(m => m.materialId === mat.id);
+              if (!oldMatEntry) return mat;
+              const qUnit = oldMatEntry.quantitatTeoricaUnitat || (oldMatEntry.quantitatTotal ? (oldMatEntry.quantitatTotal / oldQty) : 0);
+              const oldTotal = oldMatEntry.quantitatTotal || 0;
+              const newTotal = qUnit * qty;
+              const diff = newTotal - oldTotal;
+
+              const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
+              const estocReservat = Math.max(0, (mat.estocReservat || 0) + diff);
+              return {
+                ...mat,
+                estocFisic,
+                estocReservat,
+                estocDisponible: Math.max(0, estocFisic - estocReservat),
+                estoc: estocFisic
+              };
+            });
+          });
+        }
+      }
+
+      // Recalcular temps teòrics d'operacions
+      let updatedOperacions = targetOF.operacions;
+      if (Array.isArray(targetOF.operacions) && targetOF.operacions.length > 0) {
+        updatedOperacions = targetOF.operacions.map(op => {
+          const tUnit = op.tempsTeoricUnitari || (op.tempsTeoricMinuts ? (op.tempsTeoricMinuts / oldQty) : 0);
+          return {
+            ...op,
+            tempsTeoricUnitari: tUnit,
+            tempsTeoricMinuts: tUnit * qty
+          };
+        });
+      }
+
+      const updatedOF = {
+        ...targetOF,
+        quantitat: qty,
+        materials: updatedMaterials,
+        operacions: updatedOperacions
+      };
+
+      if (selectedOFDetail && selectedOFDetail.id === ofId) {
+        setSelectedOFDetail(updatedOF);
+      }
+
+      return prevOFs.map(o => o.id === ofId ? updatedOF : o);
+    });
+  };
+
+  // Aplicar canvi d'estat d'una OF amb gestió d'estoc (Reservat / Físic / Disponible)
+  const applyStatusChange = (ofId, newStatus, closingData = null) => {
+    setOrdresFabricacio(prevOFs => {
+      const targetOF = prevOFs.find(o => o.id === ofId);
+      if (!targetOF) return prevOFs;
+
+      const oldStatus = normalizeOFStatus(targetOF.estat);
+      if (oldStatus === newStatus && targetOF.estat === newStatus && !closingData) return prevOFs;
 
       // Actualitzar materials a MaterialsManager segons el canvi d'estat
       if (setMaterials && Array.isArray(targetOF.materials) && targetOF.materials.length > 0) {
@@ -311,33 +467,84 @@ export default function OrdresFabricacioManager({
         });
       }
 
-      return prevOFs.map(o => o.id === ofId ? { ...o, estat: newStatus } : o);
+      const updatedOF = {
+        ...targetOF,
+        estat: newStatus,
+        ...(closingData ? {
+          pecesBones: closingData.pecesBones,
+          pecesDefectuoses: closingData.pecesDefectuoses,
+          motiuDefecte: closingData.motiuDefecte || '',
+          destinacioEstoc: closingData.destinacio || 'cap',
+          dataFinalitzacio: new Date().toISOString()
+        } : {})
+      };
+
+      return prevOFs.map(o => o.id === ofId ? updatedOF : o);
     });
 
-    // Si passa a finalitzada, oferir assignar les peces fabricades a l'estoc del producte
-    const targetOF = ordresFabricacio.find(o => o.id === ofId);
-    if (targetOF && newStatus === 'finalitzada' && targetOF.estat !== 'finalitzada') {
-      if (setProductes && Array.isArray(productes) && productes.length > 0) {
-        const ofProdId = targetOF.producteId;
-        const ofNom = (targetOF.producteNom || targetOF.nom || '').toLowerCase();
-        const matchedProd = productes.find(p => 
-          (ofProdId && p.id === ofProdId) ||
-          (p.nom && (p.nom.toLowerCase() === ofNom || ofNom.includes(p.nom.toLowerCase()) || p.nom.toLowerCase().includes(ofNom)))
-        );
-        if (matchedProd) {
-          setStockAllocationModal({
-            ofId: targetOF.id,
-            ofNom: targetOF.producteNom || targetOF.nom,
-            product: matchedProd,
-            qty: Number(targetOF.quantitat || 1)
-          });
-        }
+    // Assignar peces correctes a l'estoc de productes si correspon
+    if (closingData && closingData.product && closingData.pecesBones > 0 && setProductes) {
+      if (closingData.destinacio === 'venda') {
+        setProductes(prev => prev.map(p => 
+          p.id === closingData.product.id 
+            ? { ...p, estocActual: (Number(p.estocActual) || 0) + closingData.pecesBones }
+            : p
+        ));
+      } else if (closingData.destinacio === 'mostres') {
+        setProductes(prev => prev.map(p => 
+          p.id === closingData.product.id 
+            ? { ...p, estocMostres: (Number(p.estocMostres) || 0) + closingData.pecesBones }
+            : p
+        ));
       }
     }
 
     if (selectedOFDetail && selectedOFDetail.id === ofId) {
-      setSelectedOFDetail(prev => prev ? { ...prev, estat: newStatus } : null);
+      setSelectedOFDetail(prev => prev ? {
+        ...prev,
+        estat: newStatus,
+        ...(closingData ? {
+          pecesBones: closingData.pecesBones,
+          pecesDefectuoses: closingData.pecesDefectuoses,
+          motiuDefecte: closingData.motiuDefecte || '',
+          destinacioEstoc: closingData.destinacio || 'cap',
+          dataFinalitzacio: new Date().toISOString()
+        } : {})
+      } : null);
     }
+  };
+
+  // Interceptor del canvi d'estat
+  const handleChangeStatus = (ofId, newStatus) => {
+    const targetOF = ordresFabricacio.find(o => o.id === ofId);
+    if (!targetOF) return;
+    const currentNorm = normalizeOFStatus(targetOF.estat);
+    if (currentNorm === newStatus && targetOF.estat === newStatus) return;
+
+    // Si passa a finalitzada, obrir el modal de control de qualitat i assignació d'estoc
+    if (newStatus === 'finalitzada' && currentNorm !== 'finalitzada') {
+      const ofProdId = targetOF.producteId;
+      const ofNom = (targetOF.producteNom || targetOF.nom || '').toLowerCase().trim();
+      const matchedProd = (productes || []).find(p => 
+        (ofProdId && p.id === ofProdId) ||
+        (p.nom && (p.nom.toLowerCase().trim() === ofNom || ofNom.includes(p.nom.toLowerCase().trim()) || p.nom.toLowerCase().trim().includes(ofNom)))
+      );
+
+      setClosingOFModal({
+        of: targetOF,
+        product: matchedProd || null,
+        totalQty: Number(targetOF.quantitat || 1)
+      });
+      return;
+    }
+
+    // Advertència en cas de reactivar una ordre finalitzada
+    if ((newStatus === 'cua' || newStatus === 'en_curs') && currentNorm === 'finalitzada') {
+      const confirma = window.confirm("Aquesta ordre ja estava finalitzada. Si la tornes a activar a 'En Cua' o 'En Curs', es revertirà el descompte físic de materials i tornaran a quedar reservats. Vols continuar?");
+      if (!confirma) return;
+    }
+
+    applyStatusChange(ofId, newStatus);
   };
 
   // Eliminar una OF
@@ -346,7 +553,8 @@ export default function OrdresFabricacioManager({
     
     // Si estava reservant estoc, alliberar-lo
     const targetOF = ordresFabricacio.find(o => o.id === ofId);
-    if (targetOF && (targetOF.estat === 'cua' || targetOF.estat === 'en_curs' || targetOF.estat === 'acabats') && setMaterials) {
+    const targetNorm = targetOF ? normalizeOFStatus(targetOF.estat) : '';
+    if (targetOF && (targetNorm === 'cua' || targetNorm === 'en_curs' || targetNorm === 'acabats') && setMaterials) {
       setMaterials(prevMats => {
         return prevMats.map(mat => {
           const ofMat = targetOF.materials?.find(m => m.materialId === mat.id);
@@ -506,9 +714,10 @@ export default function OrdresFabricacioManager({
                 }`}
               >
                 <option value="all" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Totes</option>
-                <option value="urgent" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🔴 Urgent</option>
                 <option value="normal" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>⚪ Normal</option>
-                <option value="baixa" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🔵 Baixa</option>
+                <option value="rapid" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>⚡ Ràpid</option>
+                <option value="urgent" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🟠 Urgent</option>
+                <option value="tragic" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🔴 Tràgic</option>
               </select>
             </div>
           </div>
@@ -548,29 +757,52 @@ export default function OrdresFabricacioManager({
                   const totalOps = of.operacions?.length || 0;
                   const completedOps = of.operacions?.filter(o => o.completada)?.length || 0;
                   const percentOps = totalOps > 0 ? Math.round((completedOps / totalOps) * 100) : 0;
+                  const p = (of.prioritat || 'normal').toLowerCase();
+                  const isClosed = normalizeOFStatus(of.estat) === 'finalitzada' || normalizeOFStatus(of.estat) === 'cancel·lada';
+                  const rowPriorityClass = !isClosed ? (
+                    (p === 'tragic' || p === 'tràgic') ? (isDark ? 'bg-rose-950/25 border-l-4 border-rose-500' : 'bg-rose-50/80 border-l-4 border-rose-500') :
+                    (p === 'urgent' || p === 'alta') ? (isDark ? 'bg-amber-950/20 border-l-4 border-amber-500' : 'bg-amber-50/60 border-l-4 border-amber-500') :
+                    (p === 'rapid' || p === 'ràpid') ? (isDark ? 'bg-sky-950/15 border-l-4 border-sky-400' : 'bg-sky-50/50 border-l-4 border-sky-400') :
+                    ''
+                  ) : '';
 
                   return (
                     <tr
                       key={of.id}
-                      className={`hover:bg-amber-500/10 transition-colors ${
-                        of.prioritat === 'urgent' && of.estat !== 'finalitzada' && of.estat !== 'cancel·lada'
-                          ? (isDark ? 'bg-rose-950/20' : 'bg-rose-50/60')
-                          : ''
-                      }`}
+                      className={`hover:bg-amber-500/10 transition-colors ${rowPriorityClass}`}
                     >
                       {/* Codi OF + Prioritat */}
                       <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-start gap-1">
                           <span className={`text-sm font-bold tracking-tight ${
                             isDark ? 'text-amber-400' : 'text-amber-700'
                           }`}>
                             {of.id}
                           </span>
-                          {of.prioritat === 'urgent' && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1">
-                              <Flame className="w-3 h-3" /> URGENT
-                            </span>
-                          )}
+                          {(() => {
+                            if (p === 'tragic' || p === 'tràgic') {
+                              return (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600/30 text-rose-400 border border-rose-500/50 flex items-center gap-1 animate-pulse">
+                                  <Flame className="w-3 h-3 text-rose-500" /> TRÀGIC
+                                </span>
+                              );
+                            }
+                            if (p === 'urgent' || p === 'alta') {
+                              return (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1">
+                                  <Flame className="w-3 h-3 text-amber-500" /> URGENT
+                                </span>
+                              );
+                            }
+                            if (p === 'rapid' || p === 'ràpid') {
+                              return (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40 flex items-center gap-1">
+                                  <Zap className="w-3 h-3 text-sky-400" /> RÀPID
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </td>
 
@@ -578,7 +810,7 @@ export default function OrdresFabricacioManager({
                       <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
                         <div className="space-y-0.5">
                           <div className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-                            Llançament: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatOFDateTime(of.dataCreacio)}</span>
+                            Inici: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatOFDateOnly(of.dataCreacio)}</span>
                           </div>
                           {of.dataLimitEntrega && (
                             <div className={isDark ? 'text-amber-300' : 'text-amber-700'}>
@@ -645,13 +877,53 @@ export default function OrdresFabricacioManager({
 
                       {/* Quantitat */}
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className={`font-mono font-bold text-sm px-3 py-1 rounded-xl border ${
-                          isDark 
-                            ? 'bg-slate-800 text-white border-slate-700' 
-                            : 'bg-slate-100 text-slate-900 border-slate-300'
-                        }`}>
-                          {of.quantitat} u
-                        </span>
+                        {isEditableOFStatus(of.estat) ? (
+                          <div className="inline-flex items-center justify-center gap-1 group/qty" title="Modifica la quantitat d'aquesta ordre (prem Enter o clica fora per confirmar)">
+                            <input
+                              type="number"
+                              min="1"
+                              defaultValue={of.quantitat}
+                              key={`${of.id}-${of.quantitat}`}
+                              onBlur={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (val && val > 0 && val !== of.quantitat) {
+                                  handleUpdateOFQuantitat(of.id, val);
+                                } else {
+                                  e.target.value = of.quantitat;
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.target.blur();
+                                }
+                              }}
+                              className={`w-16 py-1 px-1.5 text-center font-mono font-bold text-sm rounded-xl border outline-none transition-all cursor-text ${
+                                isDark 
+                                  ? 'bg-slate-800/90 text-amber-400 border-amber-500/40 hover:border-amber-400 focus:border-amber-400 focus:bg-slate-900 focus:ring-1 focus:ring-amber-500/50' 
+                                  : 'bg-amber-50/80 text-amber-800 border-amber-300 hover:border-amber-400 focus:border-amber-500 focus:bg-white focus:ring-1 focus:ring-amber-500/50'
+                              }`}
+                            />
+                            <span className={`text-xs font-mono font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>u</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`font-mono font-bold text-sm px-3 py-1 rounded-xl border ${
+                              isDark 
+                                ? 'bg-slate-800 text-white border-slate-700' 
+                                : 'bg-slate-100 text-slate-900 border-slate-300'
+                            }`}>
+                              {of.pecesBones !== undefined ? of.pecesBones : of.quantitat} u
+                            </span>
+                            {of.pecesDefectuoses > 0 && (
+                              <span 
+                                className="text-[10px] font-mono font-semibold text-rose-500 dark:text-rose-400 flex items-center gap-0.5" 
+                                title={of.motiuDefecte ? `Motiu: ${of.motiuDefecte}` : 'Peces rebutjades amb tara'}
+                              >
+                                <AlertTriangle className="w-3 h-3" /> {of.pecesDefectuoses} defect.
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Full de Ruta (Progrés) */}
@@ -678,7 +950,7 @@ export default function OrdresFabricacioManager({
                       <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <div className="relative inline-block">
                           <select
-                            value={of.estat}
+                            value={normalizeOFStatus(of.estat)}
                             onChange={(e) => handleChangeStatus(of.id, e.target.value)}
                             className={`text-xs font-mono font-bold rounded-full px-3.5 py-1.5 outline-none border cursor-pointer appearance-none pr-8 shadow-xs transition-colors ${
                               isDark 
@@ -799,7 +1071,12 @@ export default function OrdresFabricacioManager({
               setSelectedOFDetail(updatedOF);
             }
           }}
+          onChangeStatus={handleChangeStatus}
+          onUpdateQuantitat={handleUpdateOFQuantitat}
+          onFinalitzarOF={() => handleChangeStatus(selectedOFDetail.id, 'finalitzada')}
           materials={materials}
+          escandalls={escandalls}
+          operacions={operacions}
           isDark={isDark}
           onPrint={() => {
             setPrintOF(selectedOFDetail);
@@ -807,88 +1084,17 @@ export default function OrdresFabricacioManager({
         />
       )}
 
-      {/* MODAL: ASSIGNACIÓ D'ESTOC EN FINALITZAR OF */}
-      {stockAllocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className={`max-w-md w-full rounded-2xl border p-6 shadow-2xl space-y-4 ${
-            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
-                <Boxes className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-serif font-bold text-base">Assignació d'Estoc de Fabricació</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Ordre <span className="font-mono font-bold text-amber-500">{stockAllocationModal.ofId}</span> finalitzada
-                </p>
-              </div>
-            </div>
-
-            <div className={`p-3.5 rounded-xl border text-xs space-y-1 ${
-              isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <p className="font-medium">
-                S'han completat <strong>{stockAllocationModal.qty} unitats</strong> de <strong>{stockAllocationModal.product.nom}</strong>.
-              </p>
-              <p className="text-[11px] text-slate-400">
-                On vols destinar aquestes peces acabades?
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  if (setProductes) {
-                    setProductes(prev => prev.map(p => 
-                      p.id === stockAllocationModal.product.id 
-                        ? { ...p, estocActual: (Number(p.estocActual) || 0) + stockAllocationModal.qty }
-                        : p
-                    ));
-                  }
-                  setStockAllocationModal(null);
-                }}
-                className="w-full p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
-              >
-                <span className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-emerald-400" />
-                  <span>Sumar a <strong>Estoc per a Venda</strong></span>
-                </span>
-                <span className="font-mono font-bold">+{stockAllocationModal.qty} u.</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (setProductes) {
-                    setProductes(prev => prev.map(p => 
-                      p.id === stockAllocationModal.product.id 
-                        ? { ...p, estocMostres: (Number(p.estocMostres) || 0) + stockAllocationModal.qty }
-                        : p
-                    ));
-                  }
-                  setStockAllocationModal(null);
-                }}
-                className="w-full p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Sumar a <strong>Mostres de Taller</strong></span>
-                </span>
-                <span className="font-mono font-bold">+{stockAllocationModal.qty} u.</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setStockAllocationModal(null)}
-                className="w-full p-2.5 rounded-xl border border-slate-700/50 hover:bg-slate-800/50 text-slate-400 text-xs font-medium cursor-pointer text-center transition-all"
-              >
-                No alterar estoc (lliurament directe a client / encàrrec previ)
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* MODAL: FINALITZACIÓ D'OF & CONTROL DE QUALITAT (Mermes / Defectes / Estoc) */}
+      {closingOFModal && (
+        <CloseOFModal
+          modalData={closingOFModal}
+          onClose={() => setClosingOFModal(null)}
+          onConfirm={(closingData) => {
+            applyStatusChange(closingOFModal.of.id, 'finalitzada', closingData);
+            setClosingOFModal(null);
+          }}
+          isDark={isDark}
+        />
       )}
 
       {/* MODAL / VISTA IMPRIMIBLE DE DOSSIER DE TALLER */}
@@ -1660,8 +1866,9 @@ function NewOFModal({
                       }`}
                     >
                       <option value="normal" className={isDark ? 'bg-slate-900' : 'bg-white'}>⚪ Normal</option>
-                      <option value="urgent" className={isDark ? 'bg-slate-900' : 'bg-white'}>🔴 Urgent</option>
-                      <option value="baixa" className={isDark ? 'bg-slate-900' : 'bg-white'}>🔵 Baixa</option>
+                      <option value="rapid" className={isDark ? 'bg-slate-900' : 'bg-white'}>⚡ Ràpid</option>
+                      <option value="urgent" className={isDark ? 'bg-slate-900' : 'bg-white'}>🟠 Urgent</option>
+                      <option value="tragic" className={isDark ? 'bg-slate-900' : 'bg-white'}>🔴 Tràgic</option>
                     </select>
                   </div>
 
@@ -1890,12 +2097,84 @@ function NewOFModal({
 // --------------------------------------------------------------------------
 // SUBCOMPONENT: MODAL DETALL D'OF & FULL DE RUTA INTERACTIU
 // --------------------------------------------------------------------------
-function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint }) {
+function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQuantitat, onFinalitzarOF, materials, escandalls = [], operacions = [], isDark, onPrint }) {
   const [activeOF, setActiveOF] = useState(ofData);
 
   useEffect(() => {
-    setActiveOF(ofData);
-  }, [ofData]);
+    if (!ofData) {
+      setActiveOF(null);
+      return;
+    }
+
+    let populatedOF = { ...ofData };
+    const hasMaterials = Array.isArray(ofData.materials) && ofData.materials.length > 0;
+    const hasOperacions = Array.isArray(ofData.operacions) && ofData.operacions.length > 0;
+
+    // Si l'OF no té materials o operacions desplegats, recuperar-los de l'escandall associat
+    if (!hasMaterials || !hasOperacions) {
+      const rawNom = (ofData.producteNom || '').toLowerCase().trim();
+      const pId = ofData.producteId;
+      const pCodi = (ofData.producteCodi || '').toLowerCase().trim();
+
+      const matchedEsc = (escandalls || []).find(e => 
+        (ofData.escandallId && e.id === ofData.escandallId) ||
+        (pId && (e.producteId === pId || e.productId === pId)) ||
+        (pCodi && (String(e.producteCodi || '').toLowerCase().trim() === pCodi || String(e.codi || '').toLowerCase().trim() === pCodi)) ||
+        (e.producteNom && String(e.producteNom).toLowerCase().trim() === rawNom) ||
+        (e.producteNom && rawNom && (rawNom.includes(String(e.producteNom).toLowerCase().trim()) || String(e.producteNom).toLowerCase().trim().includes(rawNom))) ||
+        (e.nom && rawNom && (rawNom.includes(String(e.nom).toLowerCase().trim()) || String(e.nom).toLowerCase().trim().includes(rawNom)))
+      );
+
+      if (matchedEsc) {
+        const qty = ofData.quantitat || 1;
+        let changed = false;
+
+        if (!hasMaterials && Array.isArray(matchedEsc.materials) && matchedEsc.materials.length > 0) {
+          populatedOF.materials = matchedEsc.materials.map(em => {
+            const matObj = (materials || []).find(m => m.id === em.materialId);
+            const qUnit = Number(em.quantitat) || 0;
+            const qTotal = qUnit * qty;
+            return {
+              materialId: em.materialId,
+              nom: matObj?.material || em.nom || 'Material',
+              quantitatTeoricaUnitat: qUnit,
+              quantitatTotal: qTotal,
+              unitat: matObj?.unitat || 'u',
+              estocReservat: qTotal,
+              estocDescomptat: false
+            };
+          });
+          changed = true;
+        }
+
+        if (!hasOperacions && Array.isArray(matchedEsc.operacions) && matchedEsc.operacions.length > 0) {
+          populatedOF.operacions = matchedEsc.operacions.map((eo, idx) => {
+            const opObj = (operacions || []).find(o => o.id === eo.operacioId);
+            const tempsU = Number(eo.tempsMinuts) || 0;
+            return {
+              id: `op-${idx + 1}`,
+              nom: opObj?.operacio || eo.nom || `Operació ${idx + 1}`,
+              tempsTeoricMinuts: tempsU * qty,
+              tempsRealMinuts: 0,
+              completada: false
+            };
+          });
+          changed = true;
+        }
+
+        if (!populatedOF.escandallId) {
+          populatedOF.escandallId = matchedEsc.id;
+          changed = true;
+        }
+
+        if (changed) {
+          onUpdateOF(populatedOF);
+        }
+      }
+    }
+
+    setActiveOF(populatedOF);
+  }, [ofData, escandalls, materials, operacions]);
 
   // Commutar estat d'un pas del full de ruta
   const handleToggleStep = (stepId) => {
@@ -1916,10 +2195,21 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
     onUpdateOF(updatedOF);
   };
 
-  // Guardar paràmetres làser o notes de taller
+  // Guardar canvis de l'OF (dades client, comanda, paràmetres làser o notes de taller)
   const handleSaveNotes = () => {
     onUpdateOF(activeOF);
-    alert("Paràmetres i notes de taller desats correctament.");
+    alert("Canvis desats correctament.");
+  };
+
+  const getDateInputValue = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr.seconds ? dateStr.seconds * 1000 : dateStr);
+      if (isNaN(d.getTime())) return String(dateStr).split('T')[0] || '';
+      return d.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
   };
 
   const fontObj = AVAILABLE_FONTS.find(f => f.name === activeOF.tipografia) || AVAILABLE_FONTS[0];
@@ -1939,23 +2229,93 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
               <ClipboardList className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className={`font-serif font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {activeOF.id}
                 </h3>
-                {activeOF.prioritat === 'urgent' && (
-                  <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                    URGENT
+                {(() => {
+                  const p = (activeOF.prioritat || 'normal').toLowerCase();
+                  if (p === 'tragic' || p === 'tràgic') {
+                    return (
+                      <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-600/30 text-rose-400 border border-rose-500/50 flex items-center gap-1 animate-pulse">
+                        <Flame className="w-3 h-3 text-rose-500" /> TRÀGIC
+                      </span>
+                    );
+                  }
+                  if (p === 'urgent' || p === 'alta') {
+                    return (
+                      <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1">
+                        <Flame className="w-3 h-3 text-amber-500" /> URGENT
+                      </span>
+                    );
+                  }
+                  if (p === 'rapid' || p === 'ràpid') {
+                    return (
+                      <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40 flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-sky-400" /> RÀPID
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400 border border-slate-500/40">
+                      NORMAL
+                    </span>
+                  );
+                })()}
+                {activeOF.pecesDefectuoses > 0 && (
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/40 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {activeOF.pecesDefectuoses} defectuosa{activeOF.pecesDefectuoses > 1 ? 'es' : ''}
                   </span>
                 )}
               </div>
               {(() => {
                 const itemInfo = resolveOFGammaAndName(activeOF, [], [], []);
+                const isEditable = isEditableOFStatus(activeOF.estat);
                 return (
-                  <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {itemInfo.gamma && <span className="font-mono font-bold text-amber-500 uppercase">{itemInfo.gamma}: </span>}
-                    <strong className={isDark ? 'text-white' : 'text-slate-900'}>{itemInfo.nom}</strong> • <span className="font-bold text-amber-500">{activeOF.quantitat} u</span>
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap text-xs mt-0.5">
+                    <p className={isDark ? 'text-slate-300' : 'text-slate-600'}>
+                      {itemInfo.gamma && <span className="font-mono font-bold text-amber-500 uppercase">{itemInfo.gamma}: </span>}
+                      <strong className={isDark ? 'text-white' : 'text-slate-900'}>{itemInfo.nom}</strong>
+                    </p>
+                    <span className="text-slate-500">•</span>
+                    {isEditable ? (
+                      <div className="inline-flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
+                        <span className="text-[11px] font-mono text-amber-400 font-bold">Quantitat:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          defaultValue={activeOF.quantitat}
+                          key={`${activeOF.id}-${activeOF.quantitat}`}
+                          onBlur={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (val && val > 0 && val !== activeOF.quantitat) {
+                              if (onUpdateQuantitat) {
+                                onUpdateQuantitat(activeOF.id, val);
+                              }
+                              setActiveOF(prev => ({ ...prev, quantitat: val }));
+                            } else {
+                              e.target.value = activeOF.quantitat;
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.target.blur();
+                          }}
+                          className={`w-14 py-0.5 px-1 text-center font-mono font-bold text-xs rounded border outline-none ${
+                            isDark 
+                              ? 'bg-slate-900 text-amber-400 border-amber-500/50 focus:border-amber-400' 
+                              : 'bg-white text-amber-800 border-amber-300 focus:border-amber-500'
+                          }`}
+                          title="Prem Enter o clica fora per actualitzar la quantitat"
+                        />
+                        <span className="text-xs font-bold text-amber-500">u</span>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-amber-500 font-mono">
+                        {activeOF.pecesBones !== undefined ? activeOF.pecesBones : activeOF.quantitat} u
+                      </span>
+                    )}
+                  </div>
                 );
               })()}
             </div>
@@ -1987,20 +2347,160 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
         {/* Contingut Scrollable */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           
+          {/* Balanç de Control de Qualitat si hi ha hagut peces defectuoses */}
+          {activeOF.pecesDefectuoses > 0 && (
+            <div className={`p-4 rounded-2xl border text-xs space-y-1.5 ${
+              isDark ? 'bg-rose-950/20 border-rose-500/30 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              <div className="flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5 text-rose-500">
+                  <AlertTriangle className="w-4 h-4" /> Balanç de Control de Qualitat (Tancament de Producció)
+                </span>
+                <span className="font-mono text-[11px] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/30">
+                  {activeOF.pecesDefectuoses} defectuosa{activeOF.pecesDefectuoses > 1 ? 'es' : ''} / {activeOF.quantitat} totals
+                </span>
+              </div>
+              <p className={isDark ? 'text-slate-300' : 'text-slate-700'}>
+                Peces aptes incorporades: <strong className="text-emerald-500 font-mono font-bold">{activeOF.pecesBones || (activeOF.quantitat - activeOF.pecesDefectuoses)} u</strong> • Mermes rebutjades: <strong className="text-rose-500 font-mono font-bold">{activeOF.pecesDefectuoses} u</strong>
+              </p>
+              {activeOF.motiuDefecte && (
+                <p className={`text-[11px] italic ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Motiu indicat: "{activeOF.motiuDefecte}"
+                </p>
+              )}
+            </div>
+          )}
+          
           {/* Bloc 1: Dades de la comanda i Personalització */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Dades Generals */}
-            <div className={`p-4 rounded-2xl border space-y-2.5 text-xs font-mono ${
+            {/* Dades Generals (Editables) */}
+            <div className={`p-4 rounded-2xl border space-y-3 text-xs font-mono ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
-              <p className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-2 text-xs uppercase">
-                <User className="w-4 h-4" /> Dades del Client
-              </p>
-              <div className={`space-y-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                <p>Client: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.clientNom || 'Estoc Taller'}</span></p>
-                <p>Contacte: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.clientContacte || '-'}</span></p>
-                <p>Ref. Comanda: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{activeOF.comandaRef || 'Llançament Manual'}</span></p>
-                <p>Data Límit: <span className="font-bold text-amber-500">{formatOFDateOnly(activeOF.dataLimitEntrega)}</span></p>
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-2 text-xs uppercase">
+                  <User className="w-4 h-4" /> Dades del Client & Comanda
+                </p>
+                <span className={`text-[10px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  (Editables)
+                </span>
+              </div>
+              
+              <div className="space-y-2.5">
+                <div>
+                  <label className={`block text-[10px] uppercase font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Client
+                  </label>
+                  <input
+                    type="text"
+                    value={activeOF.clientNom || ''}
+                    placeholder="Ex: Estoc fira, Estoc Taller..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setActiveOF(prev => ({ ...prev, clientNom: val }));
+                    }}
+                    onBlur={(e) => {
+                      onUpdateOF({ ...activeOF, clientNom: e.target.value });
+                    }}
+                    className={`w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold font-mono outline-none transition-all ${
+                      isDark 
+                        ? 'bg-slate-900 border-slate-750 text-white focus:border-amber-500 focus:bg-slate-850' 
+                        : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500 focus:bg-white'
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block text-[10px] uppercase font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                    Ref. Comanda / Esdeveniment
+                  </label>
+                  <input
+                    type="text"
+                    value={activeOF.comandaRef || ''}
+                    placeholder="Ex: Fira de Nadal, Llançament manual..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setActiveOF(prev => ({ ...prev, comandaRef: val }));
+                    }}
+                    onBlur={(e) => {
+                      onUpdateOF({ ...activeOF, comandaRef: e.target.value });
+                    }}
+                    className={`w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold font-mono outline-none transition-all ${
+                      isDark 
+                        ? 'bg-slate-900 border-slate-750 text-white focus:border-amber-500 focus:bg-slate-850' 
+                        : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500 focus:bg-white'
+                    }`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className={`block text-[10px] uppercase font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Prioritat
+                    </label>
+                    <select
+                      value={activeOF.prioritat || 'normal'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActiveOF(prev => ({ ...prev, prioritat: val }));
+                        onUpdateOF({ ...activeOF, prioritat: val });
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold font-mono outline-none cursor-pointer transition-all ${
+                        isDark 
+                          ? 'bg-slate-900 border-slate-750 text-white focus:border-amber-500' 
+                          : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500'
+                      }`}
+                    >
+                      <option value="normal">⚪ Normal</option>
+                      <option value="rapid">⚡ Ràpid</option>
+                      <option value="urgent">🟠 Urgent</option>
+                      <option value="tragic">🔴 Tràgic</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`block text-[10px] uppercase font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Data Límit d'Entrega
+                    </label>
+                    <input
+                      type="date"
+                      value={getDateInputValue(activeOF.dataLimitEntrega)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActiveOF(prev => ({ ...prev, dataLimitEntrega: val }));
+                        onUpdateOF({ ...activeOF, dataLimitEntrega: val });
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-xl border text-xs font-bold font-mono outline-none transition-all ${
+                        isDark 
+                          ? 'bg-slate-900 border-slate-750 text-amber-400 focus:border-amber-500' 
+                          : 'bg-white border-slate-300 text-amber-700 focus:border-amber-500'
+                      }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block text-[10px] uppercase font-bold mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Contacte / Telèfon
+                    </label>
+                    <input
+                      type="text"
+                      value={activeOF.clientContacte || ''}
+                      placeholder="Telèfon o email..."
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActiveOF(prev => ({ ...prev, clientContacte: val }));
+                      }}
+                      onBlur={(e) => {
+                        onUpdateOF({ ...activeOF, clientContacte: e.target.value });
+                      }}
+                      className={`w-full px-2.5 py-1.5 rounded-xl border text-xs font-mono outline-none transition-all ${
+                        isDark 
+                          ? 'bg-slate-900 border-slate-750 text-white focus:border-amber-500' 
+                          : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500'
+                      }`}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2236,14 +2736,53 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, materials, isDark, onPrint
         </div>
 
         {/* Peu Fix */}
-        <div className={`shrink-0 p-4 border-t flex items-center justify-between ${
+        <div className={`shrink-0 p-4 border-t flex items-center justify-between flex-wrap gap-3 ${
           isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
         }`}>
-          <span className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-            Estat: <span className="font-bold text-amber-500 uppercase">{activeOF.estat}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+              Estat:
+            </span>
+            <div className="relative inline-block">
+              <select
+                value={normalizeOFStatus(activeOF.estat)}
+                onChange={(e) => {
+                  const newSt = e.target.value;
+                  if (onChangeStatus) {
+                    onChangeStatus(activeOF.id, newSt);
+                  }
+                  setActiveOF(prev => ({ ...prev, estat: newSt }));
+                }}
+                className={`text-xs font-mono font-bold rounded-xl px-3 py-1.5 outline-none border cursor-pointer appearance-none pr-8 shadow-xs transition-colors ${
+                  isDark 
+                    ? 'bg-slate-900 border-slate-700 text-amber-400 hover:border-amber-500' 
+                    : 'bg-white border-slate-300 text-amber-800 hover:border-amber-500'
+                }`}
+              >
+                <option value="cua" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>En Cua</option>
+                <option value="en_curs" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>En Curs</option>
+                <option value="acabats" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>En Acabats</option>
+                <option value="finalitzada" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Finalitzada</option>
+                <option value="cancel·lada" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Cancel·lada</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
 
           <div className="flex items-center gap-2">
+            {normalizeOFStatus(activeOF.estat) !== 'finalitzada' && normalizeOFStatus(activeOF.estat) !== 'cancel·lada' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onFinalitzarOF && onFinalitzarOF();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold shadow-md cursor-pointer flex items-center gap-1.5 transition-colors"
+                title="Finalitzar ordre i fer control de qualitat"
+              >
+                <CheckCircle2 className="w-4 h-4" /> Finalitzar OF
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSaveNotes}
@@ -2409,6 +2948,275 @@ function PrintWorkshopDossier({ ofData, onClose }) {
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// SUBCOMPONENT: MODAL FINALITZACIÓ D'OF & CONTROL DE QUALITAT (MERMES I DEFECTES)
+// --------------------------------------------------------------------------
+function CloseOFModal({
+  modalData,
+  onClose,
+  onConfirm,
+  isDark
+}) {
+  const { of, product, totalQty } = modalData;
+  const [pecesDefectuoses, setPecesDefectuoses] = useState(0);
+  const [pecesBones, setPecesBones] = useState(totalQty);
+  const [motiuDefecte, setMotiuDefecte] = useState('');
+
+  const handleUpdateBones = (val) => {
+    const num = Math.max(0, parseInt(val, 10) || 0);
+    setPecesBones(num);
+    setPecesDefectuoses(Math.max(0, totalQty - num));
+  };
+
+  const handleUpdateDefectuoses = (val) => {
+    const num = Math.max(0, parseInt(val, 10) || 0);
+    setPecesDefectuoses(num);
+    setPecesBones(Math.max(0, totalQty - num));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className={`max-w-lg w-full rounded-3xl border p-6 shadow-2xl space-y-5 ${
+        isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+      }`}>
+        {/* Capçalera */}
+        <div className="flex items-start justify-between gap-3 border-b border-slate-800/20 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0">
+              <Boxes className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-serif font-bold text-base">Finalitzar Ordre de Fabricació</h3>
+              <p className="text-xs text-slate-400 font-mono">
+                OF: <span className="font-bold text-amber-500">{of.id}</span> • {product?.nom || of.producteNom || of.nom || 'Peça'}
+              </p>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Resum de Producció & Control de Mermes/Defectes */}
+        <div className={`p-4 rounded-2xl border space-y-3.5 ${
+          isDark ? 'bg-slate-950/70 border-slate-800' : 'bg-slate-50 border-slate-200'
+        }`}>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">Total planificat a l'ordre:</span>
+            <span className="font-mono font-bold text-amber-500 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/30">
+              {totalQty} unitats
+            </span>
+          </div>
+
+          {/* Controls per a Peces Correctes vs Defectuoses */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            {/* Peces Correctes */}
+            <div className={`p-3 rounded-xl border ${
+              isDark ? 'bg-slate-900/90 border-emerald-500/30' : 'bg-white border-emerald-300 shadow-xs'
+            }`}>
+              <span className="text-[11px] font-bold text-emerald-500 flex items-center gap-1.5 mb-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Peces Bones (Aptes)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={pecesBones <= 0}
+                  onClick={() => handleUpdateBones(pecesBones - 1)}
+                  className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 disabled:opacity-30 font-bold flex items-center justify-center cursor-pointer"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  value={pecesBones}
+                  onChange={(e) => handleUpdateBones(e.target.value)}
+                  className={`w-full py-1 text-center font-mono font-extrabold text-base rounded-lg border outline-none ${
+                    isDark ? 'bg-slate-950 border-emerald-500/40 text-emerald-400' : 'bg-emerald-50/50 border-emerald-300 text-emerald-800'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUpdateBones(pecesBones + 1)}
+                  className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 font-bold flex items-center justify-center cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Peces Defectuoses / Mermes */}
+            <div className={`p-3 rounded-xl border ${
+              pecesDefectuoses > 0 
+                ? (isDark ? 'bg-rose-950/20 border-rose-500/50' : 'bg-rose-50/70 border-rose-300') 
+                : (isDark ? 'bg-slate-900/90 border-slate-700/50' : 'bg-white border-slate-200')
+            }`}>
+              <span className={`text-[11px] font-bold flex items-center gap-1.5 mb-1.5 ${
+                pecesDefectuoses > 0 ? 'text-rose-500' : 'text-slate-400'
+              }`}>
+                <AlertTriangle className="w-3.5 h-3.5" /> Defectuoses (Mermes)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={pecesDefectuoses <= 0}
+                  onClick={() => handleUpdateDefectuoses(pecesDefectuoses - 1)}
+                  className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 disabled:opacity-30 font-bold flex items-center justify-center cursor-pointer"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  value={pecesDefectuoses}
+                  onChange={(e) => handleUpdateDefectuoses(e.target.value)}
+                  className={`w-full py-1 text-center font-mono font-extrabold text-base rounded-lg border outline-none ${
+                    pecesDefectuoses > 0
+                      ? (isDark ? 'bg-slate-950 border-rose-500/50 text-rose-400' : 'bg-rose-50 border-rose-300 text-rose-800')
+                      : (isDark ? 'bg-slate-950 border-slate-700 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600')
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUpdateDefectuoses(pecesDefectuoses + 1)}
+                  className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 font-bold flex items-center justify-center cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Alerta i camp de motiu si hi ha defectes */}
+          {pecesDefectuoses > 0 && (
+            <div className={`p-3 rounded-xl border text-xs space-y-2 animate-fadeIn ${
+              isDark ? 'bg-rose-950/20 border-rose-500/30 text-rose-300' : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              <p className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500 mt-0.5" />
+                <span>
+                  S'han registrat <strong>{pecesDefectuoses} peces no aptes</strong>. Els materials s'han consumit al taller com a merma de producció. Només les <strong>{pecesBones} peces correctes</strong> s'incorporaran a l'estoc.
+                </span>
+              </p>
+              <div>
+                <label className="text-[10px] font-mono uppercase font-bold block mb-1">
+                  Motiu del defecte o tara (opcional):
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Estellada al tall làser, error de gravat, tara a la fusta..."
+                  value={motiuDefecte}
+                  onChange={(e) => setMotiuDefecte(e.target.value)}
+                  className={`w-full px-3 py-1.5 rounded-lg border text-xs outline-none ${
+                    isDark ? 'bg-slate-900 border-rose-500/40 text-white placeholder:text-slate-500' : 'bg-white border-rose-300 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Destinació d'Estoc */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-slate-400">
+            {product 
+              ? `Tria el destí de les ${pecesBones} peces acabades per a "${product.nom}":`
+              : `Finalització de l'ordre (${pecesBones} aptes, ${pecesDefectuoses} defectuoses):`
+            }
+          </p>
+
+          {product ? (
+            <>
+              <button
+                type="button"
+                disabled={pecesBones <= 0}
+                onClick={() => onConfirm({
+                  ofId: of.id,
+                  product,
+                  pecesBones,
+                  pecesDefectuoses,
+                  motiuDefecte,
+                  destinacio: 'venda'
+                })}
+                className="w-full p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-40 text-emerald-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-400" />
+                  <span>Sumar a <strong>Estoc per a Venda</strong></span>
+                </span>
+                <span className="font-mono font-bold">+{pecesBones} u.</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={pecesBones <= 0}
+                onClick={() => onConfirm({
+                  ofId: of.id,
+                  product,
+                  pecesBones,
+                  pecesDefectuoses,
+                  motiuDefecte,
+                  destinacio: 'mostres'
+                })}
+                className="w-full p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-40 text-amber-400 font-semibold text-xs flex items-center justify-between cursor-pointer transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Sumar a <strong>Mostres de Taller</strong></span>
+                </span>
+                <span className="font-mono font-bold">+{pecesBones} u.</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onConfirm({
+                  ofId: of.id,
+                  product,
+                  pecesBones,
+                  pecesDefectuoses,
+                  motiuDefecte,
+                  destinacio: 'cap'
+                })}
+                className="w-full p-2.5 rounded-xl border border-slate-700/50 hover:bg-slate-800/50 text-slate-300 hover:text-white text-xs font-medium cursor-pointer text-center transition-all"
+              >
+                No alterar estoc (lliurament directe a client / encàrrec previ)
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onConfirm({
+                ofId: of.id,
+                product: null,
+                pecesBones,
+                pecesDefectuoses,
+                motiuDefecte,
+                destinacio: 'cap'
+              })}
+              className="w-full p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Confirmar i Finalitzar Ordre</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full p-2 text-slate-500 hover:text-slate-300 text-xs font-medium cursor-pointer text-center"
+          >
+            Cancel·lar (mantenir l'ordre oberta)
+          </button>
+        </div>
       </div>
     </div>
   );

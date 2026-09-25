@@ -17,12 +17,14 @@ import {
   Filter,
   Eye,
   SlidersHorizontal,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import { resolveMediaUrl, resolveProducteMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency } from '../../utils/numberUtils';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { isProductInGamma, getProductGammaLabel } from '../PrivateAreaSection';
 
 export default function EstocProductesManager({
   productes = [],
@@ -115,11 +117,18 @@ export default function EstocProductesManager({
 
   // Resolució del nom de gamma del producte
   const getProductGamma = (p) => {
-    if (Array.isArray(p.gammaIds) && p.gammaIds.length > 0) {
-      return p.gammaIds[0];
-    }
-    return 'Sense gamma';
+    return getProductGammaLabel(p, gammes) || (Array.isArray(p.gammaIds) && p.gammaIds.length > 0 ? p.gammaIds[0] : 'Sense gamma');
   };
+
+  // Llista de gammes disponibles segons la família seleccionada
+  const availableGammes = useMemo(() => {
+    if (selectedFamiliaFilter === 'all') return gammes;
+    return gammes.filter(g => {
+      const famNom = (g.familiaNom || '').toLowerCase();
+      const selFam = selectedFamiliaFilter.toLowerCase();
+      return famNom.includes(selFam) || selFam.includes(famNom);
+    });
+  }, [gammes, selectedFamiliaFilter]);
 
   // Filtratge i ordenació
   const filteredProducts = useMemo(() => {
@@ -134,16 +143,40 @@ export default function EstocProductesManager({
         return false;
       }
 
-      // Gamma
+      // Gamma (resilient matching per nom exacte, normalitzat o inclusió)
       if (selectedGammaFilter !== 'all') {
-        const gam = getProductGamma(p);
-        if (gam !== selectedGammaFilter) return false;
+        const gamList = [
+          ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+          ...(p.gamma ? [p.gamma] : []),
+          ...(p.gammaNom ? [p.gammaNom] : [])
+        ];
+        const matchGam = isProductInGamma(gamList, selectedGammaFilter, gammes);
+        if (!matchGam) return false;
       }
 
-      // Família
+      // Família (per familaIds, familiaIds, familiaNom o a través de la gamma)
       if (selectedFamiliaFilter !== 'all') {
-        const fams = Array.isArray(p.familaIds) ? p.familaIds : [];
-        if (!fams.includes(selectedFamiliaFilter)) return false;
+        const famList = [
+          ...(Array.isArray(p.familaIds) ? p.familaIds : []),
+          ...(Array.isArray(p.familiaIds) ? p.familiaIds : []),
+          ...(p.familia ? [p.familia] : []),
+          ...(p.familiaNom ? [p.familiaNom] : [])
+        ];
+        const gamList = [
+          ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+          ...(p.gamma ? [p.gamma] : []),
+          ...(p.gammaNom ? [p.gammaNom] : [])
+        ];
+        const gammaMatchesFamily = gamList.some(gName => {
+          const gObj = gammes.find(g => isProductInGamma([gName], g.nom, gammes));
+          return gObj?.familiaNom && gObj.familiaNom.toLowerCase().includes(selectedFamiliaFilter.toLowerCase());
+        });
+
+        const matchFam = famList.some(f => f.toLowerCase().includes(selectedFamiliaFilter.toLowerCase())) ||
+          isProductInGamma(p.gammaIds, selectedFamiliaFilter, gammes) ||
+          gammaMatchesFamily;
+
+        if (!matchFam) return false;
       }
 
       // Estat d'estoc
@@ -185,7 +218,7 @@ export default function EstocProductesManager({
       }
       return 0;
     });
-  }, [productes, searchTerm, selectedGammaFilter, selectedFamiliaFilter, stockStatusFilter, sortBy, sortOrder]);
+  }, [productes, searchTerm, selectedGammaFilter, selectedFamiliaFilter, stockStatusFilter, sortBy, sortOrder, gammes]);
 
   return (
     <div className="space-y-6">
@@ -323,7 +356,7 @@ export default function EstocProductesManager({
           />
         </div>
 
-        {/* Desplegables de Gamma i Estat */}
+        {/* Desplegables de Família, Gamma i Estat */}
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Estat d'estoc */}
           <select
@@ -340,25 +373,20 @@ export default function EstocProductesManager({
             <option value="has_samples">✨ Amb Mostres de Taller</option>
           </select>
 
-          {/* Gammes */}
-          <select
-            value={selectedGammaFilter}
-            onChange={(e) => setSelectedGammaFilter(e.target.value)}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold border outline-none cursor-pointer ${
-              isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
-            }`}
-          >
-            <option value="all">📁 Totes les Gammes</option>
-            {gammes.map(g => (
-              <option key={g.id || g.nom} value={g.nom}>{g.nom}</option>
-            ))}
-          </select>
-
           {/* Famílies */}
           {families.length > 0 && (
             <select
               value={selectedFamiliaFilter}
-              onChange={(e) => setSelectedFamiliaFilter(e.target.value)}
+              onChange={(e) => {
+                const newFam = e.target.value;
+                setSelectedFamiliaFilter(newFam);
+                if (newFam !== 'all' && selectedGammaFilter !== 'all') {
+                  const gamObj = gammes.find(g => isProductInGamma([selectedGammaFilter], g.nom, gammes));
+                  if (gamObj && gamObj.familiaNom && !gamObj.familiaNom.toLowerCase().includes(newFam.toLowerCase())) {
+                    setSelectedGammaFilter('all');
+                  }
+                }
+              }}
               className={`px-3 py-2 rounded-xl text-xs font-semibold border outline-none cursor-pointer ${
                 isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
               }`}
@@ -368,6 +396,44 @@ export default function EstocProductesManager({
                 <option key={f.id || f.nom} value={f.nom}>{f.nom}</option>
               ))}
             </select>
+          )}
+
+          {/* Gammes */}
+          <select
+            value={selectedGammaFilter}
+            onChange={(e) => setSelectedGammaFilter(e.target.value)}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold border outline-none cursor-pointer ${
+              isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
+            <option value="all">📁 Totes les Gammes</option>
+            {availableGammes.map(g => (
+              <option key={g.id || g.nom} value={g.nom}>
+                {selectedFamiliaFilter === 'all' && g.familiaNom ? `(${g.familiaNom}) ${g.nom}` : g.nom}
+              </option>
+            ))}
+          </select>
+
+          {/* Botó Netejar filtres */}
+          {(selectedFamiliaFilter !== 'all' || selectedGammaFilter !== 'all' || stockStatusFilter !== 'all' || searchTerm) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFamiliaFilter('all');
+                setSelectedGammaFilter('all');
+                setStockStatusFilter('all');
+                setSearchTerm('');
+              }}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs flex items-center gap-1 cursor-pointer transition-colors ${
+                isDark 
+                  ? 'bg-rose-950/30 border-rose-500/30 text-rose-300 hover:bg-rose-900/40' 
+                  : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+              }`}
+              title="Netejar tots els filtres"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Netejar</span>
+            </button>
           )}
 
           {/* Ordenació */}
