@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Calendar, 
   Store, 
@@ -35,7 +35,7 @@ import {
   ArrowUpDown,
   FileSpreadsheet
 } from 'lucide-react';
-import { resolveProducteMediaUrl } from '../../utils/mediaUtils';
+import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import { getNextOFId } from './OrdresFabricacioManager';
 
@@ -88,6 +88,47 @@ export default function EsdevenimentsManager({
     colaboradorPercentatge: 15,
     notes: ''
   });
+
+  // Resoldre la imatge d'un producte o línia d'esdeveniment de manera universal i resilient
+  const getProductImage = useCallback((prodOrLinia) => {
+    if (!prodOrLinia) return '';
+
+    // Si té una foto directa ja guardada
+    if (prodOrLinia.foto && typeof prodOrLinia.foto === 'string' && prodOrLinia.foto.trim() !== '') {
+      const resolved = resolveProducteMediaUrl(prodOrLinia.foto) || resolveMediaUrl(prodOrLinia.foto);
+      if (resolved) return resolved;
+    }
+
+    // Buscar el producte complet al catàleg de productes
+    const targetId = prodOrLinia.productId || prodOrLinia.id;
+    const targetCodi = prodOrLinia.codi;
+    let prod = null;
+    if (Array.isArray(productes) && productes.length > 0) {
+      if (targetId) {
+        prod = productes.find(p => p.id === targetId || p.codi === targetId);
+      }
+      if (!prod && targetCodi) {
+        prod = productes.find(p => p.codi === targetCodi || p.id === targetCodi);
+      }
+      if (!prod && prodOrLinia.nom) {
+        const cleanName = String(prodOrLinia.nom).trim().toLowerCase();
+        prod = productes.find(p => p.nom && String(p.nom).trim().toLowerCase() === cleanName);
+      }
+    }
+
+    const target = prod || prodOrLinia;
+
+    const raw = target.imatgePrincipal || 
+                (Array.isArray(target.imatges) && target.imatges.find(img => img && typeof img === 'string' && img.trim() !== '')) || 
+                (Array.isArray(target.fotos) && target.fotos.find(f => f && typeof f === 'string' && f.trim() !== '')) ||
+                target.foto || 
+                target.imatge || 
+                target.image || 
+                '';
+
+    if (!raw || typeof raw !== 'string' || !raw.trim()) return '';
+    return resolveProducteMediaUrl(raw) || resolveMediaUrl(raw) || raw;
+  }, [productes]);
 
   // Current active event
   const currentEvent = useMemo(() => {
@@ -260,7 +301,7 @@ export default function EsdevenimentsManager({
               productId: selectedProductToAdd.id,
               codi: selectedProductToAdd.codi || '',
               nom: selectedProductToAdd.nom || '',
-              foto: resolveProducteMediaUrl(selectedProductToAdd.foto || selectedProductToAdd.imatge),
+              foto: getProductImage(selectedProductToAdd),
               gammaId: selectedProductToAdd.gammaId || '',
               preuOriginal: Number(selectedProductToAdd.preu) || 0,
               preuFira: preuFiraNum,
@@ -686,7 +727,7 @@ export default function EsdevenimentsManager({
           mapProd[l.productId] = {
             productId: l.productId,
             nom: l.nom,
-            foto: l.foto,
+            foto: l.foto || getProductImage(l),
             totalPortades: 0,
             totalVenudes: 0,
             edicionsPresents: 0
@@ -699,7 +740,7 @@ export default function EsdevenimentsManager({
     });
 
     return Object.values(mapProd).sort((a, b) => b.totalVenudes - a.totalVenudes);
-  }, [edicionsComparativa]);
+  }, [edicionsComparativa, getProductImage]);
 
   // Filtre d'esdeveniments
   const filteredEvents = useMemo(() => {
@@ -1314,16 +1355,35 @@ export default function EsdevenimentsManager({
                       return (
                         <tr key={linia.productId} className="hover:bg-surface-container/30 transition-colors">
                           <td className="py-2.5 px-4">
-                            <div className="flex items-center gap-3">
-                              {linia.foto ? (
-                                <img src={linia.foto} alt="" className="w-9 h-9 rounded-lg object-cover border border-outline/20" />
-                              ) : (
-                                <div className="w-9 h-9 rounded-lg bg-surface flex items-center justify-center border border-outline/20 text-on-surface-variant/40">
-                                  <Package className="w-4 h-4" />
+                            {(() => {
+                              const f = getProductImage(linia);
+                              return (
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 relative flex items-center justify-center">
+                                    {f ? (
+                                      <img 
+                                        src={f} 
+                                        alt={linia.nom} 
+                                        className="w-full h-full object-cover" 
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          if (e.currentTarget.nextElementSibling) {
+                                            e.currentTarget.nextElementSibling.style.display = 'flex';
+                                          }
+                                        }}
+                                      />
+                                    ) : null}
+                                    <div 
+                                      className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                                      style={{ display: f ? 'none' : 'flex' }}
+                                    >
+                                      <Package className="w-4 h-4" />
+                                    </div>
+                                  </div>
+                                  <span className="font-semibold text-primary font-serif">{linia.nom}</span>
                                 </div>
-                              )}
-                              <span className="font-semibold text-primary font-serif">{linia.nom}</span>
-                            </div>
+                              );
+                            })()}
                           </td>
                           <td className="py-2.5 px-3 font-mono text-[11px] text-on-surface-variant">{linia.codi || '-'}</td>
                           <td className="py-2.5 px-3 text-right font-mono text-on-surface-variant line-through">{formatCurrency(linia.preuOriginal)}</td>
@@ -1423,22 +1483,39 @@ export default function EsdevenimentsManager({
                   }`}
                 >
                   <div className="space-y-2">
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-surface border border-outline/10">
-                      {linia.foto ? (
-                        <img src={linia.foto} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-on-surface-variant/30">
-                          <Package className="w-8 h-8" />
+                    {(() => {
+                      const f = getProductImage(linia);
+                      return (
+                        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-surface border border-outline/10 flex items-center justify-center">
+                          {f ? (
+                            <img 
+                              src={f} 
+                              alt={linia.nom} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                if (e.currentTarget.nextElementSibling) {
+                                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                                }
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-full h-full items-center justify-center text-on-surface-variant/30"
+                            style={{ display: f ? 'none' : 'flex' }}
+                          >
+                            <Package className="w-8 h-8" />
+                          </div>
+                          <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs ${
+                            linia.unitatsRestants > 2 ? 'bg-emerald-500 text-white' :
+                            linia.unitatsRestants > 0 ? 'bg-amber-500 text-white' :
+                            'bg-red-500 text-white'
+                          }`}>
+                            {linia.unitatsRestants} disp.
+                          </span>
                         </div>
-                      )}
-                      <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs ${
-                        linia.unitatsRestants > 2 ? 'bg-emerald-500 text-white' :
-                        linia.unitatsRestants > 0 ? 'bg-amber-500 text-white' :
-                        'bg-red-500 text-white'
-                      }`}>
-                        {linia.unitatsRestants} disp.
-                      </span>
-                    </div>
+                      );
+                    })()}
 
                     <div>
                       <h4 className="font-serif font-bold text-xs text-primary line-clamp-2 leading-tight">
@@ -1516,9 +1593,32 @@ export default function EsdevenimentsManager({
               <div className="bg-surface-container-lowest max-w-sm w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-5 animate-fadeIn">
                 <div className="flex items-start justify-between border-b border-outline/15 pb-3">
                   <div className="flex items-center gap-3">
-                    {tpvProducteSeleccionat.foto && (
-                      <img src={tpvProducteSeleccionat.foto} alt="" className="w-12 h-12 rounded-xl object-cover border border-outline/20" />
-                    )}
+                    {(() => {
+                      const f = getProductImage(tpvProducteSeleccionat);
+                      return (
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                          {f ? (
+                            <img 
+                              src={f} 
+                              alt={tpvProducteSeleccionat.nom} 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                if (e.currentTarget.nextElementSibling) {
+                                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                                }
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                            style={{ display: f ? 'none' : 'flex' }}
+                          >
+                            <Package className="w-5 h-5" />
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div>
                       <h3 className="text-base font-serif font-bold text-primary leading-tight">
                         {tpvProducteSeleccionat.nom}
@@ -1810,9 +1910,32 @@ export default function EsdevenimentsManager({
                       <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
                         #{idx + 1}
                       </span>
-                      {item.foto && (
-                        <img src={item.foto} alt="" className="w-10 h-10 rounded-lg object-cover border border-outline/20 shrink-0" />
-                      )}
+                      {(() => {
+                        const f = getProductImage(item);
+                        return (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                            {f ? (
+                              <img 
+                                src={f} 
+                                alt={item.nom} 
+                                className="w-full h-full object-cover" 
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                  if (e.currentTarget.nextElementSibling) {
+                                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            <div 
+                              className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                              style={{ display: f ? 'none' : 'flex' }}
+                            >
+                              <Package className="w-4 h-4" />
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="min-w-0 flex-1 text-xs">
                         <h5 className="font-serif font-bold text-primary truncate">{item.nom}</h5>
                         <p className="text-[10px] text-on-surface-variant font-mono">
@@ -1870,7 +1993,7 @@ export default function EsdevenimentsManager({
                 .map(p => {
                   const estocTaller = parseInt(p.estocActual, 10) || 0;
                   const isSelected = selectedProductToAdd?.id === p.id;
-                  const fotoUrl = resolveProducteMediaUrl(p.foto || p.imatge);
+                  const fotoUrl = getProductImage(p);
 
                   return (
                     <div
@@ -1886,13 +2009,27 @@ export default function EsdevenimentsManager({
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        {fotoUrl ? (
-                          <img src={fotoUrl} alt="" className="w-10 h-10 rounded-lg object-cover border border-outline/20 shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-on-surface-variant/40 shrink-0">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                          {fotoUrl ? (
+                            <img 
+                              src={fotoUrl} 
+                              alt={p.nom} 
+                              className="w-full h-full object-cover" 
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                if (e.currentTarget.nextElementSibling) {
+                                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                                }
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                            style={{ display: fotoUrl ? 'none' : 'flex' }}
+                          >
                             <Package className="w-4 h-4" />
                           </div>
-                        )}
+                        </div>
                         <div className="min-w-0 text-xs">
                           <h5 className="font-serif font-bold text-primary truncate">{p.nom}</h5>
                           <span className="font-mono text-[10px] text-on-surface-variant">{p.codi} • PVP: {formatCurrency(p.preu)}</span>
@@ -1914,6 +2051,38 @@ export default function EsdevenimentsManager({
             {/* Opcions de traspàs si hi ha producte seleccionat */}
             {selectedProductToAdd && (
               <div className="p-4 bg-surface rounded-xl border border-outline/20 space-y-3 shrink-0 text-xs animate-fadeIn">
+                <div className="flex items-center gap-3 pb-3 border-b border-outline/10">
+                  {(() => {
+                    const selImg = getProductImage(selectedProductToAdd);
+                    return (
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                        {selImg ? (
+                          <img 
+                            src={selImg} 
+                            alt={selectedProductToAdd.nom} 
+                            className="w-full h-full object-cover" 
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              if (e.currentTarget.nextElementSibling) {
+                                e.currentTarget.nextElementSibling.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                          style={{ display: selImg ? 'none' : 'flex' }}
+                        >
+                          <Package className="w-5 h-5" />
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className="min-w-0">
+                    <h4 className="font-serif font-bold text-xs text-primary truncate">{selectedProductToAdd.nom}</h4>
+                    <p className="font-mono text-[10px] text-on-surface-variant">{selectedProductToAdd.codi || '-'}</p>
+                  </div>
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-primary">Quantitat a traspassar a la fira:</span>
                   <input
