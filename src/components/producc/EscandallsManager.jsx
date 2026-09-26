@@ -3,12 +3,152 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
 import DecimalInput from '../common/DecimalInput';
+import LaserParametersEditor from './LaserParametersEditor';
+import { DEFAULT_LASER_CONFIG, getLaserMaterialsLibrary, findLaserParamsForMaterial } from '../../utils/laserUtils';
+import { isProductInGamma, normalizeGammaName } from '../PrivateAreaSection';
+
+// Helper resilient per trobar el producte del catàleg associat a un escandall
+const findProductForEscandall = (esc, catalogProducts = []) => {
+  if (!esc) return null;
+  return (catalogProducts || []).find(p => {
+    if (p.id && esc.producteId && String(p.id) === String(esc.producteId)) return true;
+    if (p.codi && esc.producteCodi && String(p.codi).toLowerCase().trim() === String(esc.producteCodi).toLowerCase().trim()) return true;
+    if (p.nom && esc.producteNom && String(p.nom).toLowerCase().trim() === String(esc.producteNom).toLowerCase().trim()) return true;
+    if (p.title && esc.producteNom && String(p.title).toLowerCase().trim() === String(esc.producteNom).toLowerCase().trim()) return true;
+    return false;
+  }) || null;
+};
+
+// Helper per extreure totes les etiquetes o identificadors de gamma d'un producte o escandall
+const getGammaList = (prod, esc) => {
+  const list = [];
+  if (prod) {
+    if (Array.isArray(prod.gammaIds)) list.push(...prod.gammaIds);
+    else if (prod.gammaIds) list.push(prod.gammaIds);
+    if (Array.isArray(prod.gammes)) list.push(...prod.gammes);
+    if (prod.gamma) list.push(prod.gamma);
+    if (prod.gammaNom) list.push(prod.gammaNom);
+    if (prod.gammaId) list.push(prod.gammaId);
+    if (prod.subcategory) list.push(prod.subcategory);
+  }
+  if (esc) {
+    if (Array.isArray(esc.gammaIds)) list.push(...esc.gammaIds);
+    if (esc.gamma) list.push(esc.gamma);
+    if (esc.gammaNom) list.push(esc.gammaNom);
+    if (esc.gammaId) list.push(esc.gammaId);
+  }
+  return list.filter(Boolean);
+};
+
+// Helper per extreure totes les referències de família d'un producte o escandall
+const getFamilyList = (prod, esc) => {
+  const list = [];
+  if (prod) {
+    if (Array.isArray(prod.familaIds)) list.push(...prod.familaIds);
+    if (Array.isArray(prod.familiaIds)) list.push(...prod.familiaIds);
+    if (prod.familia) list.push(prod.familia);
+    if (prod.familiaNom) list.push(prod.familiaNom);
+    if (prod.familiaId) list.push(prod.familiaId);
+    if (prod.category) list.push(prod.category);
+    if (prod.categoria) list.push(prod.categoria);
+  }
+  if (esc) {
+    if (Array.isArray(esc.familaIds)) list.push(...esc.familaIds);
+    if (Array.isArray(esc.familiaIds)) list.push(...esc.familiaIds);
+    if (esc.familia) list.push(esc.familia);
+    if (esc.familiaNom) list.push(esc.familiaNom);
+    if (esc.familiaId) list.push(esc.familiaId);
+  }
+  return list.filter(Boolean);
+};
+
+// Comprovació robusta de coincidència de Gamma
+const matchesGammaFilter = (prod, esc, targetGamma, dbGammes = []) => {
+  if (!targetGamma || targetGamma === 'all' || targetGamma === 'Tots' || targetGamma === 'Totes') return true;
+  const gamList = getGammaList(prod, esc);
+  if (gamList.length === 0) return false;
+
+  // 1. Coincidència mitjançant isProductInGamma (normalització, articles "Per...", tolerància a accents)
+  if (isProductInGamma(gamList, targetGamma, dbGammes)) return true;
+
+  // 2. Coincidència directa per ID o nom
+  const tLower = String(targetGamma).toLowerCase().trim();
+  const tNorm = normalizeGammaName ? normalizeGammaName(targetGamma) : tLower;
+  
+  const targetGamObj = (dbGammes || []).find(g => 
+    (g.id && String(g.id) === String(targetGamma)) || 
+    (g.nom && String(g.nom).toLowerCase().trim() === tLower) ||
+    (g.nom && normalizeGammaName && normalizeGammaName(g.nom) === tNorm)
+  );
+
+  return gamList.some(item => {
+    const itemStr = String(item).trim();
+    const itemLower = itemStr.toLowerCase();
+    const itemNorm = normalizeGammaName ? normalizeGammaName(itemStr) : itemLower;
+
+    if (itemLower === tLower || itemNorm === tNorm) return true;
+    if (itemLower.includes(tLower) || tLower.includes(itemLower)) return true;
+
+    if (targetGamObj) {
+      if (itemStr === String(targetGamObj.id) || itemLower === String(targetGamObj.nom || '').toLowerCase().trim()) return true;
+      if (normalizeGammaName && normalizeGammaName(targetGamObj.nom) === itemNorm) return true;
+    }
+
+    const itemGamObj = (dbGammes || []).find(g => g.id === itemStr || g.nom === itemStr);
+    if (itemGamObj) {
+      const iNorm = normalizeGammaName ? normalizeGammaName(itemGamObj.nom) : String(itemGamObj.nom).toLowerCase();
+      if (iNorm === tNorm || String(itemGamObj.nom).toLowerCase().includes(tLower) || String(itemGamObj.id) === targetGamma) return true;
+    }
+
+    return false;
+  });
+};
+
+// Comprovació robusta de coincidència de Família
+const matchesFamilyFilter = (prod, esc, targetFamilia, dbFamilies = [], dbGammes = []) => {
+  if (!targetFamilia || targetFamilia === 'all' || targetFamilia === 'Tots' || targetFamilia === 'Totes') return true;
+  const famList = getFamilyList(prod, esc);
+  const gamList = getGammaList(prod, esc);
+  const tFamLower = String(targetFamilia).toLowerCase().trim();
+
+  const selFamObj = (dbFamilies || []).find(f => 
+    (f.id && String(f.id) === String(targetFamilia)) || 
+    (f.nom && String(f.nom).toLowerCase().trim() === tFamLower)
+  );
+  const famNom = selFamObj ? selFamObj.nom : targetFamilia;
+  const famNomLower = String(famNom).toLowerCase().trim();
+
+  // 1. Coincidència directa per camps de família
+  const directFamMatch = famList.some(f => {
+    const fStr = String(f).toLowerCase().trim();
+    return fStr === tFamLower || fStr === famNomLower || fStr.includes(famNomLower) || famNomLower.includes(fStr);
+  });
+  if (directFamMatch) return true;
+
+  // 2. Coincidència de família a través de la gamma a la qual pertany el producte
+  const gammaMatchesFamily = gamList.some(gItem => {
+    const gObj = (dbGammes || []).find(g => 
+      g.id === gItem || 
+      g.nom === gItem || 
+      isProductInGamma([gItem], g.nom, dbGammes)
+    );
+    if (!gObj) return false;
+    const gFam = String(gObj.familiaNom || gObj.familia || gObj.familiaId || '').toLowerCase().trim();
+    return gFam.includes(famNomLower) || famNomLower.includes(gFam) || (selFamObj && gObj.familiaId === selFamObj.id);
+  });
+  if (gammaMatchesFamily) return true;
+
+  // 3. Fallback mitjançant isProductInGamma amb el nom de família
+  if (isProductInGamma(gamList, famNom, dbGammes)) return true;
+
+  return false;
+};
 
 // Helper per determinar si una opció és de text lliure (gravat, inicial, etc.)
 const isTextOption = (op) => {
@@ -101,6 +241,10 @@ export default function EscandallsManager({
   const [duplicateCustomName, setDuplicateCustomName] = useState('');
   const [duplicateSearchQuery, setDuplicateSearchQuery] = useState('');
 
+  // Estat per a la selecció de material làser a l'escandall
+  const [selectedLaserLibMaterialId, setSelectedLaserLibMaterialId] = useState('');
+  const [lastAppliedLaserMaterialNom, setLastAppliedLaserMaterialNom] = useState('');
+
   // Estat del formulari de l'escandall
   const [formData, setFormData] = useState({
     producteNom: '',
@@ -115,7 +259,8 @@ export default function EscandallsManager({
     materials: [],
     operacions: [],
     maquinaria: [],
-    opcionsCostos: {}
+    opcionsCostos: {},
+    parametresLaser: null
   });
 
   // Obtenir productes combinats (Firestore "productes" + fallbacks)
@@ -158,7 +303,12 @@ export default function EscandallsManager({
     if (filterFamilia === 'all') return gammes;
     const selectedFamObj = families.find(f => f.id === filterFamilia || f.nom === filterFamilia);
     const famNom = selectedFamObj ? selectedFamObj.nom : filterFamilia;
-    return gammes.filter(g => g.familiaNom === famNom || g.familiaId === filterFamilia);
+    const famNomLower = String(famNom).toLowerCase().trim();
+    return gammes.filter(g => {
+      const gFam = String(g.familiaNom || g.familia || '').toLowerCase().trim();
+      const gFamId = String(g.familiaId || '').toLowerCase().trim();
+      return gFam.includes(famNomLower) || famNomLower.includes(gFam) || (selectedFamObj && gFamId === String(selectedFamObj.id).toLowerCase());
+    });
   }, [gammes, families, filterFamilia]);
 
   // Gammes filtrades per a la finestra flotant de selecció
@@ -166,25 +316,23 @@ export default function EscandallsManager({
     if (pickerFamilia === 'all') return gammes;
     const selectedFamObj = families.find(f => f.id === pickerFamilia || f.nom === pickerFamilia);
     const famNom = selectedFamObj ? selectedFamObj.nom : pickerFamilia;
-    return gammes.filter(g => g.familiaNom === famNom || g.familiaId === pickerFamilia);
+    const famNomLower = String(famNom).toLowerCase().trim();
+    return gammes.filter(g => {
+      const gFam = String(g.familiaNom || g.familia || '').toLowerCase().trim();
+      const gFamId = String(g.familiaId || '').toLowerCase().trim();
+      return gFam.includes(famNomLower) || famNomLower.includes(gFam) || (selectedFamObj && gFamId === String(selectedFamObj.id).toLowerCase());
+    });
   }, [gammes, families, pickerFamilia]);
 
   // Productes filtrats a la finestra flotant de selecció
   const filteredPickerProducts = useMemo(() => {
     return allCatalogProducts.filter(p => {
       if (pickerFamilia !== 'all') {
-        const selectedFamObj = families.find(f => f.id === pickerFamilia || f.nom === pickerFamilia);
-        const famNom = selectedFamObj ? selectedFamObj.nom : pickerFamilia;
-        const matchesFam = (Array.isArray(p.familaIds) && p.familaIds.includes(famNom)) ||
-                           (Array.isArray(p.familiaIds) && p.familiaIds.includes(pickerFamilia)) ||
-                           p.familia === famNom;
-        if (!matchesFam) return false;
+        if (!matchesFamilyFilter(p, null, pickerFamilia, families, gammes)) return false;
       }
 
       if (pickerGamma !== 'all') {
-        const matchesGam = (Array.isArray(p.gammaIds) && p.gammaIds.includes(pickerGamma)) ||
-                           p.gammaId === pickerGamma;
-        if (!matchesGam) return false;
+        if (!matchesGammaFilter(p, null, pickerGamma, gammes)) return false;
       }
 
       if (pickerSearch.trim()) {
@@ -197,7 +345,7 @@ export default function EscandallsManager({
 
       return true;
     });
-  }, [allCatalogProducts, pickerFamilia, pickerGamma, pickerSearch, families]);
+  }, [allCatalogProducts, pickerFamilia, pickerGamma, pickerSearch, families, gammes]);
 
   // Llistes filtrades de projectes reals per a la finestra de selecció de projectes
   const filteredProjectes = useMemo(() => {
@@ -281,6 +429,8 @@ export default function EscandallsManager({
     setEditingEscandall(null);
     setActiveModalTab('base');
     setExpandedOptionKey(null);
+    setSelectedLaserLibMaterialId('');
+    setLastAppliedLaserMaterialNom('');
     setFormData({
       producteNom: prod.nom || prod.title || prod.titol || 'Sense nom',
       producteId: prod.id,
@@ -294,7 +444,8 @@ export default function EscandallsManager({
       materials: [],
       operacions: [],
       maquinaria: [],
-      opcionsCostos: initialOpcionsCostos
+      opcionsCostos: initialOpcionsCostos,
+      parametresLaser: null
     });
 
     setProductPickerOpen(false);
@@ -311,6 +462,8 @@ export default function EscandallsManager({
     setEditingEscandall(null);
     setActiveModalTab('base');
     setExpandedOptionKey(null);
+    setSelectedLaserLibMaterialId('');
+    setLastAppliedLaserMaterialNom('');
     setFormData({
       producteNom: nom,
       producteId: proj.id || `proj-${Date.now()}`,
@@ -324,7 +477,8 @@ export default function EscandallsManager({
       materials: [],
       operacions: [],
       maquinaria: [],
-      opcionsCostos: {}
+      opcionsCostos: {},
+      parametresLaser: null
     });
 
     setProjectPickerOpen(false);
@@ -336,12 +490,15 @@ export default function EscandallsManager({
     setEditingEscandall(esc);
     setActiveModalTab('base');
     setExpandedOptionKey(null);
+    setSelectedLaserLibMaterialId('');
+    setLastAppliedLaserMaterialNom('');
     setFormData({
       ...esc,
       materials: esc.materials ? esc.materials.map(m => ({ ...m })) : [],
       operacions: esc.operacions ? esc.operacions.map(o => ({ ...o })) : [],
       maquinaria: esc.maquinaria ? esc.maquinaria.map(mq => ({ ...mq })) : [],
-      opcionsCostos: esc.opcionsCostos ? JSON.parse(JSON.stringify(esc.opcionsCostos)) : {}
+      opcionsCostos: esc.opcionsCostos ? JSON.parse(JSON.stringify(esc.opcionsCostos)) : {},
+      parametresLaser: esc.parametresLaser ? JSON.parse(JSON.stringify(esc.parametresLaser)) : null
     });
     setModalOpen(true);
   };
@@ -721,48 +878,37 @@ export default function EscandallsManager({
   const countProjectes = escandalls.filter(e => e.tipus && e.tipus !== 'Producte Web').length;
 
   // Filtrar llista d'escandalls segons l'àmbit triat, Família, Gamma i cerca
-  const filteredEscandalls = escandalls
-    .filter(e => {
-      const isProducte = !e.tipus || e.tipus === 'Producte Web';
-      if (activeScope === 'productes' && !isProducte) return false;
-      if (activeScope === 'projectes' && isProducte) return false;
+  const filteredEscandalls = useMemo(() => {
+    return escandalls
+      .filter(e => {
+        const isProducte = !e.tipus || e.tipus === 'Producte Web';
+        if (activeScope === 'productes' && !isProducte) return false;
+        if (activeScope === 'projectes' && isProducte) return false;
 
-      // Filtres específics de Família i Gamma per a Productes
-      if (activeScope === 'productes') {
-        const prod = allCatalogProducts.find(p => p.id === e.producteId || p.codi === e.producteCodi || p.nom === e.producteNom);
-        
-        if (filterFamilia !== 'all') {
-          const selFam = families.find(f => f.id === filterFamilia || f.nom === filterFamilia);
-          const famNom = selFam ? selFam.nom : filterFamilia;
-          const matchesFam = prod && (
-            (Array.isArray(prod.familaIds) && prod.familaIds.includes(famNom)) ||
-            (Array.isArray(prod.familiaIds) && prod.familiaIds.includes(filterFamilia)) ||
-            prod.familia === famNom ||
-            e.familia === famNom
-          );
-          if (!matchesFam) return false;
+        // Filtres específics de Família i Gamma per a Productes
+        if (activeScope === 'productes') {
+          const prod = findProductForEscandall(e, allCatalogProducts);
+          
+          if (filterFamilia !== 'all') {
+            if (!matchesFamilyFilter(prod, e, filterFamilia, families, gammes)) return false;
+          }
+
+          if (filterGamma !== 'all') {
+            if (!matchesGammaFilter(prod, e, filterGamma, gammes)) return false;
+          }
         }
 
-        if (filterGamma !== 'all') {
-          const matchesGam = prod && (
-            (Array.isArray(prod.gammaIds) && prod.gammaIds.includes(filterGamma)) ||
-            prod.gammaId === filterGamma ||
-            e.gamma === filterGamma
-          );
-          if (!matchesGam) return false;
+        if (searchTerm.trim()) {
+          const q = searchTerm.toLowerCase();
+          const matchesSearch = (e.producteNom || '').toLowerCase().includes(q) ||
+                                (e.producteCodi || '').toLowerCase().includes(q) ||
+                                (e.notes || '').toLowerCase().includes(q);
+          if (!matchesSearch) return false;
         }
-      }
-
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        const matchesSearch = (e.producteNom || '').toLowerCase().includes(q) ||
-                              (e.producteCodi || '').toLowerCase().includes(q) ||
-                              (e.notes || '').toLowerCase().includes(q);
-        if (!matchesSearch) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => (a.producteNom || '').localeCompare(b.producteNom || '', 'ca', { sensitivity: 'base' }));
+        return true;
+      })
+      .sort((a, b) => (a.producteNom || '').localeCompare(b.producteNom || '', 'ca', { sensitivity: 'base' }));
+  }, [escandalls, activeScope, allCatalogProducts, filterFamilia, filterGamma, families, gammes, searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -855,7 +1001,7 @@ export default function EscandallsManager({
             >
               <option value="all">Totes les Famílies</option>
               {families.map(f => (
-                <option key={f.id} value={f.nom || f.id}>{f.nom}</option>
+                <option key={f.id || f.nom} value={f.nom || f.id}>{f.nom}</option>
               ))}
             </select>
 
@@ -870,9 +1016,31 @@ export default function EscandallsManager({
             >
               <option value="all">Totes les Gammes</option>
               {availableGammesForMain.map(g => (
-                <option key={g.id} value={g.nom || g.id}>{g.nom}</option>
+                <option key={g.id || g.nom} value={g.nom || g.id}>
+                  {filterFamilia === 'all' && g.familiaNom ? `(${g.familiaNom}) ${g.nom}` : g.nom}
+                </option>
               ))}
             </select>
+
+            {/* Botó per Netejar Filtres si n'hi ha algun d'actiu */}
+            {(filterFamilia !== 'all' || filterGamma !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterFamilia('all');
+                  setFilterGamma('all');
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1 border transition-all cursor-pointer ${
+                  isDark 
+                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-amber-500/30' 
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                }`}
+                title="Restablir filtres de família i gamma"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold">Netejar</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -884,23 +1052,49 @@ export default function EscandallsManager({
             placeholder={activeScope === 'productes' ? "Cerca producte de catàleg, codi, descripció..." : "Cerca projecte món mínim, singular o a mida..."}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 rounded-xl text-xs border outline-none transition-all ${
+            className={`w-full pl-10 pr-9 py-2 rounded-xl text-xs border outline-none transition-all ${
               isDark 
                 ? 'bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/50' 
                 : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-amber-500'
             }`}
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-0.5"
+              title="Esborrar cerca"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
       {/* LLISTAT EN FORMAT D'AMPLE A AMPLE (Fitxes Horitzontals Compactes) */}
       <div className="space-y-3">
         {filteredEscandalls.length === 0 ? (
-          <div className="p-12 rounded-2xl border border-dashed border-slate-800 text-center text-slate-500 text-xs">
-            {activeScope === 'productes' 
-              ? "No hi ha cap escandall de Productes de Catàleg amb els filtres seleccionats."
-              : "No hi ha cap escandall de Projectes amb els filtres seleccionats."
-            }
+          <div className="p-12 rounded-2xl border border-dashed border-slate-800 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-3">
+            <p>
+              {activeScope === 'productes' 
+                ? "No hi ha cap escandall de Productes de Catàleg amb els filtres seleccionats."
+                : "No hi ha cap escandall de Projectes amb els filtres seleccionats."
+              }
+            </p>
+            {(filterFamilia !== 'all' || filterGamma !== 'all' || searchTerm) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterFamilia('all');
+                  setFilterGamma('all');
+                  setSearchTerm('');
+                }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 transition-all border border-amber-500/30 cursor-pointer flex items-center gap-1.5"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Restablir filtres de cerca</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredEscandalls.map(esc => {
@@ -961,6 +1155,11 @@ export default function EscandallsManager({
                       <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
                         {esc.tipus || 'Producte Web'}
                       </span>
+                      {esc.parametresLaser && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 flex items-center gap-1" title="Té paràmetres de làser personalitzats">
+                          <Zap className="w-2.5 h-2.5" /> Làser
+                        </span>
+                      )}
                     </div>
 
                     <p className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
@@ -1558,8 +1757,8 @@ export default function EscandallsManager({
 
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  type="submit"
-                  form="escandall-modal-form"
+                  type="button"
+                  onClick={handleSave}
                   className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
                   title="Guardar Escandall"
                 >
@@ -1621,10 +1820,50 @@ export default function EscandallsManager({
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span>3. Resum de Costos & PVP</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModalTab('laser');
+                  if (!formData.parametresLaser) {
+                    const lib = getLaserMaterialsLibrary(maquinaria);
+                    let matchedParams = null;
+                    let matchedNom = '';
+                    if (formData.materials && formData.materials.length > 0) {
+                      for (const m of formData.materials) {
+                        const p = findLaserParamsForMaterial(m.materialId || m.material, maquinaria);
+                        if (p) {
+                          matchedParams = p;
+                          matchedNom = m.material || m.nom || '';
+                          break;
+                        }
+                      }
+                    }
+                    if (!matchedParams && lib.length > 0) {
+                      matchedParams = lib[0].parametres;
+                      matchedNom = lib[0].nom;
+                    }
+                    if (matchedParams) {
+                      setFormData(prev => ({ ...prev, parametresLaser: JSON.parse(JSON.stringify(matchedParams)) }));
+                      if (matchedNom) setLastAppliedLaserMaterialNom(matchedNom);
+                    } else {
+                      setFormData(prev => ({ ...prev, parametresLaser: JSON.parse(JSON.stringify(DEFAULT_LASER_CONFIG)) }));
+                    }
+                  }
+                }}
+                className={`py-2.5 px-3 text-xs font-semibold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeModalTab === 'laser'
+                    ? (isDark ? 'border-amber-500 text-amber-400 font-bold' : 'border-amber-600 text-amber-800 font-extrabold')
+                    : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span>4. Paràmetres Làser {formData.parametresLaser ? '✓' : ''}</span>
+              </button>
             </div>
 
             {/* Contingut del Formulari */}
-            <form id="escandall-modal-form" onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
+            <form id="escandall-modal-form" noValidate onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-6 text-xs">
               {/* ================= PESTANYA 1: PRODUCTE & BASE ================= */}
               {activeModalTab === 'base' && (
                 <div className="space-y-6">
@@ -2599,6 +2838,174 @@ export default function EscandallsManager({
                   </div>
                 </div>
               )}
+
+              {/* ================= PESTANYA 4: PARÀMETRES LÀSER ================= */}
+              {activeModalTab === 'laser' && (() => {
+                const laserLib = getLaserMaterialsLibrary(maquinaria);
+                
+                // Buscar si algun material de l'escandall coincideix amb la biblioteca
+                const detectedMatches = [];
+                (formData.materials || []).forEach(m => {
+                  const mName = (m.material || m.nom || '').trim();
+                  const mId = m.materialId || m.id || '';
+                  const match = laserLib.find(libItem => 
+                    (mId && libItem.materialId === mId) ||
+                    (libItem.id === mId) ||
+                    (mName && libItem.nom && libItem.nom.toLowerCase().includes(mName.toLowerCase())) ||
+                    (libItem.nom && mName && mName.toLowerCase().includes(libItem.nom.toLowerCase()))
+                  );
+                  if (match && !detectedMatches.some(dm => dm.match.id === match.id)) {
+                    detectedMatches.push({ escMaterialName: mName, match });
+                  }
+                });
+
+                const handleApplyMaterialParams = (libItem) => {
+                  if (!libItem) return;
+                  setFormData(prev => ({
+                    ...prev,
+                    parametresLaser: JSON.parse(JSON.stringify(libItem.parametres))
+                  }));
+                  setSelectedLaserLibMaterialId(libItem.id);
+                  setLastAppliedLaserMaterialNom(libItem.nom);
+                };
+
+                return (
+                  <div className="space-y-5 animate-fadeIn">
+                    {/* Capçalera informativa */}
+                    <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isDark ? 'bg-amber-950/20 border-amber-500/30 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-900'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+                          <Zap className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs sm:text-sm">Paràmetres Làser segons el Material de Fabricació</h4>
+                          <p className="text-[11px] opacity-80">
+                            Tria el material amb què està fabricat el producte per carregar els seus paràmetres de gravat i tall per defecte (LaserGRBL), i ajusta'ls si cal per a aquesta peça.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bloc de Selecció de Material Làser */}
+                    <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 ${
+                      isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+                    }`}>
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="text-xs font-bold flex items-center gap-2 text-slate-300">
+                          <Layers className="w-4 h-4 text-amber-500" />
+                          <span>Selecciona el Material del Producte a la Biblioteca Làser</span>
+                        </label>
+                        {lastAppliedLaserMaterialNom && (
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Paràmetres carregats de: <strong>{lastAppliedLaserMaterialNom}</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Suggeriments automàtics basats en els materials definits a la pestanya 1 */}
+                      {detectedMatches.length > 0 && (
+                        <div className={`p-3 rounded-xl border text-xs space-y-1.5 ${
+                          isDark ? 'bg-amber-950/20 border-amber-500/20' : 'bg-amber-50/70 border-amber-200'
+                        }`}>
+                          <span className="text-[11px] font-semibold text-amber-500 block">
+                            Materials detectats a l'escandall d'aquest producte:
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {detectedMatches.map(({ escMaterialName, match }) => (
+                              <button
+                                key={match.id}
+                                type="button"
+                                onClick={() => handleApplyMaterialParams(match)}
+                                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                  selectedLaserLibMaterialId === match.id
+                                    ? 'bg-amber-500 text-slate-950 border-amber-500 font-bold'
+                                    : 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-400'
+                                }`}
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>Aplicar per a: {match.nom} ({escMaterialName})</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dropdown de selecció de qualsevol material de la biblioteca */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <select
+                          value={selectedLaserLibMaterialId}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            setSelectedLaserLibMaterialId(id);
+                            const found = laserLib.find(item => item.id === id);
+                            if (found) {
+                              handleApplyMaterialParams(found);
+                            }
+                          }}
+                          className={`flex-1 p-2.5 rounded-xl border outline-none text-xs ${
+                            isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <option value="">-- Tria un material de la biblioteca làser ({laserLib.length} disponibles) --</option>
+                          {laserLib.map(libItem => (
+                            <option key={libItem.id} value={libItem.id}>
+                              {libItem.nom}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = laserLib.find(item => item.id === selectedLaserLibMaterialId);
+                            if (found) {
+                              handleApplyMaterialParams(found);
+                            } else if (laserLib.length > 0) {
+                              handleApplyMaterialParams(laserLib[0]);
+                            }
+                          }}
+                          className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all shrink-0"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>Aplicar Paràmetres</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Editor complet de paràmetres LaserGRBL per a aquest escandall */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-xs font-semibold text-slate-400">
+                          Ajust de Paràmetres per a aquest Producte (Gravar & Tallar):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedLaserLibMaterialId) {
+                              const found = laserLib.find(item => item.id === selectedLaserLibMaterialId);
+                              if (found) handleApplyMaterialParams(found);
+                            } else {
+                              setFormData(prev => ({ ...prev, parametresLaser: JSON.parse(JSON.stringify(DEFAULT_LASER_CONFIG)) }));
+                            }
+                          }}
+                          className="text-[11px] text-amber-500 hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          Reiniciar als valors per defecte del material
+                        </button>
+                      </div>
+
+                      <LaserParametersEditor
+                        value={formData.parametresLaser || DEFAULT_LASER_CONFIG}
+                        onChange={(newParams) => setFormData(prev => ({ ...prev, parametresLaser: newParams }))}
+                        isDark={isDark}
+                        showDimensions={true}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </form>
           </div>
         </div>

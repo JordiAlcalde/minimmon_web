@@ -865,6 +865,7 @@ export default function ProduccApp({ setActiveTab }) {
           <MaquinariaManager
             maquinaria={maquinaria}
             setMaquinaria={setMaquinariaWithFirestore}
+            materials={materials}
             isDark={isDark}
           />
         )}
@@ -876,6 +877,7 @@ export default function ProduccApp({ setActiveTab }) {
             materials={materials}
             setMaterials={setMaterialsWithFirestore}
             escandalls={escandalls}
+            setEscandalls={setEscandallsWithFirestore}
             productes={productes}
             setProductes={setProductesWithFirestore}
             families={families}

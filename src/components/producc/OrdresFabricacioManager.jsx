@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ClipboardList, Plus, Minus, Search, Filter, Calendar, Clock, AlertTriangle, 
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
@@ -12,7 +12,9 @@ import { formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import DecimalInput from '../common/DecimalInput';
 import { AVAILABLE_FONTS } from '../FontSelectorDropdown';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
-import { formatProductWithGamma, getSingularGammaName, getProductGammaLabel } from '../PrivateAreaSection';
+import { formatProductWithGamma, getSingularGammaName, getProductGammaLabel, isProductInGamma } from '../PrivateAreaSection';
+import LaserParametersEditor from './LaserParametersEditor';
+import { DEFAULT_LASER_CONFIG, normalizeLaserConfig, areLaserConfigsEqual } from '../../utils/laserUtils';
 
 // Helper per resoldre i separar la gamma i el nom del producte per a qualsevol OF
 export const resolveOFGammaAndName = (of, productes = [], escandalls = [], gammes = []) => {
@@ -177,6 +179,7 @@ export default function OrdresFabricacioManager({
   materials = [],
   setMaterials,
   escandalls = [],
+  setEscandalls,
   productes = [],
   setProductes,
   families = [],
@@ -1076,6 +1079,7 @@ export default function OrdresFabricacioManager({
           onFinalitzarOF={() => handleChangeStatus(selectedOFDetail.id, 'finalitzada')}
           materials={materials}
           escandalls={escandalls}
+          setEscandalls={setEscandalls}
           operacions={operacions}
           isDark={isDark}
           onPrint={() => {
@@ -1161,7 +1165,7 @@ function NewOFModal({
     textCaraA: '',
     textCaraB: '',
     notesTaller: '',
-    parametresLaser: { potencia: '65%', velocitat: '400 mm/s', passades: '1' }
+    parametresLaser: DEFAULT_LASER_CONFIG
   });
 
   // Obtenir tots els productes combinats del catàleg
@@ -1283,24 +1287,45 @@ function NewOFModal({
     return escandallatProducts.filter(p => {
       // Filtre de Família
       if (selectedFamilia !== 'all') {
-        const matchesFam = p.familiaNom === selectedFamilia || 
-          p.product?.familia === selectedFamilia || 
-          (Array.isArray(p.product?.familaIds) && p.product.familaIds.includes(selectedFamilia)) ||
-          (Array.isArray(p.product?.familiaIds) && p.product.familiaIds.includes(selectedFamilia)) ||
-          p.product?.categoria === selectedFamilia ||
-          p.escandall?.familia === selectedFamilia;
-        if (!matchesFam) return false;
+        const famList = [
+          ...(p.familiaNom ? [p.familiaNom] : []),
+          ...(p.product?.familia ? [p.product.familia] : []),
+          ...(p.product?.familiaNom ? [p.product.familiaNom] : []),
+          ...(Array.isArray(p.product?.familaIds) ? p.product.familaIds : []),
+          ...(Array.isArray(p.product?.familiaIds) ? p.product.familiaIds : []),
+          ...(p.product?.categoria ? [p.product.categoria] : []),
+          ...(p.escandall?.familia ? [p.escandall.familia] : [])
+        ];
+        const gamList = [
+          ...(p.gammaNom ? [p.gammaNom] : []),
+          ...(p.product?.gamma ? [p.product.gamma] : []),
+          ...(p.product?.gammaNom ? [p.product.gammaNom] : []),
+          ...(Array.isArray(p.product?.gammaIds) ? p.product.gammaIds : []),
+          ...(p.product?.gammaId ? [p.product.gammaId] : []),
+          ...(p.escandall?.gamma ? [p.escandall.gamma] : [])
+        ];
+        const sFamLower = selectedFamilia.toLowerCase();
+        const directMatch = famList.some(f => String(f).toLowerCase().includes(sFamLower) || sFamLower.includes(String(f).toLowerCase()));
+        const gammaMatches = gamList.some(gName => {
+          const gObj = gammes.find(g => isProductInGamma([gName], g.nom, gammes));
+          return gObj?.familiaNom && gObj.familiaNom.toLowerCase().includes(sFamLower);
+        });
+        if (!directMatch && !gammaMatches && !isProductInGamma(gamList, selectedFamilia, gammes)) return false;
       }
 
       // Filtre de Gamma
       if (selectedGamma !== 'all') {
-        const matchesGam = p.gammaNom === selectedGamma || 
-          p.product?.gamma === selectedGamma || 
-          p.product?.gammaNom === selectedGamma || 
-          (Array.isArray(p.product?.gammaIds) && p.product.gammaIds.includes(selectedGamma)) ||
-          p.product?.gammaId === selectedGamma ||
-          p.escandall?.gamma === selectedGamma;
-        if (!matchesGam) return false;
+        const gamList = [
+          ...(p.gammaNom ? [p.gammaNom] : []),
+          ...(p.product?.gamma ? [p.product.gamma] : []),
+          ...(p.product?.gammaNom ? [p.product.gammaNom] : []),
+          ...(Array.isArray(p.product?.gammaIds) ? p.product.gammaIds : []),
+          ...(p.product?.gammaId ? [p.product.gammaId] : []),
+          ...(p.escandall?.gamma ? [p.escandall.gamma] : [])
+        ];
+        const matchGam = isProductInGamma(gamList, selectedGamma, gammes) ||
+          gamList.some(g => String(g).toLowerCase().trim() === selectedGamma.toLowerCase().trim());
+        if (!matchGam) return false;
       }
 
       // Filtre de Cerca
@@ -1313,7 +1338,7 @@ function NewOFModal({
 
       return true;
     });
-  }, [escandallatProducts, selectedFamilia, selectedGamma, productSearch]);
+  }, [escandallatProducts, selectedFamilia, selectedGamma, productSearch, gammes]);
 
   // Llista de Projectes que disposen d'escandall (Món Mínim, Stitch, etc.)
   const escandallatProjects = useMemo(() => {
@@ -1376,6 +1401,7 @@ function NewOFModal({
 
   // Triar un producte del catàleg escandallat
   const handleSelectProduct = (prod) => {
+    const matchedEsc = escandalls.find(e => e.id === prod.escandallId);
     setFormData(prev => ({
       ...prev,
       tipusItem: 'producte',
@@ -1383,7 +1409,8 @@ function NewOFModal({
       producteNom: prod.nom,
       producteCodi: prod.codi || '',
       escandallId: prod.escandallId,
-      codiModelGenerat: prod.codi || ''
+      codiModelGenerat: prod.codi || '',
+      parametresLaser: matchedEsc?.parametresLaser || DEFAULT_LASER_CONFIG
     }));
   };
 
@@ -1397,7 +1424,8 @@ function NewOFModal({
       producteCodi: projEsc.producteCodi || 'MM',
       escandallId: projEsc.id,
       codiModelGenerat: projEsc.producteCodi || 'MM-PROJ',
-      quantitat: 1
+      quantitat: 1,
+      parametresLaser: projEsc.parametresLaser || DEFAULT_LASER_CONFIG
     }));
   };
 
@@ -1439,6 +1467,7 @@ function NewOFModal({
       forats: foratsVal,
       textCaraA: textAVal,
       textCaraB: textBVal,
+      parametresLaser: matchedEsc.parametresLaser || DEFAULT_LASER_CONFIG,
       notesTaller: item.observacions || budget.observacionsGenerals || ''
     }));
 
@@ -2097,8 +2126,11 @@ function NewOFModal({
 // --------------------------------------------------------------------------
 // SUBCOMPONENT: MODAL DETALL D'OF & FULL DE RUTA INTERACTIU
 // --------------------------------------------------------------------------
-function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQuantitat, onFinalitzarOF, materials, escandalls = [], operacions = [], isDark, onPrint }) {
+function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQuantitat, onFinalitzarOF, materials, escandalls = [], setEscandalls, operacions = [], isDark, onPrint }) {
   const [activeOF, setActiveOF] = useState(ofData);
+  const initialLaserRef = useRef(JSON.stringify(normalizeLaserConfig(ofData?.parametresLaser)));
+  const [showLaserSyncPrompt, setShowLaserSyncPrompt] = useState(false);
+  const [pendingCloseAction, setPendingCloseAction] = useState(null); // 'close' | 'save'
 
   useEffect(() => {
     if (!ofData) {
@@ -2106,7 +2138,10 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
       return;
     }
 
-    let populatedOF = { ...ofData };
+    let populatedOF = { 
+      ...ofData,
+      parametresLaser: normalizeLaserConfig(ofData.parametresLaser)
+    };
     const hasMaterials = Array.isArray(ofData.materials) && ofData.materials.length > 0;
     const hasOperacions = Array.isArray(ofData.operacions) && ofData.operacions.length > 0;
 
@@ -2167,6 +2202,11 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
           changed = true;
         }
 
+        if (!populatedOF.parametresLaser && matchedEsc.parametresLaser) {
+          populatedOF.parametresLaser = normalizeLaserConfig(matchedEsc.parametresLaser);
+          changed = true;
+        }
+
         if (changed) {
           onUpdateOF(populatedOF);
         }
@@ -2174,6 +2214,7 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
     }
 
     setActiveOF(populatedOF);
+    initialLaserRef.current = JSON.stringify(normalizeLaserConfig(populatedOF.parametresLaser));
   }, [ofData, escandalls, materials, operacions]);
 
   // Commutar estat d'un pas del full de ruta
@@ -2195,10 +2236,71 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
     onUpdateOF(updatedOF);
   };
 
-  // Guardar canvis de l'OF (dades client, comanda, paràmetres làser o notes de taller)
-  const handleSaveNotes = () => {
+  // Comprovar si els paràmetres làser han canviat respecte l'original
+  const checkLaserChanged = () => {
+    const currentLaserStr = JSON.stringify(normalizeLaserConfig(activeOF.parametresLaser));
+    return currentLaserStr !== initialLaserRef.current;
+  };
+
+  const handleRequestClose = () => {
+    if (checkLaserChanged()) {
+      setPendingCloseAction('close');
+      setShowLaserSyncPrompt(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleRequestSave = () => {
+    if (checkLaserChanged()) {
+      setPendingCloseAction('save');
+      setShowLaserSyncPrompt(true);
+    } else {
+      onUpdateOF(activeOF);
+      alert("Canvis desats correctament a l'OF.");
+    }
+  };
+
+  const handleConfirmSyncToEscandall = () => {
+    // 1. Actualitzar l'escandall associat
+    if (setEscandalls && activeOF) {
+      setEscandalls(prev => prev.map(esc => {
+        const isTarget = (activeOF.escandallId && esc.id === activeOF.escandallId) ||
+          (activeOF.producteId && (esc.producteId === activeOF.producteId || esc.productId === activeOF.producteId)) ||
+          (activeOF.producteNom && esc.producteNom === activeOF.producteNom);
+        if (isTarget) {
+          return {
+            ...esc,
+            parametresLaser: JSON.parse(JSON.stringify(activeOF.parametresLaser))
+          };
+        }
+        return esc;
+      }));
+    }
+
+    // 2. Actualitzar l'OF
     onUpdateOF(activeOF);
-    alert("Canvis desats correctament.");
+    initialLaserRef.current = JSON.stringify(normalizeLaserConfig(activeOF.parametresLaser));
+    setShowLaserSyncPrompt(false);
+
+    if (pendingCloseAction === 'close') {
+      onClose();
+    } else {
+      alert("✓ Canvis desats a l'OF i actualitzats correctament a la fitxa de l'escandall del producte.");
+    }
+  };
+
+  const handleKeepOnlyInOF = () => {
+    // Només actualitzar l'OF
+    onUpdateOF(activeOF);
+    initialLaserRef.current = JSON.stringify(normalizeLaserConfig(activeOF.parametresLaser));
+    setShowLaserSyncPrompt(false);
+
+    if (pendingCloseAction === 'close') {
+      onClose();
+    } else {
+      alert("✓ Canvis desats exclusivament en aquesta OF (canvi temporal de tirada).");
+    }
   };
 
   const getDateInputValue = (dateStr) => {
@@ -2336,7 +2438,7 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               className={`p-2 rounded-lg hover:text-white ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}
             >
               <X className="w-5 h-5" />
@@ -2661,76 +2763,41 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
             </div>
           </div>
 
-          {/* Bloc 4: Paràmetres Làser i Notes de Taller */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className={`p-4 rounded-2xl border space-y-2.5 ${
-              isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <label className={`text-[11px] font-mono uppercase font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Paràmetres Màquina Làser
+          {/* Bloc 4: Paràmetres Màquina Làser */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className={`text-xs font-mono uppercase font-bold flex items-center gap-1.5 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                <Zap className="w-4 h-4" /> Paràmetres Màquina Làser per a aquesta Tirada (LaserGRBL)
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Potència:</span>
-                  <input
-                    type="text"
-                    value={activeOF.parametresLaser?.potencia || ''}
-                    onChange={(e) => setActiveOF({
-                      ...activeOF,
-                      parametresLaser: { ...(activeOF.parametresLaser || {}), potencia: e.target.value }
-                    })}
-                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Velocitat:</span>
-                  <input
-                    type="text"
-                    value={activeOF.parametresLaser?.velocitat || ''}
-                    onChange={(e) => setActiveOF({
-                      ...activeOF,
-                      parametresLaser: { ...(activeOF.parametresLaser || {}), velocitat: e.target.value }
-                    })}
-                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  />
-                </div>
-                <div>
-                  <span className={`text-[10px] font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Passades:</span>
-                  <input
-                    type="text"
-                    value={activeOF.parametresLaser?.passades || ''}
-                    onChange={(e) => setActiveOF({
-                      ...activeOF,
-                      parametresLaser: { ...(activeOF.parametresLaser || {}), passades: e.target.value }
-                    })}
-                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold ${
-                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
-                    }`}
-                  />
-                </div>
-              </div>
+              <span className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Pots fer ajustos temporals per a aquesta OF
+              </span>
             </div>
 
-            <div className={`p-4 rounded-2xl border space-y-2.5 ${
-              isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
-            }`}>
-              <label className={`text-[11px] font-mono uppercase font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                Notes de Taller & Observacions
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Anotacions tècniques per a la fabricació..."
-                value={activeOF.notesTaller || ''}
-                onChange={(e) => setActiveOF({ ...activeOF, notesTaller: e.target.value })}
-                className={`w-full px-3 py-2 rounded-xl border text-xs ${
-                  isDark ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900'
-                }`}
-              />
-            </div>
+            <LaserParametersEditor
+              value={activeOF.parametresLaser || DEFAULT_LASER_CONFIG}
+              onChange={(newParams) => setActiveOF(prev => ({ ...prev, parametresLaser: newParams }))}
+              isDark={isDark}
+              showDimensions={true}
+            />
+          </div>
+
+          {/* Bloc 5: Notes de Taller */}
+          <div className={`p-4 rounded-2xl border space-y-2.5 ${
+            isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}>
+            <label className={`text-[11px] font-mono uppercase font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              Notes de Taller & Observacions de Fabricació
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Anotacions tècniques per a la fabricació..."
+              value={activeOF.notesTaller || ''}
+              onChange={(e) => setActiveOF(prev => ({ ...prev, notesTaller: e.target.value }))}
+              className={`w-full px-3 py-2 rounded-xl border text-xs ${
+                isDark ? 'bg-slate-900 border-slate-700 text-white placeholder:text-slate-500' : 'bg-white border-slate-300 text-slate-900'
+              }`}
+            />
           </div>
 
         </div>
@@ -2785,7 +2852,7 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
             )}
             <button
               type="button"
-              onClick={handleSaveNotes}
+              onClick={handleRequestSave}
               className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-mono font-bold shadow-md cursor-pointer flex items-center gap-1.5"
             >
               <Save className="w-4 h-4" /> Desar Canvis
@@ -2794,6 +2861,57 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
         </div>
 
       </div>
+
+      {/* Modal de confirmació de sincronització de paràmetres làser a l'Escandall */}
+      {showLaserSyncPrompt && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-fadeIn">
+          <div className={`w-full max-w-md p-6 rounded-3xl border shadow-2xl space-y-4 ${
+            isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-900'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
+                <Zap className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm font-serif">Actualitzar Paràmetres Làser a l'Escandall?</h4>
+                <p className="text-xs text-amber-500 font-mono">S'han detectat canvis en els paràmetres de màquina</p>
+              </div>
+            </div>
+
+            <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Has modificat els paràmetres de gravat o tall làser per a aquesta Ordre de Fabricació. Vols desar aquests paràmetres també a la fitxa de l'escandall del producte perquè s'apliquin per defecte en futures fabricacions?
+            </p>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleConfirmSyncToEscandall}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-mono font-bold shadow-md cursor-pointer flex items-center justify-center gap-2 transition-all"
+              >
+                <Save className="w-4 h-4" /> Sí, actualitzar també a l'Escandall
+              </button>
+              <button
+                type="button"
+                onClick={handleKeepOnlyInOF}
+                className={`w-full py-2.5 px-4 rounded-xl border text-xs font-mono font-bold cursor-pointer transition-all ${
+                  isDark 
+                    ? 'border-slate-700 hover:bg-slate-800 text-slate-300' 
+                    : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                Només per a aquesta OF (canvi temporal de tirada)
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLaserSyncPrompt(false)}
+                className="w-full py-1.5 text-center text-xs font-mono text-slate-400 hover:text-white cursor-pointer"
+              >
+                Cancel·lar i seguir editant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2898,11 +3016,25 @@ function PrintWorkshopDossier({ ofData, onClose }) {
 
           {/* Paràmetres Màquina & Materials */}
           <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-            <div className="border border-slate-300 p-3 rounded-xl space-y-1">
-              <span className="font-bold text-[10px] uppercase text-slate-500 block">Paràmetres Làser:</span>
-              <p>Potència: <span className="font-bold">{ofData.parametresLaser?.potencia || '65%'}</span></p>
-              <p>Velocitat: <span className="font-bold">{ofData.parametresLaser?.velocitat || '400 mm/s'}</span></p>
-              <p>Passades: <span className="font-bold">{ofData.parametresLaser?.passades || '1'}</span></p>
+            <div className="border border-slate-300 p-3 rounded-xl space-y-1.5">
+              <span className="font-bold text-[10px] uppercase text-slate-500 block">Paràmetres Làser (LaserGRBL):</span>
+              {(() => {
+                const lp = normalizeLaserConfig(ofData.parametresLaser);
+                return (
+                  <div className="space-y-1 text-[11px]">
+                    <p><strong>GRAVAR:</strong> {lp.gravar.engravingSpeed} mm/min • {lp.gravar.sMaxPercent}% (PWM {lp.gravar.sMaxPwm})</p>
+                    <p className="text-[10px] text-slate-600">Bri: {lp.gravar.brillo} | Con: {lp.gravar.contraste} | Bla: {lp.gravar.blancos}{lp.gravar.bnHabilitat ? ` | B&N: ${lp.gravar.bn}` : ''}</p>
+                    {lp.gravar.midaW && <p className="text-[10px] text-slate-600">Mida: {lp.gravar.midaW} mm (H: Proporcional)</p>}
+                    {lp.gravar.ruta && <p className="text-[10px] text-slate-700 font-mono">📁 Ruta: {lp.gravar.ruta}</p>}
+                    {lp.gravar.fitxer && <p className="text-[10px] text-amber-900 font-bold">Fitxer Gravat: {lp.gravar.fitxer}</p>}
+                    {lp.gravar.notes && <p className="text-[10px] text-slate-600 italic">Notes Gravat: {lp.gravar.notes}</p>}
+                    <p className="pt-1 border-t border-slate-200"><strong>TALLAR:</strong> {lp.tallar.velocidadBorde} mm/min • {lp.tallar.sMaxPercent}% (PWM {lp.tallar.sMaxPwm}) • {lp.tallar.passades || 1} passades</p>
+                    {lp.tallar.ruta && <p className="text-[10px] text-slate-700 font-mono">📁 Ruta: {lp.tallar.ruta}</p>}
+                    {lp.tallar.fitxer && <p className="text-[10px] text-amber-900 font-bold">Fitxer Tall: {lp.tallar.fitxer}</p>}
+                    {lp.tallar.notes && <p className="text-[10px] text-slate-600 italic">Notes Tall: {lp.tallar.notes}</p>}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="border border-slate-300 p-3 rounded-xl space-y-1">

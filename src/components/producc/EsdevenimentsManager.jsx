@@ -40,6 +40,7 @@ import {
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import { getNextOFId } from './OrdresFabricacioManager';
+import { normalizeLaserConfig, DEFAULT_LASER_CONFIG } from '../../utils/laserUtils';
 
 export default function EsdevenimentsManager({
   esdeveniments = [],
@@ -580,12 +581,14 @@ export default function EsdevenimentsManager({
       return null;
     }
 
-    const pId = product.id;
-    const pCodi = (product.codi || '').toLowerCase().trim();
-    const pNom = (product.nom || '').toLowerCase().trim();
+    const pId = product.id || product.productId;
+    const pCodi = (product.codi || product.code || '').toLowerCase().trim();
+    const pNom = (product.nom || product.titol || product.title || '').toLowerCase().trim();
+    const pEscId = product.escandallId;
 
     const escandall = (escandalls || []).find(e => {
-      if (pId && (e.productId === pId || e.producteId === pId)) return true;
+      if (pEscId && String(e.id) === String(pEscId)) return true;
+      if (pId && (String(e.productId) === String(pId) || String(e.producteId) === String(pId) || String(e.id) === String(pId))) return true;
       if (pCodi && (String(e.producteCodi || '').toLowerCase().trim() === pCodi || String(e.codi || '').toLowerCase().trim() === pCodi)) return true;
       const eNom = String(e.producteNom || e.nom || '').toLowerCase().trim();
       if (eNom && pNom) {
@@ -603,7 +606,7 @@ export default function EsdevenimentsManager({
     let calculatedMaterials = [];
     if (escandall && Array.isArray(escandall.materials)) {
       calculatedMaterials = escandall.materials.map(em => {
-        const matObj = (materials || []).find(m => m.id === em.materialId);
+        const matObj = (materials || []).find(m => String(m.id) === String(em.materialId));
         const qUnit = Number(em.quantitat) || 0;
         const qTotal = qUnit * quantitatNecessaria;
         return {
@@ -621,7 +624,7 @@ export default function EsdevenimentsManager({
       if (setMaterials && calculatedMaterials.length > 0) {
         setMaterials(prevMats => {
           return prevMats.map(mat => {
-            const ofMat = calculatedMaterials.find(m => m.materialId === mat.id);
+            const ofMat = calculatedMaterials.find(m => String(m.materialId) === String(mat.id));
             if (!ofMat) return mat;
             const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
             const estocReservat = (mat.estocReservat || 0) + ofMat.quantitatTotal;
@@ -640,7 +643,7 @@ export default function EsdevenimentsManager({
     let calculatedOperacions = [];
     if (escandall && Array.isArray(escandall.operacions)) {
       calculatedOperacions = escandall.operacions.map((eo, idx) => {
-        const opObj = (operacions || []).find(o => o.id === eo.operacioId);
+        const opObj = (operacions || []).find(o => String(o.id) === String(eo.operacioId));
         const tempsU = Number(eo.tempsMinuts) || 0;
         return {
           id: `op-${idx + 1}`,
@@ -655,7 +658,7 @@ export default function EsdevenimentsManager({
     const newOF = {
       id: nextId,
       codi: nextId,
-      producteId: product.id,
+      producteId: product.id || product.productId,
       producteNom: product.nom || 'Peça per a fira',
       producteCodi: product.codi || '',
       quantitat: quantitatNecessaria,
@@ -670,7 +673,9 @@ export default function EsdevenimentsManager({
       escandallId: escandall?.id || null,
       materials: calculatedMaterials,
       operacions: calculatedOperacions,
-      parametresLaser: escandall?.parametresLaser || product.parametresLaser || { potencia: '', velocitat: '', passades: '' }
+      parametresLaser: escandall?.parametresLaser 
+        ? normalizeLaserConfig(escandall.parametresLaser) 
+        : (product.parametresLaser ? normalizeLaserConfig(product.parametresLaser) : DEFAULT_LASER_CONFIG)
     };
 
     setOrdresFabricacio(prev => [newOF, ...prev]);
