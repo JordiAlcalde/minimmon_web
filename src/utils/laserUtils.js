@@ -3,6 +3,8 @@
  * Diferencia entre paràmetres FIXOS (F) i VARIABLES (V), tant per GRAVAR com per TALLAR.
  */
 
+import { parseDecimal } from './numberUtils';
+
 export const DEFAULT_LASER_CONFIG = {
   gravar: {
     // --- 1. Preprocessament d'imatge (Imatge 1) ---
@@ -108,10 +110,10 @@ export function normalizeLaserConfig(raw) {
     sMin: 0,
     sMaxPercent: rawG.sMaxPercent !== undefined ? Number(rawG.sMaxPercent) : (isLegacy ? legacyPercent : DEFAULT_LASER_CONFIG.gravar.sMaxPercent),
     sMaxPwm: rawG.sMaxPwm !== undefined ? Number(rawG.sMaxPwm) : (isLegacy ? legacyPwm : DEFAULT_LASER_CONFIG.gravar.sMaxPwm),
-    midaW: rawG.midaW !== undefined ? rawG.midaW : '',
+    midaW: rawG.midaW !== undefined ? (rawG.midaW === '' ? '' : parseDecimal(rawG.midaW, rawG.midaW)) : '',
     midaH: 'Proporcional',
-    iniciX: rawG.iniciX !== undefined ? Number(rawG.iniciX) : 0.0,
-    iniciY: rawG.iniciY !== undefined ? Number(rawG.iniciY) : 0.0,
+    iniciX: rawG.iniciX !== undefined ? (rawG.iniciX === '' ? 0.0 : parseDecimal(rawG.iniciX, 0.0)) : 0.0,
+    iniciY: rawG.iniciY !== undefined ? (rawG.iniciY === '' ? 0.0 : parseDecimal(rawG.iniciY, 0.0)) : 0.0,
     ruta: rawG.ruta || rawG.rutaCarpeta || '',
     fitxer: rawG.fitxer || rawG.nomFitxer || '',
     notes: rawG.notes || rawG.observacions || ''

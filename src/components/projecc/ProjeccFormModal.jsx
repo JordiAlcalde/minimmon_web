@@ -7,6 +7,7 @@ import {
   DEFAULT_TASKS_PROJECTE, DEFAULT_TASKS_PRODUCTE, generateProjeccId,
   compressImageFile, formatDateDMY 
 } from '../../data/projeccInitialData';
+import GeminiDescriptorModal from '../common/GeminiDescriptorModal';
 
 export function ProjeccFormModal({ 
   isOpen, 
@@ -21,6 +22,7 @@ export function ProjeccFormModal({
   const [origen, setOrigen] = useState('nou'); // 'nou' | 'existent'
   const [selectedExistentId, setSelectedExistentId] = useState('');
   
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const [nomProvisional, setNomProvisional] = useState('');
   const [nomDefinitiu, setNomDefinitiu] = useState('');
   const [nomClient, setNomClient] = useState('');
@@ -311,7 +313,18 @@ export function ProjeccFormModal({
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Nom Definitiu:</label>
+              <div className="flex items-center justify-between">
+                <label className="font-bold text-slate-300 block">Nom Definitiu:</label>
+                <button
+                  type="button"
+                  onClick={() => setIsAiOpen(true)}
+                  className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/30 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                  title="Inspirar títol o nom amb el Descriptor IA"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Descriptor IA</span>
+                </button>
+              </div>
               <input
                 type="text"
                 value={nomDefinitiu}
@@ -361,10 +374,21 @@ export function ProjeccFormModal({
 
           {/* 5. Notes Generals */}
           <div className="space-y-1">
-            <label className="font-bold text-slate-300 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-amber-500" />
-              Notes i Objectius Generals:
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-amber-500" />
+                Notes i Objectius Generals:
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAiOpen(true)}
+                className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/30 text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                title="Generar redacció amb el Descriptor IA"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Descriptor IA</span>
+              </button>
+            </div>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -495,6 +519,33 @@ export function ProjeccFormModal({
         </form>
 
       </div>
+
+      {/* Modal Descriptor IA (Gemini) */}
+      <GeminiDescriptorModal
+        isOpen={isAiOpen}
+        onClose={() => setIsAiOpen(false)}
+        mode={tipus === 'projecte' ? 'projectes' : 'productes'}
+        isDark={isDark}
+        contextData={{
+          titol: nomDefinitiu || nomProvisional,
+          nom: nomDefinitiu || nomProvisional,
+          client: nomClient,
+          notes: notes,
+          images: mostresClient.map(m => m.url).filter(Boolean)
+        }}
+        onApplyTitle={(val) => {
+          setNomDefinitiu(val);
+        }}
+        onApplySubtitle={(val) => {
+          setNotes(prev => prev ? `Subtítol: ${val}\n\n${prev}` : `Subtítol: ${val}`);
+        }}
+        onApplySection={(sectionKey, text) => {
+          setNotes(prev => prev ? `${prev}\n\n[${sectionKey.toUpperCase()}]:\n${text}` : `[${sectionKey.toUpperCase()}]:\n${text}`);
+        }}
+        onApplyDescription={(val) => {
+          setNotes(prev => prev ? `${prev}\n\n${val}` : val);
+        }}
+      />
     </div>
   );
 }

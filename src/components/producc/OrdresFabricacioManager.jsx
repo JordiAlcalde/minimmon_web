@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   ClipboardList, Plus, Minus, Search, Filter, Calendar, Clock, AlertTriangle, 
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
@@ -15,6 +15,7 @@ import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { formatProductWithGamma, getSingularGammaName, getProductGammaLabel, isProductInGamma } from '../PrivateAreaSection';
 import LaserParametersEditor from './LaserParametersEditor';
 import { DEFAULT_LASER_CONFIG, normalizeLaserConfig, areLaserConfigsEqual } from '../../utils/laserUtils';
+import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 
 // Helper per resoldre i separar la gamma i el nom del producte per a qualsevol OF
 export const resolveOFGammaAndName = (of, productes = [], escandalls = [], gammes = []) => {
@@ -237,6 +238,69 @@ export default function OrdresFabricacioManager({
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [ordresFabricacio, currentYear]);
 
+  // Helper per resoldre totes les dades del producte associat a l'OF (Imatge, Família, Gamma, Nom)
+  const resolveOFProductDetails = useCallback((ofItem) => {
+    const rawNom = (ofItem.producteNom || ofItem.nom || '').trim();
+    const rawLower = rawNom.toLowerCase();
+    const pId = ofItem.producteId;
+    const pCodi = (ofItem.producteCodi || '').toLowerCase().trim();
+
+    // 1. Cercar producte al catàleg
+    const prod = (productes || []).find(p => 
+      (pId && (p.id === pId || String(p.id) === String(pId))) ||
+      (pCodi && (String(p.codi || '').toLowerCase().trim() === pCodi)) ||
+      (p.nom && p.nom.toLowerCase().trim() === rawLower) ||
+      (p.nom && rawLower && (rawLower.includes(p.nom.toLowerCase().trim()) || p.nom.toLowerCase().trim().includes(rawLower)))
+    );
+
+    // 2. Cercar escandall associat
+    const esc = (escandalls || []).find(e => 
+      (ofItem.escandallId && (e.id === ofItem.escandallId || String(e.id) === String(ofItem.escandallId))) ||
+      (prod && (e.producteId === prod.id || e.productId === prod.id)) ||
+      (e.producteNom && e.producteNom.toLowerCase().trim() === rawLower)
+    );
+
+    // 3. Imatge
+    let rawImg = ofItem.producteImatge || prod?.imatges?.[0] || prod?.foto || prod?.imatge || esc?.producteImatge || '';
+    const fotoUrl = rawImg ? (resolveProducteMediaUrl(rawImg) || resolveMediaUrl(rawImg) || rawImg) : '';
+
+    // 4. Família
+    let familiaNom = ofItem.familiaNom || ofItem.familia || '';
+    if (!familiaNom && prod) {
+      if (prod.familiaNom) familiaNom = prod.familiaNom;
+      else if (prod.familiaId) {
+        const fam = (families || []).find(f => String(f.id) === String(prod.familiaId));
+        if (fam) familiaNom = fam.nom;
+      } else if (prod.familia) {
+        familiaNom = prod.familia;
+      }
+    }
+    if (!familiaNom && esc) {
+      familiaNom = esc.familiaNom || esc.familia || '';
+    }
+
+    // 5. Gamma
+    const gammaInfo = resolveOFGammaAndName(ofItem, productes, escandalls, gammes);
+    let gammaNom = ofItem.gamma || gammaInfo.gamma || '';
+    if (!gammaNom && prod) {
+      if (prod.gammaNom) gammaNom = prod.gammaNom;
+      else if (prod.gammaId) {
+        const g = (gammes || []).find(gam => String(gam.id) === String(prod.gammaId));
+        if (g) gammaNom = g.nom;
+      }
+    }
+
+    // 6. Producte Nom
+    const nom = gammaInfo.nom || prod?.nom || esc?.producteNom || rawNom || ofItem.id;
+
+    return {
+      fotoUrl,
+      familiaNom,
+      gammaNom,
+      nom
+    };
+  }, [productes, escandalls, families, gammes]);
+
   // Recomptes per a les mètriques d'estat
   const stats = useMemo(() => {
     const total = ordresFabricacio.length;
@@ -368,21 +432,22 @@ export default function OrdresFabricacioManager({
         if (setMaterials) {
           setMaterials(prevMats => {
             return prevMats.map(mat => {
-              const oldMatEntry = targetOF.materials.find(m => m.materialId === mat.id);
+              const oldMatEntry = targetOF.materials.find(m => String(m.materialId) === String(mat.id) || (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim()));
               if (!oldMatEntry) return mat;
               const qUnit = oldMatEntry.quantitatTeoricaUnitat || (oldMatEntry.quantitatTotal ? (oldMatEntry.quantitatTotal / oldQty) : 0);
               const oldTotal = oldMatEntry.quantitatTotal || 0;
               const newTotal = qUnit * qty;
               const diff = newTotal - oldTotal;
 
-              const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
-              const estocReservat = Math.max(0, (mat.estocReservat || 0) + diff);
+              const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+              const estocReservat = Math.max(0, (Number(mat.estocReservat) || 0) + diff);
               return {
                 ...mat,
-                estocFisic,
+                estocActual: currentStock,
+                estocFisic: currentStock,
                 estocReservat,
-                estocDisponible: Math.max(0, estocFisic - estocReservat),
-                estoc: estocFisic
+                estocDisponible: Math.max(0, currentStock - estocReservat),
+                estoc: currentStock
               };
             });
           });
@@ -430,19 +495,19 @@ export default function OrdresFabricacioManager({
       if (setMaterials && Array.isArray(targetOF.materials) && targetOF.materials.length > 0) {
         setMaterials(prevMaterials => {
           return prevMaterials.map(mat => {
-            const ofMat = targetOF.materials.find(m => m.materialId === mat.id);
+            const ofMat = targetOF.materials.find(m => String(m.materialId) === String(mat.id) || (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim()));
             if (!ofMat) return mat;
 
-            const qty = ofMat.quantitatTotal || 0;
-            let estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
-            let estocReservat = mat.estocReservat || 0;
+            const qty = Number(ofMat.quantitatTotal) || 0;
+            let currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+            let estocReservat = Number(mat.estocReservat) || 0;
 
             // 1. Si passa a 'finalitzada' (completada): descomptar estoc físic i alliberar reservat
             if (newStatus === 'finalitzada' && oldStatus !== 'finalitzada') {
               if (oldStatus === 'cua' || oldStatus === 'en_curs' || oldStatus === 'acabats') {
                 estocReservat = Math.max(0, estocReservat - qty);
               }
-              estocFisic = Math.max(0, estocFisic - qty);
+              currentStock = Math.max(0, currentStock - qty);
             }
 
             // 2. Si passa a 'cancel·lada': alliberar reservat sense descomptar estoc físic
@@ -454,17 +519,18 @@ export default function OrdresFabricacioManager({
             else if ((newStatus === 'cua' || newStatus === 'en_curs' || newStatus === 'acabats') && (oldStatus === 'cancel·lada' || oldStatus === 'finalitzada')) {
               estocReservat += qty;
               if (oldStatus === 'finalitzada') {
-                estocFisic += qty; // Revertir descompte físic
+                currentStock += qty; // Revertir descompte físic
               }
             }
 
-            const estocDisponible = Math.max(0, estocFisic - estocReservat);
+            const estocDisponible = Math.max(0, currentStock - estocReservat);
             return {
               ...mat,
-              estocFisic,
+              estocActual: currentStock,
+              estocFisic: currentStock,
               estocReservat,
               estocDisponible,
-              estoc: estocFisic
+              estoc: currentStock
             };
           });
         });
@@ -560,15 +626,18 @@ export default function OrdresFabricacioManager({
     if (targetOF && (targetNorm === 'cua' || targetNorm === 'en_curs' || targetNorm === 'acabats') && setMaterials) {
       setMaterials(prevMats => {
         return prevMats.map(mat => {
-          const ofMat = targetOF.materials?.find(m => m.materialId === mat.id);
+          const ofMat = targetOF.materials?.find(m => String(m.materialId) === String(mat.id) || (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim()));
           if (!ofMat) return mat;
-          const qty = ofMat.quantitatTotal || 0;
-          const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
-          const estocReservat = Math.max(0, (mat.estocReservat || 0) - qty);
+          const qty = Number(ofMat.quantitatTotal) || 0;
+          const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+          const estocReservat = Math.max(0, (Number(mat.estocReservat) || 0) - qty);
           return {
             ...mat,
+            estocActual: currentStock,
+            estocFisic: currentStock,
             estocReservat,
-            estocDisponible: Math.max(0, estocFisic - estocReservat)
+            estocDisponible: Math.max(0, currentStock - estocReservat),
+            estoc: currentStock
           };
         });
       });
@@ -737,10 +806,9 @@ export default function OrdresFabricacioManager({
               <tr className={`border-b font-mono font-bold uppercase text-[11px] tracking-wider ${
                 isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-200'
               }`}>
-                <th className="py-3.5 px-4">Codi OF</th>
-                <th className="py-3.5 px-4">Dates</th>
-                <th className="py-3.5 px-4">Client & Origen</th>
-                <th className="py-3.5 px-4">Concepte</th>
+                <th className="py-3.5 px-4">OF</th>
+                <th className="py-3.5 px-4">Producte</th>
+                <th className="py-3.5 px-4">Client & Comanda</th>
                 <th className="py-3.5 px-4 text-center">Quantitat</th>
                 <th className="py-3.5 px-4">Full de Ruta</th>
                 <th className="py-3.5 px-4 text-center">Estat</th>
@@ -750,7 +818,7 @@ export default function OrdresFabricacioManager({
             <tbody className={`divide-y font-sans ${isDark ? 'divide-slate-800 text-slate-200' : 'divide-slate-200 text-slate-800'}`}>
               {filteredOFs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className={`py-12 text-center font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <td colSpan={7} className={`py-12 text-center font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     No s'ha trobat cap Ordre de Fabricació amb els filtres seleccionats.
                   </td>
@@ -774,108 +842,142 @@ export default function OrdresFabricacioManager({
                       key={of.id}
                       className={`hover:bg-amber-500/10 transition-colors ${rowPriorityClass}`}
                     >
-                      {/* Codi OF + Prioritat */}
-                      <td className="py-3.5 px-4 font-mono font-bold whitespace-nowrap">
+                      {/* 1. OF: Nº d'OF + Prioritat + Inici + Límit */}
+                      <td className="py-3.5 px-4 font-mono whitespace-nowrap">
                         <div className="flex flex-col items-start gap-1">
-                          <span className={`text-sm font-bold tracking-tight ${
-                            isDark ? 'text-amber-400' : 'text-amber-700'
-                          }`}>
-                            {of.id}
-                          </span>
-                          {(() => {
-                            if (p === 'tragic' || p === 'tràgic') {
-                              return (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600/30 text-rose-400 border border-rose-500/50 flex items-center gap-1 animate-pulse">
-                                  <Flame className="w-3 h-3 text-rose-500" /> TRÀGIC
-                                </span>
-                              );
-                            }
-                            if (p === 'urgent' || p === 'alta') {
-                              return (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1">
-                                  <Flame className="w-3 h-3 text-amber-500" /> URGENT
-                                </span>
-                              );
-                            }
-                            if (p === 'rapid' || p === 'ràpid') {
-                              return (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40 flex items-center gap-1">
-                                  <Zap className="w-3 h-3 text-sky-400" /> RÀPID
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      </td>
-
-                      {/* Dates: Creació & Límit */}
-                      <td className="py-3.5 px-4 font-mono text-xs whitespace-nowrap">
-                        <div className="space-y-0.5">
-                          <div className={isDark ? 'text-slate-300' : 'text-slate-600'}>
-                            Inici: <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatOFDateOnly(of.dataCreacio)}</span>
-                          </div>
-                          {of.dataLimitEntrega && (
-                            <div className={isDark ? 'text-amber-300' : 'text-amber-700'}>
-                              Límit: <span className="font-bold underline">{formatOFDateOnly(of.dataLimitEntrega)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Client & Origen */}
-                      <td className="py-3.5 px-4">
-                        <div className="space-y-0.5">
-                          <p className={`font-bold text-xs ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                            {of.clientNom || 'Estoc Taller'}
-                          </p>
-                          <div className="flex items-center gap-2 text-[11px] font-mono">
-                            <span className={`px-2 py-0.2 rounded text-[10px] uppercase font-bold border ${
-                              isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-sm font-bold tracking-tight ${
+                              isDark ? 'text-amber-400' : 'text-amber-700'
                             }`}>
-                              {of.tipusItem === 'projecte' ? 'Projecte' : (of.origen === 'web_pressupost' ? 'Web' : (of.origen === 'estoc' ? 'Estoc' : 'Catàleg'))}
+                              {of.id}
                             </span>
-                            {of.comandaRef && (
-                              <span className={`truncate max-w-[130px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                                {of.comandaRef}
-                              </span>
+                            {(() => {
+                              if (p === 'tragic' || p === 'tràgic') {
+                                return (
+                                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-rose-600/30 text-rose-400 border border-rose-500/50 flex items-center gap-1 animate-pulse">
+                                    <Flame className="w-2.5 h-2.5 text-rose-500" /> TRÀGIC
+                                  </span>
+                                );
+                              }
+                              if (p === 'urgent' || p === 'alta') {
+                                return (
+                                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center gap-1">
+                                    <Flame className="w-2.5 h-2.5 text-amber-500" /> URGENT
+                                  </span>
+                                );
+                              }
+                              if (p === 'rapid' || p === 'ràpid') {
+                                return (
+                                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/40 flex items-center gap-1">
+                                    <Zap className="w-2.5 h-2.5 text-sky-400" /> RÀPID
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          <div className="text-[11px] space-y-0.5 pt-0.5">
+                            <div className={isDark ? 'text-slate-400' : 'text-slate-600'}>
+                              Inici: <span className={`font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{formatOFDateOnly(of.dataCreacio)}</span>
+                            </div>
+                            {of.dataLimitEntrega && (
+                              <div className={isDark ? 'text-amber-300' : 'text-amber-700'}>
+                                Límit: <span className="font-bold underline">{formatOFDateOnly(of.dataLimitEntrega)}</span>
+                              </div>
                             )}
                           </div>
                         </div>
                       </td>
 
-                      {/* Producte / Projecte, Model & Personalització */}
-                      <td className="py-3.5 px-4 max-w-[240px]">
+                      {/* 2. Producte: Imatge | Família / Gamma / Producte */}
+                      <td className="py-3.5 px-4 min-w-[240px] max-w-[320px]">
                         {(() => {
-                          const itemInfo = resolveOFGammaAndName(of, productes, escandalls, gammes);
+                          const itemInfo = resolveOFProductDetails(of);
                           return (
-                            <div className="space-y-0.5">
-                              {itemInfo.gamma && (
-                                <span className={`text-[10.5px] font-mono font-bold uppercase tracking-wider block ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                                  {itemInfo.gamma}:
-                                </span>
-                              )}
-                              <p className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                                {itemInfo.nom}
-                              </p>
-                              {(of.codiModelGenerat || of.mida) && (
-                                <div className="flex items-center gap-2 text-[11px] font-mono">
-                                  {of.codiModelGenerat && (
-                                    <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                                      {of.codiModelGenerat}
-                                    </span>
-                                  )}
-                                  {of.mida && <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>({of.mida})</span>}
+                            <div className="flex items-center gap-3">
+                              {/* Imatge del producte */}
+                              <div className={`w-12 h-12 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center ${
+                                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                              }`}>
+                                {itemInfo.fotoUrl ? (
+                                  <img
+                                    src={itemInfo.fotoUrl}
+                                    alt={itemInfo.nom}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                      if (e.currentTarget.nextElementSibling) {
+                                        e.currentTarget.nextElementSibling.style.display = 'flex';
+                                      }
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-600' : 'text-slate-400'}`}
+                                  style={{ display: itemInfo.fotoUrl ? 'none' : 'flex' }}
+                                >
+                                  <Package className="w-5 h-5" />
                                 </div>
-                              )}
-                              {(of.textCaraA || of.textCaraB) && (
-                                <p className={`text-[11px] italic truncate ${isDark ? 'text-slate-300' : 'text-slate-600'}`} style={{ fontFamily: of.tipografia ? AVAILABLE_FONTS.find(f => f.name === of.tipografia)?.fontFamily : undefined }}>
-                                  {of.textCaraA ? `"${of.textCaraA}"` : (of.textCaraB ? `"${of.textCaraB}"` : '')} {of.tipografia ? `[${of.tipografia}]` : ''}
-                                </p>
-                              )}
+                              </div>
+
+                              {/* Columna Família / Gamma / Producte */}
+                              <div className="min-w-0 flex-1 space-y-0.5">
+                                {itemInfo.familiaNom && (
+                                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wider block leading-tight ${
+                                    isDark ? 'text-slate-400' : 'text-slate-500'
+                                  }`}>
+                                    {itemInfo.familiaNom}
+                                  </span>
+                                )}
+                                {itemInfo.gammaNom && (
+                                  <span className={`text-[11px] font-bold uppercase tracking-wide block leading-tight ${
+                                    isDark ? 'text-amber-400' : 'text-amber-700'
+                                  }`}>
+                                    {itemInfo.gammaNom}
+                                  </span>
+                                )}
+                                <h4 className={`font-serif font-bold text-xs truncate leading-snug ${
+                                  isDark ? 'text-slate-100' : 'text-slate-900'
+                                }`} title={itemInfo.nom}>
+                                  {itemInfo.nom}
+                                </h4>
+                                {(of.codiModelGenerat || of.mida) && (
+                                  <div className="flex items-center gap-1.5 text-[10.5px] font-mono leading-none pt-0.5">
+                                    {of.codiModelGenerat && (
+                                      <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                                        {of.codiModelGenerat}
+                                      </span>
+                                    )}
+                                    {of.mida && <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>({of.mida})</span>}
+                                  </div>
+                                )}
+                                {(of.textCaraA || of.textCaraB) && (
+                                  <p className={`text-[10.5px] italic truncate leading-none pt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} style={{ fontFamily: of.tipografia ? AVAILABLE_FONTS.find(f => f.name === of.tipografia)?.fontFamily : undefined }}>
+                                    {of.textCaraA ? `"${of.textCaraA}"` : (of.textCaraB ? `"${of.textCaraB}"` : '')} {of.tipografia ? `[${of.tipografia}]` : ''}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           );
                         })()}
+                      </td>
+
+                      {/* 3. Client & Comanda: Nom Client + Número de comanda */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <p className={`font-bold text-xs ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                            {of.clientNom || 'Estoc Taller'}
+                          </p>
+                          <div className={`font-mono text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {of.comandaRef ? (
+                              <span className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                #{of.comandaRef}
+                              </span>
+                            ) : (
+                              <span className="opacity-40">-</span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* Quantitat */}
@@ -1040,17 +1142,18 @@ export default function OrdresFabricacioManager({
             if (setMaterials && Array.isArray(newOF.materials) && newOF.materials.length > 0) {
               setMaterials(prevMats => {
                 return prevMats.map(mat => {
-                  const ofMat = newOF.materials.find(m => m.materialId === mat.id);
+                  const ofMat = newOF.materials.find(m => String(m.materialId) === String(mat.id) || (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim()));
                   if (!ofMat) return mat;
-                  const qty = ofMat.quantitatTotal || 0;
-                  const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
-                  const estocReservat = (mat.estocReservat || 0) + qty;
+                  const qty = Number(ofMat.quantitatTotal) || 0;
+                  const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+                  const estocReservat = (Number(mat.estocReservat) || 0) + qty;
                   return {
                     ...mat,
-                    estocFisic,
+                    estocActual: currentStock,
+                    estocFisic: currentStock,
                     estocReservat,
-                    estocDisponible: Math.max(0, estocFisic - estocReservat),
-                    estoc: estocFisic
+                    estocDisponible: Math.max(0, currentStock - estocReservat),
+                    estoc: currentStock
                   };
                 });
               });
@@ -1369,15 +1472,15 @@ function NewOFModal({
 
     // Materials de l'escandall
     const mats = (esc.materials || []).map(em => {
-      const matObj = materials.find(m => m.id === em.materialId);
-      const qUnit = em.quantitat || 0;
+      const matObj = (materials || []).find(m => String(m.id) === String(em.materialId) || (em.nom && m.material && m.material.toLowerCase().trim() === em.nom.toLowerCase().trim()));
+      const qUnit = Number(em.quantitat) || 0;
       const qTotal = qUnit * qty;
       return {
-        materialId: em.materialId,
+        materialId: em.materialId || matObj?.id || '',
         nom: matObj?.material || em.nom || 'Material',
         quantitatTeoricaUnitat: qUnit,
         quantitatTotal: qTotal,
-        unitat: matObj?.unitat || 'u',
+        unitat: matObj?.unitat || em.unitat || 'u',
         estocReservat: qTotal,
         estocDescomptat: false
       };
@@ -2166,20 +2269,32 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
 
         if (!hasMaterials && Array.isArray(matchedEsc.materials) && matchedEsc.materials.length > 0) {
           populatedOF.materials = matchedEsc.materials.map(em => {
-            const matObj = (materials || []).find(m => m.id === em.materialId);
+            const matObj = (materials || []).find(m => String(m.id) === String(em.materialId) || (em.nom && m.material && m.material.toLowerCase().trim() === em.nom.toLowerCase().trim()));
             const qUnit = Number(em.quantitat) || 0;
             const qTotal = qUnit * qty;
             return {
-              materialId: em.materialId,
+              materialId: em.materialId || matObj?.id || '',
               nom: matObj?.material || em.nom || 'Material',
               quantitatTeoricaUnitat: qUnit,
               quantitatTotal: qTotal,
-              unitat: matObj?.unitat || 'u',
+              unitat: matObj?.unitat || em.unitat || 'u',
               estocReservat: qTotal,
               estocDescomptat: false
             };
           });
           changed = true;
+        } else if (hasMaterials && Array.isArray(populatedOF.materials)) {
+          // Assegurar que els materials existents tinguin materialId vinculat per id o nom
+          populatedOF.materials = populatedOF.materials.map(m => {
+            if (!m.materialId && m.nom) {
+              const found = (materials || []).find(mat => mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim());
+              if (found) {
+                changed = true;
+                return { ...m, materialId: found.id, unitat: m.unitat || found.unitat };
+              }
+            }
+            return m;
+          });
         }
 
         if (!hasOperacions && Array.isArray(matchedEsc.operacions) && matchedEsc.operacions.length > 0) {
@@ -2724,42 +2839,87 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
           <div className={`p-4 rounded-2xl border space-y-3 ${
             isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
           }`}>
-            <p className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-2 text-xs font-mono uppercase">
-              <Package className="w-4 h-4" /> Explosió de Materials (BOM)
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-2 text-xs font-mono uppercase">
+                <Package className="w-4 h-4" /> Explosió de Materials (BOM)
+              </p>
+              <span className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Control d'estoc
+              </span>
+            </div>
 
             <div className="space-y-2">
-              {(activeOF.materials || []).map((m, idx) => {
-                const matInStock = materials.find(mat => mat.id === m.materialId);
-                const estocFisic = matInStock?.estocFisic !== undefined ? matInStock.estocFisic : (matInStock?.estoc || 0);
-                const estocDisp = matInStock?.estocDisponible !== undefined ? matInStock.estocDisponible : estocFisic;
-                const isShortage = estocDisp < m.quantitatTotal;
+              {(activeOF.materials || []).length === 0 ? (
+                <p className={`text-xs font-mono italic p-3 text-center ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Aquesta OF no té materials associats a l'escandall.
+                </p>
+              ) : (
+                (activeOF.materials || []).map((m, idx) => {
+                  const matInStock = (materials || []).find(mat => 
+                    (m.materialId && String(mat.id) === String(m.materialId)) ||
+                    (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim())
+                  );
+                  const estocReal = Number(
+                    matInStock?.estocActual !== undefined 
+                      ? matInStock.estocActual 
+                      : (matInStock?.estocFisic !== undefined ? matInStock.estocFisic : (matInStock?.estoc || 0))
+                  ) || 0;
+                  const unitDisplay = m.unitat || matInStock?.unitat || 'u';
+                  const qtyRequired = Number(m.quantitatTotal) || 0;
 
-                return (
-                  <div
-                    key={idx}
-                    className={`flex items-center justify-between p-3 rounded-xl border text-xs font-mono ${
-                      isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-                    }`}
-                  >
-                    <div>
-                      <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{m.nom}</p>
-                      <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        {formatDecimal(m.quantitatTeoricaUnitat, 4)} {m.unitat} / unitat
-                      </p>
-                    </div>
+                  const normStatus = normalizeOFStatus(activeOF.estat);
+                  const isFinalitzada = normStatus === 'finalitzada';
+                  const isCancelada = normStatus === 'cancel·lada';
 
-                    <div className="text-right">
-                      <p className="font-bold text-amber-400">
-                        Total: {formatDecimal(m.quantitatTotal, 4)} {m.unitat}
-                      </p>
-                      <p className={`text-[11px] font-bold ${isShortage ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {isShortage ? '⚠️ Estoc insuficient' : '✓ Estoc disponible'}
-                      </p>
+                  // Si l'OF ja està en curs/cua, el seu consum ja pot estar considerat a l'estoc reservat
+                  const totalReservat = Number(matInStock?.estocReservat) || 0;
+                  const reservatAltres = Math.max(0, totalReservat - qtyRequired);
+                  const disponiblePerAquesta = Math.max(0, estocReal - reservatAltres);
+
+                  // Hi ha falta d'estoc si l'estoc real al magatzem és inferior a les unitats que necessita aquesta OF
+                  const isShortage = !isFinalitzada && !isCancelada && (estocReal < qtyRequired || disponiblePerAquesta < qtyRequired);
+                  const unitatFalten = Math.max(0, qtyRequired - estocReal);
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between p-3 rounded-xl border text-xs font-mono transition-colors ${
+                        isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-3">
+                        <p className={`font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{m.nom}</p>
+                        <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {formatDecimal(m.quantitatTeoricaUnitat, 4)} {unitDisplay} / unitat
+                        </p>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-amber-400">
+                          Necessari : {formatDecimal(qtyRequired, 4)} {unitDisplay}
+                        </p>
+                        {isFinalitzada ? (
+                          <p className="text-[11px] font-bold text-emerald-400">
+                            ✓ Consumit al taller
+                          </p>
+                        ) : isCancelada ? (
+                          <p className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Reserva alliberada
+                          </p>
+                        ) : isShortage ? (
+                          <p className="text-[11px] font-bold text-rose-400">
+                            ⚠️ Insuficient : falten {formatDecimal(unitatFalten > 0 ? unitatFalten : Math.max(0, qtyRequired - disponiblePerAquesta), 2)} {unitDisplay}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] font-bold text-emerald-400">
+                            ✓ Disponible : {formatDecimal(estocReal, 2)} {unitDisplay}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -3024,7 +3184,8 @@ function PrintWorkshopDossier({ ofData, onClose }) {
                   <div className="space-y-1 text-[11px]">
                     <p><strong>GRAVAR:</strong> {lp.gravar.engravingSpeed} mm/min • {lp.gravar.sMaxPercent}% (PWM {lp.gravar.sMaxPwm})</p>
                     <p className="text-[10px] text-slate-600">Bri: {lp.gravar.brillo} | Con: {lp.gravar.contraste} | Bla: {lp.gravar.blancos}{lp.gravar.bnHabilitat ? ` | B&N: ${lp.gravar.bn}` : ''}</p>
-                    {lp.gravar.midaW && <p className="text-[10px] text-slate-600">Mida: {lp.gravar.midaW} mm (H: Proporcional)</p>}
+                    {lp.gravar.midaW && <p className="text-[10px] text-slate-600">Mida: {formatDecimal(lp.gravar.midaW, null)} mm (H: Proporcional)</p>}
+                    {(lp.gravar.iniciX !== 0 || lp.gravar.iniciY !== 0) && <p className="text-[10px] text-slate-600">Posició inicial: X: {formatDecimal(lp.gravar.iniciX, null)} mm | Y: {formatDecimal(lp.gravar.iniciY, null)} mm</p>}
                     {lp.gravar.ruta && <p className="text-[10px] text-slate-700 font-mono">📁 Ruta: {lp.gravar.ruta}</p>}
                     {lp.gravar.fitxer && <p className="text-[10px] text-amber-900 font-bold">Fitxer Gravat: {lp.gravar.fitxer}</p>}
                     {lp.gravar.notes && <p className="text-[10px] text-slate-600 italic">Notes Gravat: {lp.gravar.notes}</p>}

@@ -10,6 +10,7 @@ import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from 
 import { getShippingConfig, saveShippingConfig, DEFAULT_SHIPPING_CONFIG } from '../utils/shippingUtils';
 import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
+import GeminiDescriptorModal from './common/GeminiDescriptorModal';
 import { 
   Bell,
   Lock, 
@@ -673,6 +674,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const infoAdicionalTextAreaRef = useRef(null);
   const savedProductScrollY = useRef(0);
   const lastEditedProductId = useRef(null);
+
+  // Modals Descriptor IA (Gemini) per a Productes i Projectes
+  const [openProductAiDescriptor, setOpenProductAiDescriptor] = useState(false);
+  const [openProjectAiDescriptor, setOpenProjectAiDescriptor] = useState(false);
 
   // Informacions Globals del Catàleg state
   const [dbInformacions, setDbInformacions] = useState([]);
@@ -5019,13 +5024,22 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     {dbProductesAdmin.some(p => p.id === editingProducte.id) ? 'Editar Producte' : 'Crear Nou Producte'}
                   </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditingProducte(null)}
-                  className="text-xs text-on-surface-variant hover:text-primary px-3 py-1.5 bg-surface border rounded cursor-pointer"
-                >
-                  Cancel·lar
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProducte(null)}
+                    className="text-xs text-on-surface-variant hover:text-primary px-3 py-2 bg-surface border rounded cursor-pointer"
+                  >
+                    Cancel·lar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Desar Producte</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -5041,7 +5055,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
 
                 <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Nom del Producte (1 línia) *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs uppercase font-semibold text-on-surface-variant">Nom del Producte (1 línia) *</label>
+                    <button
+                      type="button"
+                      onClick={() => setOpenProductAiDescriptor(true)}
+                      className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      title="Obrir assistent Descriptor IA (Gemini) per inspirar noms i descripcions"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Descriptor IA</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
@@ -5116,8 +5141,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <label className="block text-xs uppercase font-semibold text-on-surface-variant">
                     Descripció (Multilínia)
                   </label>
-                  {/* Barra de format [ B ] [ I ] [ U ] */}
-                  <div className="flex items-center gap-1 border border-outline/20 rounded p-1 bg-surface">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOpenProductAiDescriptor(true)}
+                      className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      title="Obrir assistent Descriptor IA (Gemini) per inspirar descripcions"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Descriptor IA</span>
+                    </button>
+                    {/* Barra de format [ B ] [ I ] [ U ] */}
+                    <div className="flex items-center gap-1 border border-outline/20 rounded p-1 bg-surface">
                     <button
                       type="button"
                       onClick={() => applyFormatToSelection(descTextAreaRef, editingProducte.descripcio || '', 'bold', (txt) => setEditingProducte({ ...editingProducte, descripcio: txt }))}
@@ -5144,6 +5179,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </button>
                   </div>
                 </div>
+              </div>
 
                 <textarea
                   ref={descTextAreaRef}
@@ -6549,9 +6585,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer"
+                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded shadow cursor-pointer flex items-center gap-1.5"
                   >
-                    Desar Producte a Firestore
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Desar Producte</span>
                   </button>
                 </div>
               </div>
@@ -7938,7 +7975,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Títol (1 línia)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs uppercase font-semibold text-on-surface-variant">Títol (1 línia)</label>
+                    <button
+                      type="button"
+                      onClick={() => setOpenProjectAiDescriptor(true)}
+                      className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                      title="Obrir assistent Descriptor IA (Gemini) per inspirar títol, subtítol i seccions"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>Descriptor IA</span>
+                    </button>
+                  </div>
                   <input 
                     type="text"
                     required
@@ -8019,6 +8067,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               {/* Text Sections */}
+              <div className="flex items-center justify-between pt-2 pb-1 border-t border-outline/10">
+                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Seccions de Descripció</span>
+                <button
+                  type="button"
+                  onClick={() => setOpenProjectAiDescriptor(true)}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  title="Obrir assistent Descriptor IA per redactar les tres seccions"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Redactar Seccions amb IA</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Secció "L'encàrrec" (Demanda del client)</label>
                 <textarea 
@@ -8582,9 +8643,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </button>
                   <button 
                     type="submit"
-                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-sm font-medium shadow cursor-pointer"
+                    className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary rounded-lg text-sm font-medium shadow cursor-pointer flex items-center gap-1.5"
                   >
-                    Desar Projecte a Firestore
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Desar Projecte</span>
                   </button>
                 </div>
               </div>
@@ -9624,6 +9686,66 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal Descriptor IA per a Productes */}
+      {openProductAiDescriptor && editingProducte && (
+        <GeminiDescriptorModal
+          isOpen={openProductAiDescriptor}
+          onClose={() => setOpenProductAiDescriptor(false)}
+          mode="productes"
+          contextData={{
+            nom: editingProducte.nom || '',
+            gamma: (editingProducte.gammaIds || []).map(gid => {
+              const g = DEFAULT_BRANQUES?.find(b => b.id === gid);
+              return g?.nom || gid;
+            }).join(', '),
+            material: editingProducte.material || '',
+            dimensions: editingProducte.dimensions || '',
+            descripcio: editingProducte.descripcio || '',
+            images: (Array.isArray(editingProducte.imatges) ? editingProducte.imatges : (editingProducte.imatgesStr || '').split('\n'))
+              .concat(editingProducte.imatgePrincipal ? [editingProducte.imatgePrincipal] : [])
+              .map(m => typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src))
+              .filter(Boolean)
+          }}
+          onApplyTitle={(newNom) => {
+            setEditingProducte(prev => ({ ...prev, nom: newNom }));
+          }}
+          onApplyDescription={(newDesc) => {
+            setEditingProducte(prev => ({ ...prev, descripcio: newDesc }));
+          }}
+        />
+      )}
+
+      {/* Modal Descriptor IA per a Projectes */}
+      {openProjectAiDescriptor && editingProject && (
+        <GeminiDescriptorModal
+          isOpen={openProjectAiDescriptor}
+          onClose={() => setOpenProjectAiDescriptor(false)}
+          mode="projectes"
+          contextData={{
+            titol: editingProject.titol || '',
+            subtitol: editingProject.subtitol || '',
+            client: editingProject.client || '',
+            branca: Array.isArray(editingProject.branques) ? editingProject.branques.join(', ') : (editingProject.branca || ''),
+            encarrec: editingProject.encarrec || '',
+            art: editingProject.art || '',
+            resolucio: editingProject.resolucio || '',
+            images: (editingProject.media || [])
+              .map(m => typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src))
+              .filter(Boolean)
+          }}
+          onApplyTitle={(newTitol) => {
+            setEditingProject(prev => ({ ...prev, titol: newTitol }));
+          }}
+          onApplySubtitle={(newSubtitol) => {
+            setEditingProject(prev => ({ ...prev, subtitol: newSubtitol }));
+          }}
+          onApplySection={(sectionKey, text) => {
+            setEditingProject(prev => ({ ...prev, [sectionKey]: text }));
+          }}
+          onApplyDescription={() => {}}
+        />
       )}
 
     </div>

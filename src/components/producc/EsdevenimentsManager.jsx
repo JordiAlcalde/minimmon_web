@@ -624,15 +624,17 @@ export default function EsdevenimentsManager({
       if (setMaterials && calculatedMaterials.length > 0) {
         setMaterials(prevMats => {
           return prevMats.map(mat => {
-            const ofMat = calculatedMaterials.find(m => String(m.materialId) === String(mat.id));
+            const ofMat = calculatedMaterials.find(m => String(m.materialId) === String(mat.id) || (m.nom && mat.material && mat.material.toLowerCase().trim() === m.nom.toLowerCase().trim()));
             if (!ofMat) return mat;
-            const estocFisic = mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0);
-            const estocReservat = (mat.estocReservat || 0) + ofMat.quantitatTotal;
+            const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+            const estocReservat = (Number(mat.estocReservat) || 0) + Number(ofMat.quantitatTotal || 0);
             return {
               ...mat,
-              estocFisic,
+              estocActual: currentStock,
+              estocFisic: currentStock,
               estocReservat,
-              estocDisponible: Math.max(0, estocFisic - estocReservat)
+              estocDisponible: Math.max(0, currentStock - estocReservat),
+              estoc: currentStock
             };
           });
         });
@@ -1108,19 +1110,25 @@ export default function EsdevenimentsManager({
     return (
       <div className="space-y-6">
         {/* Capçalera Principal */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest p-6 rounded-2xl border border-outline/15 shadow-xs">
+        <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl border shadow-xs ${
+          isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+        }`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+              isDark ? 'bg-amber-500/15 text-amber-400' : 'bg-amber-500/10 text-amber-600'
+            }`}>
               <Store className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h2 className="text-xl font-serif font-bold text-primary">Gestió d'Esdeveniments i Fires</h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <h2 className={`text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Gestió d'Esdeveniments i Fires</h2>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border ${
+                  isDark ? 'bg-amber-950/70 text-amber-300 border-amber-600/50' : 'bg-amber-100 text-amber-950 border-amber-300'
+                }`}>
                   {esdeveniments.length} {esdeveniments.length === 1 ? 'esdeveniment' : 'esdeveniments'}
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant mt-1">
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Planifica fires d'artesans, dota peces des de l'estoc del taller, cobra ràpidament amb TPV i analitza l'històric d'edicions anteriors.
               </p>
             </div>
@@ -1136,12 +1144,16 @@ export default function EsdevenimentsManager({
         </div>
 
         {/* Barra de Filtres */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-surface-container/40 p-3 rounded-xl border border-outline/10">
+        <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl border ${
+          isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-slate-100 border-slate-200'
+        }`}>
           <div className="flex items-center gap-1.5 w-full sm:w-auto">
             <button
               onClick={() => setFiltreEstat('tots')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filtreEstat === 'tots' ? 'bg-amber-600 text-white shadow-xs' : 'text-on-surface-variant hover:bg-surface'
+                filtreEstat === 'tots' 
+                  ? 'bg-amber-600 text-white shadow-xs' 
+                  : (isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')
               }`}
             >
               Tots ({esdeveniments.length})
@@ -1149,7 +1161,9 @@ export default function EsdevenimentsManager({
             <button
               onClick={() => setFiltreEstat('actius')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filtreEstat === 'actius' ? 'bg-amber-600 text-white shadow-xs' : 'text-on-surface-variant hover:bg-surface'
+                filtreEstat === 'actius' 
+                  ? 'bg-amber-600 text-white shadow-xs' 
+                  : (isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')
               }`}
             >
               Actius ({esdeveniments.filter(e => e.estat !== 'tancat').length})
@@ -1157,7 +1171,9 @@ export default function EsdevenimentsManager({
             <button
               onClick={() => setFiltreEstat('tancats')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filtreEstat === 'tancats' ? 'bg-amber-600 text-white shadow-xs' : 'text-on-surface-variant hover:bg-surface'
+                filtreEstat === 'tancats' 
+                  ? 'bg-amber-600 text-white shadow-xs' 
+                  : (isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')
               }`}
             >
               Tancats ({esdeveniments.filter(e => e.estat === 'tancat').length})
@@ -1165,23 +1181,29 @@ export default function EsdevenimentsManager({
           </div>
 
           <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+            <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
             <input
               type="text"
               value={cercaEsdeveniment}
               onChange={(e) => setCercaEsdeveniment(e.target.value)}
               placeholder="Cercar fira, lloc o any..."
-              className="w-full pl-8 pr-3 py-1.5 bg-surface border border-outline/20 rounded-lg text-xs outline-none focus:border-amber-500 text-on-surface"
+              className={`w-full pl-8 pr-3 py-1.5 rounded-lg text-xs outline-none border transition-all ${
+                isDark 
+                  ? 'bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 focus:border-amber-500' 
+                  : 'bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:border-amber-500'
+              }`}
             />
           </div>
         </div>
 
         {/* Graella de Targetes d'Esdeveniments */}
         {filteredEvents.length === 0 ? (
-          <div className="bg-surface-container-lowest p-12 text-center rounded-2xl border border-dashed border-outline/30 space-y-3">
-            <Store className="w-10 h-10 text-on-surface-variant/40 mx-auto" />
-            <p className="text-sm font-semibold text-primary">Cap esdeveniment trobat</p>
-            <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+          <div className={`p-12 text-center rounded-2xl border border-dashed space-y-3 ${
+            isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <Store className={`w-10 h-10 mx-auto ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+            <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Cap esdeveniment trobat</p>
+            <p className={`text-xs max-w-sm mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               Crea el teu primer esdeveniment d'artesania per començar a dotar estoc i registrar les teves vendes a les parades.
             </p>
             <button
@@ -1201,16 +1223,32 @@ export default function EsdevenimentsManager({
               const totalPecesVenudes = (event.linies || []).reduce((acc, l) => acc + (l.unitatsVenudes || 0), 0);
 
               const estatBadge = {
-                preparacio: { text: 'En Preparació', bg: 'bg-amber-100 text-amber-800 border-amber-300' },
-                en_curs: { text: 'En Curs (Parada Activa)', bg: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
-                tancat: { text: 'Tancada (Romanents Retornats)', bg: 'bg-slate-100 text-slate-700 border-slate-300' }
-              }[event.estat] || { text: event.estat, bg: 'bg-slate-100 text-slate-700 border-slate-300' };
+                preparacio: { 
+                  text: 'En Preparació', 
+                  bg: isDark ? 'bg-amber-950/70 text-amber-300 border-amber-600/50' : 'bg-amber-100 text-amber-900 border-amber-300' 
+                },
+                en_curs: { 
+                  text: 'En Curs (Parada Activa)', 
+                  bg: isDark ? 'bg-emerald-950/70 text-emerald-300 border-emerald-600/50' : 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                },
+                tancat: { 
+                  text: 'Tancada (Romanents Retornats)', 
+                  bg: isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300' 
+                }
+              }[event.estat] || { 
+                text: event.estat, 
+                bg: isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300' 
+              };
 
               return (
                 <div
                   key={event.id}
                   onClick={() => setSelectedEsdevenimentId(event.id)}
-                  className="bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 hover:border-amber-500/50 shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group shadow-xs hover:shadow-md ${
+                    isDark 
+                      ? 'bg-slate-900/90 border-slate-800 hover:border-amber-500/50 text-slate-100' 
+                      : 'bg-white border-slate-200 hover:border-amber-500/50 text-slate-900'
+                  }`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -1218,7 +1256,9 @@ export default function EsdevenimentsManager({
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${estatBadge.bg}`}>
                           {estatBadge.text}
                         </span>
-                        <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                          isDark ? 'text-amber-400 bg-amber-950/60 border-amber-600/40' : 'text-amber-900 bg-amber-100 border-amber-300'
+                        }`}>
                           {event.edicioAny || new Date().getFullYear()}
                         </span>
                       </div>
@@ -1228,7 +1268,9 @@ export default function EsdevenimentsManager({
                           e.stopPropagation();
                           handleEliminarEsdeveniment(event);
                         }}
-                        className="p-1 text-on-surface-variant/40 hover:text-red-600 hover:bg-surface rounded-lg transition-colors cursor-pointer"
+                        className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                          isDark ? 'text-slate-500 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-400 hover:text-rose-600 hover:bg-slate-100'
+                        }`}
                         title="Eliminar aquest esdeveniment"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1236,38 +1278,42 @@ export default function EsdevenimentsManager({
                     </div>
 
                     <div>
-                      <h3 className="text-base font-serif font-bold text-primary group-hover:text-amber-700 transition-colors">
+                      <h3 className={`text-base font-serif font-bold transition-colors ${
+                        isDark ? 'text-white group-hover:text-amber-400' : 'text-slate-900 group-hover:text-amber-700'
+                      }`}>
                         {event.nom}
                       </h3>
                       {event.lloc && (
-                        <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
-                          <MapPin className="w-3 h-3 text-amber-600" />
+                        <p className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                          <MapPin className="w-3 h-3 text-amber-500" />
                           <span>{event.lloc}</span>
                         </p>
                       )}
                     </div>
 
-                    <div className="text-xs text-on-surface-variant/80 flex items-center gap-1.5 font-mono">
-                      <Calendar className="w-3.5 h-3.5 text-on-surface-variant/60" />
+                    <div className={`text-xs flex items-center gap-1.5 font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <Calendar className="w-3.5 h-3.5 opacity-60" />
                       <span>{event.dataInici} {event.dataFi && event.dataFi !== event.dataInici ? `fins ${event.dataFi}` : ''}</span>
                     </div>
 
                     {/* Mètriques resum de la targeta */}
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-outline/10 text-xs">
-                      <div className="bg-surface p-2 rounded-lg border border-outline/10">
-                        <span className="text-[10px] text-on-surface-variant block">Total Vendes</span>
-                        <span className="text-sm font-mono font-bold text-emerald-600">{formatCurrency(totalVendes)}</span>
+                    <div className={`grid grid-cols-2 gap-2 pt-2 border-t text-xs ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                      <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                        <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total Vendes</span>
+                        <span className={`text-sm font-mono font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(totalVendes)}</span>
                       </div>
-                      <div className="bg-surface p-2 rounded-lg border border-outline/10">
-                        <span className="text-[10px] text-on-surface-variant block">Peces a Parada</span>
-                        <span className="text-sm font-mono font-bold text-primary">
-                          {totalPecesVenudes} / {totalPecesInicials} <span className="text-[10px] font-normal text-on-surface-variant">venudes</span>
+                      <div className={`p-2 rounded-lg border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                        <span className={`text-[10px] block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Peces a Parada</span>
+                        <span className={`text-sm font-mono font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          {totalPecesVenudes} / {totalPecesInicials} <span className={`text-[10px] font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>venudes</span>
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-outline/10 flex items-center justify-between text-xs text-amber-600 font-semibold group-hover:translate-x-0.5 transition-transform">
+                  <div className={`mt-4 pt-3 border-t flex items-center justify-between text-xs font-semibold group-hover:translate-x-0.5 transition-transform ${
+                    isDark ? 'border-slate-800 text-amber-400' : 'border-slate-100 text-amber-700'
+                  }`}>
                     <span>Obrir Gestió de la Fira</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </div>
@@ -1452,37 +1498,43 @@ export default function EsdevenimentsManager({
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Barra Superior de Retorn i Estat */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-xs">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl border shadow-xs ${
+        isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+      }`}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setSelectedEsdevenimentId(null)}
-            className="p-2 rounded-xl border border-outline/20 bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+              isDark ? 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+            }`}
             title="Tornar al llistat d'esdeveniments"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h2 className="text-lg font-serif font-bold text-primary">{currentEvent.nom}</h2>
-              <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              <h2 className={`text-lg font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{currentEvent.nom}</h2>
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${
+                isDark ? 'text-amber-400 bg-amber-950/60 border-amber-600/40' : 'text-amber-900 bg-amber-100 border-amber-300 font-black'
+              }`}>
                 {currentEvent.edicioAny || new Date().getFullYear()}
               </span>
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
                 currentEvent.estat === 'preparacio' 
-                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  ? (isDark ? 'bg-amber-950/70 text-amber-300 border-amber-600/50' : 'bg-amber-100 text-amber-900 border-amber-300')
                   : currentEvent.estat === 'en_curs'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                    : 'bg-slate-100 text-slate-700 border-slate-300'
+                    ? (isDark ? 'bg-emerald-950/70 text-emerald-300 border-emerald-600/50' : 'bg-emerald-100 text-emerald-900 border-emerald-300')
+                    : (isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-300')
               }`}>
                 {currentEvent.estat === 'preparacio' ? 'En Preparació' : currentEvent.estat === 'en_curs' ? 'En Curs (Parada Activa)' : 'Tancat'}
               </span>
             </div>
             {currentEvent.lloc && (
-              <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3 text-amber-600" />
+              <p className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                <MapPin className="w-3 h-3 text-amber-500" />
                 <span>{currentEvent.lloc}</span>
                 <span className="mx-1">•</span>
-                <Calendar className="w-3 h-3 text-on-surface-variant/60" />
+                <Calendar className="w-3 h-3 opacity-60" />
                 <span>{currentEvent.dataInici} {currentEvent.dataFi && currentEvent.dataFi !== currentEvent.dataInici ? `al ${currentEvent.dataFi}` : ''}</span>
               </p>
             )}
@@ -1505,7 +1557,11 @@ export default function EsdevenimentsManager({
             <>
               <button
                 onClick={() => handleSetEventStatus('preparacio')}
-                className="px-3 py-1.5 border border-outline/20 bg-surface hover:bg-surface-container text-amber-700 dark:text-amber-400 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                className={`px-3 py-1.5 border rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                  isDark 
+                    ? 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-amber-400' 
+                    : 'border-slate-300 bg-white hover:bg-slate-100 text-amber-800'
+                }`}
                 title="Tornar la fira a estat de preparació (si s'ha obert per error)"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -1514,7 +1570,9 @@ export default function EsdevenimentsManager({
 
               <button
                 onClick={() => setShowCloseConfirmModal(true)}
-                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700' : 'bg-slate-700 hover:bg-slate-800 text-white'
+                }`}
               >
                 <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
                 <span>Finalitzar / Tancar Fira</span>
@@ -1525,7 +1583,9 @@ export default function EsdevenimentsManager({
           {currentEvent.estat === 'tancat' && (
             <button
               onClick={handleReobrirEsdeveniment}
-              className="px-3 py-1.5 border border-outline/20 hover:bg-surface text-on-surface-variant rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              className={`px-3 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
+                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+              }`}
             >
               <span>Reobrir Fira</span>
             </button>
@@ -1533,7 +1593,9 @@ export default function EsdevenimentsManager({
 
           <button
             onClick={() => handleOpenEditModal(currentEvent)}
-            className="p-2 rounded-xl border border-outline/20 bg-surface hover:bg-surface-container text-on-surface-variant cursor-pointer"
+            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+              isDark ? 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white' : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+            }`}
             title="Editar dades de la fira"
           >
             <Edit3 className="w-4 h-4" />
@@ -1541,7 +1603,9 @@ export default function EsdevenimentsManager({
 
           <button
             onClick={() => handleEliminarEsdeveniment(currentEvent)}
-            className="p-2 rounded-xl border border-outline/20 bg-surface hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors cursor-pointer"
+            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
+              isDark ? 'border-slate-700 bg-slate-950 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400' : 'border-slate-300 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600'
+            }`}
             title="Eliminar fira"
           >
             <Trash2 className="w-4 h-4" />
@@ -1551,51 +1615,51 @@ export default function EsdevenimentsManager({
 
       {/* Targetes de Mètriques Resum en Temps Real */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 shadow-2xs">
-          <span className="text-[11px] text-on-surface-variant block font-medium">Recaptació Total</span>
-          <span className="text-xl font-mono font-bold text-emerald-600">{formatCurrency(eventStats?.totalRecaptat || 0)}</span>
-          <span className="text-[10px] text-on-surface-variant/70 block mt-0.5">
+        <div className={`p-4 rounded-xl border shadow-xs ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <span className={`text-[11px] block font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Recaptació Total</span>
+          <span className={`text-xl font-mono font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(eventStats?.totalRecaptat || 0)}</span>
+          <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
             {currentEvent.vendes?.length || 0} vendes registrades
           </span>
         </div>
 
-        <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 shadow-2xs">
-          <span className="text-[11px] text-on-surface-variant block font-medium">Peces a la Parada</span>
-          <span className="text-xl font-mono font-bold text-primary">
-            {eventStats?.totalPecesRestants || 0} <span className="text-xs text-on-surface-variant font-normal">restants</span>
+        <div className={`p-4 rounded-xl border shadow-xs ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <span className={`text-[11px] block font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Peces a la Parada</span>
+          <span className={`text-xl font-mono font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+            {eventStats?.totalPecesRestants || 0} <span className={`text-xs font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>restants</span>
           </span>
-          <span className="text-[10px] text-on-surface-variant/70 block mt-0.5">
+          <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
             {eventStats?.totalPecesVenudes || 0} venudes ({eventStats?.percVendaGlobal || 0}%)
           </span>
         </div>
 
-        <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 shadow-2xs">
-          <span className="text-[11px] text-on-surface-variant block font-medium">Caixa Efectiu Física</span>
-          <span className="text-xl font-mono font-bold text-amber-600">{formatCurrency(eventStats?.caixaEfectiuTotal || 0)}</span>
-          <span className="text-[10px] text-on-surface-variant/70 block mt-0.5">
+        <div className={`p-4 rounded-xl border shadow-xs ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <span className={`text-[11px] block font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Caixa Efectiu Física</span>
+          <span className={`text-xl font-mono font-black ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>{formatCurrency(eventStats?.caixaEfectiuTotal || 0)}</span>
+          <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
             {formatCurrency(eventStats?.fonsCaixa || 0)} fons + {formatCurrency(eventStats?.totalEfectiu || 0)} vendes
           </span>
         </div>
 
-        <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 shadow-2xs">
-          <span className="text-[11px] text-on-surface-variant block font-medium">
+        <div className={`p-4 rounded-xl border shadow-xs ${isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <span className={`text-[11px] block font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
             Col·laborador ({currentEvent.colaborador?.nom || 'Parada'})
           </span>
-          <span className="text-xl font-mono font-bold text-primary">{formatCurrency(eventStats?.comissioColaborador || 0)}</span>
-          <span className="text-[10px] text-on-surface-variant/70 block mt-0.5">
+          <span className={`text-xl font-mono font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(eventStats?.comissioColaborador || 0)}</span>
+          <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
             {currentEvent.colaborador?.percentatgeComissio || 0}% de comissió
           </span>
         </div>
       </div>
 
       {/* Pestanyes de l'Esdeveniment */}
-      <div className="flex items-center gap-2 border-b border-outline/15 overflow-x-auto no-scrollbar">
+      <div className={`flex items-center gap-2 border-b overflow-x-auto no-scrollbar ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
         <button
           onClick={() => setActiveTab('dotacio')}
           className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'dotacio'
-              ? 'border-amber-600 text-amber-700 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 rounded-t-lg'
-              : 'border-transparent text-on-surface-variant hover:text-primary'
+              ? (isDark ? 'border-amber-400 text-amber-300 bg-amber-950/30 rounded-t-lg' : 'border-amber-600 text-amber-900 bg-amber-50 rounded-t-lg font-black')
+              : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
           }`}
         >
           <Package className="w-4 h-4" />
@@ -1606,8 +1670,8 @@ export default function EsdevenimentsManager({
           onClick={() => setActiveTab('tpv')}
           className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'tpv'
-              ? 'border-amber-600 text-amber-700 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 rounded-t-lg'
-              : 'border-transparent text-on-surface-variant hover:text-primary'
+              ? (isDark ? 'border-amber-400 text-amber-300 bg-amber-950/30 rounded-t-lg' : 'border-amber-600 text-amber-900 bg-amber-50 rounded-t-lg font-black')
+              : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
           }`}
         >
           <Store className="w-4 h-4" />
@@ -1618,8 +1682,8 @@ export default function EsdevenimentsManager({
           onClick={() => setActiveTab('liquidacio')}
           className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'liquidacio'
-              ? 'border-amber-600 text-amber-700 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 rounded-t-lg'
-              : 'border-transparent text-on-surface-variant hover:text-primary'
+              ? (isDark ? 'border-amber-400 text-amber-300 bg-amber-950/30 rounded-t-lg' : 'border-amber-600 text-amber-900 bg-amber-50 rounded-t-lg font-black')
+              : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
           }`}
         >
           <DollarSign className="w-4 h-4" />
@@ -1630,8 +1694,8 @@ export default function EsdevenimentsManager({
           onClick={() => setActiveTab('historic')}
           className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'historic'
-              ? 'border-amber-600 text-amber-700 dark:text-amber-400 bg-amber-50/40 dark:bg-amber-950/20 rounded-t-lg'
-              : 'border-transparent text-on-surface-variant hover:text-primary'
+              ? (isDark ? 'border-amber-400 text-amber-300 bg-amber-950/30 rounded-t-lg' : 'border-amber-600 text-amber-900 bg-amber-50 rounded-t-lg font-black')
+              : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
           }`}
         >
           <History className="w-4 h-4" />
@@ -1644,10 +1708,12 @@ export default function EsdevenimentsManager({
           =================================================================== */}
       {activeTab === 'dotacio' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-lowest p-4 rounded-xl border border-outline/15">
+          <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border ${
+            isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200 shadow-xs'
+          }`}>
             <div>
-              <h3 className="text-sm font-serif font-bold text-primary">Peces Assignades a la Fira</h3>
-              <p className="text-xs text-on-surface-variant">
+              <h3 className={`text-sm font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Peces Assignades a la Fira</h3>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 En assignar peces, pots agafar les que tinguis a l'estoc del taller i deixar la resta com a pendents de fabricar.
               </p>
             </div>
@@ -1672,19 +1738,25 @@ export default function EsdevenimentsManager({
 
           {/* Taula de línies de fira */}
           {(!currentEvent.linies || currentEvent.linies.length === 0) ? (
-            <div className="bg-surface-container-lowest p-10 text-center rounded-xl border border-dashed border-outline/30 space-y-2">
-              <Package className="w-8 h-8 text-on-surface-variant/40 mx-auto" />
-              <p className="text-xs font-semibold text-primary">Encara no has assignat cap peça a aquesta fira</p>
-              <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+            <div className={`p-10 text-center rounded-xl border border-dashed space-y-2 ${
+              isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-300'
+            }`}>
+              <Package className={`w-8 h-8 mx-auto ${isDark ? 'text-slate-600' : 'text-slate-400'}`} />
+              <p className={`text-xs font-semibold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Encara no has assignat cap peça a aquesta fira</p>
+              <p className={`text-xs max-w-sm mx-auto ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Fes clic a "Assignar Peça a la Fira" per definir la quantitat objectiu, agafar les peces d'estoc disponibles i planificar la fabricació restant.
               </p>
             </div>
           ) : (
-            <div className="bg-surface-container-lowest rounded-xl border border-outline/15 overflow-hidden shadow-xs">
+            <div className={`rounded-xl border overflow-hidden shadow-xs ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="bg-surface-container/50 border-b border-outline/15 text-on-surface-variant font-medium">
+                    <tr className={`border-b font-mono font-bold uppercase text-[11px] tracking-wider ${
+                      isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}>
                       <th className="py-3 px-4">Peça</th>
                       <th className="py-3 px-3 text-right">PVP Normal</th>
                       <th className="py-3 px-3 text-right">Preu Fira (€)</th>
@@ -1697,14 +1769,14 @@ export default function EsdevenimentsManager({
                       <th className="py-3 px-4 text-right">Accions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-outline/10 font-sans">
+                  <tbody className={`divide-y font-sans ${isDark ? 'divide-slate-800 text-slate-200' : 'divide-slate-200 text-slate-800'}`}>
                     {currentEvent.linies.map(linia => {
                       const totalObj = linia.unitatsPrevistes || ((linia.unitatsInicials || 0) + (linia.unitatsPendentsFabricar || 0));
                       const percVenut = totalObj > 0 ? Math.round(((linia.unitatsVenudes || 0) / totalObj) * 100) : 0;
                       const pendentsFabricar = linia.unitatsPendentsFabricar || 0;
 
                       return (
-                        <tr key={linia.productId} className="hover:bg-surface-container/30 transition-colors">
+                        <tr key={linia.productId} className={`transition-colors ${isDark ? 'hover:bg-slate-800/60' : 'hover:bg-amber-50/40'}`}>
                           <td className="py-2.5 px-4">
                             {(() => {
                               const f = getProductImage(linia);
@@ -1713,7 +1785,9 @@ export default function EsdevenimentsManager({
                                   className="flex items-center gap-3 cursor-default"
                                   title={linia.codi ? `Codi: ${linia.codi}` : undefined}
                                 >
-                                  <div className="w-9 h-9 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 relative flex items-center justify-center">
+                                  <div className={`w-9 h-9 rounded-lg overflow-hidden shrink-0 relative flex items-center justify-center border ${
+                                    isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                                  }`}>
                                     {f ? (
                                       <img 
                                         src={f} 
@@ -1728,14 +1802,16 @@ export default function EsdevenimentsManager({
                                       />
                                     ) : null}
                                     <div 
-                                      className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                                      className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-600' : 'text-slate-400'}`}
                                       style={{ display: f ? 'none' : 'flex' }}
                                     >
                                       <Package className="w-4 h-4" />
                                     </div>
                                   </div>
                                   <span 
-                                    className="font-semibold text-primary font-serif hover:text-amber-700 transition-colors"
+                                    className={`font-semibold font-serif transition-colors ${
+                                      isDark ? 'text-white hover:text-amber-400' : 'text-slate-900 hover:text-amber-700'
+                                    }`}
                                     title={linia.codi ? `Codi: ${linia.codi}` : undefined}
                                   >
                                     {linia.nom}
@@ -1744,7 +1820,9 @@ export default function EsdevenimentsManager({
                               );
                             })()}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-on-surface-variant line-through">{formatCurrency(linia.preuOriginal)}</td>
+                          <td className={`py-2.5 px-3 text-right font-mono line-through ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {formatCurrency(linia.preuOriginal)}
+                          </td>
                           <td className="py-2.5 px-3 text-right font-mono">
                             {currentEvent.estat !== 'tancat' ? (
                               <input
@@ -1752,30 +1830,40 @@ export default function EsdevenimentsManager({
                                 step="any"
                                 defaultValue={linia.preuFira}
                                 onBlur={(e) => handleUpdatePreuFiraLinia(linia.productId, e.target.value)}
-                                className="w-20 p-1 text-right bg-surface border border-outline/20 rounded-md outline-none focus:border-amber-500 font-bold text-amber-700 dark:text-amber-400"
+                                className={`w-20 p-1.5 text-right rounded-lg outline-none font-black font-mono transition-all border ${
+                                  isDark
+                                    ? 'bg-slate-950 border-slate-700 text-amber-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-400'
+                                    : 'bg-white border-slate-300 text-amber-900 focus:border-amber-600 focus:ring-1 focus:ring-amber-600 shadow-xs'
+                                }`}
                                 title="Preu promocional per a aquesta fira"
                               />
                             ) : (
-                              <span className="font-bold text-amber-700 dark:text-amber-400">{formatCurrency(linia.preuFira)}</span>
+                              <span className={`font-mono font-black ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>{formatCurrency(linia.preuFira)}</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-primary">{totalObj}</td>
-                          <td className="py-2.5 px-3 text-center font-mono font-medium text-on-surface-variant">{linia.unitatsInicials || 0}</td>
+                          <td className={`py-2.5 px-3 text-center font-mono font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalObj}</td>
+                          <td className={`py-2.5 px-3 text-center font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{linia.unitatsInicials || 0}</td>
                           <td className="py-2.5 px-3 text-center">
                             {pendentsFabricar > 0 ? (
-                              <div className="inline-flex flex-col items-center gap-0.5">
-                                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
+                                  isDark 
+                                    ? 'bg-amber-950/80 text-amber-300 border-amber-500/50 shadow-xs' 
+                                    : 'bg-amber-100 text-amber-950 border-amber-300 shadow-xs'
+                                }`}>
                                   🔨 {pendentsFabricar} ptes.
                                 </span>
                                 {linia.ofId ? (
-                                  <span className="text-[10px] font-mono text-on-surface-variant/80" title="Ordre de Fabricació creada">
+                                  <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title="Ordre de Fabricació creada">
                                     OF: {linia.ofId}
                                   </span>
                                 ) : currentEvent.estat !== 'tancat' ? (
                                   <button
                                     type="button"
                                     onClick={() => handleLlençarOFManualPerLinia(linia)}
-                                    className="text-[10px] text-amber-700 dark:text-amber-400 hover:underline font-semibold cursor-pointer"
+                                    className={`text-[11px] font-black hover:underline cursor-pointer transition-colors ${
+                                      isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-950'
+                                    }`}
                                     title="Llençar OF a taller per a les peces pendents"
                                   >
                                     + Llençar OF
@@ -1783,31 +1871,33 @@ export default function EsdevenimentsManager({
                                 ) : null}
                               </div>
                             ) : (
-                              <span className="text-on-surface-variant/40 font-mono text-[11px]">-</span>
+                              <span className={`font-mono text-[11px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>-</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold">
-                            <span className={`px-2 py-0.5 rounded-full text-xs ${
-                              linia.unitatsRestants > 2 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' :
-                              linia.unitatsRestants > 0 ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' :
-                              'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800'
+                          <td className="py-2.5 px-3 text-center font-mono">
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-black border ${
+                              linia.unitatsRestants > 2
+                                ? (isDark ? 'bg-emerald-950/80 text-emerald-200 border-emerald-600/60 shadow-xs' : 'bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs')
+                                : linia.unitatsRestants > 0
+                                  ? (isDark ? 'bg-amber-950/80 text-amber-200 border-amber-600/60 shadow-xs' : 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs')
+                                  : (isDark ? 'bg-rose-950/90 text-rose-200 border-rose-600/70 shadow-xs' : 'bg-rose-100 text-rose-900 border-rose-300 shadow-xs')
                             }`}>
                               {linia.unitatsRestants}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-600">{linia.unitatsVenudes || 0}</td>
+                          <td className={`py-2.5 px-3 text-center font-mono font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{linia.unitatsVenudes || 0}</td>
                           <td className="py-2.5 px-3">
-                            <div className="w-24 bg-surface-container rounded-full h-2 overflow-hidden border border-outline/10">
+                            <div className={`w-24 rounded-full h-2 overflow-hidden border ${isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-200 border-slate-300'}`}>
                               <div
                                 className="bg-amber-500 h-full rounded-full transition-all"
                                 style={{ width: `${Math.min(100, percVenut)}%` }}
                               />
                             </div>
-                            <span className="text-[10px] text-on-surface-variant font-mono mt-0.5 block">{percVenut}% venut</span>
+                            <span className={`text-[10px] font-mono mt-0.5 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{percVenut}% venut</span>
                           </td>
                           <td className="py-2.5 px-4 text-right">
                             {currentEvent.estat !== 'tancat' && (
-                              <div className="flex items-center justify-end gap-1 flex-wrap">
+                              <div className="flex items-center justify-end gap-1.5 flex-wrap">
                                 {pendentsFabricar > 0 && (
                                   <button
                                     type="button"
@@ -1815,17 +1905,23 @@ export default function EsdevenimentsManager({
                                       const qStr = prompt(`Quantes peces fabricades de "${linia.nom}" vols incorporar ara a la parada? (Màx pendents: ${pendentsFabricar})`, String(pendentsFabricar));
                                       if (qStr) handleIncorporarPecesFabricades(linia, qStr);
                                     }}
-                                    className="px-2 py-1 rounded-md text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300/60 dark:border-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-2xs"
+                                    className={`px-2 py-1 rounded-md border transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-xs ${
+                                      isDark
+                                        ? 'text-emerald-300 bg-emerald-950/70 border-emerald-700/70 hover:bg-emerald-900/80'
+                                        : 'text-emerald-900 bg-emerald-100 border-emerald-300 hover:bg-emerald-200'
+                                    }`}
                                     title="Incorporar peces que ja s'han fabricat a la parada"
                                   >
-                                    <PlusCircle className="w-3 h-3" />
+                                    <PlusCircle className="w-3.5 h-3.5" />
                                     <span>Incorporar</span>
                                   </button>
                                 )}
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEditLinia(linia)}
-                                  className="p-1 rounded-md text-on-surface-variant hover:text-amber-700 hover:bg-surface transition-colors cursor-pointer"
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                                  }`}
                                   title="Editar condicions (objectiu fira, estoc agafat, preu...)"
                                 >
                                   <Edit3 className="w-3.5 h-3.5" />
@@ -1837,7 +1933,9 @@ export default function EsdevenimentsManager({
                                       const qStr = prompt(`Quantes unitats de "${linia.nom}" vols retornar al taller ara mateix? (Màx: ${linia.unitatsRestants})`, "1");
                                       if (qStr) handleRetornParcialPeça(linia.productId, parseInt(qStr, 10));
                                     }}
-                                    className="p-1 rounded-md text-on-surface-variant hover:text-amber-700 hover:bg-surface transition-colors cursor-pointer"
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-800 hover:bg-slate-100'
+                                    }`}
                                     title="Retornar peces al taller"
                                   >
                                     <RotateCcw className="w-3.5 h-3.5" />
@@ -1846,7 +1944,9 @@ export default function EsdevenimentsManager({
                                 <button
                                   type="button"
                                   onClick={() => handleEliminarLiniaFira(linia)}
-                                  className="p-1 rounded-md text-on-surface-variant hover:text-red-600 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-rose-950/40' : 'text-slate-600 hover:text-rose-600 hover:bg-rose-100'
+                                  }`}
                                   title="Eliminar aquesta peça de la fira (les unitats restants tornen al taller)"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1891,17 +1991,19 @@ export default function EsdevenimentsManager({
                     setTpvQuantitat(1);
                     setTpvMetode('efectiu');
                   }}
-                  className={`bg-surface-container-lowest p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer shadow-xs group ${
+                  className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all cursor-pointer shadow-xs group ${
                     esgotat
-                      ? 'opacity-40 border-outline/10 cursor-not-allowed bg-surface'
-                      : 'border-outline/20 hover:border-amber-500 hover:shadow-md active:scale-98'
+                      ? (isDark ? 'opacity-40 border-slate-800 cursor-not-allowed bg-slate-950/60' : 'opacity-40 border-slate-200 cursor-not-allowed bg-slate-100')
+                      : (isDark ? 'bg-slate-900 border-slate-800 hover:border-amber-500/60 hover:shadow-md active:scale-98 text-slate-100' : 'bg-white border-slate-200 hover:border-amber-500 hover:shadow-md active:scale-98 text-slate-900')
                   }`}
                 >
                   <div className="space-y-2">
                     {(() => {
                       const f = getProductImage(linia);
                       return (
-                        <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-surface border border-outline/10 flex items-center justify-center">
+                        <div className={`relative aspect-square w-full rounded-xl overflow-hidden border flex items-center justify-center ${
+                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                        }`}>
                           {f ? (
                             <img 
                               src={f} 
@@ -1916,15 +2018,15 @@ export default function EsdevenimentsManager({
                             />
                           ) : null}
                           <div 
-                            className="w-full h-full items-center justify-center text-on-surface-variant/30"
+                            className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-600' : 'text-slate-400'}`}
                             style={{ display: f ? 'none' : 'flex' }}
                           >
                             <Package className="w-8 h-8" />
                           </div>
                           <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shadow-xs ${
-                            linia.unitatsRestants > 2 ? 'bg-emerald-500 text-white' :
-                            linia.unitatsRestants > 0 ? 'bg-amber-500 text-white' :
-                            'bg-red-500 text-white'
+                            linia.unitatsRestants > 2 ? 'bg-emerald-600 text-white' :
+                            linia.unitatsRestants > 0 ? 'bg-amber-600 text-white' :
+                            'bg-rose-600 text-white'
                           }`}>
                             {linia.unitatsRestants} disp.
                           </span>
@@ -1933,18 +2035,20 @@ export default function EsdevenimentsManager({
                     })()}
 
                     <div>
-                      <h4 className="font-serif font-bold text-xs text-primary line-clamp-2 leading-tight">
+                      <h4 className={`font-serif font-bold text-xs line-clamp-2 leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {linia.nom}
                       </h4>
-                      <p className="text-[10px] text-on-surface-variant/70 font-mono mt-0.5">{linia.codi}</p>
+                      <p className={`text-[10px] font-mono mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{linia.codi}</p>
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-outline/10 flex items-center justify-between">
-                    <span className="text-sm font-mono font-extrabold text-amber-700 dark:text-amber-400">
+                  <div className={`mt-3 pt-2 border-t flex items-center justify-between ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <span className={`text-sm font-mono font-black ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>
                       {formatCurrency(linia.preuFira || linia.preuOriginal)}
                     </span>
-                    <span className="p-1 rounded-lg bg-amber-500/10 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
+                    <span className={`p-1 rounded-lg transition-colors ${
+                      isDark ? 'bg-amber-500/20 text-amber-400 group-hover:bg-amber-500 group-hover:text-slate-950' : 'bg-amber-100 text-amber-800 group-hover:bg-amber-600 group-hover:text-white'
+                    }`}>
                       <Plus className="w-3.5 h-3.5" />
                     </span>
                   </div>
@@ -1954,42 +2058,48 @@ export default function EsdevenimentsManager({
           </div>
 
           {/* Panell de Vendes Recents */}
-          <div className="mt-8 bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-xs space-y-3">
+          <div className={`mt-8 p-5 rounded-2xl border shadow-xs space-y-3 ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-serif font-bold text-primary flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-600" />
+              <h3 className={`text-sm font-serif font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <Clock className="w-4 h-4 text-amber-500" />
                 <span>Registre de Vendes de la Parada ({currentEvent.vendes?.length || 0})</span>
               </h3>
             </div>
 
             {(!currentEvent.vendes || currentEvent.vendes.length === 0) ? (
-              <p className="text-xs text-on-surface-variant/70 italic py-3 text-center">
+              <p className={`text-xs italic py-3 text-center ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                 Encara no s'ha registrat cap venda en aquesta fira. Toca qualsevol producte de dalt per registrar la primera venda!
               </p>
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto pr-1 font-mono text-xs">
                 {currentEvent.vendes.map(venda => (
-                  <div key={venda.id} className="p-2.5 bg-surface border border-outline/15 rounded-xl flex items-center justify-between gap-3">
+                  <div key={venda.id} className={`p-2.5 border rounded-xl flex items-center justify-between gap-3 ${
+                    isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
+                  }`}>
                     <div className="flex items-center gap-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        venda.metodePagament === 'efectiu' ? 'bg-emerald-100 text-emerald-800' :
-                        venda.metodePagament === 'bizum' ? 'bg-cyan-100 text-cyan-800' :
-                        'bg-purple-100 text-purple-800'
+                        venda.metodePagament === 'efectiu' 
+                          ? (isDark ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/50' : 'bg-emerald-100 text-emerald-900') 
+                          : venda.metodePagament === 'bizum' 
+                            ? (isDark ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-700/50' : 'bg-cyan-100 text-cyan-900')
+                            : (isDark ? 'bg-purple-950/80 text-purple-300 border border-purple-700/50' : 'bg-purple-100 text-purple-900')
                       }`}>
                         {venda.metodePagament}
                       </span>
-                      <span className="font-semibold text-primary">{venda.quantitat}x {venda.productNom}</span>
-                      <span className="text-[10px] text-on-surface-variant/60">
+                      <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{venda.quantitat}x {venda.productNom}</span>
+                      <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {new Date(venda.timestamp).toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <span className="font-bold text-emerald-600">{formatCurrency(venda.total)}</span>
+                      <span className={`font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(venda.total)}</span>
                       {currentEvent.estat !== 'tancat' && (
                         <button
                           onClick={() => handleAnullarVenda(venda.id)}
-                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                          className={`p-1 cursor-pointer transition-colors ${isDark ? 'text-rose-400 hover:text-rose-300' : 'text-rose-600 hover:text-rose-800'}`}
                           title="Anul·lar aquesta venda"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -2004,14 +2114,18 @@ export default function EsdevenimentsManager({
 
           {/* MODAL COBRAMENT RÀPID TPV */}
           {tpvProducteSeleccionat && (
-            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-surface-container-lowest max-w-sm w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-5 animate-fadeIn">
-                <div className="flex items-start justify-between border-b border-outline/15 pb-3">
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className={`max-w-sm w-full rounded-2xl border p-6 shadow-2xl space-y-5 animate-fadeIn ${
+                isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-900'
+              }`}>
+                <div className={`flex items-start justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                   <div className="flex items-center gap-3">
                     {(() => {
                       const f = getProductImage(tpvProducteSeleccionat);
                       return (
-                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                        <div className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 flex items-center justify-center border ${
+                          isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+                        }`}>
                           {f ? (
                             <img 
                               src={f} 
@@ -2026,7 +2140,7 @@ export default function EsdevenimentsManager({
                             />
                           ) : null}
                           <div 
-                            className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                            className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-600' : 'text-slate-400'}`}
                             style={{ display: f ? 'none' : 'flex' }}
                           >
                             <Package className="w-5 h-5" />
@@ -2035,78 +2149,90 @@ export default function EsdevenimentsManager({
                       );
                     })()}
                     <div>
-                      <h3 className="text-base font-serif font-bold text-primary leading-tight">
+                      <h3 className={`text-base font-serif font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {tpvProducteSeleccionat.nom}
                       </h3>
-                      <p className="text-xs font-mono text-amber-700 font-bold mt-0.5">
+                      <p className={`text-xs font-mono font-bold mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                         {formatCurrency(tpvProducteSeleccionat.preuFira || tpvProducteSeleccionat.preuOriginal)} / unitat
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => setTpvProducteSeleccionat(null)} className="p-1 text-on-surface-variant hover:bg-surface rounded-lg">
+                  <button onClick={() => setTpvProducteSeleccionat(null)} className={`p-1 rounded-lg ${isDark ? 'text-slate-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-100'}`}>
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Selector de Quantitat */}
                 <div className="space-y-1 text-center">
-                  <span className="text-xs text-on-surface-variant">Quantitat</span>
+                  <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Quantitat</span>
                   <div className="flex items-center justify-center gap-4">
                     <button
                       onClick={() => setTpvQuantitat(Math.max(1, tpvQuantitat - 1))}
-                      className="w-10 h-10 rounded-xl bg-surface border border-outline/20 flex items-center justify-center text-lg font-bold hover:bg-surface-container cursor-pointer"
+                      className={`w-10 h-10 rounded-xl border flex items-center justify-center text-lg font-bold cursor-pointer transition-colors ${
+                        isDark ? 'bg-slate-950 border-slate-700 text-white hover:bg-slate-800' : 'bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200'
+                      }`}
                     >
                       -
                     </button>
-                    <span className="text-2xl font-mono font-extrabold text-primary w-12 text-center">
+                    <span className={`text-2xl font-mono font-black w-12 text-center ${isDark ? 'text-white' : 'text-slate-900'}`}>
                       {tpvQuantitat}
                     </span>
                     <button
                       disabled={tpvQuantitat >= tpvProducteSeleccionat.unitatsRestants}
                       onClick={() => setTpvQuantitat(tpvQuantitat + 1)}
-                      className="w-10 h-10 rounded-xl bg-surface border border-outline/20 flex items-center justify-center text-lg font-bold hover:bg-surface-container disabled:opacity-30 cursor-pointer"
+                      className={`w-10 h-10 rounded-xl border flex items-center justify-center text-lg font-bold cursor-pointer transition-colors disabled:opacity-30 ${
+                        isDark ? 'bg-slate-950 border-slate-700 text-white hover:bg-slate-800' : 'bg-slate-100 border-slate-300 text-slate-900 hover:bg-slate-200'
+                      }`}
                     >
                       +
                     </button>
                   </div>
-                  <p className="text-[10px] text-on-surface-variant/70 font-mono">
+                  <p className={`text-[10px] font-mono mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     (Màxim disponible a la parada: {tpvProducteSeleccionat.unitatsRestants})
                   </p>
                 </div>
 
                 {/* Import Total Gran */}
-                <div className="p-3 bg-surface rounded-xl border border-outline/10 text-center">
-                  <span className="text-[10px] text-on-surface-variant uppercase font-mono block">Total a Cobrar</span>
-                  <span className="text-3xl font-mono font-extrabold text-emerald-600">
+                <div className={`p-3 rounded-xl border text-center ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
+                  <span className={`text-[10px] uppercase font-mono block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Total a Cobrar</span>
+                  <span className={`text-3xl font-mono font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                     {formatCurrency((Number(tpvProducteSeleccionat.preuFira || tpvProducteSeleccionat.preuOriginal)) * tpvQuantitat)}
                   </span>
                 </div>
 
                 {/* Botons Grans de Mètode de Pagament */}
                 <div className="space-y-2">
-                  <span className="text-xs font-semibold text-primary block">Tria mètode per registrar venda:</span>
+                  <span className={`text-xs font-semibold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Tria mètode per registrar venda:</span>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => { setTpvMetode('efectiu'); setTimeout(handleConfirmarVendaTPV, 50); }}
-                      className="p-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs"
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs ${
+                        isDark ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200 hover:bg-emerald-900' : 'border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900'
+                      }`}
                     >
-                      <Banknote className="w-5 h-5 text-emerald-700" />
+                      <Banknote className="w-5 h-5 text-emerald-500" />
                       <span>Efectiu</span>
                     </button>
 
                     <button
                       onClick={() => { setTpvMetode('bizum'); setTimeout(handleConfirmarVendaTPV, 50); }}
-                      className="p-3 rounded-xl border border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-900 flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs"
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs ${
+                        isDark ? 'bg-cyan-950/80 border-cyan-700 text-cyan-200 hover:bg-cyan-900' : 'border-cyan-300 bg-cyan-50 hover:bg-cyan-100 text-cyan-900'
+                      }`}
                     >
-                      <Smartphone className="w-5 h-5 text-cyan-700" />
+                      <Smartphone className="w-5 h-5 text-cyan-500" />
                       <span>Bizum</span>
                     </button>
 
                     <button
                       onClick={() => { setTpvMetode('targeta'); setTimeout(handleConfirmarVendaTPV, 50); }}
-                      className="p-3 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-900 flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs"
+                      className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer font-bold text-xs ${
+                        isDark ? 'bg-purple-950/80 border-purple-700 text-purple-200 hover:bg-purple-900' : 'border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-900'
+                      }`}
                     >
-                      <CreditCard className="w-5 h-5 text-purple-700" />
+                      <CreditCard className="w-5 h-5 text-purple-500" />
                       <span>Targeta</span>
                     </button>
                   </div>
@@ -2124,70 +2250,92 @@ export default function EsdevenimentsManager({
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Arqueig de Caixa Física */}
-            <div className="bg-surface-container-lowest p-6 rounded-2xl border border-outline/15 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 text-primary font-serif font-bold text-base border-b border-outline/10 pb-3">
-                <Banknote className="w-5 h-5 text-amber-600" />
+            <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className={`flex items-center gap-2 font-serif font-bold text-base border-b pb-3 ${
+                isDark ? 'text-white border-slate-800' : 'text-slate-900 border-slate-100'
+              }`}>
+                <Banknote className="w-5 h-5 text-amber-500" />
                 <h4>Arqueig de la Caixa Física (Monedes i Bitllets)</h4>
               </div>
 
               <div className="space-y-2 text-xs font-mono">
-                <div className="flex items-center justify-between p-2 rounded-lg bg-surface">
-                  <span className="text-on-surface-variant">(+) Fons de canvi inicial portat:</span>
-                  <span className="font-bold text-primary">{formatCurrency(eventStats?.fonsCaixa || 0)}</span>
+                <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span>(+) Fons de canvi inicial portat:</span>
+                  <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(eventStats?.fonsCaixa || 0)}</span>
                 </div>
-                <div className="flex items-center justify-between p-2 rounded-lg bg-surface">
-                  <span className="text-on-surface-variant">(+) Total recaptat en Efectiu:</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(eventStats?.totalEfectiu || 0)}</span>
+                <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span>(+) Total recaptat en Efectiu:</span>
+                  <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(eventStats?.totalEfectiu || 0)}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm font-bold">
-                  <span className="text-amber-900 dark:text-amber-200">(=) TOTAL QUE HI HA D'HAVER A LA CAIXA:</span>
-                  <span className="text-amber-700 dark:text-amber-400 font-extrabold text-base">
+                <div className={`flex items-center justify-between p-3 rounded-xl border text-sm font-bold ${
+                  isDark ? 'bg-amber-950/40 border-amber-500/30' : 'bg-amber-50 border-amber-300'
+                }`}>
+                  <span className={isDark ? 'text-amber-300' : 'text-amber-950'}>(=) TOTAL QUE HI HA D'HAVER A LA CAIXA:</span>
+                  <span className={`font-black text-base ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>
                     {formatCurrency(eventStats?.caixaEfectiuTotal || 0)}
                   </span>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-outline/10 space-y-2 text-xs">
-                <span className="font-semibold text-primary block">Altres Canals Digitals:</span>
-                <div className="flex items-center justify-between text-on-surface-variant font-mono">
+              <div className={`pt-2 border-t space-y-2 text-xs ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                <span className={`font-semibold block ${isDark ? 'text-white' : 'text-slate-900'}`}>Altres Canals Digitals:</span>
+                <div className={`flex items-center justify-between font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <span>📱 Bizum al telèfon mòbil:</span>
-                  <span className="font-bold text-primary">{formatCurrency(eventStats?.totalBizum || 0)}</span>
+                  <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(eventStats?.totalBizum || 0)}</span>
                 </div>
-                <div className="flex items-center justify-between text-on-surface-variant font-mono">
+                <div className={`flex items-center justify-between font-mono ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                   <span>💳 Targeta / Datàfon bancari:</span>
-                  <span className="font-bold text-primary">{formatCurrency(eventStats?.totalTargeta || 0)}</span>
+                  <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(eventStats?.totalTargeta || 0)}</span>
                 </div>
               </div>
             </div>
 
             {/* Liquidació Econòmica i Col·laborador */}
-            <div className="bg-surface-container-lowest p-6 rounded-2xl border border-outline/15 shadow-xs space-y-4">
-              <div className="flex items-center gap-2 text-primary font-serif font-bold text-base border-b border-outline/10 pb-3">
-                <Percent className="w-5 h-5 text-amber-600" />
+            <div className={`p-6 rounded-2xl border shadow-xs space-y-4 ${
+              isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+            }`}>
+              <div className={`flex items-center gap-2 font-serif font-bold text-base border-b pb-3 ${
+                isDark ? 'text-white border-slate-800' : 'text-slate-900 border-slate-100'
+              }`}>
+                <Percent className="w-5 h-5 text-amber-500" />
                 <h4>Liquidació del Col·laborador i Rendiment del Taller</h4>
               </div>
 
               <div className="space-y-2 text-xs font-mono">
-                <div className="flex items-center justify-between p-2 rounded-lg bg-surface">
-                  <span className="text-on-surface-variant">Facturació Total de la Fira:</span>
-                  <span className="font-bold text-emerald-600">{formatCurrency(eventStats?.totalRecaptat || 0)}</span>
+                <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span>Facturació Total de la Fira:</span>
+                  <span className={`font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(eventStats?.totalRecaptat || 0)}</span>
                 </div>
 
-                <div className="flex items-center justify-between p-2 rounded-lg bg-surface">
-                  <span className="text-on-surface-variant">
+                <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span>
                     (-) Comissió {currentEvent.colaborador?.nom ? `per a ${currentEvent.colaborador.nom}` : 'Col·laborador'} ({currentEvent.colaborador?.percentatgeComissio || 0}%):
                   </span>
-                  <span className="font-bold text-red-600">-{formatCurrency(eventStats?.comissioColaborador || 0)}</span>
+                  <span className={`font-bold ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>-{formatCurrency(eventStats?.comissioColaborador || 0)}</span>
                 </div>
 
-                <div className="flex items-center justify-between p-2 rounded-lg bg-surface">
-                  <span className="text-on-surface-variant">(-) Despesa de parada / Lloguer:</span>
-                  <span className="font-bold text-red-600">-{formatCurrency(eventStats?.despesaParada || 0)}</span>
+                <div className={`flex items-center justify-between p-2 rounded-lg border ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <span>(-) Despesa de parada / Lloguer:</span>
+                  <span className={`font-bold ${isDark ? 'text-rose-400' : 'text-rose-700'}`}>-{formatCurrency(eventStats?.despesaParada || 0)}</span>
                 </div>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-sm font-bold">
-                  <span className="text-emerald-900 dark:text-emerald-200">(=) NET FINAL PER A MÍNIM MÓN:</span>
-                  <span className="text-emerald-700 dark:text-emerald-400 font-extrabold text-base">
+                <div className={`flex items-center justify-between p-3 rounded-xl border text-sm font-bold ${
+                  isDark ? 'bg-emerald-950/40 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300'
+                }`}>
+                  <span className={isDark ? 'text-emerald-300' : 'text-emerald-950'}>(=) NET FINAL PER A MÍNIM MÓN:</span>
+                  <span className={`font-black text-base ${isDark ? 'text-emerald-400' : 'text-emerald-900'}`}>
                     {formatCurrency(eventStats?.netTaller || 0)}
                   </span>
                 </div>
@@ -2195,29 +2343,33 @@ export default function EsdevenimentsManager({
 
               {/* Botons destacats per finalitzar la fira o desfer */}
               {currentEvent.estat !== 'tancat' ? (
-                <div className="pt-3 border-t border-outline/10 space-y-2">
+                <div className={`pt-3 border-t space-y-2 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                   <button
                     onClick={() => setShowCloseConfirmModal(true)}
-                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all"
+                    className="w-full py-3 px-4 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer transition-all"
                   >
-                    <RotateCcw className="w-4 h-4 text-amber-300" />
+                    <RotateCcw className="w-4 h-4 text-amber-200" />
                     <span>Finalitzar Fira (Retornant o Sense Retornar Estocs)</span>
                   </button>
                   {currentEvent.estat === 'en_curs' && (
                     <button
                       onClick={() => handleSetEventStatus('preparacio')}
-                      className="w-full py-2 px-3 border border-outline/20 bg-surface hover:bg-surface-container text-on-surface-variant rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      className={`w-full py-2 px-3 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        isDark ? 'border-slate-700 bg-slate-950 hover:bg-slate-800 text-slate-300' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                      }`}
                     >
-                      <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                      <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
                       <span>Desfer inici: Tornar la fira a estat "En Preparació"</span>
                     </button>
                   )}
-                  <p className="text-[10px] text-on-surface-variant/70 text-center mt-1">
+                  <p className={`text-[10px] text-center mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                     Podràs triar si reincorporar els romanents al taller o tancar sense alterar estocs.
                   </p>
                 </div>
               ) : (
-                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-outline/15 text-center text-xs text-on-surface-variant">
+                <div className={`p-3 rounded-xl border text-center text-xs ${
+                  isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                }`}>
                   ✓ Aquest esdeveniment està tancat.
                 </div>
               )}
@@ -2231,26 +2383,34 @@ export default function EsdevenimentsManager({
           =================================================================== */}
       {activeTab === 'historic' && (
         <div className="space-y-6">
-          <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-xs space-y-2">
-            <h3 className="text-base font-serif font-bold text-primary flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-amber-600" />
+          <div className={`p-5 rounded-2xl border shadow-xs space-y-2 ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <h3 className={`text-base font-serif font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <TrendingUp className="w-5 h-5 text-amber-500" />
               <span>Evolució Històrica: "{currentEvent.nom.replace(/\d{4}/, '').trim()}"</span>
             </h3>
-            <p className="text-xs text-on-surface-variant">
+            <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
               Compara les diferents edicions anuals d'aquesta fira per saber quins productes han triomfat i optimitzar la preparació d'enguany.
             </p>
           </div>
 
           {/* Taula Comparativa d'Edicions */}
-          <div className="bg-surface-container-lowest rounded-2xl border border-outline/15 overflow-hidden shadow-xs">
-            <div className="p-4 border-b border-outline/10 font-bold text-xs text-primary flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-amber-600" />
+          <div className={`rounded-2xl border overflow-hidden shadow-xs ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <div className={`p-4 border-b font-bold text-xs flex items-center gap-2 ${
+              isDark ? 'border-slate-800 text-white bg-slate-950' : 'border-slate-100 text-slate-900 bg-slate-50'
+            }`}>
+              <Calendar className="w-4 h-4 text-amber-500" />
               <span>Historial d'Edicions Registrades</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-surface-container/50 border-b border-outline/15 text-on-surface-variant font-medium">
+                  <tr className={`border-b font-mono font-bold uppercase text-[11px] tracking-wider ${
+                    isDark ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
                     <th className="py-3 px-4">Edició / Any</th>
                     <th className="py-3 px-3">Estat</th>
                     <th className="py-3 px-3 text-right">Facturació Total</th>
@@ -2261,7 +2421,7 @@ export default function EsdevenimentsManager({
                     <th className="py-3 px-4 text-right">Net Taller</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-outline/10 font-mono">
+                <tbody className={`divide-y font-mono ${isDark ? 'divide-slate-800 text-slate-200' : 'divide-slate-200 text-slate-800'}`}>
                   {edicionsComparativa.map(ev => {
                     const vendes = ev.vendes || [];
                     const totRecaptat = vendes.reduce((acc, v) => acc + (v.total || 0), 0);
@@ -2274,29 +2434,35 @@ export default function EsdevenimentsManager({
                     const isCurrent = ev.id === currentEvent.id;
 
                     return (
-                      <tr key={ev.id} className={`${isCurrent ? 'bg-amber-500/10 font-bold' : 'hover:bg-surface-container/30'}`}>
+                      <tr key={ev.id} className={`${isCurrent ? (isDark ? 'bg-amber-500/15 font-bold' : 'bg-amber-100 font-bold') : (isDark ? 'hover:bg-slate-800/50' : 'hover:bg-amber-50/50')}`}>
                         <td className="py-3 px-4 font-sans flex items-center gap-2">
-                          <span className="text-amber-700 font-bold">{ev.edicioAny || '-'}</span>
-                          <span>{ev.nom}</span>
-                          {isCurrent && <span className="text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.2 rounded">ACTUAL</span>}
+                          <span className={`font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>{ev.edicioAny || '-'}</span>
+                          <span className={isDark ? 'text-white' : 'text-slate-900'}>{ev.nom}</span>
+                          {isCurrent && <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${isDark ? 'text-amber-300 bg-amber-950 border border-amber-600/40' : 'text-amber-900 bg-amber-200'}`}>ACTUAL</span>}
                         </td>
                         <td className="py-3 px-3 font-sans">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            ev.estat === 'tancat' ? 'bg-slate-100 text-slate-700' : 'bg-emerald-100 text-emerald-800'
+                            ev.estat === 'tancat' 
+                              ? (isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700') 
+                              : (isDark ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-600/50' : 'bg-emerald-100 text-emerald-800')
                           }`}>
                             {ev.estat}
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right text-emerald-600 font-bold">{formatCurrency(totRecaptat)}</td>
+                        <td className={`py-3 px-3 text-right font-black ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>{formatCurrency(totRecaptat)}</td>
                         <td className="py-3 px-3 text-center">{totPortades}</td>
-                        <td className="py-3 px-3 text-center text-primary">{totVenudes}</td>
+                        <td className={`py-3 px-3 text-center font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{totVenudes}</td>
                         <td className="py-3 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded ${percVenda >= 70 ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'}`}>
+                          <span className={`px-2 py-0.5 rounded font-bold ${
+                            percVenda >= 70 
+                              ? (isDark ? 'text-emerald-300 bg-emerald-950/70 border border-emerald-700/50' : 'text-emerald-800 bg-emerald-100') 
+                              : (isDark ? 'text-amber-300 bg-amber-950/70 border border-amber-700/50' : 'text-amber-900 bg-amber-100')
+                          }`}>
                             {percVenda}%
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right text-on-surface-variant">{formatCurrency(comissio)}</td>
-                        <td className="py-3 px-4 text-right text-primary font-bold">{formatCurrency(net)}</td>
+                        <td className={`py-3 px-3 text-right ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{formatCurrency(comissio)}</td>
+                        <td className={`py-3 px-4 text-right font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatCurrency(net)}</td>
                       </tr>
                     );
                   })}
@@ -2306,14 +2472,16 @@ export default function EsdevenimentsManager({
           </div>
 
           {/* Rànquing dels Productes Estrella en Aquesta Fira */}
-          <div className="bg-surface-container-lowest p-5 rounded-2xl border border-outline/15 shadow-xs space-y-3">
-            <h4 className="text-sm font-serif font-bold text-primary flex items-center gap-2">
+          <div className={`p-5 rounded-2xl border shadow-xs space-y-3 ${
+            isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+          }`}>
+            <h4 className={`text-sm font-serif font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
               <Award className="w-4 h-4 text-amber-500" />
               <span>Rànquing de Productes més Venuts en Aquesta Fira (Totes les Edicions)</span>
             </h4>
 
             {rankingProductesHistoric.length === 0 ? (
-              <p className="text-xs text-on-surface-variant/70 italic py-2">
+              <p className={`text-xs italic py-2 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
                 A mesura que registris vendes en diferents edicions, aquí veuràs quines peces són les més demandades pel públic d'aquesta fira.
               </p>
             ) : (
@@ -2321,14 +2489,20 @@ export default function EsdevenimentsManager({
                 {rankingProductesHistoric.slice(0, 6).map((item, idx) => {
                   const percTotal = item.totalPortades > 0 ? Math.round((item.totalVenudes / item.totalPortades) * 100) : 0;
                   return (
-                    <div key={item.productId} className="p-3 bg-surface border border-outline/15 rounded-xl flex items-center gap-3">
-                      <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-700 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    <div key={item.productId} className={`p-3 border rounded-xl flex items-center gap-3 ${
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-slate-50 border-slate-200 text-slate-900'
+                    }`}>
+                      <span className={`w-6 h-6 rounded-full font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+                        isDark ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-900'
+                      }`}>
                         #{idx + 1}
                       </span>
                       {(() => {
                         const f = getProductImage(item);
                         return (
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                          <div className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border ${
+                            isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                          }`}>
                             {f ? (
                               <img 
                                 src={f} 
@@ -2343,7 +2517,7 @@ export default function EsdevenimentsManager({
                               />
                             ) : null}
                             <div 
-                              className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                              className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-600' : 'text-slate-400'}`}
                               style={{ display: f ? 'none' : 'flex' }}
                             >
                               <Package className="w-4 h-4" />
@@ -2352,8 +2526,8 @@ export default function EsdevenimentsManager({
                         );
                       })()}
                       <div className="min-w-0 flex-1 text-xs">
-                        <h5 className="font-serif font-bold text-primary truncate">{item.nom}</h5>
-                        <p className="text-[10px] text-on-surface-variant font-mono">
+                        <h5 className={`font-serif font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{item.nom}</h5>
+                        <p className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                           {item.totalVenudes} venudes de {item.totalPortades} portades ({percTotal}%)
                         </p>
                       </div>
@@ -2369,35 +2543,45 @@ export default function EsdevenimentsManager({
       {/* ===================================================================
           MODAL: TRASPASSAR PEÇA DEL TALLER A LA FIRA
           =================================================================== */}
+      {/* ===================================================================
+          MODAL: TRASPASSAR PEÇA DEL TALLER A LA FIRA
+          =================================================================== */}
       {showAddProductModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest max-w-xl w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-4 animate-fadeIn max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-outline/15 pb-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <Boxes className="w-5 h-5 text-amber-600" />
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'} max-w-xl w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[90vh] flex flex-col`}>
+            <div className={`flex items-center justify-between border-b pb-3 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2.5">
+                <Boxes className="w-5 h-5 text-amber-500" />
                 <div>
-                  <h3 className="text-base font-serif font-bold text-primary">
+                  <h3 className={`text-base font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     Assignar Peça a l'Esdeveniment
                   </h3>
-                  <p className="text-[11px] text-on-surface-variant">
+                  <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Defineix quantes en vols portar, quantes n'agafes d'estoc i la resta quedarà pendent per fabricar.
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowAddProductModal(false)} className="p-1 rounded-lg text-on-surface-variant hover:bg-surface">
+              <button 
+                onClick={() => setShowAddProductModal(false)} 
+                className={`p-1.5 rounded-lg cursor-pointer transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Cercador de Productes */}
             <div className="relative shrink-0">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/60" />
+              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
               <input
                 type="text"
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 placeholder="Cercar peça per nom o codi..."
-                className="w-full pl-8 pr-3 py-2 bg-surface border border-outline/20 rounded-xl text-xs outline-none focus:border-amber-500 text-on-surface"
+                className={`w-full pl-8 pr-3 py-2 border rounded-xl text-xs outline-none focus:border-amber-500 transition-colors ${
+                  isDark 
+                    ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500' 
+                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                }`}
               />
             </div>
 
@@ -2430,12 +2614,18 @@ export default function EsdevenimentsManager({
                       }}
                       className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
                         isSelected
-                          ? 'border-amber-500 bg-amber-500/10 shadow-xs'
-                          : 'border-outline/15 bg-surface hover:bg-surface-container/50'
+                          ? isDark 
+                            ? 'border-amber-500 bg-amber-500/20 shadow-xs' 
+                            : 'border-amber-500 bg-amber-50/80 shadow-xs ring-1 ring-amber-400'
+                          : isDark
+                            ? 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/60'
+                            : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100'
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                        <div className={`w-10 h-10 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center ${
+                          isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                        }`}>
                           {fotoUrl ? (
                             <img 
                               src={fotoUrl} 
@@ -2450,21 +2640,27 @@ export default function EsdevenimentsManager({
                             />
                           ) : null}
                           <div 
-                            className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                            className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
                             style={{ display: fotoUrl ? 'none' : 'flex' }}
                           >
                             <Package className="w-4 h-4" />
                           </div>
                         </div>
                         <div className="min-w-0 text-xs">
-                          <h5 className="font-serif font-bold text-primary truncate">{p.nom}</h5>
-                          <span className="font-mono text-[10px] text-on-surface-variant">{p.codi} • PVP: {formatCurrency(p.preu)}</span>
+                          <h5 className={`font-serif font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.nom}</h5>
+                          <span className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.codi} • PVP: {formatCurrency(p.preu)}</span>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0 text-xs font-mono">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                          estocTaller > 0 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                          estocTaller > 0 
+                            ? isDark
+                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : isDark
+                              ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
                         }`}>
                           {estocTaller > 0 ? `${estocTaller} disp. taller` : 'Sense estoc al taller'}
                         </span>
@@ -2484,11 +2680,15 @@ export default function EsdevenimentsManager({
               const selImg = getProductImage(selectedProductToAdd);
 
               return (
-                <div className="p-4 bg-surface rounded-xl border border-outline/20 space-y-3 shrink-0 text-xs animate-fadeIn">
+                <div className={`p-4 rounded-xl border space-y-3 shrink-0 text-xs animate-fadeIn ${
+                  isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
                   {/* Capçalera del Producte Seleccionat amb Informació d'Estoc */}
-                  <div className="flex items-center justify-between gap-3 pb-3 border-b border-outline/10">
+                  <div className={`flex items-center justify-between gap-3 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                      <div className={`w-11 h-11 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center ${
+                        isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                      }`}>
                         {selImg ? (
                           <img 
                             src={selImg} 
@@ -2503,23 +2703,27 @@ export default function EsdevenimentsManager({
                           />
                         ) : null}
                         <div 
-                          className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                          className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
                           style={{ display: selImg ? 'none' : 'flex' }}
                         >
                           <Package className="w-5 h-5" />
                         </div>
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-serif font-bold text-sm text-primary truncate">{selectedProductToAdd.nom}</h4>
-                        <p className="font-mono text-[10px] text-on-surface-variant">{selectedProductToAdd.codi || '-'} • PVP: {formatCurrency(selectedProductToAdd.preu)}</p>
+                        <h4 className={`font-serif font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedProductToAdd.nom}</h4>
+                        <p className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{selectedProductToAdd.codi || '-'} • PVP: {formatCurrency(selectedProductToAdd.preu)}</p>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Estoc al taller</span>
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 ${
+                      <span className={`text-[10px] block uppercase font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Estoc al taller</span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 border ${
                         estocTaller > 0
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/50'
-                          : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300/50'
+                          ? isDark
+                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : isDark
+                            ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                            : 'bg-rose-100 text-rose-800 border-rose-300'
                       }`}>
                         {estocTaller} unitats
                       </span>
@@ -2527,11 +2731,13 @@ export default function EsdevenimentsManager({
                   </div>
 
                   {/* 1. QUANTITAT TOTAL A PORTAR A LA FIRA (Independent de l'estoc) */}
-                  <div className="p-3 bg-surface-container/30 rounded-xl border border-outline/15 space-y-1.5">
+                  <div className={`p-3 rounded-xl border space-y-1.5 ${
+                    isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <span className="font-bold text-primary text-xs block">1. Quantitat total que vols portar a la fira:</span>
-                        <span className="text-[10px] text-on-surface-variant">Independent de l'estoc actual, quantes en vols tenir a la parada?</span>
+                        <span className={`font-bold text-xs block ${isDark ? 'text-white' : 'text-slate-900'}`}>1. Quantitat total que vols portar a la fira:</span>
+                        <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Independent de l'estoc actual, quantes en vols tenir a la parada?</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <input
@@ -2545,20 +2751,28 @@ export default function EsdevenimentsManager({
                               setQuantitatAgafadaEstoc(Math.min(val, estocDisponible));
                             }
                           }}
-                          className="w-20 p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                          className={`w-20 p-1.5 text-center border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                            isDark 
+                              ? 'bg-slate-950 border-slate-700 text-white' 
+                              : 'bg-slate-50 border-slate-300 text-slate-900'
+                          }`}
                         />
                         <div className="flex flex-col gap-0.5">
                           <button
                             type="button"
                             onClick={() => setQuantitatTotalFira((parseInt(quantitatTotalFira, 10) || 0) + 1)}
-                            className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                            className={`px-1.5 py-0.5 text-[9px] font-mono rounded border cursor-pointer ${
+                              isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                            }`}
                           >
                             +1
                           </button>
                           <button
                             type="button"
                             onClick={() => setQuantitatTotalFira((parseInt(quantitatTotalFira, 10) || 0) + 5)}
-                            className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                            className={`px-1.5 py-0.5 text-[9px] font-mono rounded border cursor-pointer ${
+                              isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                            }`}
                           >
                             +5
                           </button>
@@ -2570,11 +2784,13 @@ export default function EsdevenimentsManager({
                   {/* 2. DUES DECISIONS COMPLEMENTÀRIES: ESTOC vs FABRICACIÓ */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Decisió 2A: Quantitat a agafar de l'estoc */}
-                    <div className="p-3 bg-surface-container/20 rounded-xl border border-outline/15 space-y-2 flex flex-col justify-between">
+                    <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
+                      isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                    }`}>
                       <div>
-                        <span className="font-bold text-primary text-xs block">2A. Agafar de l'estoc del taller:</span>
-                        <span className="text-[10px] text-on-surface-variant block mt-0.5">
-                          Disponible: <strong className="font-mono text-primary">{estocDisponible}</strong> unitats
+                        <span className={`font-bold text-xs block ${isDark ? 'text-white' : 'text-slate-900'}`}>2A. Agafar de l'estoc del taller:</span>
+                        <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          Disponible: <strong className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{estocDisponible}</strong> unitats
                         </span>
                       </div>
                       <div className="space-y-1.5 pt-1">
@@ -2591,13 +2807,19 @@ export default function EsdevenimentsManager({
                               setQuantitatAgafadaEstoc(Math.max(0, Math.min(raw, numTotalFira, estocDisponible)));
                             }
                           }}
-                          className="w-full p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                          className={`w-full p-1.5 text-center border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                            isDark 
+                              ? 'bg-slate-950 border-slate-700 text-white' 
+                              : 'bg-slate-50 border-slate-300 text-slate-900'
+                          }`}
                         />
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => setQuantitatAgafadaEstoc(Math.min(numTotalFira, estocDisponible))}
-                            className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-primary text-center cursor-pointer transition-colors"
+                            className={`flex-1 py-1 px-1 text-[10px] font-medium rounded-md border text-center cursor-pointer transition-colors ${
+                              isDark ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-300'
+                            }`}
                             title="Agafar tot el que hi ha disponible d'estoc fins a cobrir l'objectiu"
                           >
                             Tot ({Math.min(numTotalFira, estocDisponible)})
@@ -2605,14 +2827,16 @@ export default function EsdevenimentsManager({
                           <button
                             type="button"
                             onClick={() => setQuantitatAgafadaEstoc(0)}
-                            className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-on-surface-variant text-center cursor-pointer transition-colors"
+                            className={`flex-1 py-1 px-1 text-[10px] font-medium rounded-md border text-center cursor-pointer transition-colors ${
+                              isDark ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-300'
+                            }`}
                             title="No tocar l'estoc del taller"
                           >
                             Gens (0)
                           </button>
                         </div>
-                        <p className="text-[10px] text-on-surface-variant/80 pt-0.5">
-                          📦 Es descomptaran <strong className="text-primary font-mono">{numAgafadaEstoc}</strong> unitats de l'estoc del taller (en restaran {Math.max(0, estocTaller - numAgafadaEstoc)}).
+                        <p className={`text-[10px] pt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          📦 Es descomptaran <strong className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{numAgafadaEstoc}</strong> unitats de l'estoc del taller (en restaran {Math.max(0, estocTaller - numAgafadaEstoc)}).
                         </p>
                       </div>
                     </div>
@@ -2620,24 +2844,24 @@ export default function EsdevenimentsManager({
                     {/* Decisió 2B: Pendent per fabricar */}
                     <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between transition-colors ${
                       numPendentFabricar > 0
-                        ? 'bg-amber-500/10 border-amber-500/30'
-                        : 'bg-emerald-500/10 border-emerald-500/30'
+                        ? isDark ? 'bg-amber-950/40 border-amber-500/40' : 'bg-amber-50/80 border-amber-300'
+                        : isDark ? 'bg-emerald-950/40 border-emerald-500/40' : 'bg-emerald-50/80 border-emerald-300'
                     }`}>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                          <span className="font-bold text-xs text-primary">2B. Pendent per fabricar:</span>
+                          <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? (isDark ? 'text-amber-400' : 'text-amber-600') : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`} />
+                          <span className={`font-bold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>2B. Pendent per fabricar:</span>
                         </div>
                         <div className="mt-1 flex items-baseline gap-1.5">
-                          <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                          <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? (isDark ? 'text-amber-300' : 'text-amber-800') : (isDark ? 'text-emerald-300' : 'text-emerald-800')}`}>
                             {numPendentFabricar}
                           </span>
-                          <span className="text-[11px] text-on-surface-variant">unitats que falten</span>
+                          <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>unitats que falten</span>
                         </div>
                       </div>
 
                       {numPendentFabricar > 0 ? (
-                        <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                        <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-amber-500/30' : 'border-amber-200'}`}>
                           <label className="flex items-start gap-2 cursor-pointer select-none">
                             <input
                               type="checkbox"
@@ -2645,7 +2869,7 @@ export default function EsdevenimentsManager({
                               onChange={(e) => setCrearOFPerPendent(e.target.checked)}
                               className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                             />
-                            <span className="text-[11px] font-semibold text-primary leading-tight">
+                            <span className={`text-[11px] font-semibold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                               Llençar automàticament Ordre de Fabricació (OF) per a les {numPendentFabricar} unitats
                             </span>
                           </label>
@@ -2653,11 +2877,13 @@ export default function EsdevenimentsManager({
                           {crearOFPerPendent && (
                             <div className="pl-5 space-y-1.5 pt-0.5">
                               <div className="flex items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold text-on-surface-variant shrink-0">Prioritat:</span>
+                                <span className={`text-[10px] uppercase font-bold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Prioritat:</span>
                                 <select
                                   value={prioritatOFInput}
                                   onChange={(e) => setPrioritatOFInput(e.target.value)}
-                                  className="px-2 py-1 rounded-lg border border-outline/25 bg-surface text-xs font-mono font-bold text-primary outline-none focus:border-amber-500 cursor-pointer"
+                                  className={`px-2 py-1 rounded-lg border text-xs font-mono font-bold outline-none focus:border-amber-500 cursor-pointer ${
+                                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                                  }`}
                                 >
                                   <option value="normal">⚪ Normal (Per defecte)</option>
                                   <option value="rapid">⚡ Ràpid</option>
@@ -2665,15 +2891,15 @@ export default function EsdevenimentsManager({
                                   <option value="tragic">🔴 Tràgic</option>
                                 </select>
                               </div>
-                              <p className="text-[10px] text-on-surface-variant">
+                              <p className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                                 Client: "Estoc fira" • Comanda: "{currentEvent.nom}" • Data límit: {currentEvent.dataInici || 'Fira'}
                               </p>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="pt-2 border-t border-emerald-500/20">
-                          <p className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                        <div className={`pt-2 border-t ${isDark ? 'border-emerald-500/30' : 'border-emerald-200'}`}>
+                          <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
                             ✓ Objectiu cobert al 100% amb l'estoc del taller. No caldrà fabricar-ne cap.
                           </p>
                         </div>
@@ -2682,34 +2908,42 @@ export default function EsdevenimentsManager({
                   </div>
 
                   {/* Preu Fira Promocional */}
-                  <div className="flex items-center justify-between p-2.5 bg-surface-container/20 rounded-xl border border-outline/15">
+                  <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                    isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
                     <div>
-                      <span className="font-semibold text-primary block text-xs">Preu Fira Promocional (€):</span>
-                      <span className="text-[10px] text-on-surface-variant">PVP Normal de catàleg: {formatCurrency(selectedProductToAdd.preu)}</span>
+                      <span className={`font-semibold block text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Preu Fira Promocional (€):</span>
+                      <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>PVP Normal de catàleg: {formatCurrency(selectedProductToAdd.preu)}</span>
                     </div>
                     <input
                       type="number"
                       step="any"
                       value={preuFiraInput}
                       onChange={(e) => setPreuFiraInput(e.target.value)}
-                      className="w-24 p-1.5 text-right bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-amber-700 dark:text-amber-400 focus:border-amber-500 outline-none"
+                      className={`w-24 p-1.5 text-right border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-700 text-amber-400 font-black' 
+                          : 'bg-white border-slate-300 text-amber-900 font-black'
+                      }`}
                     />
                   </div>
                 </div>
               );
             })()}
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-outline/15 shrink-0">
+            <div className={`flex items-center justify-end gap-2 pt-3 border-t shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <button
                 onClick={() => setShowAddProductModal(false)}
-                className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
               >
                 Cancel·lar
               </button>
               <button
                 disabled={!selectedProductToAdd}
                 onClick={handleAssignarAFira}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold disabled:opacity-40 cursor-pointer shadow-xs transition-all"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold disabled:opacity-40 cursor-pointer shadow-xs transition-all"
               >
                 Confirmar Assignació a la Fira
               </button>
@@ -2735,24 +2969,24 @@ export default function EsdevenimentsManager({
         const maxDisponibleTotal = inicialsOriginals + Math.max(0, estocTaller);
 
         return (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-surface-container-lowest max-w-xl w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-4 animate-fadeIn max-h-[90vh] flex flex-col">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className={`${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'} max-w-xl w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[90vh] flex flex-col`}>
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-outline/15 pb-3 shrink-0">
+              <div className={`flex items-center justify-between border-b pb-3 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <div className="flex items-center gap-2.5">
-                  <Edit3 className="w-5 h-5 text-amber-600" />
+                  <Edit3 className="w-5 h-5 text-amber-500" />
                   <div>
-                    <h3 className="text-base font-serif font-bold text-primary">
+                    <h3 className={`text-base font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
                       Modificar Condicions a la Fira
                     </h3>
-                    <p className="text-[11px] text-on-surface-variant">
+                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       Ajusta l'objectiu, la quantitat agafada de l'estoc del taller, les peces pendents o el preu promocional.
                     </p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setEditingLinia(null)} 
-                  className="p-1 rounded-lg text-on-surface-variant hover:bg-surface cursor-pointer"
+                  className={`p-1.5 rounded-lg cursor-pointer transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -2760,9 +2994,13 @@ export default function EsdevenimentsManager({
 
               <div className="overflow-y-auto space-y-3 flex-1 pr-1 text-xs">
                 {/* Info Peça */}
-                <div className="flex items-center justify-between gap-3 p-3 bg-surface rounded-xl border border-outline/15">
+                <div className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${
+                  isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface border border-outline/20 shrink-0 flex items-center justify-center">
+                    <div className={`w-11 h-11 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center ${
+                      isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                    }`}>
                       {fotoUrl ? (
                         <img 
                           src={fotoUrl} 
@@ -2777,25 +3015,29 @@ export default function EsdevenimentsManager({
                         />
                       ) : null}
                       <div 
-                        className="w-full h-full items-center justify-center text-on-surface-variant/40"
+                        className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
                         style={{ display: fotoUrl ? 'none' : 'flex' }}
                       >
                         <Package className="w-5 h-5" />
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h4 className="font-serif font-bold text-sm text-primary truncate">{editingLinia.nom}</h4>
-                      <p className="font-mono text-[10px] text-on-surface-variant">
+                      <h4 className={`font-serif font-bold text-sm truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{editingLinia.nom}</h4>
+                      <p className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {editingLinia.codi ? `Codi: ${editingLinia.codi} • ` : ''}PVP Normal: {formatCurrency(editingLinia.preuOriginal || prod?.preu)}
                       </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-[10px] text-on-surface-variant block uppercase font-medium">Estoc al taller</span>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 ${
+                    <span className={`text-[10px] block uppercase font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Estoc al taller</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold inline-block mt-0.5 border ${
                       estocTaller > 0
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/50'
-                        : 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300/50'
+                        ? isDark
+                          ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : isDark
+                          ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                          : 'bg-rose-100 text-rose-800 border-rose-300'
                     }`}>
                       {estocTaller} disp. al taller
                     </span>
@@ -2804,8 +3046,12 @@ export default function EsdevenimentsManager({
 
                 {/* Avis si ja hi ha vendes */}
                 {venudes > 0 && (
-                  <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50 flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-300">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-600" />
+                  <div className={`p-2.5 rounded-xl border flex items-center gap-2 text-[11px] ${
+                    isDark 
+                      ? 'bg-amber-950/40 border-amber-800/60 text-amber-200' 
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}>
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-amber-500" />
                     <span>
                       Ja s'han venut <strong>{venudes} unitats</strong> en aquesta fira. La quantitat portada no pot ser inferior a aquest nombre.
                     </span>
@@ -2813,11 +3059,13 @@ export default function EsdevenimentsManager({
                 )}
 
                 {/* 1. Objectiu Total Fira */}
-                <div className="p-3 bg-surface-container/30 rounded-xl border border-outline/15 space-y-1.5">
+                <div className={`p-3 rounded-xl border space-y-1.5 ${
+                  isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <span className="font-bold text-primary text-xs block">1. Quantitat total objectiu per a la fira:</span>
-                      <span className="text-[10px] text-on-surface-variant">Quantes peces en total voldries portar/haver tingut a la parada.</span>
+                      <span className={`font-bold text-xs block ${isDark ? 'text-white' : 'text-slate-900'}`}>1. Quantitat total objectiu per a la fira:</span>
+                      <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Quantes peces en total voldries portar/haver tingut a la parada.</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <input
@@ -2828,20 +3076,28 @@ export default function EsdevenimentsManager({
                           const val = Math.max(1, parseInt(e.target.value, 10) || 1);
                           setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: val }));
                         }}
-                        className="w-20 p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                        className={`w-20 p-1.5 text-center border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                          isDark 
+                            ? 'bg-slate-900 border-slate-700 text-white' 
+                            : 'bg-white border-slate-300 text-slate-900'
+                        }`}
                       />
                       <div className="flex flex-col gap-0.5">
                         <button
                           type="button"
                           onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: (parseInt(prev.unitatsPrevistes, 10) || 0) + 1 }))}
-                          className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                          className={`px-1.5 py-0.5 text-[9px] font-mono rounded border cursor-pointer ${
+                            isDark ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-200'
+                          }`}
                         >
                           +1
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsPrevistes: (parseInt(prev.unitatsPrevistes, 10) || 0) + 5 }))}
-                          className="px-1.5 py-0.5 text-[9px] font-mono bg-surface hover:bg-surface-container rounded border border-outline/20 cursor-pointer"
+                          className={`px-1.5 py-0.5 text-[9px] font-mono rounded border cursor-pointer ${
+                            isDark ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-200'
+                          }`}
                         >
                           +5
                         </button>
@@ -2853,11 +3109,13 @@ export default function EsdevenimentsManager({
                 {/* 2. Dues decisions complementàries: Estoc vs Pendent */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* 2A. Quantitat agafada de l'estoc */}
-                  <div className="p-3 bg-surface-container/20 rounded-xl border border-outline/15 space-y-2 flex flex-col justify-between">
+                  <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between ${
+                    isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
                     <div>
-                      <span className="font-bold text-primary text-xs block">2A. Agafades de l'estoc del taller:</span>
-                      <span className="text-[10px] text-on-surface-variant block mt-0.5">
-                        Actualment a parada: <strong className="font-mono text-primary">{editingLinia.unitatsRestants || 0}</strong> restants (de {inicialsOriginals} agafades inicialment).
+                      <span className={`font-bold text-xs block ${isDark ? 'text-white' : 'text-slate-900'}`}>2A. Agafades de l'estoc del taller:</span>
+                      <span className={`text-[10px] block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Actualment a parada: <strong className={`font-mono ${isDark ? 'text-white' : 'text-slate-900'}`}>{editingLinia.unitatsRestants || 0}</strong> restants (de {inicialsOriginals} agafades inicialment).
                       </span>
                     </div>
                     <div className="space-y-1.5 pt-1">
@@ -2874,13 +3132,19 @@ export default function EsdevenimentsManager({
                             setEditLiniaForm(prev => ({ ...prev, unitatsInicials: Math.max(venudes, Math.min(raw, maxDisponibleTotal)) }));
                           }
                         }}
-                        className="w-full p-1.5 text-center bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-primary focus:border-amber-500 outline-none"
+                        className={`w-full p-1.5 text-center border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                          isDark 
+                            ? 'bg-slate-900 border-slate-700 text-white' 
+                            : 'bg-white border-slate-300 text-slate-900'
+                        }`}
                       />
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsInicials: Math.min(numTotalFira, maxDisponibleTotal) }))}
-                          className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-primary text-center cursor-pointer transition-colors"
+                          className={`flex-1 py-1 px-1 text-[10px] font-medium rounded-md border text-center cursor-pointer transition-colors ${
+                            isDark ? 'bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-800 hover:bg-slate-200 border-slate-300'
+                          }`}
                           title="Agafar el màxim possible fins a cobrir l'objectiu"
                         >
                           Màx ({Math.min(numTotalFira, maxDisponibleTotal)})
@@ -2888,19 +3152,21 @@ export default function EsdevenimentsManager({
                         <button
                           type="button"
                           onClick={() => setEditLiniaForm(prev => ({ ...prev, unitatsInicials: venudes }))}
-                          className="flex-1 py-1 px-1 text-[10px] font-medium bg-surface hover:bg-surface-container rounded-md border border-outline/15 text-on-surface-variant text-center cursor-pointer transition-colors"
+                          className={`flex-1 py-1 px-1 text-[10px] font-medium rounded-md border text-center cursor-pointer transition-colors ${
+                            isDark ? 'bg-slate-800 text-slate-400 hover:bg-slate-700 border-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border-slate-300'
+                          }`}
                           title="Deixar només les que ja s'han venut i retornar la resta al taller"
                         >
                           Mín ({venudes})
                         </button>
                       </div>
-                      <p className="text-[10px] text-on-surface-variant/80 pt-0.5 leading-tight">
+                      <p className={`text-[10px] pt-0.5 leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {deltaEstoc > 0 ? (
-                          <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                          <span className={`${isDark ? 'text-amber-400' : 'text-amber-700'} font-semibold`}>
                             📦 Es trauran <strong>+{deltaEstoc}</strong> unitats més de l'estoc del taller (en restaran {Math.max(0, estocTaller - deltaEstoc)}).
                           </span>
                         ) : deltaEstoc < 0 ? (
-                          <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                          <span className={`${isDark ? 'text-emerald-400' : 'text-emerald-700'} font-semibold`}>
                             ↩️ Es retornaran <strong>{Math.abs(deltaEstoc)}</strong> unitats al taller (en passaran a haver {estocTaller + Math.abs(deltaEstoc)}).
                           </span>
                         ) : (
@@ -2913,24 +3179,24 @@ export default function EsdevenimentsManager({
                   {/* 2B. Pendent per fabricar */}
                   <div className={`p-3 rounded-xl border space-y-2 flex flex-col justify-between transition-colors ${
                     numPendentFabricar > 0
-                      ? 'bg-amber-500/10 border-amber-500/30'
-                      : 'bg-emerald-500/10 border-emerald-500/30'
+                      ? isDark ? 'bg-amber-950/40 border-amber-500/40' : 'bg-amber-50/80 border-amber-300'
+                      : isDark ? 'bg-emerald-950/40 border-emerald-500/40' : 'bg-emerald-50/80 border-emerald-300'
                   }`}>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
-                        <span className="font-bold text-xs text-primary">2B. Pendent per fabricar:</span>
+                        <Hammer className={`w-3.5 h-3.5 ${numPendentFabricar > 0 ? (isDark ? 'text-amber-400' : 'text-amber-600') : (isDark ? 'text-emerald-400' : 'text-emerald-600')}`} />
+                        <span className={`font-bold text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>2B. Pendent per fabricar:</span>
                       </div>
                       <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                        <span className={`text-xl font-mono font-bold ${numPendentFabricar > 0 ? (isDark ? 'text-amber-300' : 'text-amber-800') : (isDark ? 'text-emerald-300' : 'text-emerald-800')}`}>
                           {numPendentFabricar}
                         </span>
-                        <span className="text-[11px] text-on-surface-variant">unitats</span>
+                        <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>unitats</span>
                       </div>
                     </div>
 
                     {numPendentFabricar > 0 ? (
-                      <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                      <div className={`pt-2 border-t space-y-2 ${isDark ? 'border-amber-500/30' : 'border-amber-200'}`}>
                         <label className="flex items-start gap-2 cursor-pointer select-none">
                           <input
                             type="checkbox"
@@ -2938,7 +3204,7 @@ export default function EsdevenimentsManager({
                             onChange={(e) => setEditLiniaForm(prev => ({ ...prev, crearOF: e.target.checked }))}
                             className="mt-0.5 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                           />
-                          <span className="text-[11px] font-semibold text-primary leading-tight">
+                          <span className={`text-[11px] font-semibold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             Llençar Ordre de Fabricació (OF) per a les {numPendentFabricar} unitats
                           </span>
                         </label>
@@ -2946,11 +3212,13 @@ export default function EsdevenimentsManager({
                         {editLiniaForm.crearOF && (
                           <div className="pl-5 space-y-1.5 pt-0.5">
                             <div className="flex items-center gap-2">
-                              <span className="text-[10px] uppercase font-bold text-on-surface-variant shrink-0">Prioritat:</span>
+                              <span className={`text-[10px] uppercase font-bold shrink-0 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Prioritat:</span>
                               <select
                                 value={editLiniaForm.prioritatOF}
                                 onChange={(e) => setEditLiniaForm(prev => ({ ...prev, prioritatOF: e.target.value }))}
-                                className="px-2 py-1 rounded-lg border border-outline/25 bg-surface text-xs font-mono font-bold text-primary outline-none focus:border-amber-500 cursor-pointer"
+                                className={`px-2 py-1 rounded-lg border text-xs font-mono font-bold outline-none focus:border-amber-500 cursor-pointer ${
+                                  isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                                }`}
                               >
                                 <option value="normal">⚪ Normal</option>
                                 <option value="rapid">⚡ Ràpid</option>
@@ -2962,8 +3230,8 @@ export default function EsdevenimentsManager({
                         )}
                       </div>
                     ) : (
-                      <div className="pt-2 border-t border-emerald-500/20">
-                        <p className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium leading-tight">
+                      <div className={`pt-2 border-t ${isDark ? 'border-emerald-500/30' : 'border-emerald-200'}`}>
+                        <p className={`text-[11px] font-medium leading-tight ${isDark ? 'text-emerald-300' : 'text-emerald-800'}`}>
                           ✓ Objectiu cobert al 100% amb l'estoc.
                         </p>
                       </div>
@@ -2972,27 +3240,35 @@ export default function EsdevenimentsManager({
                 </div>
 
                 {/* Preu Fira Promocional */}
-                <div className="flex items-center justify-between p-2.5 bg-surface-container/20 rounded-xl border border-outline/15">
+                <div className={`flex items-center justify-between p-2.5 rounded-xl border ${
+                  isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                }`}>
                   <div>
-                    <span className="font-semibold text-primary block text-xs">Preu Fira Promocional (€):</span>
-                    <span className="text-[10px] text-on-surface-variant">PVP Normal de catàleg: {formatCurrency(editingLinia.preuOriginal || prod?.preu)}</span>
+                    <span className={`font-semibold block text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>Preu Fira Promocional (€):</span>
+                    <span className={`text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>PVP Normal de catàleg: {formatCurrency(editingLinia.preuOriginal || prod?.preu)}</span>
                   </div>
                   <input
                     type="number"
                     step="any"
                     value={editLiniaForm.preuFira}
                     onChange={(e) => setEditLiniaForm(prev => ({ ...prev, preuFira: e.target.value }))}
-                    className="w-24 p-1.5 text-right bg-surface border border-outline/20 rounded-lg font-mono font-bold text-sm text-amber-700 dark:text-amber-400 focus:border-amber-500 outline-none"
+                    className={`w-24 p-1.5 text-right border rounded-lg font-mono font-bold text-sm focus:border-amber-500 outline-none ${
+                      isDark 
+                        ? 'bg-slate-900 border-slate-700 text-amber-400 font-black' 
+                        : 'bg-white border-slate-300 text-amber-900 font-black'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Botons peu de modal */}
-              <div className="flex items-center justify-between gap-2 pt-3 border-t border-outline/15 shrink-0">
+              <div className={`flex items-center justify-between gap-2 pt-3 border-t shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                 <button
                   type="button"
                   onClick={() => handleEliminarLiniaFira(editingLinia)}
-                  className="px-3 py-2 text-red-600 hover:bg-red-500/10 rounded-xl text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors"
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer flex items-center gap-1.5 transition-colors ${
+                    isDark ? 'text-rose-400 hover:bg-rose-950/30' : 'text-rose-600 hover:bg-rose-50'
+                  }`}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Eliminar de la fira</span>
@@ -3001,14 +3277,16 @@ export default function EsdevenimentsManager({
                   <button
                     type="button"
                     onClick={() => setEditingLinia(null)}
-                    className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
+                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                      isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
                   >
                     Cancel·lar
                   </button>
                   <button
                     type="button"
                     onClick={handleSaveEditLinia}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all"
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all"
                   >
                     Guardar Canvis
                   </button>
@@ -3023,32 +3301,39 @@ export default function EsdevenimentsManager({
           MODAL: CONFIRMACIÓ DE TANCAMENT I OPCIONS DE RETORN D'ESTOCS
           =================================================================== */}
       {showCloseConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-surface-container-lowest max-w-lg w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-4 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-outline/15 pb-3">
-              <div className="flex items-center gap-2.5 text-amber-600">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'} max-w-lg w-full rounded-2xl border p-6 space-y-4 animate-fadeIn`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2.5 text-amber-500">
                 <Store className="w-6 h-6" />
-                <h3 className="text-base font-serif font-bold text-primary">Tancar Fira: Opcions d'Estoc</h3>
+                <h3 className={`text-base font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Tancar Fira: Opcions d'Estoc</h3>
               </div>
-              <button onClick={() => setShowCloseConfirmModal(false)} className="p-1 text-on-surface-variant hover:bg-surface rounded-lg cursor-pointer">
+              <button 
+                onClick={() => setShowCloseConfirmModal(false)} 
+                className={`p-1.5 rounded-lg cursor-pointer transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'}`}
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              Tria com vols tancar la fira <strong>"{currentEvent.nom}"</strong>:
+            <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+              Tria com vols tancar la fira <strong className={isDark ? 'text-white' : 'text-slate-900'}>"{currentEvent.nom}"</strong>:
             </p>
 
-            <div className="p-3.5 bg-surface border border-outline/15 rounded-xl space-y-2 text-xs font-mono">
-              <div className="flex items-center justify-between text-emerald-600 font-bold">
+            <div className={`p-3.5 border rounded-xl space-y-2 text-xs font-mono ${
+              isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className={`flex items-center justify-between font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
                 <span>Total Recaptat:</span>
                 <span>{formatCurrency(eventStats?.totalRecaptat || 0)}</span>
               </div>
-              <div className="flex items-center justify-between text-primary">
+              <div className={`flex items-center justify-between ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                 <span>Peces Venudes:</span>
                 <span>{eventStats?.totalPecesVenudes || 0} unitats</span>
               </div>
-              <div className="flex items-center justify-between text-amber-700 font-bold pt-1 border-t border-outline/10">
+              <div className={`flex items-center justify-between font-bold pt-1 border-t ${
+                isDark ? 'border-slate-800 text-amber-400' : 'border-slate-200 text-amber-800'
+              }`}>
                 <span>Peces Restants a la Parada:</span>
                 <span>{eventStats?.totalPecesRestants || 0} unitats</span>
               </div>
@@ -3059,14 +3344,18 @@ export default function EsdevenimentsManager({
               <button
                 type="button"
                 onClick={handleTancarEsdevenimentIRetornar}
-                className="w-full p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-left flex items-start gap-3 transition-all cursor-pointer group"
+                className={`w-full p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer group ${
+                  isDark
+                    ? 'border-amber-500/40 bg-amber-950/30 hover:bg-amber-950/50'
+                    : 'border-amber-300 bg-amber-50 hover:bg-amber-100'
+                }`}
               >
-                <RotateCcw className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <RotateCcw className={`w-5 h-5 shrink-0 mt-0.5 group-hover:scale-110 transition-transform ${isDark ? 'text-amber-400' : 'text-amber-700'}`} />
                 <div>
-                  <span className="font-bold text-xs text-primary block">
+                  <span className={`font-bold text-xs block ${isDark ? 'text-amber-300' : 'text-amber-950'}`}>
                     1. Tancar Fira i Retornar Romanents a l'Estoc del Taller (Recomanat)
                   </span>
-                  <span className="text-[11px] text-on-surface-variant block mt-0.5 leading-snug">
+                  <span className={`text-[11px] block mt-0.5 leading-snug ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     Reincorpora automàticament les {eventStats?.totalPecesRestants || 0} peces no venudes a l'estoc general del taller per tornar a estar disponibles a la botiga web.
                   </span>
                 </div>
@@ -3075,14 +3364,18 @@ export default function EsdevenimentsManager({
               <button
                 type="button"
                 onClick={handleTancarSenseRetorn}
-                className="w-full p-3.5 rounded-xl border border-outline/20 bg-surface hover:bg-surface-container text-left flex items-start gap-3 transition-all cursor-pointer group"
+                className={`w-full p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer group ${
+                  isDark
+                    ? 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/60'
+                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                }`}
               >
-                <Check className="w-5 h-5 text-slate-600 dark:text-slate-300 shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
+                <Check className={`w-5 h-5 shrink-0 mt-0.5 group-hover:scale-110 transition-transform ${isDark ? 'text-slate-300' : 'text-slate-700'}`} />
                 <div>
-                  <span className="font-bold text-xs text-primary block">
+                  <span className={`font-bold text-xs block ${isDark ? 'text-white' : 'text-slate-900'}`}>
                     2. Tancar Fira SENSE Modificar Estocs (Només Arxiu / Proves)
                   </span>
-                  <span className="text-[11px] text-on-surface-variant block mt-0.5 leading-snug">
+                  <span className={`text-[11px] block mt-0.5 leading-snug ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Tanca la fira i desa la liquidació sense tocar ni alterar l'estoc general del taller. Ideal si estàs fent proves o gestiones l'estoc manualment.
                   </span>
                 </div>
@@ -3095,20 +3388,26 @@ export default function EsdevenimentsManager({
                     handleSetEventStatus('preparacio');
                     setShowCloseConfirmModal(false);
                   }}
-                  className="w-full p-3 rounded-xl border border-outline/15 hover:bg-surface text-left flex items-center gap-2.5 transition-all cursor-pointer text-xs text-on-surface-variant"
+                  className={`w-full p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all cursor-pointer text-xs ${
+                    isDark
+                      ? 'border-slate-800 hover:bg-slate-800/60 text-slate-300'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                  }`}
                 >
-                  <RotateCcw className="w-4 h-4 text-amber-600 shrink-0" />
+                  <RotateCcw className="w-4 h-4 text-amber-500 shrink-0" />
                   <span>
-                    3. No tancar: Desfer inici i tornar a <strong>«En Preparació»</strong>
+                    3. No tancar: Desfer inici i tornar a <strong className={isDark ? 'text-white' : 'text-slate-900'}>«En Preparació»</strong>
                   </span>
                 </button>
               )}
             </div>
 
-            <div className="flex items-center justify-end pt-2 border-t border-outline/15">
+            <div className={`flex items-center justify-end pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <button
                 onClick={() => setShowCloseConfirmModal(false)}
-                className="px-4 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
+                className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
               >
                 Cancel·lar
               </button>

@@ -512,10 +512,24 @@ export default function MaterialsManager({
     };
 
     if (editingMaterial) {
-      setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { ...payload, id: m.id } : m));
+      setMaterials(prev => prev.map(m => m.id === editingMaterial.id ? { 
+        ...m, 
+        ...payload, 
+        id: m.id,
+        estocFisic: payload.estocActual,
+        estoc: payload.estocActual,
+        estocDisponible: Math.max(0, payload.estocActual - (Number(m.estocReservat) || 0))
+      } : m));
     } else {
       const newId = getNextSequentialId('mat', materials);
-      setMaterials(prev => [...prev, { ...payload, id: newId }]);
+      setMaterials(prev => [...prev, { 
+        ...payload, 
+        id: newId,
+        estocFisic: payload.estocActual,
+        estoc: payload.estocActual,
+        estocReservat: 0,
+        estocDisponible: payload.estocActual
+      }]);
     }
     setModalOpen(false);
   };

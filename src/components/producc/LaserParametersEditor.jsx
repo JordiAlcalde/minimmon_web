@@ -4,6 +4,7 @@ import {
   RotateCcw, Lock, ArrowRight, Eye, Layers, Gauge, Folder, FolderOpen, FileText, X
 } from 'lucide-react';
 import { normalizeLaserConfig, DEFAULT_LASER_CONFIG } from '../../utils/laserUtils';
+import DecimalInput from '../common/DecimalInput';
 
 /**
  * Component de Slider amb Textbox al extrem dret sincronitzat bidireccionalment
@@ -557,13 +558,12 @@ export default function LaserParametersEditor({
                       <label className={`text-xs font-semibold block mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         Amplada W (mm):
                       </label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="ex: 183.4"
+                      <DecimalInput
+                        step={0.1}
+                        placeholder="ex: 183,4"
                         value={config.gravar.midaW}
                         disabled={readOnly}
-                        onChange={(e) => updateGravar('midaW', e.target.value)}
+                        onChange={(e, num) => updateGravar('midaW', e.target.value === '' ? '' : num)}
                         className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none transition-all ${
                           isDark 
                             ? 'bg-slate-950 border-slate-700 text-white focus:border-amber-500' 
@@ -598,13 +598,12 @@ export default function LaserParametersEditor({
                       <label className={`text-xs font-semibold block mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         Inici X (mm):
                       </label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="0.0"
+                      <DecimalInput
+                        step={0.1}
+                        placeholder="0,0"
                         value={config.gravar.iniciX}
                         disabled={readOnly}
-                        onChange={(e) => updateGravar('iniciX', Number(e.target.value) || 0)}
+                        onChange={(e, num) => updateGravar('iniciX', e.target.value === '' ? 0 : num)}
                         className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none transition-all ${
                           isDark 
                             ? 'bg-slate-950 border-slate-700 text-white focus:border-amber-500' 
@@ -617,13 +616,12 @@ export default function LaserParametersEditor({
                       <label className={`text-xs font-semibold block mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         Inici Y (mm):
                       </label>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="0.0"
+                      <DecimalInput
+                        step={0.1}
+                        placeholder="0,0"
                         value={config.gravar.iniciY}
                         disabled={readOnly}
-                        onChange={(e) => updateGravar('iniciY', Number(e.target.value) || 0)}
+                        onChange={(e, num) => updateGravar('iniciY', e.target.value === '' ? 0 : num)}
                         className={`w-full px-3 py-2 rounded-xl border text-sm font-mono font-bold outline-none transition-all ${
                           isDark 
                             ? 'bg-slate-950 border-slate-700 text-white focus:border-amber-500' 
