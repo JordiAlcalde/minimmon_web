@@ -15,6 +15,7 @@ import {
   Bell,
   Lock, 
   Boxes,
+  ListTodo,
   Key, 
   Mail, 
   Phone, 
@@ -2868,45 +2869,56 @@ export default function PrivateAreaSection({ setActiveTab }) {
             Àrea Privada de Treball
           </h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
-            Gestió interna de consultes, fitxes de projectes, branques i paràmetres de Mínim Món.
+            Gestió interna de Mínim Món.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-stretch md:self-auto justify-end">
+        <div className="flex items-center gap-2.5 self-stretch md:self-auto justify-end flex-wrap md:flex-nowrap">
+          <button 
+            onClick={() => setActiveTab('perfer')}
+            className="px-3.5 py-2 bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-700 hover:to-teal-800 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0"
+            title="Accedir a l'aplicació Per Fer (Gestor global de feines pendents i idees)"
+          >
+            <ListTodo className="w-4 h-4 text-emerald-300 shrink-0" />
+            <span className="whitespace-nowrap">Per Fer</span>
+          </button>
+
           <button 
             onClick={() => setActiveTab('posting')}
-            className="px-4 py-2 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-stone-900 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-stone-900 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0"
             title="Accedir a l'aplicació Posting (Estudi de continguts per a Instagram)"
           >
-            <Share2 className="w-4 h-4 text-amber-300" />
-            <span>Posting</span>
+            <Share2 className="w-4 h-4 text-amber-300 shrink-0" />
+            <span className="whitespace-nowrap">Posting</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('projecc')}
-            className="px-4 py-2 bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-700 to-amber-800 hover:from-amber-600 hover:to-amber-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0"
             title="Accedir a l'aplicació Projecc (Control de Desenvolupament i Temps)"
           >
-            <Clock className="w-4 h-4 text-amber-200" />
-            <span>Projecc</span>
+            <Clock className="w-4 h-4 text-amber-200 shrink-0" />
+            <span className="whitespace-nowrap">Projecc</span>
           </button>
 
           <button 
             onClick={() => setActiveTab('producc')}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm"
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0"
             title="Accedir a l'aplicació Producc (Gestió de Producció)"
           >
-            <Boxes className="w-4 h-4" />
-            <span>Producc</span>
+            <Boxes className="w-4 h-4 shrink-0" />
+            <span className="whitespace-nowrap">Producc</span>
           </button>
 
           <button 
             onClick={handleLogout}
-            className="px-4 py-2 bg-surface hover:bg-surface-container text-on-surface border border-outline/20 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+            className="px-3 py-1.5 bg-surface hover:bg-surface-container text-on-surface border border-outline/20 text-xs font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shrink-0"
             title="Tancar sessió"
           >
-            <LogOut className="w-4 h-4 text-error" />
-            <span>Tancar Sessió</span>
+            <LogOut className="w-4 h-4 text-error shrink-0" />
+            <span className="text-left leading-tight">
+              Tancar<br />Sessió
+            </span>
           </button>
         </div>
       </div>

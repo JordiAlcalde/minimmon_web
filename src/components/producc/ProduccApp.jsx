@@ -776,6 +776,8 @@ export default function ProduccApp({ setActiveTab }) {
             setFabricants={setFabricantsWithFirestore}
             proveidors={proveidors}
             setProveidors={setProveidorsWithFirestore}
+            compres={compres}
+            ordresFabricacio={ordresFabricacio}
             isDark={isDark}
           />
         )}
@@ -793,6 +795,9 @@ export default function ProduccApp({ setActiveTab }) {
             escandalls={escandalls}
             setEscandalls={setEscandallsWithFirestore}
             materials={materials}
+            setMaterials={setMaterialsWithFirestore}
+            ordresFabricacio={ordresFabricacio}
+            setOrdresFabricacio={setOrdresFabricacioWithFirestore}
             operacions={operacions}
             maquinaria={maquinaria}
             productes={productes}
@@ -878,6 +883,7 @@ export default function ProduccApp({ setActiveTab }) {
             setMaterials={setMaterialsWithFirestore}
             escandalls={escandalls}
             setEscandalls={setEscandallsWithFirestore}
+            compres={compres}
             productes={productes}
             setProductes={setProductesWithFirestore}
             families={families}

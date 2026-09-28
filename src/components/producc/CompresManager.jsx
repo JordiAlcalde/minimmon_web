@@ -100,7 +100,7 @@ export default function CompresManager({
   isDark 
 }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterEstat, setFilterEstat] = useState('all');
+  const [filterEstat, setFilterEstat] = useState('Pendent');
   const [filterProveidor, setFilterProveidor] = useState('all');
   const [filterFabricant, setFilterFabricant] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -238,16 +238,117 @@ export default function CompresManager({
       return;
     }
 
-    const cleanLines = (formData.linies || []).map(l => ({
-      ...l,
-      factorConversio: l.factorConversio || getPackagingFactor(l.unitatCompraId, unitatsCompra),
-      quantitatDemanada: Number(l.quantitatDemanada || 0),
-      quantitatRebuda: Number(l.quantitatRebuda || 0),
-      preuPactat: Number(l.preuPactat || 0)
-    }));
+    const isNewlyMarkedReceived = formData.estat === 'Rebut' && (!editingComanda || editingComanda.estat !== 'Rebut');
+    const receptionDate = formData.dataRecepcio || (isNewlyMarkedReceived ? new Date().toISOString().split('T')[0] : '');
+    const numAlbaraTrimmed = (formData.numAlbara || '-').trim();
+
+    const cleanLines = (formData.linies || []).map((l, idx) => {
+      const factor = l.factorConversio || getPackagingFactor(l.unitatCompraId, unitatsCompra);
+      const dem = Number(l.quantitatDemanada || 0);
+      let reb = Number(l.quantitatRebuda || 0);
+
+      // Si s'acaba de marcar com a 'Rebut', per defecte s'han rebut totes les unitats demanades
+      if (isNewlyMarkedReceived && reb < dem) {
+        reb = dem;
+      }
+
+      return {
+        ...l,
+        factorConversio: factor,
+        quantitatDemanada: dem,
+        quantitatRebuda: reb,
+        preuPactat: Number(l.preuPactat || 0)
+      };
+    });
+
+    let existingAlbarans = Array.isArray(editingComanda?.albarans) ? [...editingComanda.albarans] : [];
+
+    // Si ha passat a 'Rebut' directament des del formulari d'edició, actualitzar l'estoc i preus dels materials
+    if (isNewlyMarkedReceived) {
+      const receivedItemsForStock = [];
+
+      cleanLines.forEach((l) => {
+        const prevLine = editingComanda?.linies?.find(orig => orig.materialId === l.materialId);
+        const prevQty = Number(prevLine?.quantitatRebuda || 0);
+        const diffQty = Math.max(0, l.quantitatRebuda - prevQty);
+        if (diffQty > 0) {
+          receivedItemsForStock.push({
+            materialId: l.materialId,
+            quantitatRebudaAra: diffQty,
+            factorConversio: l.factorConversio,
+            preuPactat: l.preuPactat,
+            fabricantId: l.fabricantId,
+            unitatCompraId: l.unitatCompraId
+          });
+        }
+      });
+
+      if (receivedItemsForStock.length > 0) {
+        const deliveryRecord = {
+          id: `rec-${Date.now()}`,
+          numAlbara: numAlbaraTrimmed,
+          dataRecepcio: receptionDate,
+          linies: receivedItemsForStock.map(r => ({
+            materialId: r.materialId,
+            quantitatRebuda: r.quantitatRebudaAra,
+            factorConversio: r.factorConversio
+          }))
+        };
+        existingAlbarans.push(deliveryRecord);
+
+        // Actualitzem l'estoc i preus dels materials a Firestore
+        setMaterials(prevMaterials => {
+          return prevMaterials.map(mat => {
+            const rec = receivedItemsForStock.find(r => r.materialId === mat.id);
+            if (!rec) return mat;
+
+            const stockToAdd = rec.quantitatRebudaAra * rec.factorConversio;
+            const newStock = Number(mat.estocActual || 0) + stockToAdd;
+            const packPrice = Number(rec.preuPactat || 0);
+            const unitPrice = rec.factorConversio > 0 ? Number((packPrice / rec.factorConversio).toFixed(4)) : packPrice;
+
+            let updatedMat = {
+              ...mat,
+              estocActual: newStock,
+              estoc: newStock,
+              estocFisic: newStock,
+              estocDisponible: Math.max(0, newStock - (Number(mat.estocReservat) || 0))
+            };
+
+            const isMainProv = !mat.proPrinId || mat.proPrinId === formData.proveidorId;
+            if (isMainProv && packPrice > 0) {
+              updatedMat.preuProPrin = unitPrice;
+              if (mat.preuPackProPrin !== undefined) {
+                updatedMat.preuPackProPrin = packPrice;
+              }
+            }
+
+            if (Array.isArray(mat.proveidorsMaterial) && packPrice > 0) {
+              updatedMat.proveidorsMaterial = mat.proveidorsMaterial.map(p => {
+                if (p.proveidorId === formData.proveidorId) {
+                  return {
+                    ...p,
+                    preu: unitPrice,
+                    preuPack: packPrice,
+                    fabricantId: rec.fabricantId || p.fabricantId,
+                    unitatCompraId: rec.unitatCompraId || p.unitatCompraId
+                  };
+                }
+                return p;
+              });
+            }
+
+            return updatedMat;
+          });
+        });
+      }
+    }
 
     const orderPayload = {
       ...formData,
+      dataRecepcio: receptionDate,
+      numAlbara: numAlbaraTrimmed,
+      albarans: existingAlbarans,
       linies: cleanLines
     };
 
@@ -409,8 +510,8 @@ export default function CompresManager({
 
     // Comprovem si s'ha indicat alguna unitat en aquesta entrega
     const totalQtyNow = receptionData.receivedLines.reduce((acc, l) => acc + Math.max(0, Number(l.quantitatRebudaAra || 0)), 0);
-    if (totalQtyNow <= 0 && !receptionData.forceComplete) {
-      alert('Has indicat 0 unitats rebudes en aquesta entrega. Si vols tancar la comanda sense rebre més peces, marca la casella "Donar comanda per finalitzada / tancada".');
+    if (totalQtyNow <= 0 && !receptionData.forceComplete && !receptionData.updatePrices) {
+      alert('Has indicat 0 unitats rebudes en aquesta entrega. Si vols tancar la comanda sense rebre més peces o actualitzar preus, marca la casella corresponent.');
       return;
     }
 
@@ -454,7 +555,7 @@ export default function CompresManager({
     // 3. Registre històric d'aquesta entrega específica
     const newDeliveryRecord = {
       id: `rec-${Date.now()}`,
-      numAlbara: numAlbaraTrimmed,
+      numAlbara: numAlbaraTrimmed || '-',
       dataRecepcio: receptionDate,
       linies: receptionData.receivedLines
         .filter(l => Number(l.quantitatRebudaAra || 0) > 0)
@@ -474,7 +575,7 @@ export default function CompresManager({
         return {
           ...c,
           estat: newEstat,
-          numAlbara: numAlbaraTrimmed || c.numAlbara,
+          numAlbara: numAlbaraTrimmed || c.numAlbara || '-',
           dataRecepcio: receptionDate,
           albarans: updatedAlbarans,
           linies: updatedLinies
@@ -483,7 +584,7 @@ export default function CompresManager({
       return c;
     }));
 
-    // 5. Actualitzem l'estoc dels materials NOMÉS amb l'increment rebut en AQUESTA entrega
+    // 5. Actualitzem l'estoc dels materials i els preus
     setMaterials(prevMaterials => {
       return prevMaterials.map(mat => {
         const recLine = receptionData.receivedLines.find(r => r.materialId === mat.id);
@@ -495,19 +596,26 @@ export default function CompresManager({
           
           let updatedMat = {
             ...mat,
-            estocActual: newStock
+            estocActual: newStock,
+            estoc: newStock,
+            estocFisic: newStock,
+            estocDisponible: Math.max(0, newStock - (Number(mat.estocReservat) || 0))
           };
 
-          if (receptionData.updatePrices && qtyNow > 0) {
+          const shouldUpdatePrice = receptionData.updatePrices && (qtyNow > 0 || totalQtyNow === 0 || selectedComandaToReceive.estat === 'Rebut' || receptionData.forceComplete);
+          if (shouldUpdatePrice) {
             const packPrice = Number(recLine.preuPactat || 0);
             const unitPrice = factor > 0 ? Number((packPrice / factor).toFixed(4)) : packPrice;
             
-            updatedMat.preuProPrin = unitPrice;
-            if (mat.preuPackProPrin !== undefined) {
-              updatedMat.preuPackProPrin = packPrice;
+            const isMainProv = !mat.proPrinId || mat.proPrinId === selectedComandaToReceive.proveidorId;
+            if (isMainProv && packPrice > 0) {
+              updatedMat.preuProPrin = unitPrice;
+              if (mat.preuPackProPrin !== undefined) {
+                updatedMat.preuPackProPrin = packPrice;
+              }
             }
 
-            if (Array.isArray(mat.proveidorsMaterial)) {
+            if (Array.isArray(mat.proveidorsMaterial) && packPrice > 0) {
               updatedMat.proveidorsMaterial = mat.proveidorsMaterial.map(p => {
                 if (p.proveidorId === selectedComandaToReceive.proveidorId) {
                   return {
@@ -530,8 +638,10 @@ export default function CompresManager({
     });
 
     setReceptionModalOpen(false);
-    const msg = newEstat === 'Rebut'
-      ? 'Comanda rebuda completament! S\'ha actualitzat l\'estoc real.'
+    const msg = totalQtyNow === 0 && receptionData.updatePrices
+      ? 'Preus de compra actualitzats correctament!'
+      : newEstat === 'Rebut'
+      ? 'Comanda rebuda completament! S\'ha actualitzat l\'estoc real i els preus.'
       : 'Recepció parcial registrada amb èxit! L\'estoc s\'ha incrementat amb les peces rebudes i la comanda queda en "Recepció Parcial" per a les següents entregues.';
     alert(msg);
   };
@@ -778,7 +888,7 @@ export default function CompresManager({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {com.estat !== 'Rebut' && com.estat !== 'Cancel·lat' && (
+                    {com.estat !== 'Rebut' && com.estat !== 'Cancel·lat' ? (
                       <button
                         onClick={() => handleOpenReception(com)}
                         className={`px-3 py-1.5 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all ${
@@ -791,7 +901,20 @@ export default function CompresManager({
                         <CheckCircle className="w-3.5 h-3.5" />
                         <span>{com.estat === 'Recepció Parcial' ? 'Continuar Recepció' : 'Rebre Comanda'}</span>
                       </button>
-                    )}
+                    ) : com.estat === 'Rebut' ? (
+                      <button
+                        onClick={() => handleOpenReception(com)}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-sm transition-all border ${
+                          isDark 
+                            ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400 hover:bg-emerald-900/50' 
+                            : 'bg-emerald-50 border-emerald-300 text-emerald-700 hover:bg-emerald-100'
+                        }`}
+                        title="Comanda rebuda. Fes clic per revisar les entregues, afegir un nou albarà o actualitzar preus"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>Rebut {Array.isArray(com.albarans) && com.albarans.length > 0 ? `(${com.albarans.length})` : ''}</span>
+                      </button>
+                    ) : null}
 
                     <button
                       onClick={() => handleCopyOrderText(com)}

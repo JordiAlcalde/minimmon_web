@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Layers, Plus, Search, Edit2, Trash2, ExternalLink, Package, Building2, 
-  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn, Copy
+  Factory, Box, Star, X, Save, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, ZoomIn, Copy, Lock
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
@@ -91,6 +91,8 @@ export default function MaterialsManager({
   setFabricants, 
   unitatsCompra = [], 
   setUnitatsCompra, 
+  compres = [],
+  ordresFabricacio = [],
   isDark 
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,6 +102,63 @@ export default function MaterialsManager({
   const [expandedAltId, setExpandedAltId] = useState(null);
   const [enlargedImage, setEnlargedImage] = useState(null);
   const [enlargedImageTitle, setEnlargedImageTitle] = useState('');
+
+  // Mapa de compres pendents per material (en comandes no rebudes completament ni cancel·lades)
+  const pendingPurchasesMap = useMemo(() => {
+    const map = {};
+    (compres || []).forEach(c => {
+      const s = (c.estat || '').toLowerCase().trim();
+      if (s === 'rebut' || s === 'cancel·lat' || s === 'cancel.lat' || s === 'anul·lat') return;
+
+      (c.linies || []).forEach(l => {
+        if (!l.materialId) return;
+        const factor = Number(l.factorConversio) > 0 ? Number(l.factorConversio) : 1;
+        const dem = Number(l.quantitatDemanada || 0);
+        const reb = Number(l.quantitatRebuda || 0);
+        const pend = Math.max(0, dem - reb) * factor;
+
+        if (pend > 0) {
+          if (!map[l.materialId]) {
+            map[l.materialId] = { totalPending: 0, orders: [] };
+          }
+          map[l.materialId].totalPending += pend;
+          map[l.materialId].orders.push({
+            comandaId: c.id,
+            numComandaProveidor: c.numComandaProveidor || '',
+            dataPrevista: c.dataPrevista || '',
+            dataCreacio: c.dataCreacio || '',
+            estat: c.estat,
+            pend
+          });
+        }
+      });
+    });
+    return map;
+  }, [compres]);
+
+  // Mapa de reserva d'estoc calculada a partir d'OFs obertes (cua / en_curs)
+  const reservedStockMap = useMemo(() => {
+    const map = {};
+    (ordresFabricacio || []).forEach(ofItem => {
+      const s = (ofItem.estat || '').toLowerCase().trim();
+      if (s === 'finalitzada' || s === 'cancel·lada') return;
+
+      (ofItem.materials || []).forEach(om => {
+        const q = Number(om.quantitatTotal || 0);
+        if (q > 0) {
+          if (om.materialId) {
+            map[om.materialId] = (map[om.materialId] || 0) + q;
+          } else if (om.nom) {
+            const found = (materials || []).find(m => m.material && m.material.toLowerCase().trim() === om.nom.toLowerCase().trim());
+            if (found) {
+              map[found.id] = (map[found.id] || 0) + q;
+            }
+          }
+        }
+      });
+    });
+    return map;
+  }, [ordresFabricacio, materials]);
 
   // Estat del Formulari del Material
   const [formData, setFormData] = useState({
@@ -729,20 +788,55 @@ export default function MaterialsManager({
                     </div>
                   </div>
 
-                  {/* Estoc Actual */}
-                  <div className={`p-2.5 rounded-xl border min-w-[130px] flex flex-col justify-center items-center shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
-                    <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Estoc:</span>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`font-mono text-sm font-bold ${isLowStock ? 'text-rose-500 font-bold' : isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                        {mat.estocActual} {mat.unitat}
-                      </span>
-                      {isLowStock && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-600 font-semibold flex items-center gap-0.5">
-                          <AlertTriangle className="w-3 h-3" /> Baix
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {/* Estoc Actual, Reservat i Pendent de Rebre */}
+                  {(() => {
+                    const estocReal = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+                    const estocReservat = mat.estocReservat !== undefined && mat.estocReservat !== null ? Number(mat.estocReservat) : (reservedStockMap[mat.id] || 0);
+                    const pendingPurchases = pendingPurchasesMap[mat.id]?.totalPending || 0;
+                    const estocDisponible = Math.max(0, estocReal - estocReservat);
+
+                    return (
+                      <div className={`p-2.5 rounded-xl border min-w-[145px] flex flex-col justify-center shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className={`text-[10px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Estoc:</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`font-mono text-xs sm:text-sm font-bold ${isLowStock ? 'text-rose-500' : (isDark ? 'text-slate-200' : 'text-slate-900')}`}>
+                              {formatDecimal(estocReal, 2)} {mat.unitat}
+                            </span>
+                            {isLowStock && (
+                              <span className="text-[9.5px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-600 font-semibold flex items-center gap-0.5" title="Estoc per sota del mínim">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Indicadors minimalistes de Reserves i Compres (només visibles si n'hi ha) */}
+                        {(estocReservat > 0 || pendingPurchases > 0) && (
+                          <div className="flex items-center justify-end gap-1.5 mt-1 pt-1 border-t border-slate-200/50 dark:border-slate-800/50 text-[10px] font-mono">
+                            {estocReservat > 0 && (
+                              <span 
+                                className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold flex items-center gap-0.5" 
+                                title={`${formatDecimal(estocReservat, 2)} ${mat.unitat} reservades en OFs en curs • Disp. lliure: ${formatDecimal(estocDisponible, 2)} ${mat.unitat}`}
+                              >
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>{formatDecimal(estocReservat, 2)}</span>
+                              </span>
+                            )}
+                            {pendingPurchases > 0 && (
+                              <span 
+                                className="px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold flex items-center gap-0.5" 
+                                title={`${formatDecimal(pendingPurchases, 2)} ${mat.unitat} comprades pendents de rebre`}
+                              >
+                                <Package className="w-2.5 h-2.5" />
+                                <span>+{formatDecimal(pendingPurchases, 2)}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Botons d'Acció */}
                   <div className={`p-2.5 rounded-xl border flex items-center justify-center gap-1 shrink-0 ${isDark ? 'border-slate-800 bg-slate-950/60' : 'border-slate-200 bg-slate-50'}`}>
@@ -1036,6 +1130,56 @@ export default function MaterialsManager({
                     )}
                   </div>
                 </div>
+
+                {/* Resum d'Estocs, Reserves i Compres (Minimalista) */}
+                {editingMaterial && (() => {
+                  const estocFisic = Number(formData.estocActual || 0);
+                  const estocReservat = editingMaterial.estocReservat !== undefined && editingMaterial.estocReservat !== null 
+                    ? Number(editingMaterial.estocReservat) 
+                    : (reservedStockMap[editingMaterial.id] || 0);
+                  const pendingPurchasesObj = pendingPurchasesMap[editingMaterial.id];
+                  const pendingPurchases = pendingPurchasesObj?.totalPending || 0;
+                  const estocDisponible = Math.max(0, estocFisic - estocReservat);
+
+                  return (
+                    <div className={`p-3 rounded-2xl border text-xs font-mono transition-all ${
+                      isDark ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}>
+                      <div className="flex items-center justify-between flex-wrap gap-2.5">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-1.5" title="Estoc físic actual al magatzem">
+                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Físic:</span>
+                            <strong className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatDecimal(estocFisic, 2)} {formData.unitat}</strong>
+                          </div>
+                          <div className="flex items-center gap-1.5" title="Quantitat reservada per a Ordres de Fabricació en curs">
+                            <span className="text-amber-500 text-[11px] font-bold flex items-center gap-1">
+                              <Lock className="w-3 h-3" /> Reservat:
+                            </span>
+                            <strong className="text-amber-400 font-bold">{formatDecimal(estocReservat, 2)} {formData.unitat}</strong>
+                          </div>
+                          <div className="flex items-center gap-1.5" title="Estoc físic menys peces reservades">
+                            <span className="text-emerald-500 text-[11px] font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Disp. lliure:
+                            </span>
+                            <strong className="text-emerald-400 font-bold">{formatDecimal(estocDisponible, 2)} {formData.unitat}</strong>
+                          </div>
+                          <div className="flex items-center gap-1.5" title="Peces de compres pendents de rebre dels proveïdors">
+                            <span className="text-sky-400 text-[11px] font-bold flex items-center gap-1">
+                              <Package className="w-3 h-3" /> En camí:
+                            </span>
+                            <strong className="text-sky-400 font-bold">{pendingPurchases > 0 ? `+${formatDecimal(pendingPurchases, 2)}` : '0'} {formData.unitat}</strong>
+                          </div>
+                        </div>
+
+                        {pendingPurchasesObj && pendingPurchasesObj.orders.length > 0 && (
+                          <span className={`text-[10.5px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title={pendingPurchasesObj.orders.map(o => `${o.comandaId}: +${formatDecimal(o.pend, 2)}`).join(' | ')}>
+                            {pendingPurchasesObj.orders.length} {pendingPurchasesObj.orders.length === 1 ? 'comanda en camí' : 'comandes en camí'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 2. SECCIÓ PROVEÏDOR PRINCIPAL */}

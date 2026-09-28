@@ -4,7 +4,7 @@ import {
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
   Package, Wrench, Layers, User, Phone, Sparkles, Check, ChevronDown, 
   ArrowLeft, RotateCw, FileText, Download, ChevronRight, BarChart2, Flame,
-  Boxes, Factory, HelpCircle, Zap
+  Boxes, Factory, HelpCircle, Zap, ArrowLeftRight
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -187,6 +187,7 @@ export default function OrdresFabricacioManager({
   gammes = [],
   maquinaria = [],
   operacions = [],
+  compres = [],
   setActiveProduccSubtab,
   isDark = true
 }) {
@@ -202,6 +203,30 @@ export default function OrdresFabricacioManager({
   const [selectedOFDetail, setSelectedOFDetail] = useState(null);
   const [printOF, setPrintOF] = useState(null);
   const [closingOFModal, setClosingOFModal] = useState(null);
+
+  // Mapa de compres pendents per material (quantitats en camí en unitats base)
+  const pendingPurchasesMap = useMemo(() => {
+    const map = {};
+    if (!Array.isArray(compres)) return map;
+    compres.forEach(c => {
+      const estatNorm = (c.estat || '').toLowerCase().trim();
+      if (estatNorm === 'rebut' || estatNorm.includes('cancel')) return;
+      if (Array.isArray(c.linies)) {
+        c.linies.forEach(l => {
+          if (!l.materialId) return;
+          const dem = Number(l.quantitatDemanada) || 0;
+          const reb = Number(l.quantitatRebuda) || 0;
+          const pend = Math.max(0, dem - reb);
+          const factor = Number(l.factorConversio) > 0 ? Number(l.factorConversio) : 1;
+          const pendUnitatsBase = pend * factor;
+          if (pendUnitatsBase > 0) {
+            map[l.materialId] = (map[l.materialId] || 0) + pendUnitatsBase;
+          }
+        });
+      }
+    });
+    return map;
+  }, [compres]);
 
   // Sol·licituds / Pressupostos web pendents (llegits en temps real de Firestore)
   const [webBudgets, setWebBudgets] = useState([]);
@@ -885,6 +910,48 @@ export default function OrdresFabricacioManager({
                                 Límit: <span className="font-bold underline">{formatOFDateOnly(of.dataLimitEntrega)}</span>
                               </div>
                             )}
+                            {(() => {
+                              if (isClosed || !Array.isArray(of.materials) || of.materials.length === 0) return null;
+                              let hasShortage = false;
+                              let hasPurchasesPending = false;
+                              for (const m of of.materials) {
+                                const matInStock = materials.find(mat => mat.id === (m.materialId || m.id));
+                                const estocReal = Number(
+                                  matInStock?.estocActual !== undefined 
+                                    ? matInStock.estocActual 
+                                    : (matInStock?.estocFisic !== undefined ? matInStock.estocFisic : (matInStock?.estoc || 0))
+                                ) || 0;
+                                const qtyRequired = Number(m.quantitatTotal) || 0;
+                                const matId = m.materialId || matInStock?.id;
+                                const pendingPurchases = matId ? (pendingPurchasesMap[matId] || 0) : 0;
+                                if (estocReal < qtyRequired) {
+                                  hasShortage = true;
+                                  if (pendingPurchases > 0) {
+                                    hasPurchasesPending = true;
+                                  }
+                                }
+                              }
+                              if (!hasShortage) return null;
+                              return (
+                                <div className="pt-0.5">
+                                  {hasPurchasesPending ? (
+                                    <span 
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-sky-500/15 text-sky-400 border border-sky-500/25"
+                                      title="Falta material d'estoc, però hi ha comanda de compra en camí"
+                                    >
+                                      <Package className="w-2.5 h-2.5 text-sky-400" /> Compres en camí
+                                    </span>
+                                  ) : (
+                                    <span 
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-rose-500/15 text-rose-400 border border-rose-500/25"
+                                      title="Manca estoc per cobrir aquesta ordre i no hi ha comanda pendent"
+                                    >
+                                      <AlertTriangle className="w-2.5 h-2.5 text-rose-400" /> Manca material
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </td>
@@ -1136,6 +1203,7 @@ export default function OrdresFabricacioManager({
           maquinaria={maquinaria}
           operacions={operacions}
           webBudgets={webBudgets}
+          compres={compres}
           onCreate={(newOF) => {
             setOrdresFabricacio(prev => [newOF, ...prev]);
             // Reservar estoc dels materials associats
@@ -1181,9 +1249,13 @@ export default function OrdresFabricacioManager({
           onUpdateQuantitat={handleUpdateOFQuantitat}
           onFinalitzarOF={() => handleChangeStatus(selectedOFDetail.id, 'finalitzada')}
           materials={materials}
+          setMaterials={setMaterials}
+          ordresFabricacio={ordresFabricacio}
+          setOrdresFabricacio={setOrdresFabricacio}
           escandalls={escandalls}
           setEscandalls={setEscandalls}
           operacions={operacions}
+          compres={compres}
           isDark={isDark}
           onPrint={() => {
             setPrintOF(selectedOFDetail);
@@ -1229,11 +1301,36 @@ function NewOFModal({
   maquinaria,
   operacions,
   webBudgets,
+  compres = [],
   onCreate,
   isDark
 }) {
   // Mode de selecció principal: 'producte' (Catàleg) | 'projecte' (Món Mínim) | 'web' (Pressupostos)
   const [sourceType, setSourceType] = useState('producte');
+
+  // Mapa de compres pendents per material
+  const pendingPurchasesMap = useMemo(() => {
+    const map = {};
+    if (!Array.isArray(compres)) return map;
+    compres.forEach(c => {
+      const estatNorm = (c.estat || '').toLowerCase().trim();
+      if (estatNorm === 'rebut' || estatNorm.includes('cancel')) return;
+      if (Array.isArray(c.linies)) {
+        c.linies.forEach(l => {
+          if (!l.materialId) return;
+          const dem = Number(l.quantitatDemanada) || 0;
+          const reb = Number(l.quantitatRebuda) || 0;
+          const pend = Math.max(0, dem - reb);
+          const factor = Number(l.factorConversio) > 0 ? Number(l.factorConversio) : 1;
+          const pendUnitatsBase = pend * factor;
+          if (pendUnitatsBase > 0) {
+            map[l.materialId] = (map[l.materialId] || 0) + pendUnitatsBase;
+          }
+        });
+      }
+    });
+    return map;
+  }, [compres]);
 
   // Filtres per a la cerca ràpida de Productes de Catàleg
   const [selectedFamilia, setSelectedFamilia] = useState('all');
@@ -2142,14 +2239,38 @@ function NewOFModal({
                     Materials que es reservaran ({calculatedMaterials.length}):
                   </p>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {calculatedMaterials.map((m, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-[11px] font-mono">
-                        <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{m.nom}</span>
-                        <span className="font-bold text-emerald-400">
-                          {formatDecimal(m.quantitatTotal, 4)} {m.unitat}
-                        </span>
-                      </div>
-                    ))}
+                    {calculatedMaterials.map((m, idx) => {
+                      const matInStock = materials.find(mat => mat.id === (m.materialId || m.id));
+                      const estocReal = Number(
+                        matInStock?.estocActual !== undefined 
+                          ? matInStock.estocActual 
+                          : (matInStock?.estocFisic !== undefined ? matInStock.estocFisic : (matInStock?.estoc || 0))
+                      ) || 0;
+                      const isShortage = estocReal < (Number(m.quantitatTotal) || 0);
+                      const matId = m.materialId || matInStock?.id;
+                      const pendingPurchases = matId ? (pendingPurchasesMap[matId] || 0) : 0;
+
+                      return (
+                        <div key={idx} className="flex items-center justify-between text-[11px] font-mono py-0.5 border-b border-white/5 last:border-b-0">
+                          <div className="flex items-center gap-1.5 truncate pr-2">
+                            <span className={isDark ? 'text-slate-300' : 'text-slate-700'}>{m.nom}</span>
+                            {isShortage && (
+                              <span className="text-[10px] text-rose-400 font-bold" title={`Estoc actual: ${estocReal} ${m.unitat}`}>
+                                (⚠️ estoc: {estocReal})
+                              </span>
+                            )}
+                            {pendingPurchases > 0 && (
+                              <span className="text-[10px] text-sky-400 font-medium" title="Comanda de compra en camí">
+                                📦 +{formatDecimal(pendingPurchases, 2)}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-emerald-400 shrink-0">
+                            {formatDecimal(m.quantitatTotal, 4)} {m.unitat}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -2229,11 +2350,55 @@ function NewOFModal({
 // --------------------------------------------------------------------------
 // SUBCOMPONENT: MODAL DETALL D'OF & FULL DE RUTA INTERACTIU
 // --------------------------------------------------------------------------
-function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQuantitat, onFinalitzarOF, materials, escandalls = [], setEscandalls, operacions = [], isDark, onPrint }) {
+function OFDetailModal({ 
+  ofData, 
+  onClose, 
+  onUpdateOF, 
+  onChangeStatus, 
+  onUpdateQuantitat, 
+  onFinalitzarOF, 
+  materials, 
+  setMaterials,
+  ordresFabricacio = [],
+  setOrdresFabricacio,
+  escandalls = [], 
+  setEscandalls, 
+  operacions = [], 
+  compres = [],
+  isDark, 
+  onPrint 
+}) {
   const [activeOF, setActiveOF] = useState(ofData);
   const initialLaserRef = useRef(JSON.stringify(normalizeLaserConfig(ofData?.parametresLaser)));
   const [showLaserSyncPrompt, setShowLaserSyncPrompt] = useState(false);
   const [pendingCloseAction, setPendingCloseAction] = useState(null); // 'close' | 'save'
+
+  // Mapa de compres pendents per material (en camí en unitats base)
+  const pendingPurchasesMap = useMemo(() => {
+    const map = {};
+    if (!Array.isArray(compres)) return map;
+    compres.forEach(c => {
+      const estatNorm = (c.estat || '').toLowerCase().trim();
+      if (estatNorm === 'rebut' || estatNorm.includes('cancel')) return;
+      if (Array.isArray(c.linies)) {
+        c.linies.forEach(l => {
+          if (!l.materialId) return;
+          const dem = Number(l.quantitatDemanada) || 0;
+          const reb = Number(l.quantitatRebuda) || 0;
+          const pend = Math.max(0, dem - reb);
+          const factor = Number(l.factorConversio) > 0 ? Number(l.factorConversio) : 1;
+          const pendUnitatsBase = pend * factor;
+          if (pendUnitatsBase > 0) {
+            map[l.materialId] = (map[l.materialId] || 0) + pendUnitatsBase;
+          }
+        });
+      }
+    });
+    return map;
+  }, [compres]);
+
+  // Estat per a la modal de substitució interactiva de material
+  const [substitutionModal, setSubstitutionModal] = useState(null);
 
   useEffect(() => {
     if (!ofData) {
@@ -2416,6 +2581,190 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
     } else {
       alert("✓ Canvis desats exclusivament en aquesta OF (canvi temporal de tirada).");
     }
+  };
+
+  // Obrir modal de substitució de material per a una línia de l'OF
+  const handleOpenSubstituteModal = (m, idx) => {
+    const normStatus = normalizeOFStatus(activeOF.estat);
+    if (normStatus === 'finalitzada' || normStatus === 'cancel·lada') return;
+
+    const currentMatId = m.materialId || (materials.find(mat => mat.material && mat.material.toLowerCase().trim() === (m.nom || '').toLowerCase().trim())?.id) || '';
+
+    // Cercar altres OFs obertes (cua o en_curs) del mateix producte / escandall
+    const otherOpenOFs = (ordresFabricacio || []).filter(o => {
+      if (o.id === activeOF.id) return false;
+      const s = normalizeOFStatus(o.estat);
+      if (s === 'finalitzada' || s === 'cancel·lada') return false;
+
+      const matchesEscandall = activeOF.escandallId && o.escandallId === activeOF.escandallId;
+      const matchesProduct = activeOF.producteId && (o.producteId === activeOF.producteId || o.productId === activeOF.producteId);
+      const matchesName = activeOF.producteNom && o.producteNom && o.producteNom.toLowerCase().trim() === activeOF.producteNom.toLowerCase().trim();
+
+      return matchesEscandall || matchesProduct || matchesName;
+    });
+
+    setSubstitutionModal({
+      index: idx,
+      oldMaterial: m,
+      newMaterialId: currentMatId || (materials[0]?.id || ''),
+      newUnitQty: m.quantitatTeoricaUnitat || (activeOF.quantitat ? (m.quantitatTotal / activeOF.quantitat) : 1),
+      scope: 'only_this_of',
+      otherOpenOFs,
+      selectedOtherOfIds: otherOpenOFs.map(o => o.id),
+      materialSearch: ''
+    });
+  };
+
+  // Confirmar la substitució de material i sincronitzar estocs i escandall
+  const handleConfirmSubstitution = () => {
+    if (!substitutionModal) return;
+    const { index, oldMaterial, newMaterialId, newUnitQty, scope, selectedOtherOfIds } = substitutionModal;
+
+    const newMatObj = (materials || []).find(m => String(m.id) === String(newMaterialId));
+    if (!newMatObj) {
+      alert("Si us plau, selecciona un nou material vàlid de la llista.");
+      return;
+    }
+
+    const numNewUnitQty = Number(newUnitQty) || 0;
+    if (numNewUnitQty <= 0) {
+      alert("La quantitat unitària del material ha de ser superior a zero.");
+      return;
+    }
+
+    const ofQty = activeOF.quantitat || 1;
+    const newTotalQty = numNewUnitQty * ofQty;
+    const oldTotalQty = Number(oldMaterial.quantitatTotal || 0);
+    const oldMatId = oldMaterial.materialId || (materials.find(m => m.material && m.material.toLowerCase().trim() === (oldMaterial.nom || '').toLowerCase().trim())?.id);
+
+    // Acumuladors de canvi de reserva d'estoc: { [materialId]: delta }
+    const deltas = {};
+    if (oldMatId) {
+      deltas[oldMatId] = (deltas[oldMatId] || 0) - oldTotalQty;
+    }
+    deltas[newMatObj.id] = (deltas[newMatObj.id] || 0) + newTotalQty;
+
+    const newUnit = newMatObj.unitat || oldMaterial.unitat || 'u';
+
+    // 1. Modificar l'OF actual
+    const updatedMaterials = [...(activeOF.materials || [])];
+    updatedMaterials[index] = {
+      materialId: newMatObj.id,
+      nom: newMatObj.material,
+      quantitatTeoricaUnitat: numNewUnitQty,
+      quantitatTotal: newTotalQty,
+      unitat: newUnit,
+      estocReservat: newTotalQty,
+      estocDescomptat: false
+    };
+
+    const updatedActiveOF = {
+      ...activeOF,
+      materials: updatedMaterials
+    };
+
+    // 2. Si és canvi definitiu (Actualitzar també l'escandall)
+    let affectedOFCount = 1;
+    if (scope === 'update_escandall') {
+      // 2a. Actualitzar escandall
+      if (setEscandalls) {
+        setEscandalls(prevEscs => prevEscs.map(esc => {
+          const matches = (activeOF.escandallId && esc.id === activeOF.escandallId) ||
+            (activeOF.producteId && (esc.producteId === activeOF.producteId || esc.productId === activeOF.producteId)) ||
+            (activeOF.producteNom && esc.producteNom && esc.producteNom.toLowerCase().trim() === activeOF.producteNom.toLowerCase().trim());
+          if (!matches) return esc;
+
+          const updatedEscMats = (esc.materials || []).map(em => {
+            const isTarget = (oldMatId && String(em.materialId) === String(oldMatId)) || 
+              (em.nom && oldMaterial.nom && em.nom.toLowerCase().trim() === oldMaterial.nom.toLowerCase().trim());
+            if (isTarget) {
+              return {
+                ...em,
+                materialId: newMatObj.id,
+                nom: newMatObj.material,
+                quantitat: numNewUnitQty,
+                unitat: newUnit
+              };
+            }
+            return em;
+          });
+
+          return {
+            ...esc,
+            materials: updatedEscMats
+          };
+        }));
+      }
+
+      // 2b. Actualitzar altres OFs obertes seleccionades
+      if (setOrdresFabricacio && Array.isArray(selectedOtherOfIds) && selectedOtherOfIds.length > 0) {
+        setOrdresFabricacio(prevOFs => prevOFs.map(ofItem => {
+          if (ofItem.id === activeOF.id) {
+            return updatedActiveOF;
+          }
+          if (!selectedOtherOfIds.includes(ofItem.id)) {
+            return ofItem;
+          }
+
+          affectedOFCount++;
+          const oQty = ofItem.quantitat || 1;
+          const oNewTotal = numNewUnitQty * oQty;
+          let oOldTotal = 0;
+
+          const oMats = (ofItem.materials || []).map(om => {
+            const isTarget = (oldMatId && String(om.materialId) === String(oldMatId)) || 
+              (om.nom && oldMaterial.nom && om.nom.toLowerCase().trim() === oldMaterial.nom.toLowerCase().trim());
+            if (isTarget) {
+              oOldTotal = Number(om.quantitatTotal || 0);
+              return {
+                ...om,
+                materialId: newMatObj.id,
+                nom: newMatObj.material,
+                quantitatTeoricaUnitat: numNewUnitQty,
+                quantitatTotal: oNewTotal,
+                unitat: newUnit,
+                estocReservat: oNewTotal,
+                estocDescomptat: false
+              };
+            }
+            return om;
+          });
+
+          if (oldMatId) {
+            deltas[oldMatId] = (deltas[oldMatId] || 0) - oOldTotal;
+          }
+          deltas[newMatObj.id] = (deltas[newMatObj.id] || 0) + oNewTotal;
+
+          return {
+            ...ofItem,
+            materials: oMats
+          };
+        }));
+      }
+    }
+
+    // 3. Actualitzar estoc reservat als materials
+    if (setMaterials) {
+      setMaterials(prevMats => prevMats.map(mat => {
+        const delta = deltas[mat.id];
+        if (delta === undefined || delta === 0) return mat;
+        const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+        const estocReservat = Math.max(0, (Number(mat.estocReservat) || 0) + delta);
+        return {
+          ...mat,
+          estocActual: currentStock,
+          estocFisic: currentStock,
+          estocReservat,
+          estocDisponible: Math.max(0, currentStock - estocReservat),
+          estoc: currentStock
+        };
+      }));
+    }
+
+    // 4. Actualitzar estat de l'OF activa
+    setActiveOF(updatedActiveOF);
+    onUpdateOF(updatedActiveOF);
+    setSubstitutionModal(null);
   };
 
   const getDateInputValue = (dateStr) => {
@@ -2879,6 +3228,8 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
                   // Hi ha falta d'estoc si l'estoc real al magatzem és inferior a les unitats que necessita aquesta OF
                   const isShortage = !isFinalitzada && !isCancelada && (estocReal < qtyRequired || disponiblePerAquesta < qtyRequired);
                   const unitatFalten = Math.max(0, qtyRequired - estocReal);
+                  const matId = m.materialId || matInStock?.id;
+                  const pendingPurchases = matId ? (pendingPurchasesMap[matId] || 0) : 0;
 
                   return (
                     <div
@@ -2889,31 +3240,81 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
                     >
                       <div className="min-w-0 pr-3">
                         <p className={`font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{m.nom}</p>
-                        <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {formatDecimal(m.quantitatTeoricaUnitat, 4)} {unitDisplay} / unitat
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {formatDecimal(m.quantitatTeoricaUnitat, 4)} {unitDisplay} / unitat
+                          </p>
+                          {matInStock && (
+                            <span className={`text-[10.5px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              • Estoc: <strong className={isDark ? 'text-slate-200' : 'text-slate-800'}>{formatDecimal(estocReal, 2)} {unitDisplay}</strong>
+                              {totalReservat > 0 && (
+                                <span className="text-amber-400/90 ml-1.5" title={`Total reservat en ordres de fabricació: ${formatDecimal(totalReservat, 2)} ${unitDisplay}`}>
+                                  (🔒 {formatDecimal(totalReservat, 2)} res.)
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <p className="font-bold text-amber-400">
-                          Necessari : {formatDecimal(qtyRequired, 4)} {unitDisplay}
-                        </p>
-                        {isFinalitzada ? (
-                          <p className="text-[11px] font-bold text-emerald-400">
-                            ✓ Consumit al taller
+                      <div className="flex items-center gap-3 shrink-0">
+                        <div className="text-right">
+                          <p className="font-bold text-amber-400">
+                            Necessari : {formatDecimal(qtyRequired, 4)} {unitDisplay}
                           </p>
-                        ) : isCancelada ? (
-                          <p className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                            Reserva alliberada
-                          </p>
-                        ) : isShortage ? (
-                          <p className="text-[11px] font-bold text-rose-400">
-                            ⚠️ Insuficient : falten {formatDecimal(unitatFalten > 0 ? unitatFalten : Math.max(0, qtyRequired - disponiblePerAquesta), 2)} {unitDisplay}
-                          </p>
-                        ) : (
-                          <p className="text-[11px] font-bold text-emerald-400">
-                            ✓ Disponible : {formatDecimal(estocReal, 2)} {unitDisplay}
-                          </p>
+                          {isFinalitzada ? (
+                            <p className="text-[11px] font-bold text-emerald-400">
+                              ✓ Consumit al taller
+                            </p>
+                          ) : isCancelada ? (
+                            <p className={`text-[11px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              Reserva alliberada
+                            </p>
+                          ) : isShortage ? (
+                            <div className="space-y-0.5">
+                              <p className="text-[11px] font-bold text-rose-400">
+                                ⚠️ Insuficient : falten {formatDecimal(unitatFalten > 0 ? unitatFalten : Math.max(0, qtyRequired - disponiblePerAquesta), 2)} {unitDisplay}
+                              </p>
+                              {pendingPurchases > 0 ? (
+                                <p className="text-[10.5px] font-semibold text-sky-400 flex items-center justify-end gap-1" title="Hi ha comandes de compra pendents de rebre">
+                                  <Package className="w-3 h-3 text-sky-400" />
+                                  <span>+{formatDecimal(pendingPurchases, 2)} {unitDisplay} en camí</span>
+                                </p>
+                              ) : (
+                                <p className={`text-[10px] font-medium ${isDark ? 'text-rose-400/70' : 'text-rose-600/70'} flex items-center justify-end gap-1`}>
+                                  (Sense comanda pendent)
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <p className="text-[11px] font-bold text-emerald-400">
+                                ✓ Disponible : {formatDecimal(estocReal, 2)} {unitDisplay}
+                              </p>
+                              {pendingPurchases > 0 && (
+                                <p className="text-[10.5px] font-semibold text-sky-400/90 flex items-center justify-end gap-1" title="Comanda de compra en camí">
+                                  <Package className="w-3 h-3 text-sky-400" />
+                                  <span>+{formatDecimal(pendingPurchases, 2)} {unitDisplay} en camí</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {!isFinalitzada && !isCancelada && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSubstituteModal(m, idx)}
+                            className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs ${
+                              isDark 
+                                ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40 hover:border-amber-400' 
+                                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 hover:border-amber-400'
+                            }`}
+                            title="Substituir aquest material per un altre"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Substituir</span>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -3067,6 +3468,340 @@ function OFDetailModal({ ofData, onClose, onUpdateOF, onChangeStatus, onUpdateQu
                 className="w-full py-1.5 text-center text-xs font-mono text-slate-400 hover:text-white cursor-pointer"
               >
                 Cancel·lar i seguir editant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SUBSTITUCIÓ DE MATERIAL A L'OF & SINCRONITZACIÓ AMB ESCANDALL */}
+      {substitutionModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-xs animate-fadeIn">
+          <div className={`relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border shadow-2xl overflow-hidden ${
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white text-slate-900 border-slate-300'
+          }`}>
+            {/* Header */}
+            <div className={`p-4 sm:p-5 border-b flex items-center justify-between shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-serif font-bold text-base sm:text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Substitució de Material
+                  </h3>
+                  <p className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Ordre de fabricació: <strong className="text-amber-500">{activeOF.id}</strong> ({activeOF.quantitat || 1} unitats)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubstitutionModal(null)}
+                className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                  isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5 text-xs font-sans">
+              {/* Material Actual */}
+              <div className={`p-3.5 rounded-2xl border ${
+                isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <p className={`text-[11px] font-mono uppercase font-bold mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Material Actual de l'OF:
+                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      {substitutionModal.oldMaterial.nom}
+                    </p>
+                    <p className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Consum previst: {formatDecimal(substitutionModal.oldMaterial.quantitatTeoricaUnitat, 4)} {substitutionModal.oldMaterial.unitat || 'u'} / unitat • Total: {formatDecimal(substitutionModal.oldMaterial.quantitatTotal, 4)} {substitutionModal.oldMaterial.unitat || 'u'}
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                    A substituir
+                  </span>
+                </div>
+              </div>
+
+              {/* Nou Material Selector */}
+              <div className="space-y-3">
+                <label className={`text-xs font-mono uppercase font-bold block ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+                  Selecciona el Nou Material Substitut:
+                </label>
+
+                {/* Filtre / Cercador de materials */}
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar per nom de material, codi o referència..."
+                    value={substitutionModal.materialSearch || ''}
+                    onChange={(e) => setSubstitutionModal(prev => ({ ...prev, materialSearch: e.target.value }))}
+                    className={`w-full pl-9 pr-3 py-2 rounded-xl border text-xs outline-none transition-all ${
+                      isDark 
+                        ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
+                        : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500'
+                    }`}
+                  />
+                </div>
+
+                {/* Selector */}
+                <select
+                  value={substitutionModal.newMaterialId}
+                  onChange={(e) => {
+                    const chosenId = e.target.value;
+                    setSubstitutionModal(prev => ({
+                      ...prev,
+                      newMaterialId: chosenId
+                    }));
+                  }}
+                  className={`w-full p-2.5 rounded-xl border text-xs font-mono outline-none transition-all ${
+                    isDark 
+                      ? 'bg-slate-950 border-slate-800 text-white focus:border-amber-500' 
+                      : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500'
+                  }`}
+                  size={5}
+                >
+                  {(materials || [])
+                    .filter(m => {
+                      if (!substitutionModal.materialSearch) return true;
+                      const q = substitutionModal.materialSearch.toLowerCase();
+                      return (m.material && m.material.toLowerCase().includes(q)) ||
+                        (m.id && String(m.id).toLowerCase().includes(q)) ||
+                        (m.categoria && m.categoria.toLowerCase().includes(q));
+                    })
+                    .sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca', { sensitivity: 'base' }))
+                    .map(m => {
+                      const estocReal = Number(m.estocActual !== undefined ? m.estocActual : (m.estocFisic !== undefined ? m.estocFisic : (m.estoc || 0))) || 0;
+                      const estocDisp = Math.max(0, estocReal - (Number(m.estocReservat) || 0));
+                      return (
+                        <option key={m.id} value={m.id} className="p-1.5">
+                          {m.material} ({m.unitat || 'u'}) — Disp: {formatDecimal(estocDisp, 2)} / Real: {formatDecimal(estocReal, 2)}
+                        </option>
+                      );
+                    })}
+                </select>
+
+                {/* Quantitat Unitària per al nou material */}
+                {(() => {
+                  const selMat = materials.find(m => String(m.id) === String(substitutionModal.newMaterialId));
+                  const unitDisplay = selMat?.unitat || substitutionModal.oldMaterial.unitat || 'u';
+                  const ofQty = activeOF.quantitat || 1;
+                  const totalNou = (Number(substitutionModal.newUnitQty) || 0) * ofQty;
+                  const estocReal = Number(selMat?.estocActual !== undefined ? selMat.estocActual : (selMat?.estocFisic !== undefined ? selMat.estocFisic : (selMat?.estoc || 0))) || 0;
+                  const totalReservat = Number(selMat?.estocReservat) || 0;
+                  const disponible = Math.max(0, estocReal - totalReservat);
+
+                  return (
+                    <div className={`p-3.5 rounded-2xl border flex items-center justify-between flex-wrap gap-3 ${
+                      isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <label className={`text-xs font-mono font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                          Quantitat per unitat:
+                        </label>
+                        <div className="w-28">
+                          <DecimalInput
+                            value={substitutionModal.newUnitQty}
+                            onChange={(val) => setSubstitutionModal(prev => ({ ...prev, newUnitQty: val }))}
+                            maxDecimals={4}
+                            placeholder="0.00"
+                            className={`w-full py-1 px-2.5 rounded-xl border text-xs font-mono font-bold outline-none ${
+                              isDark ? 'bg-slate-900 border-slate-750 text-white' : 'bg-white border-slate-300 text-slate-900'
+                            }`}
+                          />
+                        </div>
+                        <span className="font-mono text-xs font-bold text-amber-500">{unitDisplay} / u</span>
+                      </div>
+
+                      <div className="text-right font-mono text-xs">
+                        <p className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          Total necessari: <span className="text-amber-500">{formatDecimal(totalNou, 4)} {unitDisplay}</span>
+                        </p>
+                        <p className={`text-[11px] ${disponible >= totalNou ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}`}>
+                          {disponible >= totalNou ? `✓ Disponible: ${formatDecimal(disponible, 2)} ${unitDisplay}` : `⚠️ Falten ${formatDecimal(totalNou - disponible, 2)} ${unitDisplay}`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Àmbit d'Aplicació (Puntual vs Definitiu) */}
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <label className={`text-xs font-mono uppercase font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                  Com vols aplicar aquesta substitució?
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Opció A: Puntual */}
+                  <div
+                    onClick={() => setSubstitutionModal(prev => ({ ...prev, scope: 'only_this_of' }))}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      substitutionModal.scope === 'only_this_of'
+                        ? (isDark ? 'bg-amber-950/20 border-amber-500 text-white shadow-sm' : 'bg-amber-50/70 border-amber-500 text-slate-900 shadow-sm')
+                        : (isDark ? 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700')
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        substitutionModal.scope === 'only_this_of' ? 'border-amber-500 bg-amber-500' : 'border-slate-400'
+                      }`}>
+                        {substitutionModal.scope === 'only_this_of' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="font-bold text-xs">Canvi puntual (Només aquesta OF)</span>
+                    </div>
+                    <p className={`text-[11px] pl-6 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      L'escandall original es manté intacte per a properes tirades. Només s'ajusta l'estoc reservat d'aquesta OF.
+                    </p>
+                  </div>
+
+                  {/* Opció B: Definitiu */}
+                  <div
+                    onClick={() => setSubstitutionModal(prev => ({ ...prev, scope: 'update_escandall' }))}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      substitutionModal.scope === 'update_escandall'
+                        ? (isDark ? 'bg-amber-950/20 border-amber-500 text-white shadow-sm' : 'bg-amber-50/70 border-amber-500 text-slate-900 shadow-sm')
+                        : (isDark ? 'bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700')
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        substitutionModal.scope === 'update_escandall' ? 'border-amber-500 bg-amber-500' : 'border-slate-400'
+                      }`}>
+                        {substitutionModal.scope === 'update_escandall' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <span className="font-bold text-xs">Canvi definitiu (Actualitzar Escandall)</span>
+                    </div>
+                    <p className={`text-[11px] pl-6 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      S'actualitzarà la fitxa de l'escandall del producte amb el nou material per a totes les properes fabricacions.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub-llista d'altres OFs obertes (Si s'ha triat opció B i hi ha altres OFs en curs) */}
+                {substitutionModal.scope === 'update_escandall' && (
+                  <div className={`p-4 rounded-2xl border space-y-3 animate-fadeIn ${
+                    isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                          Altres Ordres de Fabricació en curs d'aquest producte:
+                        </p>
+                        <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {substitutionModal.otherOpenOFs.length === 0 
+                            ? "No hi ha cap altra OF oberta d'aquest producte." 
+                            : "Tria quines altres OFs han d'adoptar també el nou material (per si tens falta parcial de material):"}
+                        </p>
+                      </div>
+
+                      {substitutionModal.otherOpenOFs.length > 0 && (
+                        <div className="flex items-center gap-2 text-[11px] font-mono">
+                          <button
+                            type="button"
+                            onClick={() => setSubstitutionModal(prev => ({
+                              ...prev,
+                              selectedOtherOfIds: prev.otherOpenOFs.map(o => o.id)
+                            }))}
+                            className="text-amber-500 hover:underline cursor-pointer font-bold"
+                          >
+                            Marcar totes
+                          </button>
+                          <span className="text-slate-400">•</span>
+                          <button
+                            type="button"
+                            onClick={() => setSubstitutionModal(prev => ({
+                              ...prev,
+                              selectedOtherOfIds: []
+                            }))}
+                            className="text-slate-400 hover:underline cursor-pointer"
+                          >
+                            Desmarcar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {substitutionModal.otherOpenOFs.length > 0 && (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {substitutionModal.otherOpenOFs.map(otherOF => {
+                          const isChecked = substitutionModal.selectedOtherOfIds.includes(otherOF.id);
+                          return (
+                            <div
+                              key={otherOF.id}
+                              onClick={() => {
+                                setSubstitutionModal(prev => {
+                                  const current = prev.selectedOtherOfIds || [];
+                                  const next = current.includes(otherOF.id)
+                                    ? current.filter(id => id !== otherOF.id)
+                                    : [...current, otherOF.id];
+                                  return { ...prev, selectedOtherOfIds: next };
+                                });
+                              }}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-mono cursor-pointer transition-colors ${
+                                isChecked
+                                  ? (isDark ? 'bg-amber-950/30 border-amber-500/50 text-white' : 'bg-amber-50 border-amber-400 text-slate-900')
+                                  : (isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600')
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                                  isChecked ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-400'
+                                }`}>
+                                  {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                </div>
+                                <span className="font-bold text-amber-500">{otherOF.id}</span>
+                                <span>•</span>
+                                <span>{otherOF.quantitat || 1} u</span>
+                              </div>
+
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                otherOF.estat === 'en_curs' 
+                                  ? 'bg-sky-500/20 text-sky-400' 
+                                  : 'bg-amber-500/20 text-amber-400'
+                              }`}>
+                                {otherOF.estat === 'en_curs' ? 'En Curs' : 'A la Cua'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className={`p-4 border-t flex items-center justify-end gap-3 shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setSubstitutionModal(null)}
+                className={`px-4 py-2 rounded-xl border text-xs font-mono font-bold cursor-pointer transition-all ${
+                  isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                Cancel·lar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSubstitution}
+                className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+              >
+                <Check className="w-4 h-4" />
+                <span>Confirmar Substitució</span>
               </button>
             </div>
           </div>

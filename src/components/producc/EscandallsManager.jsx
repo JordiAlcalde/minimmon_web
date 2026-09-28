@@ -3,7 +3,7 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap, RotateCw
 } from 'lucide-react';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
@@ -183,6 +183,9 @@ export default function EscandallsManager({
   escandalls = [], 
   setEscandalls, 
   materials = [], 
+  setMaterials,
+  ordresFabricacio = [],
+  setOrdresFabricacio,
   operacions = [], 
   maquinaria = [], 
   productes = [], 
@@ -202,6 +205,9 @@ export default function EscandallsManager({
   const [editingEscandall, setEditingEscandall] = useState(null);
   const [activeModalTab, setActiveModalTab] = useState('base'); // 'base' | 'personalitzacio' | 'resum'
   const [expandedOptionKey, setExpandedOptionKey] = useState(null);
+
+  // Modal de sincronització de materials amb OFs en curs
+  const [syncOFModal, setSyncOFModal] = useState(null);
 
   // Estat per a visualitzar la imatge ampliada (Lightbox)
   const [zoomedImage, setZoomedImage] = useState(null);
@@ -613,18 +619,128 @@ export default function EscandallsManager({
 
   // Guardar escandall
   const handleSave = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!formData.producteNom.trim()) {
       alert('Si us plau, especifica el nom del producte o projecte.');
       return;
     }
 
     if (editingEscandall) {
+      // Comprovar si s'han modificat els materials de l'escandall
+      const oldMats = editingEscandall.materials || [];
+      const newMats = formData.materials || [];
+      const materialsChanged = oldMats.length !== newMats.length || oldMats.some((om, i) => {
+        const nm = newMats[i];
+        if (!nm) return true;
+        return String(om.materialId || om.id) !== String(nm.materialId || nm.id) ||
+          Number(om.quantitat || 0) !== Number(nm.quantitat || 0);
+      });
+
+      if (materialsChanged) {
+        // Cercar OFs obertes (només 'cua' o 'en_curs', mai 'finalitzada' ni 'cancel·lada')
+        const openOFs = (ordresFabricacio || []).filter(of => {
+          const norm = (of.estat || '').toLowerCase().trim();
+          if (norm === 'finalitzada' || norm === 'cancel·lada') return false;
+
+          const matchesEscandall = of.escandallId && of.escandallId === editingEscandall.id;
+          const matchesProduct = of.producteId && (of.producteId === editingEscandall.producteId || of.producteId === editingEscandall.productId);
+          const matchesName = of.producteNom && editingEscandall.producteNom && of.producteNom.toLowerCase().trim() === editingEscandall.producteNom.toLowerCase().trim();
+
+          return matchesEscandall || matchesProduct || matchesName;
+        });
+
+        if (openOFs.length > 0) {
+          setSyncOFModal({
+            openOFs,
+            selectedOfIds: openOFs.map(o => o.id),
+            formDataToSave: { ...formData, id: editingEscandall.id }
+          });
+          return;
+        }
+      }
+
       setEscandalls(prev => prev.map(e => e.id === editingEscandall.id ? { ...formData, id: e.id } : e));
     } else {
       const newId = getNextSequentialId('esc', escandalls);
       setEscandalls(prev => [...prev, { ...formData, id: newId }]);
     }
+    setModalOpen(false);
+  };
+
+  // Confirmar la sincronització de materials de l'escandall amb les OFs en curs
+  const handleConfirmSyncOFs = (shouldSyncOFs) => {
+    if (!syncOFModal) return;
+    const { openOFs, selectedOfIds, formDataToSave } = syncOFModal;
+
+    // 1. Desar l'escandall
+    setEscandalls(prev => prev.map(e => e.id === formDataToSave.id ? formDataToSave : e));
+
+    // 2. Si l'usuari ha triat sincronitzar les OFs en curs seleccionades:
+    if (shouldSyncOFs && selectedOfIds && selectedOfIds.length > 0) {
+      const deltas = {};
+
+      if (setOrdresFabricacio) {
+        setOrdresFabricacio(prevOFs => prevOFs.map(ofItem => {
+          if (!selectedOfIds.includes(ofItem.id)) return ofItem;
+
+          // Restar reserves antigues dels materials d'aquesta OF
+          (ofItem.materials || []).forEach(om => {
+            const matId = om.materialId || (materials.find(m => m.material && m.material.toLowerCase().trim() === (om.nom || '').toLowerCase().trim())?.id);
+            if (matId) {
+              deltas[matId] = (deltas[matId] || 0) - (Number(om.quantitatTotal) || 0);
+            }
+          });
+
+          // Calcular la nova explosió de materials per a aquesta OF segons la nova composició de l'escandall
+          const ofQty = ofItem.quantitat || 1;
+          const newOFMats = (formDataToSave.materials || []).map(fm => {
+            const matObj = (materials || []).find(m => String(m.id) === String(fm.materialId));
+            const qUnit = Number(fm.quantitat) || 0;
+            const qTotal = qUnit * ofQty;
+            const matId = fm.materialId || matObj?.id || '';
+
+            if (matId) {
+              deltas[matId] = (deltas[matId] || 0) + qTotal;
+            }
+
+            return {
+              materialId: matId,
+              nom: matObj?.material || fm.nom || 'Material',
+              quantitatTeoricaUnitat: qUnit,
+              quantitatTotal: qTotal,
+              unitat: matObj?.unitat || fm.unitat || 'u',
+              estocReservat: qTotal,
+              estocDescomptat: false
+            };
+          });
+
+          return {
+            ...ofItem,
+            materials: newOFMats
+          };
+        }));
+      }
+
+      // Actualitzar reserves a materials
+      if (setMaterials) {
+        setMaterials(prevMats => prevMats.map(mat => {
+          const delta = deltas[mat.id];
+          if (delta === undefined || delta === 0) return mat;
+          const currentStock = Number(mat.estocActual !== undefined ? mat.estocActual : (mat.estocFisic !== undefined ? mat.estocFisic : (mat.estoc || 0))) || 0;
+          const estocReservat = Math.max(0, (Number(mat.estocReservat) || 0) + delta);
+          return {
+            ...mat,
+            estocActual: currentStock,
+            estocFisic: currentStock,
+            estocReservat,
+            estocDisponible: Math.max(0, currentStock - estocReservat),
+            estoc: currentStock
+          };
+        }));
+      }
+    }
+
+    setSyncOFModal(null);
     setModalOpen(false);
   };
 
@@ -3567,6 +3683,162 @@ export default function EscandallsManager({
               >
                 <Copy className="w-4 h-4" />
                 <span>Duplicar i Editar Escandall</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SINCRONITZACIÓ DE MATERIALS D'ESCANDALL AMB OFs EN CURS */}
+      {syncOFModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-xs animate-fadeIn">
+          <div className={`relative w-full max-w-xl flex flex-col rounded-3xl border shadow-2xl overflow-hidden ${
+            isDark ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white text-slate-900 border-slate-300'
+          }`}>
+            {/* Header */}
+            <div className={`p-4 sm:p-5 border-b flex items-center justify-between shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
+                  <RotateCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-serif font-bold text-base sm:text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    Actualitzar OFs en Curs?
+                  </h3>
+                  <p className={`text-xs font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Producte: <strong className="text-amber-500">{formData.producteNom}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncOFModal(null)}
+                className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                  isDark ? 'hover:bg-slate-800 text-slate-400 hover:text-white' : 'hover:bg-slate-200 text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-6 space-y-4 text-xs font-sans">
+              <p className={`leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                Has modificat els materials d'aquest escandall. S'han detectat <strong>{syncOFModal.openOFs.length}</strong> ordres de fabricació obertes per a aquest producte.
+              </p>
+              <p className={`leading-relaxed text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Les OFs finalitzades mai es modifiquen per preservar l'històric. Tria quines OFs en curs vols que adoptin la nova composició de materials i reajustin les seves reserves d'estoc:
+              </p>
+
+              {/* Selector de llista */}
+              <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center justify-between text-[11px] font-mono">
+                  <span className={`font-bold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    OFs obertes ({syncOFModal.selectedOfIds.length} de {syncOFModal.openOFs.length} seleccionades):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSyncOFModal(prev => ({ ...prev, selectedOfIds: prev.openOFs.map(o => o.id) }))}
+                      className="text-amber-500 hover:underline cursor-pointer font-bold"
+                    >
+                      Totes
+                    </button>
+                    <span className="text-slate-400">•</span>
+                    <button
+                      type="button"
+                      onClick={() => setSyncOFModal(prev => ({ ...prev, selectedOfIds: [] }))}
+                      className="text-slate-400 hover:underline cursor-pointer"
+                    >
+                      Cap
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {syncOFModal.openOFs.map(ofItem => {
+                    const isChecked = syncOFModal.selectedOfIds.includes(ofItem.id);
+                    return (
+                      <div
+                        key={ofItem.id}
+                        onClick={() => {
+                          setSyncOFModal(prev => {
+                            const cur = prev.selectedOfIds || [];
+                            const next = cur.includes(ofItem.id)
+                              ? cur.filter(id => id !== ofItem.id)
+                              : [...cur, ofItem.id];
+                            return { ...prev, selectedOfIds: next };
+                          });
+                        }}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between text-xs font-mono cursor-pointer transition-colors ${
+                          isChecked
+                            ? (isDark ? 'bg-amber-950/30 border-amber-500/50 text-white' : 'bg-amber-50 border-amber-400 text-slate-900')
+                            : (isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600')
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                            isChecked ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-400'
+                          }`}>
+                            {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                          <span className="font-bold text-amber-500">{ofItem.id}</span>
+                          <span>•</span>
+                          <span>{ofItem.quantitat || 1} u</span>
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          ofItem.estat === 'en_curs' 
+                            ? 'bg-sky-500/20 text-sky-400' 
+                            : 'bg-amber-500/20 text-amber-400'
+                        }`}>
+                          {ofItem.estat === 'en_curs' ? 'En Curs' : 'A la Cua'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className={`p-4 border-t flex flex-col sm:flex-row items-center justify-end gap-2.5 shrink-0 ${
+              isDark ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-50'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setSyncOFModal(null)}
+                className={`w-full sm:w-auto px-4 py-2 rounded-xl border text-xs font-mono font-bold cursor-pointer transition-all ${
+                  isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                Cancel·lar
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmSyncOFs(false)}
+                className={`w-full sm:w-auto px-4 py-2 rounded-xl border text-xs font-mono font-bold cursor-pointer transition-all ${
+                  isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                Desar només Escandall
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmSyncOFs(true)}
+                disabled={syncOFModal.selectedOfIds.length === 0}
+                className={`w-full sm:w-auto px-5 py-2 rounded-xl text-xs font-mono font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all ${
+                  syncOFModal.selectedOfIds.length === 0
+                    ? 'bg-slate-600 text-slate-400 opacity-50 cursor-not-allowed'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white'
+                }`}
+              >
+                <Check className="w-4 h-4" />
+                <span>Actualitzar {syncOFModal.selectedOfIds.length} OFs i Desar</span>
               </button>
             </div>
           </div>

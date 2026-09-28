@@ -10,6 +10,7 @@ import PrivateAreaSection from './components/PrivateAreaSection';
 import ProduccApp from './components/producc/ProduccApp';
 import ProjeccApp from './components/projecc/ProjeccApp';
 import PostingApp from './components/posting/PostingApp';
+import PerFerApp from './components/perfer/PerFerApp';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import OrderTrackingModal from './components/OrderTrackingModal';
@@ -90,6 +91,7 @@ export default function App() {
       const isProduccDirect = urlParams.get('producc') !== null || seccioParam === 'producc' || hash === '#producc';
       const isProjeccDirect = urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc';
       const isPostingDirect = urlParams.get('posting') !== null || seccioParam === 'posting' || hash === '#posting';
+      const isPerFerDirect = urlParams.get('perfer') !== null || seccioParam === 'perfer' || hash === '#perfer';
 
       // Enllaç directe a seguiment de comanda (?comanda=REF o #seguiment-REF)
       const comandaParam = urlParams.get('comanda') || urlParams.get('seguiment') || (hash.startsWith('#seguiment-') ? hash.replace('#seguiment-', '') : null);
@@ -102,6 +104,11 @@ export default function App() {
         }
       } else if (isPostingDirect) {
         setActiveTab('posting');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (isPerFerDirect) {
+        setActiveTab('perfer');
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
@@ -170,6 +177,8 @@ export default function App() {
       document.title = 'Mínim Món | PROJECC';
     } else if (activeTab === 'posting') {
       document.title = 'Mínim Món | POSTING';
+    } else if (activeTab === 'perfer') {
+      document.title = 'Mínim Món | PER FER';
     } else {
       document.title = 'Mínim Món | Essències en Miniatura';
     }
@@ -195,8 +204,8 @@ export default function App() {
         {/* Texture overlay */}
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-        {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc o Posting) */}
-        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && (
+        {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc, Posting o Per Fer) */}
+        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && (
           <Header 
             activeTab={activeTab} 
             setActiveTab={handleSelectTab} 
@@ -259,10 +268,14 @@ export default function App() {
         {activeTab === 'posting' && (
           <PostingApp setActiveTab={setActiveTab} />
         )}
+
+        {activeTab === 'perfer' && (
+          <PerFerApp setActiveTab={setActiveTab} />
+        )}
       </main>
 
-      {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc o Posting) */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && (
+      {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc, Posting o Per Fer) */}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && (
         <Footer 
           setActiveTab={setActiveTab} 
           onOpenLegal={(title) => setLegalTitle(title)} 
