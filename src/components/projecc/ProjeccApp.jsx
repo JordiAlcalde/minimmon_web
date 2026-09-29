@@ -18,6 +18,7 @@ import { ProjeccReportView } from './ProjeccReportView';
 import { ProjeccFormModal } from './ProjeccFormModal';
 import { ProjeccMestreTasquesModal } from './ProjeccMestreTasquesModal';
 import { ProjeccActiveTimersDock } from './ProjeccActiveTimersDock';
+import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
 import { INITIAL_MESTRE_TASQUES } from '../../data/projeccInitialData';
 
 // Helper per netejar valors 'undefined' per a Firestore
@@ -34,12 +35,29 @@ function sanitizeData(obj) {
 }
 
 export default function ProjeccApp({ setActiveTab }) {
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => getScreenTheme('projecc') === 'dark');
   const [items, setItems] = useState([]);
   const [mestreTasques, setMestreTasques] = useState(INITIAL_MESTRE_TASQUES);
   const [existingProjects, setExistingProjects] = useState([]);
   const [existingProducts, setExistingProducts] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Escolta canvis globals del tema per defecte si no s'ha triat manualment un override en aquesta sessió
+  useEffect(() => {
+    const handler = (e) => {
+      if (!sessionStorage.getItem('theme_override_projecc')) {
+        setIsDark(e.detail === 'dark');
+      }
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, handler);
+  }, []);
+
+  const handleToggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    setScreenTheme('projecc', next ? 'dark' : 'light');
+  };
 
   // Vistes: 'list' | 'detail' | 'timer' | 'analytics' | 'report'
   const [currentView, setCurrentView] = useState('list');
@@ -566,7 +584,7 @@ export default function ProjeccApp({ setActiveTab }) {
 
           {/* Selector de Mode Fosc / Clar */}
           <button
-            onClick={() => setIsDark(!isDark)}
+            onClick={handleToggleTheme}
             className={`p-2 rounded-xl transition-colors cursor-pointer ${
               isDark ? 'bg-slate-800 text-amber-400 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}

@@ -987,27 +987,35 @@ export default function OrdresFabricacioManager({
                                 </div>
                               </div>
 
-                              {/* Columna Família / Gamma / Producte */}
+                              {/* Columna Producte / Gamma / Família */}
                               <div className="min-w-0 flex-1 space-y-0.5">
-                                {itemInfo.familiaNom && (
-                                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wider block leading-tight ${
-                                    isDark ? 'text-slate-400' : 'text-slate-500'
+                                {/* Línia superior: Nom del producte destacat (format que tenia la línia superior) */}
+                                <h4 className={`text-[11px] sm:text-xs font-bold uppercase tracking-wide block leading-tight truncate ${
+                                  isDark ? 'text-amber-400' : 'text-amber-700'
+                                }`} title={itemInfo.nom}>
+                                  {itemInfo.nom}
+                                </h4>
+
+                                {/* Línia inferior: Gamma (amb el format font-serif que tenia la línia inferior) */}
+                                {itemInfo.gammaNom && (
+                                  <span className={`font-serif font-bold text-xs truncate leading-snug block ${
+                                    isDark ? 'text-slate-100' : 'text-slate-900'
+                                  }`} title={itemInfo.gammaNom}>
+                                    {itemInfo.gammaNom}
+                                    {itemInfo.familiaNom && itemInfo.familiaNom !== itemInfo.gammaNom && (
+                                      <span className={`font-mono text-[10px] font-normal uppercase ml-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        ({itemInfo.familiaNom})
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
+                                {!itemInfo.gammaNom && itemInfo.familiaNom && (
+                                  <span className={`font-serif font-bold text-xs truncate leading-snug block ${
+                                    isDark ? 'text-slate-100' : 'text-slate-900'
                                   }`}>
                                     {itemInfo.familiaNom}
                                   </span>
                                 )}
-                                {itemInfo.gammaNom && (
-                                  <span className={`text-[11px] font-bold uppercase tracking-wide block leading-tight ${
-                                    isDark ? 'text-amber-400' : 'text-amber-700'
-                                  }`}>
-                                    {itemInfo.gammaNom}
-                                  </span>
-                                )}
-                                <h4 className={`font-serif font-bold text-xs truncate leading-snug ${
-                                  isDark ? 'text-slate-100' : 'text-slate-900'
-                                }`} title={itemInfo.nom}>
-                                  {itemInfo.nom}
-                                </h4>
                                 {(of.codiModelGenerat || of.mida) && (
                                   <div className="flex items-center gap-1.5 text-[10.5px] font-mono leading-none pt-0.5">
                                     {of.codiModelGenerat && (

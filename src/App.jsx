@@ -18,8 +18,9 @@ import { FloatingWhatsApp } from './components/WhatsAppButton';
 import { BudgetProvider } from './context/BudgetContext';
 import BudgetDrawer from './components/BudgetDrawer';
 import { db } from './firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { STITCH_PROJECTS } from './data/stitchData';
+import { THEME_STORAGE_KEY, THEME_CHANGED_EVENT } from './utils/themeUtils';
 
 class GlobalErrorBoundary extends React.Component {
   constructor(props) {
@@ -78,6 +79,22 @@ export default function App() {
   const [legalTitle, setLegalTitle] = useState(null);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingInitialRef, setTrackingInitialRef] = useState('');
+
+  // Sincronització en temps real del mode per defecte de l'aplicació des de Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "theme"), (snap) => {
+      if (snap.exists()) {
+        const val = snap.data()?.defaultTheme;
+        if (val === 'light' || val === 'dark') {
+          localStorage.setItem(THEME_STORAGE_KEY, val);
+          window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: val }));
+        }
+      }
+    }, (err) => {
+      console.warn("Error llegint tema per defecte:", err);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     // Gestió d'enllaços directes per a màrqueting (?projecte=... / ?producte=... / ?seccio=... / ?comanda=...)

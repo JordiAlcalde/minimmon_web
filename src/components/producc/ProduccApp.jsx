@@ -24,6 +24,7 @@ import OrdresFabricacioManager from './OrdresFabricacioManager';
 import EstocProductesManager from './EstocProductesManager';
 import EsdevenimentsManager from './EsdevenimentsManager';
 import { ControlProduccioManager } from './ProduccioPlaceholders';
+import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
 
 import { 
   INITIAL_GRUPS, INITIAL_UNITATS, INITIAL_UNITATS_COMPRA, INITIAL_FABRICANTS,
@@ -69,8 +70,25 @@ export default function ProduccApp({ setActiveTab }) {
     }
     return 'materials';
   });
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => getScreenTheme('producc') === 'dark');
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Escolta canvis globals del tema per defecte si no s'ha triat manualment un override en aquesta sessió
+  useEffect(() => {
+    const handler = (e) => {
+      if (!sessionStorage.getItem('theme_override_producc')) {
+        setIsDark(e.detail === 'dark');
+      }
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, handler);
+  }, []);
+
+  const handleToggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    setScreenTheme('producc', next ? 'dark' : 'light');
+  };
 
   // Application Data States (Sincronitzats amb Cloud Firestore)
   const [grups, setGrups] = useState(INITIAL_GRUPS);
@@ -433,7 +451,7 @@ export default function ProduccApp({ setActiveTab }) {
 
             {/* Dark/Light mode toggle */}
             <button
-              onClick={() => setIsDark(!isDark)}
+              onClick={handleToggleTheme}
               className="p-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs flex items-center gap-2 transition-all cursor-pointer shadow-xs"
               title={isDark ? "Canviar a Mode Clar de treball" : "Canviar a Mode Fosc de treball"}
             >
@@ -914,6 +932,8 @@ export default function ProduccApp({ setActiveTab }) {
             setEsdeveniments={setEsdevenimentsWithFirestore}
             productes={productes}
             setProductes={setProductesWithFirestore}
+            families={families}
+            gammes={gammes}
             ordresFabricacio={ordresFabricacio}
             setOrdresFabricacio={setOrdresFabricacioWithFirestore}
             escandalls={escandalls}

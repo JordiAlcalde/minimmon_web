@@ -8,6 +8,7 @@ import { getItemScheduleStatus, formatShortDateTime, syncAndCheckScheduleNotific
 import { generateNextProductCode, applyFormatToSelection, renderFormattedText } from '../utils/textUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../utils/numberUtils';
 import { getShippingConfig, saveShippingConfig, DEFAULT_SHIPPING_CONFIG } from '../utils/shippingUtils';
+import { getDefaultTheme, saveDefaultTheme } from '../utils/themeUtils';
 import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
 import GeminiDescriptorModal from './common/GeminiDescriptorModal';
@@ -38,6 +39,8 @@ import {
   Edit3,
   Layers,
   Truck,
+  Sun,
+  Moon,
   MapPin,
   CreditCard,
   Hammer,
@@ -910,6 +913,36 @@ export default function PrivateAreaSection({ setActiveTab }) {
   // Access key state
   const [newKeyInput, setNewKeyInput] = useState('');
   const [keyChangeStatus, setKeyChangeStatus] = useState({ type: '', msg: '' });
+
+  // Default App Theme state (Mode Clar / Fosc global per defecte)
+  const [defaultAppTheme, setDefaultAppTheme] = useState(() => getDefaultTheme());
+  const [themeSaveStatus, setThemeSaveStatus] = useState('');
+
+  useEffect(() => {
+    if (isAuthenticated && activeModule === 'config') {
+      const unsub = onSnapshot(doc(db, "config", "theme"), (snap) => {
+        if (snap.exists() && snap.data()?.defaultTheme) {
+          const val = snap.data().defaultTheme;
+          if (val === 'light' || val === 'dark') {
+            setDefaultAppTheme(val);
+          }
+        }
+      });
+      return () => unsub();
+    }
+  }, [isAuthenticated, activeModule]);
+
+  const handleSaveThemeConfig = async (themeToSave) => {
+    const theme = themeToSave || defaultAppTheme;
+    setThemeSaveStatus('Desant preferència...');
+    const ok = await saveDefaultTheme(theme);
+    if (ok) {
+      setThemeSaveStatus(`✓ Mode ${theme === 'dark' ? 'Fosc' : 'Clar'} desat correctament com a preferència per defecte!`);
+    } else {
+      setThemeSaveStatus('Error desant la preferència a Firestore');
+    }
+    setTimeout(() => setThemeSaveStatus(''), 4000);
+  };
 
   const valoracionsPendentsCount = valoracionsAdmin.filter(v => v.estat === 'pendent').length;
 
@@ -6670,16 +6703,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-surface-container text-xs uppercase tracking-wider text-on-surface-variant border-b border-outline/15">
                       <tr>
-                        <th className="p-4">Codi</th>
-                        <th className="p-4 font-mono">Ordre</th>
-                        <th className="p-4">Imatge</th>
+                        <th className="p-4 font-mono whitespace-nowrap">Ordre</th>
+                        <th className="p-4 whitespace-nowrap">Imatge</th>
                         <th className="p-4">Nom del Producte</th>
-                        <th className="p-4">Famílies</th>
-                        <th className="p-4">Gammes</th>
-                        <th className="p-4 font-mono">Cost (€)</th>
-                        <th className="p-4 font-mono">Preu (€)</th>
-                        <th className="p-4 font-mono">Estoc</th>
-                        <th className="p-4 text-right">Accions</th>
+                        <th className="p-4 whitespace-nowrap">Família / Gamma</th>
+                        <th className="p-4 font-mono whitespace-nowrap min-w-[100px]">Cost (€)</th>
+                        <th className="p-4 font-mono whitespace-nowrap min-w-[100px]">Preu (€)</th>
+                        <th className="p-4 font-mono whitespace-nowrap min-w-[130px]">Estoc</th>
+                        <th className="p-4 text-right whitespace-nowrap">Accions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline/10">
@@ -6705,7 +6736,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         if (filteredAdminProducts.length === 0) {
                           return (
                             <tr>
-                              <td colSpan="10" className="p-8 text-center text-xs text-on-surface-variant">
+                              <td colSpan="8" className="p-8 text-center text-xs text-on-surface-variant">
                                 No hi ha cap producte que coincideixi amb els filtres seleccionats.
                               </td>
                             </tr>
@@ -6714,7 +6745,6 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
                         return filteredAdminProducts.map((p, idx) => (
                           <tr key={p.id} id={`product-row-${p.id}`} className="hover:bg-surface-container/40 transition-colors">
-                            <td className="p-4 font-mono text-xs font-bold text-primary">{p.codi || 'PRDT-0000'}</td>
                             <td className="p-4 font-mono text-xs font-bold text-primary">
                               <div className="flex items-center gap-2">
                                 <span className="w-5">{getEffectiveProductOrder(p, adminGamFilter !== 'Totes' ? adminGamFilter : null)}</span>
@@ -6813,7 +6843,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 )}
                               </div>
                             </td>
-                            <td className="p-4 text-xs text-on-surface-variant font-medium">
+                            <td className="p-4 text-xs font-medium">
                               {(() => {
                                 const resolvedFamNames = Array.from(new Set(
                                   (p.gammaIds || [])
@@ -6822,22 +6852,33 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                 ));
                                 const cleanDirectFams = (p.familaIds || []).filter(f => f !== 'Jocs i creativitat');
                                 const result = resolvedFamNames.length > 0 ? resolvedFamNames : cleanDirectFams;
-                                return result.join(', ') || '-';
+                                const famText = result.join(', ') || '-';
+                                const gamText = (p.gammaIds || []).join(', ');
+
+                                return (
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className="font-semibold text-on-surface">{famText}</span>
+                                    {gamText && (
+                                      <span className="text-[11px] text-on-surface-variant/80">
+                                        {gamText}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
                               })()}
                             </td>
-                            <td className="p-4 text-xs text-on-surface-variant font-medium">{(p.gammaIds || []).join(', ') || '-'}</td>
                              {(() => {
                                const escData = getProductEscandallData(p, dbEscandalls, dbMaterials, dbOperacions, dbMaquinaria);
                                return (
                                  <>
-                                   <td className="p-4 font-mono text-xs">
+                                   <td className="p-4 font-mono text-xs whitespace-nowrap min-w-[100px]">
                                      {escData.hasEscandall ? (
-                                       <div className="flex flex-col">
-                                         <span className="font-bold text-emerald-800 dark:text-emerald-300">
+                                       <div className="flex flex-col gap-0.5">
+                                         <span className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">
                                            {formatCurrency(escData.cost, 2)}
                                          </span>
-                                         <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-0.5">
-                                           ✓ Escandall
+                                         <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono inline-flex items-center gap-1">
+                                           <span>✓</span> <span>Escandall</span>
                                          </span>
                                        </div>
                                      ) : (
@@ -6846,14 +6887,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                        </span>
                                      )}
                                    </td>
-                                   <td className="p-4 font-mono text-xs">
+                                   <td className="p-4 font-mono text-xs whitespace-nowrap min-w-[100px]">
                                      {escData.hasEscandall ? (
-                                       <div className="flex flex-col">
-                                         <span className="font-bold text-amber-800 dark:text-amber-300">
+                                       <div className="flex flex-col gap-0.5">
+                                         <span className="font-bold text-amber-800 dark:text-amber-300 text-sm">
                                            {formatCurrency(escData.preu, 2)}
                                          </span>
-                                         <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono flex items-center gap-0.5">
-                                           ✓ Escandall
+                                         <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono inline-flex items-center gap-1">
+                                           <span>✓</span> <span>Escandall</span>
                                          </span>
                                        </div>
                                      ) : (
@@ -6867,27 +6908,27 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                  </>
                                );
                              })()}
-                            <td className="p-4 font-mono text-xs">
-                              <div className="flex flex-col gap-0.5">
+                            <td className="p-4 font-mono text-xs whitespace-nowrap min-w-[130px]">
+                              <div className="flex flex-col gap-1">
                                 {Number(p.estocActual || 0) > 0 ? (
-                                  <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold">
+                                  <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold whitespace-nowrap">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                                    {p.estocActual} venda
+                                    <span>{p.estocActual} venda</span>
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1.5 text-slate-400 font-normal">
+                                  <span className="inline-flex items-center gap-1.5 text-slate-400 font-normal whitespace-nowrap">
                                     <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0"></span>
-                                    0 venda
+                                    <span>0 venda</span>
                                   </span>
                                 )}
                                 {Number(p.estocMostres || 0) > 0 && (
-                                  <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
+                                  <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap">
                                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                                    {p.estocMostres} mostres
+                                    <span>{p.estocMostres} mostres</span>
                                   </span>
                                 )}
                                 {p.ubicacioTaller && (
-                                  <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[120px]" title={`Ubicació: ${p.ubicacioTaller}`}>
+                                  <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[140px] whitespace-nowrap" title={`Ubicació: ${p.ubicacioTaller}`}>
                                     📍 {p.ubicacioTaller}
                                   </span>
                                 )}
@@ -9434,6 +9475,123 @@ export default function PrivateAreaSection({ setActiveTab }) {
       {/* MODULE 4: CONFIGURACIÓ I SEGURETAT */}
       {activeModule === 'config' && (
         <div className="space-y-8 max-w-2xl">
+          {/* Targeta 1: Mode Visual per Defecte (Clar / Fosc) */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 shadow-sm space-y-5">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-primary/10 text-primary rounded text-xs font-mono font-semibold uppercase flex items-center gap-1.5">
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  <Moon className="w-3.5 h-3.5 text-slate-700" />
+                  Aparença i Tema
+                </span>
+              </div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Mode Visual per Defecte de l'Aplicació</h2>
+              <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+                Defineix si les eines i pantalles (Producció, Projectes, Per Fer, etc.) s'han d'obrir en <strong>Mode Clar</strong> o <strong>Mode Fosc</strong> per defecte.
+              </p>
+              <p className="text-xs text-on-surface-variant/80 mt-1 italic">
+                * Nota: Si en una pantalla concreta canvies el mode fent clic a la icona de sol/lluna, aquesta pantalla mantindrà la teva elecció particular durant la teva sessió de treball sense alterar el valor global establert aquí.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              {/* Opció 1: Mode Clar */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDefaultAppTheme('light');
+                  handleSaveThemeConfig('light');
+                }}
+                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between gap-3 ${
+                  defaultAppTheme === 'light'
+                    ? 'border-amber-500 bg-amber-50/50 shadow-sm ring-2 ring-amber-400/30'
+                    : 'border-outline/20 bg-surface hover:border-outline/40 hover:bg-surface-container'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shadow-2xs">
+                      <Sun className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-stone-900">Mode Clar (Light)</h3>
+                      <span className="text-[11px] text-stone-600 font-medium">Fons lluminós i càlid</span>
+                    </div>
+                  </div>
+                  {defaultAppTheme === 'light' && (
+                    <span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </span>
+                  )}
+                </div>
+
+                {/* Previsualització visual en miniatura */}
+                <div className="w-full bg-[#fbf9f8] p-2.5 rounded-lg border border-stone-200 text-xs font-mono space-y-1.5 shadow-2xs pointer-events-none">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-stone-700 font-bold">Producció / Per Fer</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  </div>
+                  <div className="h-2 w-3/4 bg-stone-200 rounded" />
+                  <div className="flex gap-1">
+                    <span className="px-1.5 py-0.2 bg-stone-100 border border-stone-300 text-stone-800 text-[9px] rounded font-bold">Botó</span>
+                    <span className="px-1.5 py-0.2 bg-amber-100 text-amber-900 text-[9px] rounded font-bold">12 u</span>
+                  </div>
+                </div>
+              </button>
+
+              {/* Opció 2: Mode Fosc */}
+              <button
+                type="button"
+                onClick={() => {
+                  setDefaultAppTheme('dark');
+                  handleSaveThemeConfig('dark');
+                }}
+                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer relative flex flex-col justify-between gap-3 ${
+                  defaultAppTheme === 'dark'
+                    ? 'border-amber-500 bg-slate-900 shadow-sm ring-2 ring-amber-400/30'
+                    : 'border-outline/20 bg-slate-950/80 hover:border-outline/40 hover:bg-slate-900'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-slate-800 text-amber-400 flex items-center justify-center shadow-2xs">
+                      <Moon className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-white">Mode Fosc (Dark)</h3>
+                      <span className="text-[11px] text-slate-400 font-medium">Contrast alt i descans visual</span>
+                    </div>
+                  </div>
+                  {defaultAppTheme === 'dark' && (
+                    <span className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </span>
+                  )}
+                </div>
+
+                {/* Previsualització visual en miniatura */}
+                <div className="w-full bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-xs font-mono space-y-1.5 shadow-2xs pointer-events-none">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-300 font-bold">Producció / Per Fer</span>
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                  </div>
+                  <div className="h-2 w-3/4 bg-slate-800 rounded" />
+                  <div className="flex gap-1">
+                    <span className="px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-200 text-[9px] rounded font-bold">Botó</span>
+                    <span className="px-1.5 py-0.2 bg-amber-500/20 text-amber-300 text-[9px] rounded font-bold">12 u</span>
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {themeSaveStatus && (
+              <div className="p-3 bg-surface-container border border-primary/20 rounded-lg text-xs font-mono text-primary animate-fadeIn flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{themeSaveStatus}</span>
+              </div>
+            )}
+          </div>
+
           {/* Key Change Card */}
           <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline/15 shadow-sm">
             <div className="mb-6">

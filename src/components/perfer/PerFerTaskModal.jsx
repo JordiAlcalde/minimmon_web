@@ -3,7 +3,8 @@ import {
   X, Save, Trash2, Calendar, Clock, AlertTriangle, Coffee, 
   Palette, Hammer, Share2, Globe, ShoppingBag, Sparkles, Tag, 
   Plus, CheckSquare, Square, Camera, Image as ImageIcon, Eye,
-  Link2, Check, ArrowRight, Lightbulb, ListTodo, Hourglass, CheckCircle2
+  Link2, Check, ArrowRight, Lightbulb, ListTodo, Hourglass, CheckCircle2,
+  Edit2
 } from 'lucide-react';
 import { PER_FER_COLUMNS, PER_FER_AMBITS, PER_FER_PRIORITATS } from '../../data/perFerInitialData';
 import { compressImageFile } from '../../data/projeccInitialData';
@@ -32,10 +33,14 @@ export default function PerFerTaskModal({
   });
 
   const [newSubtaskText, setNewSubtaskText] = useState('');
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [editingSubtaskText, setEditingSubtaskText] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [enlargedPhoto, setEnlargedPhoto] = useState(null);
 
   useEffect(() => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
     if (task) {
       setFormData({
         id: task.id,
@@ -90,6 +95,28 @@ export default function PerFerTaskModal({
     setNewSubtaskText('');
   };
 
+  const handleStartEditSubtask = (st) => {
+    setEditingSubtaskId(st.id);
+    setEditingSubtaskText(st.text || '');
+  };
+
+  const handleSaveSubtaskEdit = (subtaskId) => {
+    if (!editingSubtaskText.trim()) return;
+    setFormData(prev => ({
+      ...prev,
+      subtasques: prev.subtasques.map(st => 
+        st.id === subtaskId ? { ...st, text: editingSubtaskText.trim() } : st
+      )
+    }));
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
+  };
+
+  const handleCancelSubtaskEdit = () => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskText('');
+  };
+
   const handleToggleSubtask = (subtaskId) => {
     setFormData(prev => ({
       ...prev,
@@ -100,6 +127,10 @@ export default function PerFerTaskModal({
   };
 
   const handleDeleteSubtask = (subtaskId) => {
+    if (editingSubtaskId === subtaskId) {
+      setEditingSubtaskId(null);
+      setEditingSubtaskText('');
+    }
     setFormData(prev => ({
       ...prev,
       subtasques: prev.subtasques.filter(st => st.id !== subtaskId)
@@ -441,39 +472,104 @@ export default function PerFerTaskModal({
             {/* Llistat de subtasques existents */}
             {formData.subtasques.length > 0 ? (
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {formData.subtasques.map((st, idx) => (
-                  <div 
-                    key={st.id || idx}
-                    className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-colors ${
-                      st.completada 
-                        ? 'bg-emerald-500/5 border-emerald-500/20 text-on-surface-variant line-through' 
-                        : 'bg-surface border-outline/15 text-on-surface'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleSubtask(st.id)}
-                      className="flex items-center gap-2.5 flex-1 text-left cursor-pointer select-none"
+                {formData.subtasques.map((st, idx) => {
+                  const isEditing = editingSubtaskId === st.id;
+
+                  if (isEditing) {
+                    return (
+                      <div 
+                        key={st.id || idx}
+                        className="flex items-center gap-1.5 p-1.5 rounded-lg border bg-surface-container-high/60 border-primary/40 text-xs"
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editingSubtaskText}
+                          onChange={e => setEditingSubtaskText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleSaveSubtaskEdit(st.id);
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              handleCancelSubtaskEdit();
+                            }
+                          }}
+                          className="flex-1 px-2.5 py-1 bg-surface text-on-surface rounded border border-outline/20 text-xs outline-none focus:border-primary transition-colors"
+                          placeholder="Text de la subtasca..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveSubtaskEdit(st.id)}
+                          disabled={!editingSubtaskText.trim()}
+                          className="p-1 text-emerald-500 hover:bg-emerald-500/10 rounded transition-colors cursor-pointer shrink-0 disabled:opacity-40"
+                          title="Desar canvis (Intro)"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelSubtaskEdit}
+                          className="p-1 text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface rounded transition-colors cursor-pointer shrink-0"
+                          title="Cancel·lar (Esc)"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div 
+                      key={st.id || idx}
+                      className={`group flex items-center justify-between p-2 rounded-lg border text-xs transition-colors ${
+                        st.completada 
+                          ? 'bg-emerald-500/5 border-emerald-500/20 text-on-surface-variant line-through' 
+                          : 'bg-surface border-outline/15 text-on-surface'
+                      }`}
                     >
-                      {st.completada ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Square className="w-4 h-4 text-on-surface-variant hover:text-primary shrink-0" />
-                      )}
-                      <span className={st.completada ? 'opacity-70' : 'font-medium'}>
-                        {st.text}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSubtask(st.id)}
-                      className="p-1 text-on-surface-variant hover:text-error hover:bg-error/10 rounded transition-colors cursor-pointer shrink-0 ml-2"
-                      title="Eliminar subtasca"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleSubtask(st.id)}
+                        className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer select-none mr-2"
+                      >
+                        {st.completada ? (
+                          <CheckSquare className="w-4 h-4 text-emerald-500 shrink-0" />
+                        ) : (
+                          <Square className="w-4 h-4 text-on-surface-variant hover:text-primary shrink-0" />
+                        )}
+                        <span 
+                          className={`break-words ${st.completada ? 'opacity-70' : 'font-medium'}`}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEditSubtask(st);
+                          }}
+                          title="Fes doble clic per editar o fes servir el botó de llapis"
+                        >
+                          {st.text}
+                        </span>
+                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditSubtask(st)}
+                          className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded transition-colors cursor-pointer"
+                          title="Editar text de la subtasca"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubtask(st.id)}
+                          className="p-1 text-on-surface-variant hover:text-error hover:bg-error/10 rounded transition-colors cursor-pointer"
+                          title="Eliminar subtasca"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-[11px] text-on-surface-variant/70 italic">

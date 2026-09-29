@@ -3,7 +3,7 @@ import {
   Clock, AlertTriangle, Coffee, Calendar, CheckSquare, Square, 
   Camera, Link2, ChevronLeft, ChevronRight, CheckCircle2, 
   Palette, Hammer, Share2, Globe, ShoppingBag, Sparkles, Tag, 
-  Edit2, Trash2, ArrowRight, CornerDownRight
+  Edit2, Trash2, ArrowRight, CornerDownRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { PER_FER_COLUMNS, PER_FER_AMBITS, PER_FER_PRIORITATS } from '../../data/perFerInitialData';
 
@@ -13,7 +13,16 @@ export default function PerFerCard({
   onMoveToColumn,
   onToggleSubtask,
   onDelete,
-  onDragStart
+  onDragStart,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMoveUp,
+  onMoveDown,
+  onCardDragOver,
+  onCardDragLeave,
+  onCardDrop,
+  isDragOver = false,
+  dragOverPosition = null
 }) {
   const [showSubtasks, setShowSubtasks] = useState(false);
 
@@ -72,8 +81,17 @@ export default function PerFerCard({
     <div
       draggable
       onDragStart={(e) => onDragStart && onDragStart(e, task)}
+      onDragOver={(e) => onCardDragOver && onCardDragOver(e, task)}
+      onDragLeave={(e) => onCardDragLeave && onCardDragLeave(e, task)}
+      onDrop={(e) => onCardDrop && onCardDrop(e, task)}
       onClick={() => onEdit(task)}
-      className="group relative bg-surface-container-lowest text-on-surface p-4 rounded-xl border border-outline/15 hover:border-primary/40 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
+      className={`group relative bg-surface-container-lowest text-on-surface p-4 rounded-xl border transition-all duration-200 cursor-pointer flex flex-col gap-2.5 active:scale-[0.99] ${
+        isDragOver && dragOverPosition === 'top'
+          ? 'border-t-primary border-t-2 border-outline/15 shadow-md -translate-y-0.5'
+          : isDragOver && dragOverPosition === 'bottom'
+          ? 'border-b-primary border-b-2 border-outline/15 shadow-md translate-y-0.5'
+          : 'border-outline/15 hover:border-primary/40 shadow-xs hover:shadow-md'
+      }`}
     >
       {/* Barra superior de la targeta: Àmbit & Prioritat */}
       <div className="flex items-center justify-between gap-1.5 flex-wrap">
@@ -95,30 +113,71 @@ export default function PerFerCard({
           )}
         </div>
 
-        {/* Botons ràpids per moure de columna */}
+        {/* Controls de la targeta: Amunt/Avall i Canvi de Columna */}
         <div 
-          className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="flex items-center gap-1 sm:opacity-50 sm:group-hover:opacity-100 transition-opacity"
           onClick={e => e.stopPropagation()}
         >
-          {prevCol && (
-            <button
-              type="button"
-              onClick={() => onMoveToColumn(task.id, prevCol.id)}
-              className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors cursor-pointer"
-              title={`Moure a "${prevCol.titol}"`}
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
+          {/* Botons Amunt / Avall per endreçar dins la columna (excepte Enllestit) */}
+          {task.estat !== 'enllestit' && (
+            <div className="flex items-center bg-surface-container/70 border border-outline/20 rounded-md p-0.5 shadow-2xs">
+              <button
+                type="button"
+                disabled={!canMoveUp}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveUp && onMoveUp(task.id);
+                }}
+                className="p-1 text-stone-700 dark:text-stone-300 hover:text-primary hover:bg-surface rounded transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                title={canMoveUp ? "Pujar amunt" : "Ja és a dalt de tot"}
+              >
+                <ArrowUp className="w-3 h-3 stroke-[2.5]" />
+              </button>
+              <button
+                type="button"
+                disabled={!canMoveDown}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoveDown && onMoveDown(task.id);
+                }}
+                className="p-1 text-stone-700 dark:text-stone-300 hover:text-primary hover:bg-surface rounded transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed"
+                title={canMoveDown ? "Baixar avall" : "Ja és a baix de tot"}
+              >
+                <ArrowDown className="w-3 h-3 stroke-[2.5]" />
+              </button>
+            </div>
           )}
-          {nextCol && (
-            <button
-              type="button"
-              onClick={() => onMoveToColumn(task.id, nextCol.id)}
-              className="p-1 text-on-surface-variant hover:text-primary hover:bg-surface-container rounded transition-colors cursor-pointer"
-              title={`Moure a "${nextCol.titol}"`}
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+
+          {/* Botons per canviar de columna */}
+          {(prevCol || nextCol) && (
+            <div className="flex items-center bg-surface-container/70 border border-outline/20 rounded-md p-0.5 shadow-2xs">
+              {prevCol && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveToColumn(task.id, prevCol.id);
+                  }}
+                  className="p-1 text-stone-700 dark:text-stone-300 hover:text-primary hover:bg-surface rounded transition-colors cursor-pointer"
+                  title={`Moure a "${prevCol.titol}"`}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {nextCol && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMoveToColumn(task.id, nextCol.id);
+                  }}
+                  className="p-1 text-stone-700 dark:text-stone-300 hover:text-primary hover:bg-surface rounded transition-colors cursor-pointer"
+                  title={`Moure a "${nextCol.titol}"`}
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -18,6 +18,7 @@ import {
 } from '../../data/perFerInitialData';
 import PerFerCard from './PerFerCard';
 import PerFerTaskModal from './PerFerTaskModal';
+import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
 
 // Helper per netejar valors 'undefined' per a Firestore
 function sanitizeData(obj) {
@@ -32,11 +33,38 @@ function sanitizeData(obj) {
   return clean;
 }
 
+// Helper per ordenar tasques de forma consistent (ordre decreixent; si empat, per data de creació o id)
+function sortTasksList(taskList) {
+  return [...taskList].sort((a, b) => {
+    const ordA = a.ordre ?? 0;
+    const ordB = b.ordre ?? 0;
+    if (ordB !== ordA) return ordB - ordA;
+    return (b.dataCreacio || '').localeCompare(a.dataCreacio || '') || (b.id || '').localeCompare(a.id || '');
+  });
+}
+
 export default function PerFerApp({ setActiveTab }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(() => getScreenTheme('perfer') === 'dark');
+
+  // Escolta canvis globals del tema per defecte si no s'ha triat manualment un override en aquesta sessió
+  useEffect(() => {
+    const handler = (e) => {
+      if (!sessionStorage.getItem('theme_override_perfer')) {
+        setIsDark(e.detail === 'dark');
+      }
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, handler);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, handler);
+  }, []);
+
+  const handleToggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    setScreenTheme('perfer', next ? 'dark' : 'light');
+  };
 
   // Vistes i Filtres
   const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'llista'
@@ -57,6 +85,7 @@ export default function PerFerApp({ setActiveTab }) {
   // Estat de Drag & Drop
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
+  const [dragOverCard, setDragOverCard] = useState(null); // { id: string, position: 'top'|'bottom' }
 
   // 1. Carregar tasques de Firestore a temps real
   useEffect(() => {
@@ -71,15 +100,14 @@ export default function PerFerApp({ setActiveTab }) {
           id: docSnap.id,
           ...docSnap.data()
         }));
-        // Ordenar per ordre o data
-        loaded.sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
-        setTasks(loaded);
+        // Ordenar per ordre o data de forma robusta
+        setTasks(sortTasksList(loaded));
         setLoading(false);
       }
     }, (error) => {
       console.warn("Error escoltant la col·lecció 'per_fer':", error);
       // Fallback a dades locals
-      setTasks(INITIAL_SAMPLE_TASQUES);
+      setTasks(sortTasksList(INITIAL_SAMPLE_TASQUES));
       setLoading(false);
     });
 
@@ -132,10 +160,12 @@ export default function PerFerApp({ setActiveTab }) {
     setIsSyncing(true);
     try {
       const taskId = taskData.id || ('pf-' + Date.now().toString(36) + '-' + Math.random().toString(36).substring(2, 5));
+      const colTasks = tasks.filter(t => t.estat === (taskData.estat || 'idees'));
+      const maxOrdre = colTasks.reduce((max, t) => Math.max(max, t.ordre ?? 0), 0);
       const clean = sanitizeData({
         ...taskData,
         id: taskId,
-        ordre: taskData.ordre ?? Date.now()
+        ordre: taskData.ordre ?? (maxOrdre > 0 ? maxOrdre + 1000 : Date.now())
       });
 
       await setDoc(doc(db, "per_fer", taskId), clean, { merge: true });
@@ -170,19 +200,65 @@ export default function PerFerApp({ setActiveTab }) {
     if (!task || task.estat === newColumnId) return;
 
     const isDone = newColumnId === 'enllestit';
+    const targetColTasks = tasks.filter(t => t.estat === newColumnId);
+    const maxOrdre = targetColTasks.reduce((max, t) => Math.max(max, t.ordre ?? 0), 0);
+    const newOrdre = maxOrdre > 0 ? maxOrdre + 1000 : Date.now();
+
     const updated = {
       ...task,
       estat: newColumnId,
-      dataCompletat: isDone ? new Date().toISOString() : null
+      ordre: newOrdre,
+      dataCompletat: isDone ? (task.dataCompletat || new Date().toISOString()) : null
     };
 
     // Actualització optimista
-    setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+    setTasks(prev => sortTasksList(prev.map(t => t.id === taskId ? updated : t)));
 
     try {
       await setDoc(doc(db, "per_fer", taskId), sanitizeData(updated), { merge: true });
     } catch (err) {
       console.error("Error movent tasca:", err);
+    }
+  };
+
+  // Reordenar tasca amunt o avall dins de la mateixa columna
+  const handleReorderTask = async (taskId, direction) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task || task.estat === 'enllestit') return;
+
+    // Obtenir les tasques d'aquesta columna en el seu ordre actual
+    const colTasks = tasks.filter(t => t.estat === task.estat);
+    const currentIndex = colTasks.findIndex(t => t.id === taskId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= colTasks.length) return;
+
+    const newColTasks = [...colTasks];
+    const [moved] = newColTasks.splice(currentIndex, 1);
+    newColTasks.splice(targetIndex, 0, moved);
+
+    // Reassignar ordres decreixents (l'índex 0 és a dalt de tot i té el valor més alt)
+    const base = Date.now();
+    const updatedColTasks = newColTasks.map((t, idx) => ({
+      ...t,
+      ordre: base + (newColTasks.length - idx) * 1000
+    }));
+
+    // Actualització optimista
+    setTasks(prev => {
+      const otherTasks = prev.filter(t => t.estat !== task.estat);
+      return sortTasksList([...otherTasks, ...updatedColTasks]);
+    });
+
+    try {
+      const batch = writeBatch(db);
+      updatedColTasks.forEach(t => {
+        batch.update(doc(db, "per_fer", t.id), { ordre: t.ordre });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error reordenant tasques:", err);
     }
   };
 
@@ -229,11 +305,92 @@ export default function PerFerApp({ setActiveTab }) {
   const handleDrop = (e, colId) => {
     e.preventDefault();
     setDragOverColumn(null);
+    setDragOverCard(null);
     const taskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
     if (taskId) {
       handleMoveToColumn(taskId, colId);
     }
     setDraggedTaskId(null);
+  };
+
+  const handleCardDragOver = (e, targetTask) => {
+    if (!draggedTaskId || draggedTaskId === targetTask.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isTop = (e.clientY - rect.top) < (rect.height / 2);
+    const position = isTop ? 'top' : 'bottom';
+    if (dragOverCard?.id !== targetTask.id || dragOverCard?.position !== position) {
+      setDragOverCard({ id: targetTask.id, position });
+    }
+  };
+
+  const handleCardDragLeave = (e, targetTask) => {
+    e.stopPropagation();
+    if (dragOverCard?.id === targetTask.id) {
+      setDragOverCard(null);
+    }
+  };
+
+  const handleCardDrop = async (e, targetTask) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const movingTaskId = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    const dropPosition = dragOverCard?.position || 'top';
+
+    setDragOverCard(null);
+    setDragOverColumn(null);
+    setDraggedTaskId(null);
+
+    if (!movingTaskId || movingTaskId === targetTask.id) return;
+
+    const movingTask = tasks.find(t => t.id === movingTaskId);
+    if (!movingTask) return;
+
+    const targetColId = targetTask.estat;
+    const isTargetDone = targetColId === 'enllestit';
+
+    // Tasques de la columna destí (sense la que s'està movent si ja hi era)
+    const targetColTasks = tasks.filter(t => t.estat === targetColId && t.id !== movingTaskId);
+    const targetIndex = targetColTasks.findIndex(t => t.id === targetTask.id);
+    if (targetIndex === -1) return;
+
+    const insertIndex = dropPosition === 'bottom' ? targetIndex + 1 : targetIndex;
+
+    const updatedMovingTask = {
+      ...movingTask,
+      estat: targetColId,
+      dataCompletat: isTargetDone ? (movingTask.dataCompletat || new Date().toISOString()) : null
+    };
+
+    const newColTasks = [...targetColTasks];
+    newColTasks.splice(insertIndex, 0, updatedMovingTask);
+
+    let batchUpdates = [];
+    if (targetColId !== 'enllestit') {
+      const base = Date.now();
+      batchUpdates = newColTasks.map((t, idx) => ({
+        ...t,
+        ordre: base + (newColTasks.length - idx) * 1000
+      }));
+    } else {
+      batchUpdates = [updatedMovingTask];
+    }
+
+    setTasks(prev => {
+      const otherTasks = prev.filter(t => t.estat !== targetColId && t.id !== movingTaskId);
+      return sortTasksList([...otherTasks, ...batchUpdates]);
+    });
+
+    try {
+      const batch = writeBatch(db);
+      batchUpdates.forEach(t => {
+        batch.set(doc(db, "per_fer", t.id), sanitizeData(t), { merge: true });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error deixant caure sobre targeta:", err);
+    }
   };
 
   // Filtrar tasques segons cerca, àmbit i prioritat
@@ -348,7 +505,7 @@ export default function PerFerApp({ setActiveTab }) {
 
             {/* Selector de tema clar/fosc */}
             <button
-              onClick={() => setIsDark(!isDark)}
+              onClick={handleToggleTheme}
               className="p-2 rounded-xl bg-surface hover:bg-surface-container text-on-surface-variant border border-outline/20 transition-colors cursor-pointer"
               title={isDark ? "Passar a mode clar" : "Passar a mode fosc"}
             >
@@ -622,7 +779,7 @@ export default function PerFerApp({ setActiveTab }) {
                   {/* Llista de Targetes dins la Columna */}
                   <div className="p-3 space-y-3 min-h-[140px] flex-1">
                     {colTasks.length > 0 ? (
-                      colTasks.map(task => (
+                      colTasks.map((task, idx) => (
                         <PerFerCard
                           key={task.id}
                           task={task}
@@ -634,6 +791,15 @@ export default function PerFerApp({ setActiveTab }) {
                           onToggleSubtask={handleToggleSubtask}
                           onDelete={handleDeleteTask}
                           onDragStart={handleDragStart}
+                          canMoveUp={column.id !== 'enllestit' && idx > 0}
+                          canMoveDown={column.id !== 'enllestit' && idx < colTasks.length - 1}
+                          onMoveUp={() => handleReorderTask(task.id, 'up')}
+                          onMoveDown={() => handleReorderTask(task.id, 'down')}
+                          onCardDragOver={handleCardDragOver}
+                          onCardDragLeave={handleCardDragLeave}
+                          onCardDrop={handleCardDrop}
+                          isDragOver={dragOverCard?.id === task.id}
+                          dragOverPosition={dragOverCard?.id === task.id ? dragOverCard.position : null}
                         />
                       ))
                     ) : (

@@ -41,12 +41,15 @@ import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import { getNextOFId } from './OrdresFabricacioManager';
 import { normalizeLaserConfig, DEFAULT_LASER_CONFIG } from '../../utils/laserUtils';
+import { isProductInGamma } from '../PrivateAreaSection';
 
 export default function EsdevenimentsManager({
   esdeveniments = [],
   setEsdeveniments,
   productes = [],
   setProductes,
+  families = [],
+  gammes = [],
   ordresFabricacio = [],
   setOrdresFabricacio,
   escandalls = [],
@@ -67,6 +70,8 @@ export default function EsdevenimentsManager({
   const [editingEvent, setEditingEvent] = useState(null);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [filterFamilia, setFilterFamilia] = useState('all');
+  const [filterGamma, setFilterGamma] = useState('all');
   const [selectedProductToAdd, setSelectedProductToAdd] = useState(null);
   const [quantitatTotalFira, setQuantitatTotalFira] = useState(5);
   const [quantitatAgafadaEstoc, setQuantitatAgafadaEstoc] = useState(0);
@@ -153,6 +158,139 @@ export default function EsdevenimentsManager({
   const currentEvent = useMemo(() => {
     return esdeveniments.find(e => e.id === selectedEsdevenimentId) || null;
   }, [esdeveniments, selectedEsdevenimentId]);
+
+  // Llista de Famílies disponibles per filtrar a la modal
+  const availableFamilies = useMemo(() => {
+    const famMap = new Map();
+    (families || []).forEach(f => {
+      const name = f.nom || f.titol || f.id;
+      if (name) famMap.set(name, { id: f.id || name, nom: name });
+    });
+    (productes || []).forEach(p => {
+      const famList = [
+        ...(Array.isArray(p.familaIds) ? p.familaIds : []),
+        ...(Array.isArray(p.familiaIds) ? p.familiaIds : []),
+        ...(p.familia ? [p.familia] : []),
+        ...(p.familiaNom ? [p.familiaNom] : [])
+      ];
+      famList.forEach(name => {
+        if (name && !famMap.has(name)) {
+          famMap.set(name, { id: name, nom: name });
+        }
+      });
+    });
+    return Array.from(famMap.values());
+  }, [families, productes]);
+
+  // Llista de Gammes filtrades segons la Família triada
+  const availableGammes = useMemo(() => {
+    const gamMap = new Map();
+
+    // 1. Gammes dels productes que coincideixen amb la família
+    (productes || []).forEach(p => {
+      if (filterFamilia !== 'all') {
+        const famList = [
+          ...(Array.isArray(p.familaIds) ? p.familaIds : []),
+          ...(Array.isArray(p.familiaIds) ? p.familiaIds : []),
+          ...(p.familia ? [p.familia] : []),
+          ...(p.familiaNom ? [p.familiaNom] : [])
+        ];
+        const gamList = [
+          ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+          ...(p.gamma ? [p.gamma] : []),
+          ...(p.gammaNom ? [p.gammaNom] : [])
+        ];
+        const sFamLower = filterFamilia.toLowerCase();
+        const directMatch = famList.some(f => String(f).toLowerCase().includes(sFamLower) || sFamLower.includes(String(f).toLowerCase()));
+        const gammaMatches = gamList.some(gName => {
+          const gObj = (gammes || []).find(g => isProductInGamma([gName], g.nom, gammes));
+          return gObj?.familiaNom && gObj.familiaNom.toLowerCase().includes(sFamLower);
+        });
+        if (!directMatch && !gammaMatches && !isProductInGamma(gamList, filterFamilia, gammes)) return;
+      }
+
+      const gamList = [
+        ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+        ...(p.gamma ? [p.gamma] : []),
+        ...(p.gammaNom ? [p.gammaNom] : [])
+      ];
+      gamList.forEach(g => {
+        if (g && !gamMap.has(g)) {
+          gamMap.set(g, { id: g, nom: g });
+        }
+      });
+    });
+
+    // 2. Gammes de la col·lecció 'gammes'
+    (gammes || []).forEach(g => {
+      const gName = g.nom || g.titol || g.id;
+      if (filterFamilia !== 'all') {
+        const matchesFam = (g.familiaNom && g.familiaNom.toLowerCase().includes(filterFamilia.toLowerCase())) ||
+                           (g.familiaId && String(g.familiaId).toLowerCase().includes(filterFamilia.toLowerCase()));
+        if (!matchesFam) return;
+      }
+      if (gName && !gamMap.has(gName)) {
+        gamMap.set(gName, { id: g.id || gName, nom: gName });
+      }
+    });
+
+    return Array.from(gamMap.values());
+  }, [productes, gammes, filterFamilia]);
+
+  // Productes per a la modal d'afegir peces a l'esdeveniment (sense límit artificial)
+  const filteredProductesToAdd = useMemo(() => {
+    const seen = new Set();
+    return (productes || []).filter(p => {
+      if (!p) return false;
+      const key = p.id || `${p.codi}_${p.nom}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+
+      // Filtre de Cerca
+      if (productSearch.trim()) {
+        const q = productSearch.toLowerCase().trim();
+        const matchNom = (p.nom || '').toLowerCase().includes(q);
+        const matchCodi = (p.codi || '').toLowerCase().includes(q);
+        if (!matchNom && !matchCodi) return false;
+      }
+
+      // Filtre de Família
+      if (filterFamilia !== 'all') {
+        const famList = [
+          ...(Array.isArray(p.familaIds) ? p.familaIds : []),
+          ...(Array.isArray(p.familiaIds) ? p.familiaIds : []),
+          ...(p.familia ? [p.familia] : []),
+          ...(p.familiaNom ? [p.familiaNom] : [])
+        ];
+        const gamList = [
+          ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+          ...(p.gamma ? [p.gamma] : []),
+          ...(p.gammaNom ? [p.gammaNom] : [])
+        ];
+        const sFamLower = filterFamilia.toLowerCase();
+        const directMatch = famList.some(f => String(f).toLowerCase().includes(sFamLower) || sFamLower.includes(String(f).toLowerCase()));
+        const gammaMatches = gamList.some(gName => {
+          const gObj = (gammes || []).find(g => isProductInGamma([gName], g.nom, gammes));
+          return gObj?.familiaNom && gObj.familiaNom.toLowerCase().includes(sFamLower);
+        });
+        if (!directMatch && !gammaMatches && !isProductInGamma(gamList, filterFamilia, gammes)) return false;
+      }
+
+      // Filtre de Gamma
+      if (filterGamma !== 'all') {
+        const gamList = [
+          ...(Array.isArray(p.gammaIds) ? p.gammaIds : (p.gammaIds ? [p.gammaIds] : [])),
+          ...(p.gamma ? [p.gamma] : []),
+          ...(p.gammaNom ? [p.gammaNom] : [])
+        ];
+        const matchGam = isProductInGamma(gamList, filterGamma, gammes) ||
+          gamList.some(g => String(g).toLowerCase().trim() === filterGamma.toLowerCase().trim());
+        if (!matchGam) return false;
+      }
+
+      return true;
+    });
+  }, [productes, productSearch, filterFamilia, filterGamma, gammes]);
 
   // Reset form when opening create modal
   const handleOpenCreateModal = () => {
@@ -1725,6 +1863,8 @@ export default function EsdevenimentsManager({
                   setQuantitatAgafadaEstoc(0);
                   setCrearOFPerPendent(true);
                   setProductSearch('');
+                  setFilterFamilia('all');
+                  setFilterGamma('all');
                   setPreuFiraInput('');
                   setShowAddProductModal(true);
                 }}
@@ -2548,7 +2688,7 @@ export default function EsdevenimentsManager({
           =================================================================== */}
       {showAddProductModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className={`${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'} max-w-xl w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[90vh] flex flex-col`}>
+          <div className={`${isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'} max-w-2xl w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[90vh] flex flex-col`}>
             <div className={`flex items-center justify-between border-b pb-3 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <div className="flex items-center gap-2.5">
                 <Boxes className="w-5 h-5 text-amber-500" />
@@ -2569,120 +2709,236 @@ export default function EsdevenimentsManager({
               </button>
             </div>
 
-            {/* Cercador de Productes */}
-            <div className="relative shrink-0">
-              <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
-              <input
-                type="text"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                placeholder="Cercar peça per nom o codi..."
-                className={`w-full pl-8 pr-3 py-2 border rounded-xl text-xs outline-none focus:border-amber-500 transition-colors ${
-                  isDark 
-                    ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500' 
-                    : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
-                }`}
-              />
-            </div>
-
-            {/* Llistat Seleccionable de Productes */}
-            <div className="overflow-y-auto space-y-2 flex-1 pr-1">
-              {productes
-                .filter(p => {
-                  if (!productSearch.trim()) return true;
-                  const q = productSearch.toLowerCase();
-                  return (p.nom || '').toLowerCase().includes(q) || (p.codi || '').toLowerCase().includes(q);
-                })
-                .slice(0, 30)
-                .map(p => {
-                  const estocTaller = parseInt(p.estocActual, 10) || 0;
-                  const estocPositiu = Math.max(0, estocTaller);
-                  const isSelected = selectedProductToAdd?.id === p.id;
-                  const fotoUrl = getProductImage(p);
-
-                  return (
-                    <div
-                      key={p.id}
-                      onClick={() => {
-                        setSelectedProductToAdd(p);
-                        setPreuFiraInput(String(p.preu || ''));
-                        const defTot = 5;
-                        setQuantitatTotalFira(defTot);
-                        setQuantitatAgafadaEstoc(Math.min(defTot, estocPositiu));
-                        setCrearOFPerPendent(true);
-                        setPrioritatOFInput('normal');
+            {!selectedProductToAdd ? (
+              <>
+                {/* Filtres per Família i Gamma */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 shrink-0">
+                  <div>
+                    <label className={`text-[10px] font-mono uppercase font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Família
+                    </label>
+                    <select
+                      value={filterFamilia}
+                      onChange={(e) => {
+                        setFilterFamilia(e.target.value);
+                        setFilterGamma('all');
                       }}
-                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
-                        isSelected
-                          ? isDark 
-                            ? 'border-amber-500 bg-amber-500/20 shadow-xs' 
-                            : 'border-amber-500 bg-amber-50/80 shadow-xs ring-1 ring-amber-400'
-                          : isDark
-                            ? 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/60'
-                            : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100'
+                      className={`w-full px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer transition-colors ${
+                        isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
                       }`}
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center ${
-                          isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
-                        }`}>
-                          {fotoUrl ? (
-                            <img 
-                              src={fotoUrl} 
-                              alt={p.nom} 
-                              className="w-full h-full object-cover" 
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                                if (e.currentTarget.nextElementSibling) {
-                                  e.currentTarget.nextElementSibling.style.display = 'flex';
-                                }
-                              }}
-                            />
-                          ) : null}
-                          <div 
-                            className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
-                            style={{ display: fotoUrl ? 'none' : 'flex' }}
-                          >
-                            <Package className="w-4 h-4" />
+                      <option value="all">Totes les famílies</option>
+                      {availableFamilies.map(f => (
+                        <option key={f.id} value={f.nom}>{f.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className={`text-[10px] font-mono uppercase font-bold block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Gamma
+                    </label>
+                    <select
+                      value={filterGamma}
+                      onChange={(e) => setFilterGamma(e.target.value)}
+                      className={`w-full px-3 py-1.5 rounded-xl border text-xs font-bold outline-none cursor-pointer transition-colors ${
+                        isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+                      }`}
+                    >
+                      <option value="all">Totes les gammes</option>
+                      {availableGammes.map(g => (
+                        <option key={g.id} value={g.nom}>{g.nom}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Cercador de Productes i Botó Netejar */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="relative flex-1">
+                    <Search className={`w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`} />
+                    <input
+                      type="text"
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Cercar peça per nom o codi..."
+                      autoFocus
+                      className={`w-full pl-8 pr-3 py-2 border rounded-xl text-xs outline-none focus:border-amber-500 transition-colors ${
+                        isDark 
+                          ? 'bg-slate-950 border-slate-700 text-white placeholder-slate-500' 
+                          : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
+                    />
+                  </div>
+                  {(productSearch || filterFamilia !== 'all' || filterGamma !== 'all') && (
+                    <button
+                      onClick={() => {
+                        setProductSearch('');
+                        setFilterFamilia('all');
+                        setFilterGamma('all');
+                      }}
+                      className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                        isDark 
+                          ? 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700' 
+                          : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      Netejar
+                    </button>
+                  )}
+                </div>
+
+                {/* Indicador de resultats i llegenda de color blau per a peces ja afegides */}
+                <div className="flex items-center justify-between text-[11px] px-1 shrink-0">
+                  <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>
+                    {filteredProductesToAdd.length} peces trobades
+                  </span>
+                  {currentEvent?.linies?.length > 0 && (
+                    <span className="flex items-center gap-1.5 text-sky-600 dark:text-sky-400 font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block shadow-xs"></span>
+                      En blau: ja afegides a la fira
+                    </span>
+                  )}
+                </div>
+
+                {/* Llistat Seleccionable de Productes (sense límit de 30) */}
+                <div className="overflow-y-auto space-y-2 flex-1 pr-1 min-h-[220px]">
+                  {filteredProductesToAdd.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-500">
+                      Cap peça coincideix amb els criteris seleccionats.
+                    </div>
+                  ) : (
+                    filteredProductesToAdd.map(p => {
+                      const estocTaller = parseInt(p.estocActual, 10) || 0;
+                      const estocPositiu = Math.max(0, estocTaller);
+                      const fotoUrl = getProductImage(p);
+
+                      // Comprovem si el producte ja està assignat a l'esdeveniment actual
+                      const liniaExistent = (currentEvent?.linies || []).find(l => 
+                        (l.productId && p.id && l.productId === p.id) || 
+                        (p.codi && l.codi === p.codi) || 
+                        (p.nom && l.nom === p.nom)
+                      );
+                      const isAlreadyAssigned = Boolean(liniaExistent);
+                      const unitatsAssignades = liniaExistent ? (liniaExistent.unitatsPrevistes || liniaExistent.unitatsInicials || 0) : 0;
+
+                      return (
+                        <div
+                          key={p.id || `${p.codi}_${p.nom}`}
+                          onClick={() => {
+                            setSelectedProductToAdd(p);
+                            setPreuFiraInput(String(p.preu || ''));
+                            const defTot = 5;
+                            setQuantitatTotalFira(defTot);
+                            setQuantitatAgafadaEstoc(Math.min(defTot, estocPositiu));
+                            setCrearOFPerPendent(true);
+                            setPrioritatOFInput('normal');
+                          }}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                            isAlreadyAssigned
+                              ? isDark
+                                ? 'border-sky-600/70 bg-sky-950/40 hover:bg-sky-900/50 hover:border-sky-500 ring-1 ring-sky-600/40'
+                                : 'border-sky-300 bg-sky-50/90 hover:bg-sky-100 hover:border-sky-400 ring-1 ring-sky-200'
+                              : isDark
+                                ? 'border-slate-800 bg-slate-950/60 hover:bg-slate-800/60 hover:border-slate-700'
+                                : 'border-slate-200 bg-slate-50/70 hover:bg-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-10 h-10 rounded-lg overflow-hidden border shrink-0 flex items-center justify-center ${
+                              isAlreadyAssigned
+                                ? isDark ? 'bg-sky-900/50 border-sky-700' : 'bg-white border-sky-300'
+                                : isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+                            }`}>
+                              {fotoUrl ? (
+                                <img 
+                                  src={fotoUrl} 
+                                  alt={p.nom} 
+                                  className="w-full h-full object-cover" 
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextElementSibling) {
+                                      e.currentTarget.nextElementSibling.style.display = 'flex';
+                                    }
+                                  }}
+                                />
+                              ) : null}
+                              <div 
+                                className={`w-full h-full items-center justify-center ${isDark ? 'text-slate-500' : 'text-slate-400'}`}
+                                style={{ display: fotoUrl ? 'none' : 'flex' }}
+                              >
+                                <Package className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div className="min-w-0 text-xs">
+                              <div className="flex items-center gap-2">
+                                <h5 className={`font-serif font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.nom}</h5>
+                                {isAlreadyAssigned && (
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 shrink-0 ${
+                                    isDark ? 'bg-sky-900/80 text-sky-200 border-sky-700' : 'bg-sky-100 text-sky-800 border-sky-300'
+                                  }`}>
+                                    <Check className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                                    <span>Ja a la fira ({unitatsAssignades} u.)</span>
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.codi} • PVP: {formatCurrency(p.preu)}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0 text-xs font-mono">
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                              estocTaller > 0 
+                                ? isDark
+                                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
+                                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : isDark
+                                  ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
+                                  : 'bg-rose-100 text-rose-800 border-rose-300'
+                            }`}>
+                              {estocTaller > 0 ? `${estocTaller} disp. taller` : 'Sense estoc al taller'}
+                            </span>
                           </div>
                         </div>
-                        <div className="min-w-0 text-xs">
-                          <h5 className={`font-serif font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.nom}</h5>
-                          <span className={`font-mono text-[10px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.codi} • PVP: {formatCurrency(p.preu)}</span>
-                        </div>
-                      </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Opcions d'assignació quan hi ha un producte seleccionat */
+              (() => {
+                const estocTaller = parseInt(selectedProductToAdd.estocActual, 10) || 0;
+                const estocDisponible = Math.max(0, estocTaller);
+                const numTotalFira = Math.max(1, parseInt(quantitatTotalFira, 10) || 1);
+                const numAgafadaEstoc = Math.max(0, Math.min(parseInt(quantitatAgafadaEstoc, 10) || 0, numTotalFira, estocDisponible));
+                const numPendentFabricar = Math.max(0, numTotalFira - numAgafadaEstoc);
+                const selImg = getProductImage(selectedProductToAdd);
 
-                      <div className="text-right shrink-0 text-xs font-mono">
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
-                          estocTaller > 0 
-                            ? isDark
-                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60'
-                              : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : isDark
-                              ? 'bg-rose-950/80 text-rose-300 border-rose-800/60'
-                              : 'bg-rose-100 text-rose-800 border-rose-300'
-                        }`}>
-                          {estocTaller > 0 ? `${estocTaller} disp. taller` : 'Sense estoc al taller'}
-                        </span>
-                      </div>
+                return (
+                  <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+                    {/* Botó per canviar de peça seleccionada */}
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProductToAdd(null)}
+                        className={`text-xs font-bold inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-colors cursor-pointer ${
+                          isDark 
+                            ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white' 
+                            : 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200 hover:text-slate-900'
+                        }`}
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <span>Triar una altra peça</span>
+                      </button>
+                      <span className={`text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Pas 2: Configurar quantitats
+                      </span>
                     </div>
-                  );
-                })}
-            </div>
 
-            {/* Opcions d'assignació quan hi ha un producte seleccionat */}
-            {selectedProductToAdd && (() => {
-              const estocTaller = parseInt(selectedProductToAdd.estocActual, 10) || 0;
-              const estocDisponible = Math.max(0, estocTaller);
-              const numTotalFira = Math.max(1, parseInt(quantitatTotalFira, 10) || 1);
-              const numAgafadaEstoc = Math.max(0, Math.min(parseInt(quantitatAgafadaEstoc, 10) || 0, numTotalFira, estocDisponible));
-              const numPendentFabricar = Math.max(0, numTotalFira - numAgafadaEstoc);
-              const selImg = getProductImage(selectedProductToAdd);
-
-              return (
-                <div className={`p-4 rounded-xl border space-y-3 shrink-0 text-xs animate-fadeIn ${
-                  isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
-                }`}>
+                    <div className={`p-4 rounded-xl border space-y-3 shrink-0 text-xs animate-fadeIn ${
+                      isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                    }`}>
                   {/* Capçalera del Producte Seleccionat amb Informació d'Estoc */}
                   <div className={`flex items-center justify-between gap-3 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                     <div className="flex items-center gap-3 min-w-0">
@@ -2885,7 +3141,7 @@ export default function EsdevenimentsManager({
                                     isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
                                   }`}
                                 >
-                                  <option value="normal">⚪ Normal (Per defecte)</option>
+                                  <option value="normal">⚪ Normal</option>
                                   <option value="rapid">⚡ Ràpid</option>
                                   <option value="urgent">🟠 Urgent</option>
                                   <option value="tragic">🔴 Tràgic</option>
@@ -2928,8 +3184,10 @@ export default function EsdevenimentsManager({
                     />
                   </div>
                 </div>
-              );
-            })()}
+              </div>
+            );
+          })()
+        )}
 
             <div className={`flex items-center justify-end gap-2 pt-3 border-t shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
               <button
