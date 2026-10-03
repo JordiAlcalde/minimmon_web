@@ -5,7 +5,13 @@
  */
 
 const DEFAULT_API_KEY = "";
-const GEMINI_MODEL = "gemini-3.8-flash";
+// Llista de models amb fallback en cas de saturació temporal de servidors (Error 503 / High Demand)
+const GEMINI_MODELS = [
+  "gemini-3.7-flash",
+  "gemini-flash-latest",
+  "gemini-3.8-flash",
+  "gemini-flash-lite-latest"
+];
 
 export const DEFAULT_PROMPTS = {
   projectes: `Ets un escriptor/a capaç de captar i d'extraure el significat dels projectes el·laborats per Mínim Món. Prenent com a punt de partida l'explicació del encàrrec del client i a la vista del resultat, descrius breument cada una d'aquestes seccions:
@@ -282,8 +288,6 @@ export async function callGeminiDescriptor({
 
   parts.push({ text: userText });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-
   const requestBody = {
     contents: [
       {
@@ -298,27 +302,63 @@ export async function callGeminiDescriptor({
     }
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
+  let lastError = null;
+  let rawOutput = '';
 
-  if (!response.ok) {
-    let errMessage = `Error HTTP ${response.status}`;
+  for (const model of GEMINI_MODELS) {
     try {
-      const errData = await response.json();
-      if (errData?.error?.message) {
-        errMessage = errData.error.message;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        let errMessage = `Error HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.message) {
+            errMessage = errData.error.message;
+          }
+        } catch (_) {}
+
+        // Si el model té una punta de saturació temporal (503 / 429) o no disponible (404), provem el següent
+        const isTemporaryUnavailable = 
+          response.status === 503 || 
+          response.status === 429 || 
+          response.status === 404 || 
+          errMessage.toLowerCase().includes('high demand') || 
+          errMessage.toLowerCase().includes('quota') ||
+          errMessage.toLowerCase().includes('temporary');
+
+        if (isTemporaryUnavailable) {
+          console.warn(`Model ${model} saturat o temporalment no disponible (${errMessage}). Provant model alternatiu...`);
+          lastError = new Error(errMessage);
+          continue;
+        }
+
+        throw new Error(errMessage);
       }
-    } catch (_) {}
-    throw new Error(errMessage);
+
+      const result = await response.json();
+      rawOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (rawOutput) break;
+    } catch (err) {
+      lastError = err;
+      const msg = err.message ? err.message.toLowerCase() : '';
+      if (msg.includes('503') || msg.includes('high demand') || msg.includes('429') || msg.includes('temporary')) {
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const result = await response.json();
-  const rawOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!rawOutput) {
+    throw lastError || new Error("No s'ha obtingut resposta de cap model de Gemini.");
+  }
   
   const parsedJson = extractJsonFromGeminiResponse(rawOutput);
 

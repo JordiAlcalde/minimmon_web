@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Plus, Search, Filter, Sun, Moon, Cloud, CheckSquare, Square, Check,
   Lightbulb, ListTodo, Hammer, Hourglass, CheckCircle2, AlertTriangle, 
-  Clock, LayoutGrid, List, Sparkles, ChevronRight, Layers, Trash2, 
+  Clock, LayoutGrid, List, Sparkles, ChevronRight, ChevronLeft, ChevronDown, ChevronUp, Layers, Trash2, 
   Calendar, Coffee, Share2, Globe, ShoppingBag, Tag, RefreshCw, Palette
 } from 'lucide-react';
 import { db } from '../../firebase';
@@ -19,6 +19,15 @@ import {
 import PerFerCard from './PerFerCard';
 import PerFerTaskModal from './PerFerTaskModal';
 import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
+import {
+  getEffectivePlanningDate,
+  calculateDaysDifference,
+  advancePlanificacioDays,
+  msUntilNext0005,
+  getPlanificacioBadgeInfo,
+  getPlanificacioLabel,
+  getLocalDateString
+} from '../../utils/perFerPlanificacioUtils';
 
 // Helper per netejar valors 'undefined' per a Firestore
 function sanitizeData(obj) {
@@ -72,6 +81,21 @@ export default function PerFerApp({ setActiveTab }) {
   const [filterAmbit, setFilterAmbit] = useState('tots');
   const [filterPrioritat, setFilterPrioritat] = useState('totes');
   const [filterEstat, setFilterEstat] = useState('tots'); // 'tots' | 'pendents' | 'enllestit'
+  const [filterPlanificacio, setFilterPlanificacio] = useState('totes'); // 'totes' | 'avui' | 'dema' | 'ahir_endarrerits' | 'sense'
+
+  // Estat de columna Enllestit replegable (per defecte replegada a petició de l'usuari)
+  const [isEnllestitCollapsed, setIsEnllestitCollapsed] = useState(() => {
+    const saved = localStorage.getItem('perfer_enllestit_collapsed');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleEnllestitCollapse = () => {
+    setIsEnllestitCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('perfer_enllestit_collapsed', String(next));
+      return next;
+    });
+  };
 
   // Modal de creació / edició
   const [modalOpen, setModalOpen] = useState(false);
@@ -81,11 +105,60 @@ export default function PerFerApp({ setActiveTab }) {
   const [dbProductes, setDbProductes] = useState([]);
   const [dbProjects, setDbProjects] = useState([]);
   const [dbMaquinaria, setDbMaquinaria] = useState([]);
+  const [dbEsdeveniments, setDbEsdeveniments] = useState([]);
 
   // Estat de Drag & Drop
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverColumn, setDragOverColumn] = useState(null);
   const [dragOverCard, setDragOverCard] = useState(null); // { id: string, position: 'top'|'bottom' }
+
+  // Comprova i avança de forma intel·ligent els estats diaris a les 00:05 o en recuperar dies si l'ordinador estava apagat
+  const checkAndApplyDailyRollover = async (taskList) => {
+    if (!Array.isArray(taskList) || taskList.length === 0) return;
+    const currentEffDate = getEffectivePlanningDate();
+    const tasksToUpdate = [];
+
+    for (const t of taskList) {
+      if (t.planificacio) {
+        const lastDate = t.planificacioDataUltimCanvi || (t.dataCompletat ? getLocalDateString(new Date(t.dataCompletat)) : currentEffDate);
+        const diffDays = calculateDaysDifference(lastDate, currentEffDate);
+        if (diffDays > 0) {
+          if (t.estat === 'enllestit') {
+            // Quan una tasca estigui completada a 'enllestit', l'endemà s'elimina el filtre del tot
+            tasksToUpdate.push({
+              id: t.id,
+              planificacio: null,
+              planificacioDataUltimCanvi: null
+            });
+          } else {
+            // Tasques pendents: avançar estats diaris (dema -> avui -> ahir -> -1 dia...)
+            const nextPlan = advancePlanificacioDays(t.planificacio, diffDays);
+            tasksToUpdate.push({
+              id: t.id,
+              planificacio: nextPlan,
+              planificacioDataUltimCanvi: currentEffDate
+            });
+          }
+        }
+      }
+    }
+
+    if (tasksToUpdate.length > 0) {
+      try {
+        const batch = writeBatch(db);
+        tasksToUpdate.forEach(u => {
+          batch.set(doc(db, "per_fer", u.id), {
+            planificacio: u.planificacio,
+            planificacioDataUltimCanvi: u.planificacioDataUltimCanvi
+          }, { merge: true });
+        });
+        await batch.commit();
+        console.log(`[PerFer] S'han actualitzat ${tasksToUpdate.length} tasques pel canvi de dia a les 00:05`);
+      } catch (e) {
+        console.error("Error aplicant la transició de dia a les tasques:", e);
+      }
+    }
+  };
 
   // 1. Carregar tasques de Firestore a temps real
   useEffect(() => {
@@ -103,6 +176,7 @@ export default function PerFerApp({ setActiveTab }) {
         // Ordenar per ordre o data de forma robusta
         setTasks(sortTasksList(loaded));
         setLoading(false);
+        checkAndApplyDailyRollover(loaded);
       }
     }, (error) => {
       console.warn("Error escoltant la col·lecció 'per_fer':", error);
@@ -114,7 +188,28 @@ export default function PerFerApp({ setActiveTab }) {
     return () => unsubscribe();
   }, []);
 
-  // 2. Carregar dades vinculables (Productes, Projectes, Maquinària)
+  // Temporitzador per activar el canvi automàtic cada dia a les 00:05 exactes mentre l'app està oberta
+  useEffect(() => {
+    let timerId = null;
+
+    const scheduleNextRollover = () => {
+      const ms = msUntilNext0005();
+      timerId = setTimeout(() => {
+        setTasks(currentTasks => {
+          checkAndApplyDailyRollover(currentTasks);
+          return currentTasks;
+        });
+        scheduleNextRollover();
+      }, ms);
+    };
+
+    scheduleNextRollover();
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
+  }, []);
+
+  // 2. Carregar dades vinculables (Productes, Projectes, Maquinària, Esdeveniments)
   useEffect(() => {
     const unsubProd = onSnapshot(collection(db, "productes"), (snap) => {
       setDbProductes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -128,10 +223,15 @@ export default function PerFerApp({ setActiveTab }) {
       setDbMaquinaria(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, () => {});
 
+    const unsubEsdev = onSnapshot(collection(db, "producc_esdeveniments"), (snap) => {
+      setDbEsdeveniments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+
     return () => {
       unsubProd();
       unsubProj();
       unsubMaq();
+      unsubEsdev();
     };
   }, []);
 
@@ -194,6 +294,30 @@ export default function PerFerApp({ setActiveTab }) {
     }
   };
 
+  // Actualització ràpida de planificació ('ahir', 'avui', 'dema' o null)
+  const handleQuickUpdatePlanificacio = async (taskId, newPlanificacio) => {
+    const currentEffDate = getEffectivePlanningDate();
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updated = {
+      ...task,
+      planificacio: newPlanificacio || null,
+      planificacioDataUltimCanvi: newPlanificacio ? currentEffDate : null
+    };
+
+    setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+
+    try {
+      await setDoc(doc(db, "per_fer", taskId), sanitizeData({
+        planificacio: newPlanificacio || null,
+        planificacioDataUltimCanvi: newPlanificacio ? currentEffDate : null
+      }), { merge: true });
+    } catch (err) {
+      console.error("Error actualitzant planificació:", err);
+    }
+  };
+
   // Moure tasca a una altra columna
   const handleMoveToColumn = async (taskId, newColumnId) => {
     const task = tasks.find(t => t.id === taskId);
@@ -203,11 +327,22 @@ export default function PerFerApp({ setActiveTab }) {
     const targetColTasks = tasks.filter(t => t.estat === newColumnId);
     const maxOrdre = targetColTasks.reduce((max, t) => Math.max(max, t.ordre ?? 0), 0);
     const newOrdre = maxOrdre > 0 ? maxOrdre + 1000 : Date.now();
+    const currentEffDate = getEffectivePlanningDate();
+
+    // Quan una tasca passa a 'enllestit', si tenia planificació, es manté com a 'avui' durant la jornada actual
+    let newPlanificacio = task.planificacio;
+    let newPlanificacioDataUltimCanvi = task.planificacioDataUltimCanvi;
+    if (isDone && task.planificacio) {
+      newPlanificacio = 'avui';
+      newPlanificacioDataUltimCanvi = currentEffDate;
+    }
 
     const updated = {
       ...task,
       estat: newColumnId,
       ordre: newOrdre,
+      planificacio: newPlanificacio,
+      planificacioDataUltimCanvi: newPlanificacioDataUltimCanvi,
       dataCompletat: isDone ? (task.dataCompletat || new Date().toISOString()) : null
     };
 
@@ -356,10 +491,20 @@ export default function PerFerApp({ setActiveTab }) {
     if (targetIndex === -1) return;
 
     const insertIndex = dropPosition === 'bottom' ? targetIndex + 1 : targetIndex;
+    const currentEffDate = getEffectivePlanningDate();
+
+    let newPlanificacio = movingTask.planificacio;
+    let newPlanificacioDataUltimCanvi = movingTask.planificacioDataUltimCanvi;
+    if (isTargetDone && movingTask.planificacio) {
+      newPlanificacio = 'avui';
+      newPlanificacioDataUltimCanvi = currentEffDate;
+    }
 
     const updatedMovingTask = {
       ...movingTask,
       estat: targetColId,
+      planificacio: newPlanificacio,
+      planificacioDataUltimCanvi: newPlanificacioDataUltimCanvi,
       dataCompletat: isTargetDone ? (movingTask.dataCompletat || new Date().toISOString()) : null
     };
 
@@ -393,7 +538,7 @@ export default function PerFerApp({ setActiveTab }) {
     }
   };
 
-  // Filtrar tasques segons cerca, àmbit i prioritat
+  // Filtrar tasques segons cerca, àmbit, prioritat i planificació diària
   const filteredTasks = tasks.filter(t => {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -408,6 +553,15 @@ export default function PerFerApp({ setActiveTab }) {
     if (filterEstat === 'pendents' && t.estat === 'enllestit') return false;
     if (filterEstat === 'enllestit' && t.estat !== 'enllestit') return false;
 
+    // Filtre de planificació del dia de treball
+    if (filterPlanificacio === 'avui' && t.planificacio !== 'avui') return false;
+    if (filterPlanificacio === 'dema' && t.planificacio !== 'dema') return false;
+    if (filterPlanificacio === 'ahir_endarrerits') {
+      const isAhirOrDelayed = t.planificacio && (t.planificacio === 'ahir' || t.planificacio.startsWith('-'));
+      if (!isAhirOrDelayed) return false;
+    }
+    if (filterPlanificacio === 'sense' && t.planificacio) return false;
+
     return true;
   });
 
@@ -418,7 +572,11 @@ export default function PerFerApp({ setActiveTab }) {
     idees: tasks.filter(t => t.estat === 'idees').length,
     enCurs: tasks.filter(t => t.estat === 'al_taller').length,
     enllestits: tasks.filter(t => t.estat === 'enllestit').length,
-    pendents: tasks.filter(t => t.estat !== 'enllestit').length
+    pendents: tasks.filter(t => t.estat !== 'enllestit').length,
+    planificacioAvui: tasks.filter(t => t.planificacio === 'avui').length,
+    planificacioAvuiFets: tasks.filter(t => t.planificacio === 'avui' && t.estat === 'enllestit').length,
+    planificacioDema: tasks.filter(t => t.planificacio === 'dema' && t.estat !== 'enllestit').length,
+    planificacioAhir: tasks.filter(t => t.planificacio && (t.planificacio === 'ahir' || t.planificacio.startsWith('-')) && t.estat !== 'enllestit').length
   };
 
   // Helper per a icona de columna (alt contrast negre/fosc)
@@ -536,12 +694,12 @@ export default function PerFerApp({ setActiveTab }) {
           </div>
         </div>
 
-        {/* 2. STATS PILLS BAR (Línia 1: Píndoles de categories i estats) */}
+        {/* 2. STATS PILLS BAR (Dues línies amb "Totes" a l'esquerra abastant les dues files) */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 border-t border-outline/10 bg-surface-container-lowest/50">
-          <div className="flex items-center gap-2 flex-wrap text-xs">
-            {/* 1. Botó "Totes" */}
+          <div className="flex items-stretch gap-2.5 sm:gap-3">
+            {/* Botó "Totes" alt (abasta les dues files) */}
             {(() => {
-              const isAll = filterAmbit === 'tots' && filterPrioritat === 'totes' && filterEstat === 'tots';
+              const isAll = filterAmbit === 'tots' && filterPrioritat === 'totes' && filterEstat === 'tots' && filterPlanificacio === 'totes';
               return (
                 <button
                   type="button"
@@ -549,119 +707,201 @@ export default function PerFerApp({ setActiveTab }) {
                     setFilterAmbit('tots');
                     setFilterPrioritat('totes');
                     setFilterEstat('tots');
+                    setFilterPlanificacio('totes');
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 shrink-0 transition-all cursor-pointer select-none shadow-xs min-w-[76px] ${
                     isAll 
-                      ? 'bg-stone-900 text-white shadow-xs' 
+                      ? 'bg-stone-900 text-white ring-2 ring-stone-900/30' 
                       : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
                   }`}
+                  title="Mostrar totes les tasques sense cap filtre"
                 >
-                  {isAll && <Check className="w-3 h-3 stroke-[2.5]" />}
-                  <span className={isAll ? 'text-white' : 'text-stone-900'}>Totes ({stats.total})</span>
+                  <div className="flex items-center gap-1">
+                    {isAll && <Check className="w-3.5 h-3.5 stroke-[2.5]" />}
+                    <span className="font-extrabold uppercase tracking-wider text-[11px]">Totes</span>
+                  </div>
+                  <span className={`text-[12px] font-mono font-bold ${isAll ? 'text-stone-200' : 'text-stone-600'}`}>
+                    ({stats.total})
+                  </span>
                 </button>
               );
             })()}
 
-            {/* 2. Botó "Pendents" */}
-            {(() => {
-              const isPendents = filterEstat === 'pendents';
-              return (
-                <button
-                  type="button"
-                  onClick={() => setFilterEstat(isPendents ? 'tots' : 'pendents')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                    isPendents
-                      ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/50'
-                      : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
-                  }`}
-                >
-                  {isPendents ? (
-                    <Check className="w-3 h-3 stroke-[2.5]" />
-                  ) : (
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-                  )}
-                  <span className={isPendents ? 'text-white' : 'text-stone-900'}>Pendents: <strong className={isPendents ? 'text-white' : 'text-stone-900'}>{stats.pendents}</strong></span>
-                </button>
-              );
-            })()}
+            {/* Contenidor de les dues línies de filtres */}
+            <div className="flex flex-col justify-between gap-1.5 flex-1 min-w-0">
+              
+              {/* Línia 1: Pendents - Urgents - Avui - Demà - Ahir */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                {/* 1. Botó "Pendents" */}
+                {(() => {
+                  const isPendents = filterEstat === 'pendents';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFilterEstat(isPendents ? 'tots' : 'pendents')}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isPendents
+                          ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400/50'
+                          : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
+                      }`}
+                    >
+                      {isPendents ? (
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                      )}
+                      <span className={isPendents ? 'text-white' : 'text-stone-900'}>
+                        Pendents: <strong className={isPendents ? 'text-white' : 'text-stone-900'}>{stats.pendents}</strong>
+                      </span>
+                    </button>
+                  );
+                })()}
 
-            {/* 3. Botó "Urgents" */}
-            {stats.urgents > 0 && (() => {
-              const isUrgent = filterPrioritat === 'urgent';
-              return (
-                <button
-                  type="button"
-                  onClick={() => setFilterPrioritat(isUrgent ? 'totes' : 'urgent')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                    isUrgent
-                      ? 'bg-red-600 text-white shadow-xs ring-2 ring-red-400/50'
-                      : 'bg-red-50 border border-red-300 text-red-700 hover:bg-red-100'
-                  }`}
-                >
-                  {isUrgent ? (
-                    <Check className="w-3 h-3 stroke-[2.5]" />
-                  ) : (
-                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse shrink-0" />
-                  )}
-                  <span className={isUrgent ? 'text-white' : 'text-red-700 font-extrabold'}>{stats.urgents} Urgents</span>
-                </button>
-              );
-            })()}
+                {/* 2. Botó "Urgents" */}
+                {stats.urgents > 0 && (() => {
+                  const isUrgent = filterPrioritat === 'urgent';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFilterPrioritat(isUrgent ? 'totes' : 'urgent')}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isUrgent
+                          ? 'bg-red-600 text-white shadow-xs ring-2 ring-red-400/50'
+                          : 'bg-red-50 border border-red-300 text-red-700 hover:bg-red-100'
+                      }`}
+                    >
+                      {isUrgent ? (
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                      ) : (
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 animate-pulse shrink-0" />
+                      )}
+                      <span className={isUrgent ? 'text-white' : 'text-red-700 font-extrabold'}>{stats.urgents} Urgents</span>
+                    </button>
+                  );
+                })()}
 
-            {/* 4. Àmbits (Disseny, Taller, Posting, Web, Compres, Futur) */}
-            {[
-              { id: 'disseny', nom: 'Disseny', icon: Palette, activeBg: 'bg-rose-600 text-white ring-rose-400/50', iconColor: 'text-rose-500' },
-              { id: 'taller', nom: 'Taller', icon: Hammer, activeBg: 'bg-amber-600 text-white ring-amber-400/50', iconColor: 'text-amber-500' },
-              { id: 'posting', nom: 'Posting', icon: Share2, activeBg: 'bg-pink-600 text-white ring-pink-400/50', iconColor: 'text-pink-500' },
-              { id: 'web', nom: 'Web', icon: Globe, activeBg: 'bg-cyan-700 text-white ring-cyan-400/50', iconColor: 'text-cyan-500' },
-              { id: 'compres', nom: 'Compres', icon: ShoppingBag, activeBg: 'bg-indigo-600 text-white ring-indigo-400/50', iconColor: 'text-indigo-500' },
-              { id: 'futur', nom: 'Idees', icon: Sparkles, activeBg: 'bg-violet-600 text-white ring-violet-400/50', iconColor: 'text-violet-500' },
-            ].map(amb => {
-              const isActive = filterAmbit === amb.id;
-              const IconComponent = amb.icon;
-              return (
-                <button
-                  key={amb.id}
-                  type="button"
-                  onClick={() => setFilterAmbit(isActive ? 'tots' : amb.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                    isActive
-                      ? `${amb.activeBg} shadow-xs ring-2`
-                      : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
-                  }`}
-                >
-                  {isActive ? (
-                    <Check className="w-3 h-3 stroke-[2.5]" />
-                  ) : (
-                    <IconComponent className={`w-3 h-3 ${amb.iconColor} shrink-0`} />
-                  )}
-                  <span className={isActive ? 'text-white' : 'text-stone-900 font-bold'}>{amb.nom}</span>
-                </button>
-              );
-            })}
+                {/* 3. Botó "Avui" */}
+                {(() => {
+                  const isAvui = filterPlanificacio === 'avui';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFilterPlanificacio(isAvui ? 'totes' : 'avui')}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isAvui
+                          ? 'bg-amber-500 text-slate-950 shadow-xs ring-2 ring-amber-400 font-extrabold'
+                          : 'bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
+                      }`}
+                    >
+                      {isAvui ? <Check className="w-3 h-3 stroke-[2.5]" /> : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                      <span>Avui ({stats.planificacioAvui})</span>
+                    </button>
+                  );
+                })()}
 
-            {/* 5. Botó "Fets" */}
-            {(() => {
-              const isFets = filterEstat === 'enllestit';
-              return (
-                <button
-                  type="button"
-                  onClick={() => setFilterEstat(isFets ? 'tots' : 'enllestit')}
-                  className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                    isFets
-                      ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/50'
-                      : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
-                  }`}
-                >
-                  {isFets ? (
-                    <Check className="w-3 h-3 stroke-[2.5]" />
-                  ) : (
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                  )}
-                  <span className={isFets ? 'text-white' : 'text-stone-900 font-bold'}>{stats.enllestits} fets</span>
-                </button>
-              );
-            })()}
+                {/* 4. Botó "Demà" */}
+                {(() => {
+                  const isDema = filterPlanificacio === 'dema';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFilterPlanificacio(isDema ? 'totes' : 'dema')}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isDema
+                          ? 'bg-sky-600 text-white shadow-xs ring-2 ring-sky-400 font-extrabold'
+                          : 'bg-sky-500/10 border border-sky-500/30 text-sky-700 dark:text-sky-300 hover:bg-sky-500/20'
+                      }`}
+                    >
+                      {isDema ? <Check className="w-3 h-3 stroke-[2.5]" /> : <Clock className="w-3 h-3 text-sky-500 shrink-0" />}
+                      <span>Demà ({stats.planificacioDema})</span>
+                    </button>
+                  );
+                })()}
+
+                {/* 5. Botó "Ahir / Endarrerits" */}
+                {(() => {
+                  const isAhir = filterPlanificacio === 'ahir_endarrerits';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setFilterPlanificacio(isAhir ? 'totes' : 'ahir_endarrerits')}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isAhir
+                          ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-400 font-extrabold'
+                          : 'bg-orange-500/10 border border-orange-500/30 text-orange-700 dark:text-orange-300 hover:bg-orange-500/20'
+                      }`}
+                    >
+                      {isAhir ? <Check className="w-3 h-3 stroke-[2.5]" /> : <AlertTriangle className="w-3 h-3 text-orange-500 shrink-0" />}
+                      <span>Ahir / Endarrerits ({stats.planificacioAhir})</span>
+                    </button>
+                  );
+                })()}
+              </div>
+
+              {/* Línia 2: Resta (Àmbits: Disseny, Taller, Posting, Web, Compres, Idees + Fets) */}
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                {[
+                  { id: 'disseny', nom: 'Disseny', icon: Palette, activeBg: 'bg-rose-600 text-white ring-rose-400/50', iconColor: 'text-rose-500' },
+                  { id: 'taller', nom: 'Taller', icon: Hammer, activeBg: 'bg-amber-600 text-white ring-amber-400/50', iconColor: 'text-amber-500' },
+                  { id: 'posting', nom: 'Posting', icon: Share2, activeBg: 'bg-pink-600 text-white ring-pink-400/50', iconColor: 'text-pink-500' },
+                  { id: 'web', nom: 'Web', icon: Globe, activeBg: 'bg-cyan-700 text-white ring-cyan-400/50', iconColor: 'text-cyan-500' },
+                  { id: 'compres', nom: 'Compres', icon: ShoppingBag, activeBg: 'bg-indigo-600 text-white ring-indigo-400/50', iconColor: 'text-indigo-500' },
+                  { id: 'futur', nom: 'Idees', icon: Sparkles, activeBg: 'bg-violet-600 text-white ring-violet-400/50', iconColor: 'text-violet-500' },
+                ].map(amb => {
+                  const isActive = filterAmbit === amb.id;
+                  const IconComponent = amb.icon;
+                  return (
+                    <button
+                      key={amb.id}
+                      type="button"
+                      onClick={() => setFilterAmbit(isActive ? 'tots' : amb.id)}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isActive
+                          ? `${amb.activeBg} shadow-xs ring-2`
+                          : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
+                      }`}
+                    >
+                      {isActive ? (
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                      ) : (
+                        <IconComponent className={`w-3 h-3 ${amb.iconColor} shrink-0`} />
+                      )}
+                      <span className={isActive ? 'text-white' : 'text-stone-900 font-bold'}>{amb.nom}</span>
+                    </button>
+                  );
+                })}
+
+                {/* Botó "Fets" */}
+                {(() => {
+                  const isFets = filterEstat === 'enllestit';
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = isFets ? 'tots' : 'enllestit';
+                        setFilterEstat(next);
+                        if (next === 'enllestit') {
+                          setIsEnllestitCollapsed(false);
+                        }
+                      }}
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
+                        isFets
+                          ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400/50'
+                          : 'bg-white border border-stone-300 text-stone-900 hover:bg-stone-100'
+                      }`}
+                    >
+                      {isFets ? (
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                      )}
+                      <span className={isFets ? 'text-white' : 'text-stone-900 font-bold'}>{stats.enllestits} fets</span>
+                    </button>
+                  );
+                })()}
+              </div>
+
+            </div>
           </div>
         </div>
 
@@ -681,6 +921,19 @@ export default function PerFerApp({ setActiveTab }) {
 
           {/* Selectors de filtres */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Selector de Planificació Diària */}
+            <select
+              value={filterPlanificacio}
+              onChange={e => setFilterPlanificacio(e.target.value)}
+              className="px-3 py-1.5 bg-white text-stone-900 rounded-xl border border-stone-300 text-xs outline-none focus:border-stone-500 transition-all cursor-pointer font-bold"
+            >
+              <option value="totes">Tota planificació</option>
+              <option value="avui">🌟 Avui ({stats.planificacioAvui})</option>
+              <option value="dema">⏳ Demà ({stats.planificacioDema})</option>
+              <option value="ahir_endarrerits">⚠️ Ahir / Endarrerits ({stats.planificacioAhir})</option>
+              <option value="sense">Sense planificar</option>
+            </select>
+
             {/* Selector d'Àmbit */}
             <select
               value={filterAmbit}
@@ -709,7 +962,7 @@ export default function PerFerApp({ setActiveTab }) {
               ))}
             </select>
 
-            {(searchQuery || filterAmbit !== 'tots' || filterPrioritat !== 'totes' || filterEstat !== 'tots') && (
+            {(searchQuery || filterAmbit !== 'tots' || filterPrioritat !== 'totes' || filterEstat !== 'tots' || filterPlanificacio !== 'totes') && (
               <button
                 type="button"
                 onClick={() => {
@@ -717,6 +970,7 @@ export default function PerFerApp({ setActiveTab }) {
                   setFilterAmbit('tots');
                   setFilterPrioritat('totes');
                   setFilterEstat('tots');
+                  setFilterPlanificacio('totes');
                 }}
                 className="px-3 py-1.5 text-xs text-error hover:bg-error/10 border border-error/30 rounded-xl transition-colors cursor-pointer shrink-0 font-bold"
                 title="Netejar filtres"
@@ -741,18 +995,110 @@ export default function PerFerApp({ setActiveTab }) {
           /* ============================================================== */
           /* VISTA TAULER KANBAN ARTESANAL (5 COLUMNES)                    */
           /* ============================================================== */
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 items-start">
+          <div className="flex flex-col xl:flex-row gap-4 items-start w-full">
             {PER_FER_COLUMNS.map(column => {
               const colTasks = filteredTasks.filter(t => t.estat === column.id);
               const isOver = dragOverColumn === column.id;
 
+              // Si és la columna "Enllestit" i està replegada
+              if (column.id === 'enllestit' && isEnllestitCollapsed) {
+                return (
+                  <React.Fragment key={column.id}>
+                    {/* Versió Desktop: Barra vertical esvelta */}
+                    <div
+                      onDragOver={(e) => handleDragOver(e, column.id)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, column.id)}
+                      onClick={handleToggleEnllestitCollapse}
+                      title="Clica per desplegar la columna Enllestit (o arrossega tasques aquí per completar-les)"
+                      className={`hidden xl:flex flex-col items-center py-3.5 px-1.5 rounded-2xl border transition-all duration-200 cursor-pointer w-14 shrink-0 select-none group min-h-[500px] ${
+                        isOver
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-500/15'
+                          : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-300/60 dark:border-emerald-800/40 hover:border-emerald-400 hover:bg-emerald-100/50 dark:hover:bg-emerald-950/40'
+                      }`}
+                    >
+                      {/* Botó toggle */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleEnllestitCollapse();
+                        }}
+                        className="p-1.5 rounded-xl bg-white dark:bg-stone-800 shadow-2xs border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:scale-110 transition-transform cursor-pointer"
+                        title="Desplegar Enllestit"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      {/* Icona i comptador */}
+                      <div className="mt-3 flex flex-col items-center gap-1.5">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-extrabold text-stone-900 dark:text-stone-100 bg-emerald-200/90 dark:bg-emerald-900/80 border border-emerald-400/50 shadow-2xs">
+                          {colTasks.length}
+                        </span>
+                      </div>
+
+                      {/* Text vertical */}
+                      <div className="mt-6 flex-1 flex items-center justify-center">
+                        <span
+                          className="text-xs font-extrabold uppercase tracking-widest text-emerald-800 dark:text-emerald-300 group-hover:text-emerald-950 dark:group-hover:text-white transition-colors"
+                          style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+                        >
+                          {column.titol}
+                        </span>
+                      </div>
+
+                      {/* Indicador inferior */}
+                      <div className="mt-auto pt-2 text-[10px] text-center text-emerald-700/70 dark:text-emerald-400/70 font-bold leading-tight">
+                        {isOver ? 'DEIXA ANAR!' : 'Arrossega aquí'}
+                      </div>
+                    </div>
+
+                    {/* Versió Mòbil / Tablet (< xl): Barra horitzontal replegada */}
+                    <div
+                      onDragOver={(e) => handleDragOver(e, column.id)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, column.id)}
+                      onClick={handleToggleEnllestitCollapse}
+                      className={`xl:hidden flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer w-full select-none ${
+                        isOver
+                          ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-500/15'
+                          : 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300/60 dark:border-emerald-800/40 hover:border-emerald-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="font-extrabold text-xs uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+                          {column.titol}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-extrabold text-stone-900 dark:text-stone-100 bg-emerald-200/90 dark:bg-emerald-900/80 border border-emerald-400/50 shadow-2xs">
+                          {colTasks.length}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleEnllestitCollapse();
+                        }}
+                        className="flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                      >
+                        <span>Desplegar</span>
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </React.Fragment>
+                );
+              }
+
+              // Columnes regulars O Enllestit desplegada
               return (
                 <div
                   key={column.id}
                   onDragOver={(e) => handleDragOver(e, column.id)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, column.id)}
-                  className={`flex flex-col rounded-2xl border transition-all duration-200 bg-surface-container-low/50 ${
+                  className={`flex flex-col rounded-2xl border transition-all duration-200 bg-surface-container-low/50 flex-1 min-w-0 w-full xl:w-auto ${
                     isOver 
                       ? 'border-primary ring-2 ring-primary/30 bg-primary/5' 
                       : 'border-outline/15 hover:border-outline/30'
@@ -766,9 +1112,22 @@ export default function PerFerApp({ setActiveTab }) {
                         {column.titol}
                       </h3>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-extrabold shrink-0 text-stone-900 shadow-2xs ${column.badgeBg}`}>
-                      {colTasks.length}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-extrabold shrink-0 text-stone-900 shadow-2xs ${column.badgeBg}`}>
+                        {colTasks.length}
+                      </span>
+                      {column.id === 'enllestit' && (
+                        <button
+                          type="button"
+                          onClick={handleToggleEnllestitCollapse}
+                          className="p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 text-stone-800 dark:text-stone-200 transition-colors cursor-pointer"
+                          title="Replegar columna Enllestit"
+                        >
+                          <ChevronRight className="w-4 h-4 hidden xl:block" />
+                          <ChevronUp className="w-4 h-4 xl:hidden" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Descripció curta de la columna */}
@@ -789,6 +1148,7 @@ export default function PerFerApp({ setActiveTab }) {
                           }}
                           onMoveToColumn={handleMoveToColumn}
                           onToggleSubtask={handleToggleSubtask}
+                          onUpdatePlanificacio={handleQuickUpdatePlanificacio}
                           onDelete={handleDeleteTask}
                           onDragStart={handleDragStart}
                           canMoveUp={column.id !== 'enllestit' && idx > 0}
@@ -898,6 +1258,16 @@ export default function PerFerApp({ setActiveTab }) {
                                 Urgent
                               </span>
                             )}
+
+                            {/* Badge de Planificació */}
+                            {task.planificacio && (() => {
+                              const b = getPlanificacioBadgeInfo(task.planificacio);
+                              return (
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${b.badgeClass}`}>
+                                  {b.label}
+                                </span>
+                              );
+                            })()}
                           </div>
 
                           {task.descripcio && (
@@ -908,8 +1278,52 @@ export default function PerFerApp({ setActiveTab }) {
                         </div>
                       </div>
 
-                      {/* Dreta: Columna actual, Subtasques i Data */}
+                      {/* Dreta: Columna actual, Subtasques, Planificació i Data */}
                       <div className="flex items-center gap-3 shrink-0 self-end sm:self-auto text-xs text-stone-900">
+                        {/* Selector de Planificació ràpid a la llista */}
+                        <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                          {(() => {
+                            const badgeInfo = getPlanificacioBadgeInfo(task.planificacio);
+                            const isAvui = task.planificacio === 'avui';
+                            const isDema = task.planificacio === 'dema';
+                            const isAhirOrDelayed = task.planificacio && (task.planificacio === 'ahir' || task.planificacio.startsWith('-'));
+                            return (
+                              <div className="flex items-center bg-stone-100 rounded-lg p-0.5 border border-stone-300">
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickUpdatePlanificacio(task.id, isAhirOrDelayed ? null : 'ahir')}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                    isAhirOrDelayed ? 'bg-orange-500 text-white shadow-xs' : 'text-stone-600 hover:text-stone-900 hover:bg-white'
+                                  }`}
+                                  title={isAhirOrDelayed ? `Assignat: ${badgeInfo.label}. Clic per desmarcar` : "Marcar com a Ahir"}
+                                >
+                                  {isAhirOrDelayed ? badgeInfo.label : 'Ahir'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickUpdatePlanificacio(task.id, isAvui ? null : 'avui')}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                    isAvui ? 'bg-amber-500 text-slate-950 font-extrabold shadow-xs' : 'text-stone-600 hover:text-stone-900 hover:bg-white'
+                                  }`}
+                                  title={isAvui ? "Assignat: Avui. Clic per desmarcar" : "Marcar com a Avui"}
+                                >
+                                  Avui
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickUpdatePlanificacio(task.id, isDema ? null : 'dema')}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                                    isDema ? 'bg-sky-600 text-white shadow-xs' : 'text-stone-600 hover:text-stone-900 hover:bg-white'
+                                  }`}
+                                  title={isDema ? "Assignat: Demà. Clic per desmarcar" : "Marcar com a Demà"}
+                                >
+                                  Demà
+                                </button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+
                         {/* Indicador de subtasques */}
                         {subtasques.length > 0 && (
                           <span className="font-mono text-[11px] px-2.5 py-0.5 rounded-full bg-white font-bold text-stone-900 border border-stone-300">
@@ -967,6 +1381,7 @@ export default function PerFerApp({ setActiveTab }) {
         dbProductes={dbProductes}
         dbProjects={dbProjects}
         dbMaquinaria={dbMaquinaria}
+        dbEsdeveniments={dbEsdeveniments}
         isDark={isDark}
       />
 

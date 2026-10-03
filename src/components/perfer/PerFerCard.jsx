@@ -6,6 +6,7 @@ import {
   Edit2, Trash2, ArrowRight, CornerDownRight, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { PER_FER_COLUMNS, PER_FER_AMBITS, PER_FER_PRIORITATS } from '../../data/perFerInitialData';
+import { getPlanificacioLabel, getPlanificacioBadgeInfo } from '../../utils/perFerPlanificacioUtils';
 
 export default function PerFerCard({
   task,
@@ -22,7 +23,8 @@ export default function PerFerCard({
   onCardDragLeave,
   onCardDrop,
   isDragOver = false,
-  dragOverPosition = null
+  dragOverPosition = null,
+  onUpdatePlanificacio
 }) {
   const [showSubtasks, setShowSubtasks] = useState(false);
 
@@ -181,6 +183,76 @@ export default function PerFerCard({
           )}
         </div>
       </div>
+
+      {/* Selector ràpid Planificació: Ahir / Avui / Demà */}
+      {task.estat !== 'enllestit' ? (
+        <div 
+          className="flex items-center justify-between gap-1 p-1 rounded-lg border border-outline/15 bg-surface-container/50 text-[11px]"
+          onClick={e => e.stopPropagation()}
+        >
+          <span className="text-[10px] font-mono text-on-surface-variant/70 uppercase tracking-wider pl-1 font-bold">
+            Pla:
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onUpdatePlanificacio && onUpdatePlanificacio(task.id, task.planificacio === 'ahir' ? null : 'ahir')}
+              className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                task.planificacio === 'ahir'
+                  ? 'bg-orange-500 text-white shadow-xs'
+                  : typeof task.planificacio === 'string' && task.planificacio.startsWith('-')
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+              }`}
+              title={
+                typeof task.planificacio === 'string' && task.planificacio.startsWith('-')
+                  ? `Endarrerit: ${getPlanificacioLabel(task.planificacio)} (Clica per desmarcar)`
+                  : 'Ahir (Clica per activar/desmarcar)'
+              }
+            >
+              {typeof task.planificacio === 'string' && task.planificacio.startsWith('-')
+                ? getPlanificacioLabel(task.planificacio)
+                : 'Ahir'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onUpdatePlanificacio && onUpdatePlanificacio(task.id, task.planificacio === 'avui' ? null : 'avui')}
+              className={`px-2.5 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                task.planificacio === 'avui'
+                  ? 'bg-amber-500 text-white shadow-xs ring-1 ring-amber-400'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+              }`}
+              title="Avui (Clica per activar/desmarcar)"
+            >
+              Avui
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onUpdatePlanificacio && onUpdatePlanificacio(task.id, task.planificacio === 'dema' ? null : 'dema')}
+              className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                task.planificacio === 'dema'
+                  ? 'bg-sky-500 text-white shadow-xs'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+              }`}
+              title="Demà (Clica per activar/desmarcar)"
+            >
+              Demà
+            </button>
+          </div>
+        </div>
+      ) : task.planificacio ? (
+        <div className="flex items-center justify-between gap-1.5 py-1 px-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400 text-[11px] font-semibold">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>Feina feta avui</span>
+          </span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
+            {getPlanificacioLabel(task.planificacio)}
+          </span>
+        </div>
+      ) : null}
 
       {/* Títol de la tasca */}
       <div className="text-sm font-semibold text-on-surface leading-snug group-hover:text-primary transition-colors">

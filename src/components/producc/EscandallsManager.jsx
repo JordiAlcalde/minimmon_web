@@ -491,15 +491,30 @@ export default function EscandallsManager({
     setModalOpen(true);
   };
 
-  // Obrir modal per editar un escandall existent
   const handleOpenEdit = (esc) => {
     setEditingEscandall(esc);
     setActiveModalTab('base');
     setExpandedOptionKey(null);
     setSelectedLaserLibMaterialId('');
     setLastAppliedLaserMaterialNom('');
+
+    // Resoldre imatge si l'escandall no la té guardada
+    let rawImg = esc.producteImatge || '';
+    if (!rawImg) {
+      const prod = (productes || []).find(p => (esc.producteId && p.id === esc.producteId) || (esc.producteCodi && p.codi === esc.producteCodi) || (esc.producteNom && p.nom === esc.producteNom));
+      if (prod) {
+        rawImg = prod.imatgePrincipal || (Array.isArray(prod.imatges) && prod.imatges[0]) || (Array.isArray(prod.fotos) && prod.fotos[0]) || prod.foto || prod.imatge || '';
+      } else {
+        const proj = (projectes || []).find(p => (esc.projecteId && p.id === esc.projecteId) || (esc.projecteNom && p.nom === esc.projecteNom));
+        if (proj) {
+          rawImg = proj.imatgePrincipal || (Array.isArray(proj.imatges) && proj.imatges[0]) || proj.foto || '';
+        }
+      }
+    }
+
     setFormData({
       ...esc,
+      producteImatge: rawImg,
       materials: esc.materials ? esc.materials.map(m => ({ ...m })) : [],
       operacions: esc.operacions ? esc.operacions.map(o => ({ ...o })) : [],
       maquinaria: esc.maquinaria ? esc.maquinaria.map(mq => ({ ...mq })) : [],
@@ -1221,8 +1236,28 @@ export default function EscandallsManager({
             
             const preuWeb = Number(esc.preuWebActual || 0);
 
-            const displayImage = esc.producteImatge 
-              ? (resolveProducteMediaUrl(esc.producteImatge) || resolveMediaUrl(esc.producteImatge))
+            const rawImg = esc.producteImatge || (() => {
+              if (esc.producteId || esc.producteCodi || esc.producteNom) {
+                const prod = (productes || []).find(p => 
+                  (esc.producteId && p.id === esc.producteId) || 
+                  (esc.producteCodi && p.codi === esc.producteCodi) || 
+                  (esc.producteNom && p.nom === esc.producteNom)
+                );
+                if (prod) {
+                  return prod.imatgePrincipal || (Array.isArray(prod.imatges) && prod.imatges[0]) || (Array.isArray(prod.fotos) && prod.fotos[0]) || prod.foto || prod.imatge || '';
+                }
+              }
+              if (esc.projecteId || esc.projecteNom) {
+                const proj = (projectes || []).find(p => (esc.projecteId && p.id === esc.projecteId) || (esc.projecteNom && p.nom === esc.projecteNom));
+                if (proj) {
+                  return proj.imatgePrincipal || (Array.isArray(proj.imatges) && proj.imatges[0]) || proj.foto || '';
+                }
+              }
+              return '';
+            })();
+
+            const displayImage = rawImg 
+              ? (resolveProducteMediaUrl(rawImg) || resolveMediaUrl(rawImg) || rawImg)
               : '';
 
             return (
@@ -1986,8 +2021,23 @@ export default function EscandallsManager({
                   
                   {/* IDENTIFICADOR NET DE LA PEÇA / PRODUCTE TRIAT */}
                   {(() => {
-                    const displayModalImage = formData.producteImatge 
-                      ? (resolveProducteMediaUrl(formData.producteImatge) || resolveMediaUrl(formData.producteImatge))
+                    const rawModalImg = formData.producteImatge || (() => {
+                      const prod = (productes || []).find(p => 
+                        (formData.producteId && p.id === formData.producteId) || 
+                        (formData.producteCodi && p.codi === formData.producteCodi) || 
+                        (formData.producteNom && p.nom === formData.producteNom)
+                      );
+                      if (prod) {
+                        return prod.imatgePrincipal || (Array.isArray(prod.imatges) && prod.imatges[0]) || (Array.isArray(prod.fotos) && prod.fotos[0]) || prod.foto || prod.imatge || '';
+                      }
+                      const proj = (projectes || []).find(p => (formData.producteId && p.id === formData.producteId) || (formData.producteNom && p.nom === formData.producteNom));
+                      if (proj) {
+                        return proj.imatgePrincipal || (Array.isArray(proj.imatges) && proj.imatges[0]) || proj.foto || '';
+                      }
+                      return '';
+                    })();
+                    const displayModalImage = rawModalImg 
+                      ? (resolveProducteMediaUrl(rawModalImg) || resolveMediaUrl(rawModalImg) || rawModalImg)
                       : '';
 
                     return (

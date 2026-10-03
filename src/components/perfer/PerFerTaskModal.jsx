@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { PER_FER_COLUMNS, PER_FER_AMBITS, PER_FER_PRIORITATS } from '../../data/perFerInitialData';
 import { compressImageFile } from '../../data/projeccInitialData';
+import { getPlanificacioLabel, getEffectivePlanningDate } from '../../utils/perFerPlanificacioUtils';
 
 export default function PerFerTaskModal({
   isOpen,
@@ -18,6 +19,7 @@ export default function PerFerTaskModal({
   dbProductes = [],
   dbProjects = [],
   dbMaquinaria = [],
+  dbEsdeveniments = [],
   isDark = true
 }) {
   const [formData, setFormData] = useState({
@@ -27,6 +29,8 @@ export default function PerFerTaskModal({
     prioritat: 'normal',
     descripcio: '',
     dataLimit: '',
+    planificacio: null,
+    planificacioDataUltimCanvi: null,
     subtasques: [],
     imatges: [],
     vinculacio: { tipus: 'cap', id: '', nom: '' }
@@ -50,6 +54,8 @@ export default function PerFerTaskModal({
         prioritat: task.prioritat || 'normal',
         descripcio: task.descripcio || '',
         dataLimit: task.dataLimit || '',
+        planificacio: task.planificacio || null,
+        planificacioDataUltimCanvi: task.planificacioDataUltimCanvi || null,
         subtasques: Array.isArray(task.subtasques) ? [...task.subtasques] : [],
         imatges: Array.isArray(task.imatges) ? [...task.imatges] : [],
         vinculacio: task.vinculacio || { tipus: 'cap', id: '', nom: '' },
@@ -65,6 +71,8 @@ export default function PerFerTaskModal({
         prioritat: 'normal',
         descripcio: '',
         dataLimit: '',
+        planificacio: null,
+        planificacioDataUltimCanvi: null,
         subtasques: [],
         imatges: [],
         vinculacio: { tipus: 'cap', id: '', nom: '' },
@@ -183,9 +191,17 @@ export default function PerFerTaskModal({
     }
 
     const isDone = formData.estat === 'enllestit';
+    const planificacioChanged = formData.planificacio !== (task?.planificacio || null);
+    const finalPlanificacio = (isDone && formData.planificacio) ? 'avui' : (formData.planificacio || null);
+    const planificacioDataUltimCanvi = planificacioChanged || (isDone && formData.planificacio)
+      ? (finalPlanificacio ? getEffectivePlanningDate() : null)
+      : (task?.planificacioDataUltimCanvi || (finalPlanificacio ? getEffectivePlanningDate() : null));
+
     const updatedData = {
       ...formData,
       titol: formData.titol.trim(),
+      planificacio: finalPlanificacio,
+      planificacioDataUltimCanvi,
       dataCompletat: isDone ? (formData.dataCompletat || new Date().toISOString()) : null
     };
 
@@ -315,23 +331,23 @@ export default function PerFerTaskModal({
           </div>
 
           {/* Data límit & Vinculació */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Data límit (opcional) */}
-            <div>
-              <label className="block text-xs font-semibold text-on-surface-variant mb-1.5 flex items-center gap-1.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3.5">
+            {/* Data límit (opcional) - amplada continguda */}
+            <div className="w-full sm:w-44 shrink-0">
+              <label className="block text-xs font-semibold text-on-surface-variant mb-1.5 flex items-center gap-1.5 whitespace-nowrap">
                 <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                Data límit / Objectiu (opcional)
+                Data límit / Objectiu
               </label>
               <input
                 type="date"
                 value={formData.dataLimit}
                 onChange={e => setFormData({ ...formData, dataLimit: e.target.value })}
-                className="w-full px-3 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all"
+                className="w-full px-3 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all font-mono"
               />
             </div>
 
-            {/* Vinculació opcional amb Producte / Projecte / Màquina */}
-            <div>
+            {/* Vinculació opcional amb Producte / Projecte / Màquina / Esdeveniment - ampliat */}
+            <div className="flex-1 min-w-0">
               <label className="block text-xs font-semibold text-on-surface-variant mb-1.5 flex items-center gap-1.5">
                 <Link2 className="w-3.5 h-3.5 text-primary" />
                 Vincular amb... (opcional)
@@ -346,12 +362,13 @@ export default function PerFerTaskModal({
                       vinculacio: { tipus, id: '', nom: '' }
                     });
                   }}
-                  className="w-1/3 px-2 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all"
+                  className="w-32 sm:w-36 shrink-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs font-medium outline-none focus:border-primary transition-all cursor-pointer"
                 >
                   <option value="cap">Cap</option>
                   <option value="producte">Producte</option>
                   <option value="projecte">Projecte</option>
                   <option value="maquina">Màquina</option>
+                  <option value="esdeveniment">Esdeveniment</option>
                 </select>
 
                 {formData.vinculacio?.tipus === 'producte' && (
@@ -365,7 +382,7 @@ export default function PerFerTaskModal({
                         vinculacio: { tipus: 'producte', id, nom: found?.nom || id }
                       });
                     }}
-                    className="flex-1 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
+                    className="flex-1 min-w-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
                   >
                     <option value="">Selecciona producte...</option>
                     {dbProductes.map(p => (
@@ -387,7 +404,7 @@ export default function PerFerTaskModal({
                         vinculacio: { tipus: 'projecte', id, nom: found?.titol || found?.nom || id }
                       });
                     }}
-                    className="flex-1 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
+                    className="flex-1 min-w-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
                   >
                     <option value="">Selecciona projecte...</option>
                     {dbProjects.map(p => (
@@ -409,12 +426,36 @@ export default function PerFerTaskModal({
                         vinculacio: { tipus: 'maquina', id, nom: found?.nom || id }
                       });
                     }}
-                    className="flex-1 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
+                    className="flex-1 min-w-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
                   >
                     <option value="">Selecciona màquina...</option>
                     {dbMaquinaria.map(m => (
                       <option key={m.id} value={m.id}>
                         {m.nom} {m.model ? `(${m.model})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {formData.vinculacio?.tipus === 'esdeveniment' && (
+                  <select
+                    value={formData.vinculacio?.id || ''}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const found = dbEsdeveniments.find(ev => ev.id === id);
+                      setFormData({
+                        ...formData,
+                        vinculacio: { tipus: 'esdeveniment', id, nom: found?.nom || id }
+                      });
+                    }}
+                    className="flex-1 min-w-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
+                  >
+                    <option value="">
+                      {dbEsdeveniments.length === 0 ? "Cap esdeveniment disponible..." : "Selecciona esdeveniment..."}
+                    </option>
+                    {dbEsdeveniments.map(ev => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.nom} {ev.edicioAny ? `(${ev.edicioAny})` : ''} {ev.lloc ? `- ${ev.lloc}` : ''}
                       </option>
                     ))}
                   </select>
@@ -426,6 +467,72 @@ export default function PerFerTaskModal({
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Planificació del Dia de Treball (Ahir / Avui / Demà) */}
+          <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline/15 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-on-surface-variant flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                Planificació del Dia de Treball
+              </label>
+              {formData.planificacio && (
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface border border-outline/20 text-on-surface">
+                  Estat: <strong className="text-primary">{getPlanificacioLabel(formData.planificacio)}</strong>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-on-surface-variant/80">
+              Assigna la tasca a la teva jornada per saber què vas deixar pendent, què fas avui i què faràs demà. A les 00:05 s'avança automàticament.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, planificacio: null })}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-center cursor-pointer ${
+                  !formData.planificacio
+                    ? 'bg-surface border-outline/40 text-on-surface shadow-xs font-semibold'
+                    : 'bg-surface/50 border-outline/15 text-on-surface-variant hover:text-on-surface hover:bg-surface'
+                }`}
+              >
+                Sense planificar
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, planificacio: formData.planificacio && formData.planificacio.startsWith('-') ? formData.planificacio : 'ahir' })}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-center cursor-pointer ${
+                  formData.planificacio === 'ahir' || (formData.planificacio && formData.planificacio.startsWith('-'))
+                    ? 'bg-orange-500/20 text-orange-400 border-orange-500/50 shadow-xs font-bold'
+                    : 'bg-surface/50 border-outline/15 text-orange-400/70 hover:text-orange-400 hover:bg-orange-500/10'
+                }`}
+              >
+                {formData.planificacio && (formData.planificacio === 'ahir' || formData.planificacio.startsWith('-'))
+                  ? getPlanificacioLabel(formData.planificacio)
+                  : 'Ahir'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, planificacio: 'avui' })}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-center cursor-pointer ${
+                  formData.planificacio === 'avui'
+                    ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-md ring-2 ring-amber-500/30'
+                    : 'bg-surface/50 border-outline/15 text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10'
+                }`}
+              >
+                🌟 Avui
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, planificacio: 'dema' })}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-center cursor-pointer ${
+                  formData.planificacio === 'dema'
+                    ? 'bg-sky-500/25 text-sky-300 border-sky-400/60 shadow-xs font-bold'
+                    : 'bg-surface/50 border-outline/15 text-sky-400/70 hover:text-sky-300 hover:bg-sky-500/10'
+                }`}
+              >
+                Demà
+              </button>
             </div>
           </div>
 
