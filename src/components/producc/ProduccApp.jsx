@@ -110,6 +110,7 @@ export default function ProduccApp({ setActiveTab }) {
   const [gammes, setGammes] = useState([]);
   const [projectes, setProjectes] = useState([]);
   const [projeccItems, setProjeccItems] = useState([]);
+  const [pressupostos, setPressupostos] = useState([]);
 
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
@@ -196,6 +197,10 @@ export default function ProduccApp({ setActiveTab }) {
       setProjeccItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (e) => console.warn("Error onSnapshot projecc_items:", e));
 
+    const unsubPressupostos = onSnapshot(collection(db, "pressupostos"), (snapshot) => {
+      setPressupostos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot pressupostos a ProduccApp:", e));
+
     return () => {
       unsubGrups();
       unsubUnitats();
@@ -214,6 +219,7 @@ export default function ProduccApp({ setActiveTab }) {
       unsubGammes();
       unsubProjectes();
       unsubProjeccItems();
+      unsubPressupostos();
     };
   }, []);
 
@@ -921,6 +927,7 @@ export default function ProduccApp({ setActiveTab }) {
             gammes={gammes}
             escandalls={escandalls}
             ordresFabricacio={ordresFabricacio}
+            pressupostos={pressupostos}
             setActiveProduccSubtab={setActiveProduccSubtab}
             isDark={isDark}
           />

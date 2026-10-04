@@ -18,13 +18,16 @@ import {
   Eye,
   SlidersHorizontal,
   Info,
-  X
+  X,
+  Hammer,
+  Lock
 } from 'lucide-react';
 import { resolveMediaUrl, resolveProducteMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency } from '../../utils/numberUtils';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { isProductInGamma, getProductGammaLabel } from '../PrivateAreaSection';
+import { getProductStockMetrics } from '../../utils/productStockUtils';
 
 export default function EstocProductesManager({
   productes = [],
@@ -33,6 +36,7 @@ export default function EstocProductesManager({
   gammes = [],
   escandalls = [],
   ordresFabricacio = [],
+  pressupostos = [],
   setActiveProduccSubtab,
   isDark = true
 }) {
@@ -45,26 +49,52 @@ export default function EstocProductesManager({
   const [editingUbicacioId, setEditingUbicacioId] = useState(null);
   const [tempUbicacio, setTempUbicacio] = useState('');
 
+  // Càlcul memoitzat de mètriques d'estoc, fabricació i reserves per a cada producte
+  const productMetricsMap = useMemo(() => {
+    const map = {};
+    productes.forEach(p => {
+      map[p.id] = getProductStockMetrics(p, ordresFabricacio, pressupostos, escandalls);
+    });
+    return map;
+  }, [productes, ordresFabricacio, pressupostos, escandalls]);
+
   // Càlcul de mètriques globals
   const stats = useMemo(() => {
     let totalVenda = 0;
     let totalMostres = 0;
+    let totalFabricantSe = 0;
+    let totalReservat = 0;
     let sotaMinims = 0;
     let esgotats = 0;
 
     productes.forEach(p => {
-      const venda = Math.max(0, parseInt(p.estocActual, 10) || 0);
-      const mostres = Math.max(0, parseInt(p.estocMostres, 10) || 0);
-      const minim = p.estocMinim !== undefined ? parseInt(p.estocMinim, 10) : 2;
+      const m = productMetricsMap[p.id] || {
+        estocActual: Math.max(0, parseInt(p.estocActual, 10) || 0),
+        estocMostres: Math.max(0, parseInt(p.estocMostres, 10) || 0),
+        estocMinim: p.estocMinim !== undefined ? parseInt(p.estocMinim, 10) : 2,
+        fabricantSe: 0,
+        reservat: 0
+      };
 
-      totalVenda += venda;
-      totalMostres += mostres;
-      if (venda === 0) esgotats += 1;
-      else if (venda <= minim) sotaMinims += 1;
+      totalVenda += m.estocActual;
+      totalMostres += m.estocMostres;
+      totalFabricantSe += m.fabricantSe;
+      totalReservat += m.reservat;
+
+      if (m.estocActual === 0) esgotats += 1;
+      else if (m.estocActual <= m.estocMinim) sotaMinims += 1;
     });
 
-    return { totalVenda, totalMostres, sotaMinims, esgotats, totalProductes: productes.length };
-  }, [productes]);
+    return { 
+      totalVenda, 
+      totalMostres, 
+      totalFabricantSe, 
+      totalReservat, 
+      sotaMinims, 
+      esgotats, 
+      totalProductes: productes.length 
+    };
+  }, [productes, productMetricsMap]);
 
   // Actualització ràpida d'un camp numèric a un producte (reactivitat immediata + Firestore directe)
   const handleUpdateStockField = async (productId, field, deltaOrValue, isAbsolute = false) => {
@@ -180,14 +210,17 @@ export default function EstocProductesManager({
       }
 
       // Estat d'estoc
-      const venda = Math.max(0, parseInt(p.estocActual, 10) || 0);
-      const mostres = Math.max(0, parseInt(p.estocMostres, 10) || 0);
-      const minim = p.estocMinim !== undefined ? parseInt(p.estocMinim, 10) : 2;
+      const m = productMetricsMap[p.id] || { estocActual: 0, estocMostres: 0, estocMinim: 2, fabricantSe: 0, reservat: 0 };
+      const venda = m.estocActual;
+      const mostres = m.estocMostres;
+      const minim = m.estocMinim;
 
       if (stockStatusFilter === 'low') return venda > 0 && venda <= minim;
       if (stockStatusFilter === 'in_stock') return venda > 0;
       if (stockStatusFilter === 'out_of_stock') return venda === 0;
       if (stockStatusFilter === 'has_samples') return mostres > 0;
+      if (stockStatusFilter === 'fabricating') return m.fabricantSe > 0;
+      if (stockStatusFilter === 'reserved') return m.reservat > 0;
 
       return true;
     }).sort((a, b) => {
@@ -211,6 +244,16 @@ export default function EstocProductesManager({
         valB = parseInt(b.estocActual, 10) || 0;
         return sortOrder === 'asc' ? valA - valB : valB - valA;
       }
+      if (sortBy === 'fabricantSe') {
+        valA = productMetricsMap[a.id]?.fabricantSe || 0;
+        valB = productMetricsMap[b.id]?.fabricantSe || 0;
+        return sortOrder === 'asc' ? valA - valB : valB - valA;
+      }
+      if (sortBy === 'reservat') {
+        valA = productMetricsMap[a.id]?.reservat || 0;
+        valB = productMetricsMap[b.id]?.reservat || 0;
+        return sortOrder === 'asc' ? valA - valB : valB - valA;
+      }
       if (sortBy === 'estocMostres') {
         valA = parseInt(a.estocMostres, 10) || 0;
         valB = parseInt(b.estocMostres, 10) || 0;
@@ -218,7 +261,7 @@ export default function EstocProductesManager({
       }
       return 0;
     });
-  }, [productes, searchTerm, selectedGammaFilter, selectedFamiliaFilter, stockStatusFilter, sortBy, sortOrder, gammes]);
+  }, [productes, searchTerm, selectedGammaFilter, selectedFamiliaFilter, stockStatusFilter, sortBy, sortOrder, gammes, productMetricsMap]);
 
   return (
     <div className="space-y-6">
@@ -248,7 +291,7 @@ export default function EstocProductesManager({
       </div>
 
       {/* Grid de KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Total Venda */}
         <div className={`p-4 rounded-2xl border transition-all ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
@@ -270,6 +313,56 @@ export default function EstocProductesManager({
           </p>
         </div>
 
+        {/* Fabricant-se (OFs actives) */}
+        <div 
+          onClick={() => setStockStatusFilter(stockStatusFilter === 'fabricating' ? 'all' : 'fabricating')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            stockStatusFilter === 'fabricating' ? 'ring-2 ring-sky-500' : ''
+          } ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
+          title="Filtra productes que s'estan fabricant ara mateix"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Fabricant-se</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
+              <Hammer className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black font-mono text-sky-600 dark:text-sky-400">
+              {stats.totalFabricantSe}
+            </span>
+            <span className="text-xs text-slate-500">peces en OFs</span>
+          </div>
+          <p className="text-[11px] text-sky-600/80 dark:text-sky-400/80 mt-1">
+            En curs o cua de taller
+          </p>
+        </div>
+
+        {/* Reservat en Comandes */}
+        <div 
+          onClick={() => setStockStatusFilter(stockStatusFilter === 'reserved' ? 'all' : 'reserved')}
+          className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+            stockStatusFilter === 'reserved' ? 'ring-2 ring-amber-500' : ''
+          } ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
+          title="Filtra productes amb reserves de clients"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Reservat</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+              <Lock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
+              {stats.totalReservat}
+            </span>
+            <span className="text-xs text-slate-500">peces comandes</span>
+          </div>
+          <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-1">
+            Compromeses per clients
+          </p>
+        </div>
+
         {/* Mostres de Taller */}
         <div className={`p-4 rounded-2xl border transition-all ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
@@ -284,21 +377,21 @@ export default function EstocProductesManager({
             <span className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
               {stats.totalMostres}
             </span>
-            <span className="text-xs text-slate-500">peces d'exposició</span>
+            <span className="text-xs text-slate-500">peces exposició</span>
           </div>
           <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-1">
-            Conservades al taller per ensenyar
+            Conservades al taller
           </p>
         </div>
 
-        {/* Sota Mínims */}
+        {/* Sota Mínims / Esgotats */}
         <div className={`p-4 rounded-2xl border transition-all cursor-pointer ${
           stockStatusFilter === 'low' ? 'ring-2 ring-amber-500' : ''
         } ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
           onClick={() => setStockStatusFilter(stockStatusFilter === 'low' ? 'all' : 'low')}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Sota Mínims</span>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Sota Mínims / 0</span>
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
               <AlertTriangle className="w-4 h-4" />
             </div>
@@ -307,33 +400,10 @@ export default function EstocProductesManager({
             <span className="text-2xl font-black font-mono text-amber-500">
               {stats.sotaMinims}
             </span>
-            <span className="text-xs text-slate-500">productes</span>
+            <span className="text-xs text-slate-500">({stats.esgotats} a zero)</span>
           </div>
           <p className="text-[11px] text-slate-500 mt-1">
             Convé llançar OF de reposició
-          </p>
-        </div>
-
-        {/* Esgotats */}
-        <div className={`p-4 rounded-2xl border transition-all cursor-pointer ${
-          stockStatusFilter === 'out_of_stock' ? 'ring-2 ring-red-500' : ''
-        } ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}
-          onClick={() => setStockStatusFilter(stockStatusFilter === 'out_of_stock' ? 'all' : 'out_of_stock')}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Esgotats (0 Venda)</span>
-            <div className="w-8 h-8 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center">
-              <XCircle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black font-mono text-red-500">
-              {stats.esgotats}
-            </span>
-            <span className="text-xs text-slate-500">sota comanda (3-5d)</span>
-          </div>
-          <p className="text-[11px] text-slate-500 mt-1">
-            S'informa del termini de fabricació
           </p>
         </div>
       </div>
@@ -368,6 +438,8 @@ export default function EstocProductesManager({
           >
             <option value="all">📦 Tots els Estats</option>
             <option value="in_stock">🟢 Amb Estoc de Venda</option>
+            <option value="fabricating">🔨 Fabricant-se (OFs actives)</option>
+            <option value="reserved">🔒 Amb Reserves (Comandes)</option>
             <option value="low">🟡 Sota Mínims</option>
             <option value="out_of_stock">🔴 Esgotat (0 Venda)</option>
             <option value="has_samples">✨ Amb Mostres de Taller</option>
@@ -462,10 +534,15 @@ export default function EstocProductesManager({
             }`}>
               <tr>
                 <th className="p-3.5 pl-4">Producte</th>
-                <th className="p-3.5">Gamma</th>
-                <th className="p-3.5 text-center">🟢 Estoc Venda</th>
-                <th className="p-3.5 text-center">🟡 Mostres Taller</th>
-                <th className="p-3.5 text-center">Mínim</th>
+                <th className="p-3 text-center">🟢 Estoc Venda</th>
+                <th className="p-2.5 text-center whitespace-nowrap">
+                  <div className="flex flex-col items-center text-[10px] font-bold leading-tight">
+                    <span className="flex items-center gap-1 text-sky-600 dark:text-sky-400">🔨 Fabricant-se</span>
+                    <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">🔒 Reservat</span>
+                  </div>
+                </th>
+                <th className="p-3 text-center">🟡 Mostres</th>
+                <th className="p-3 text-center">Mínim</th>
                 <th className="p-3.5">📍 Ubicació Taller</th>
                 <th className="p-3.5">Estat</th>
                 <th className="p-3.5 pr-4 text-right">Acció</th>
@@ -480,6 +557,7 @@ export default function EstocProductesManager({
                 </tr>
               ) : (
                 filteredProducts.map(p => {
+                  const m = productMetricsMap[p.id] || getProductStockMetrics(p, ordresFabricacio, pressupostos, escandalls);
                   const venda = p.estocActual === '' ? '' : Math.max(0, parseInt(p.estocActual, 10) || 0);
                   const mostres = p.estocMostres === '' ? '' : Math.max(0, parseInt(p.estocMostres, 10) || 0);
                   const minim = p.estocMinim === '' ? '' : (p.estocMinim !== undefined ? parseInt(p.estocMinim, 10) : 2);
@@ -501,7 +579,7 @@ export default function EstocProductesManager({
                         isLow ? (isDark ? 'bg-amber-950/10' : 'bg-amber-50/40') : ''
                       }`}
                     >
-                      {/* Producte (Foto + Nom + Codi) */}
+                      {/* Producte (Foto + Gamma + Nom + Preu) */}
                       <td className="p-3.5 pl-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700/50 shrink-0 relative">
@@ -516,10 +594,10 @@ export default function EstocProductesManager({
                             />
                           </div>
                           <div>
-                            <span className={`font-mono text-[10px] font-bold block ${
+                            <span className={`font-mono text-[10px] font-bold block truncate max-w-[200px] ${
                               isDark ? 'text-amber-400' : 'text-amber-700'
-                            }`}>
-                              {p.codi || 'PRDT-0000'}
+                            }`} title={`Gamma: ${gamma}`}>
+                              {gamma || 'Sense gamma'}
                             </span>
                             <span className={`font-semibold text-sm block ${
                               isDark ? 'text-slate-100' : 'text-slate-900 font-bold'
@@ -537,71 +615,112 @@ export default function EstocProductesManager({
                         </div>
                       </td>
 
-                      {/* Gamma */}
-                      <td className="p-3.5">
-                        <span className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-block ${
-                          isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-800 border border-slate-200'
-                        }`}>
-                          {gamma}
-                        </span>
-                      </td>
-
-                      {/* Estoc de Venda (Interactive Counter) */}
-                      <td className="p-3.5 text-center">
-                        <div className={`inline-flex items-center gap-1 p-1 rounded-xl border ${
-                          isDark 
-                            ? 'bg-emerald-950/30 border-emerald-500/30' 
-                            : 'bg-emerald-50 border-emerald-300 shadow-2xs'
-                        }`}>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStockField(p.id, 'estocActual', -1)}
-                            className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
-                              isDark 
-                                ? 'bg-emerald-900/50 hover:bg-emerald-800 text-emerald-200' 
-                                : 'bg-emerald-200/90 hover:bg-emerald-300 text-emerald-950 font-extrabold shadow-2xs'
-                            }`}
-                            title="Restar 1 unitat de venda"
-                          >
-                            <Minus className="w-3 h-3 stroke-[2.5]" />
-                          </button>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            value={venda}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              handleUpdateStockField(p.id, 'estocActual', val, true);
-                            }}
-                            onBlur={() => {
-                              if (p.estocActual === '' || p.estocActual === undefined) {
-                                handleUpdateStockField(p.id, 'estocActual', 0, true);
-                              }
-                            }}
-                            className={`w-12 text-center p-0 bg-transparent font-mono font-black text-sm outline-none border-0 focus:ring-0 ${
-                              isDark ? 'text-emerald-400' : 'text-emerald-900'
-                            }`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStockField(p.id, 'estocActual', 1)}
-                            className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
-                              isDark 
-                                ? 'bg-emerald-900/50 hover:bg-emerald-800 text-emerald-200' 
-                                : 'bg-emerald-200/90 hover:bg-emerald-300 text-emerald-950 font-extrabold shadow-2xs'
-                            }`}
-                            title="Sumar 1 unitat de venda"
-                          >
-                            <Plus className="w-3 h-3 stroke-[2.5]" />
-                          </button>
+                      {/* Estoc de Venda (Interactive Counter Estret) */}
+                      <td className="p-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${
+                            isDark 
+                              ? 'bg-emerald-950/30 border-emerald-500/30' 
+                              : 'bg-emerald-50 border-emerald-300 shadow-2xs'
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStockField(p.id, 'estocActual', -1)}
+                              className={`w-5 h-5 rounded-md font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
+                                isDark 
+                                  ? 'bg-emerald-900/50 hover:bg-emerald-800 text-emerald-200' 
+                                  : 'bg-emerald-200/90 hover:bg-emerald-300 text-emerald-950 font-extrabold shadow-2xs'
+                              }`}
+                              title="Restar 1 unitat de venda"
+                            >
+                              <Minus className="w-2.5 h-2.5 stroke-[2.5]" />
+                            </button>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={venda}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                handleUpdateStockField(p.id, 'estocActual', val, true);
+                              }}
+                              onBlur={() => {
+                                if (p.estocActual === '' || p.estocActual === undefined) {
+                                  handleUpdateStockField(p.id, 'estocActual', 0, true);
+                                }
+                              }}
+                              className={`w-8 text-center p-0 bg-transparent font-mono font-black text-xs outline-none border-0 focus:ring-0 ${
+                                isDark ? 'text-emerald-400' : 'text-emerald-900'
+                              }`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateStockField(p.id, 'estocActual', 1)}
+                              className={`w-5 h-5 rounded-md font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
+                                isDark 
+                                  ? 'bg-emerald-900/50 hover:bg-emerald-800 text-emerald-200' 
+                                  : 'bg-emerald-200/90 hover:bg-emerald-300 text-emerald-950 font-extrabold shadow-2xs'
+                              }`}
+                              title="Sumar 1 unitat de venda"
+                            >
+                              <Plus className="w-2.5 h-2.5 stroke-[2.5]" />
+                            </button>
+                          </div>
+                          {m.reservat > 0 && (
+                            <span className="text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                              Disp: {m.estocDisponible} u
+                            </span>
+                          )}
                         </div>
                       </td>
 
-                      {/* Mostres de Taller (Interactive Counter) */}
-                      <td className="p-3.5 text-center">
-                        <div className={`inline-flex items-center gap-1 p-1 rounded-xl border ${
+                      {/* Fabricant-se i Reservat (en dues línies, model Materials) */}
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        {m.fabricantSe === 0 && m.reservat === 0 ? (
+                          <span className="text-slate-300 dark:text-slate-600 font-mono text-xs">-</span>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            {/* Línia 1: Fabricant-se */}
+                            {m.fabricantSe > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (setActiveProduccSubtab) {
+                                    sessionStorage.setItem('producc_initial_subtab', 'ordres_fabricacio');
+                                    sessionStorage.setItem('producc_initial_of_product_nom', p.nom);
+                                    setActiveProduccSubtab('ordres_fabricacio');
+                                  }
+                                }}
+                                className="px-2 py-0.5 rounded bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 font-mono text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition-all border border-sky-500/20 shadow-2xs"
+                                title={`Fabricant-se en ${m.ofsFabricant.length} OF${m.ofsFabricant.length > 1 ? 's' : ''}:\n${m.ofsFabricant.map(o => `• ${o.codi}: ${o.quantitat} u (${o.estat})`).join('\n')}\n\n(Fes clic per anar a Ordres de Fabricació)`}
+                              >
+                                <Hammer className="w-2.5 h-2.5 text-sky-500 shrink-0" />
+                                <span>{m.fabricantSe} u</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px] font-mono leading-none">-</span>
+                            )}
+
+                            {/* Línia 2: Reservat */}
+                            {m.reservat > 0 ? (
+                              <span
+                                className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-mono text-[11px] font-bold inline-flex items-center gap-1 cursor-default border border-amber-500/20 shadow-2xs"
+                                title={`Reservades en ${m.comandesReservades.length} comanda${m.comandesReservades.length > 1 ? 'es' : ''}:\n${m.comandesReservades.map(c => `• ${c.codi} (${c.client}): ${c.quantitat} u [${c.estatComanda}]`).join('\n')}`}
+                              >
+                                <Lock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                <span>{m.reservat} u</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-600 text-[10px] font-mono leading-none">-</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Mostres de Taller (Interactive Counter Estret) */}
+                      <td className="p-3 text-center">
+                        <div className={`inline-flex items-center gap-0.5 p-0.5 rounded-lg border ${
                           isDark 
                             ? 'bg-amber-950/30 border-amber-500/30' 
                             : 'bg-amber-50 border-amber-300 shadow-2xs'
@@ -609,14 +728,14 @@ export default function EstocProductesManager({
                           <button
                             type="button"
                             onClick={() => handleUpdateStockField(p.id, 'estocMostres', -1)}
-                            className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
+                            className={`w-5 h-5 rounded-md font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
                               isDark 
                                 ? 'bg-amber-900/50 hover:bg-amber-800 text-amber-200' 
                                 : 'bg-amber-200/90 hover:bg-amber-300 text-amber-950 font-extrabold shadow-2xs'
                             }`}
                             title="Restar 1 mostra de taller"
                           >
-                            <Minus className="w-3 h-3 stroke-[2.5]" />
+                            <Minus className="w-2.5 h-2.5 stroke-[2.5]" />
                           </button>
                           <input
                             type="text"
@@ -633,21 +752,21 @@ export default function EstocProductesManager({
                                 handleUpdateStockField(p.id, 'estocMostres', 0, true);
                               }
                             }}
-                            className={`w-12 text-center p-0 bg-transparent font-mono font-black text-sm outline-none border-0 focus:ring-0 ${
+                            className={`w-8 text-center p-0 bg-transparent font-mono font-black text-xs outline-none border-0 focus:ring-0 ${
                               isDark ? 'text-amber-400' : 'text-amber-950'
                             }`}
                           />
                           <button
                             type="button"
                             onClick={() => handleUpdateStockField(p.id, 'estocMostres', 1)}
-                            className={`w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
+                            className={`w-5 h-5 rounded-md font-bold flex items-center justify-center cursor-pointer transition-all active:scale-95 shrink-0 ${
                               isDark 
                                 ? 'bg-amber-900/50 hover:bg-amber-800 text-amber-200' 
                                 : 'bg-amber-200/90 hover:bg-amber-300 text-amber-950 font-extrabold shadow-2xs'
                             }`}
                             title="Sumar 1 mostra de taller"
                           >
-                            <Plus className="w-3 h-3 stroke-[2.5]" />
+                            <Plus className="w-2.5 h-2.5 stroke-[2.5]" />
                           </button>
                         </div>
                       </td>

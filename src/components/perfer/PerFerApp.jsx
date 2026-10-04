@@ -16,6 +16,7 @@ import {
   PER_FER_PRIORITATS, 
   INITIAL_SAMPLE_TASQUES 
 } from '../../data/perFerInitialData';
+import { INITIAL_MAQUINARIA } from '../../data/produccInitialData';
 import PerFerCard from './PerFerCard';
 import PerFerTaskModal from './PerFerTaskModal';
 import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
@@ -104,7 +105,7 @@ export default function PerFerApp({ setActiveTab }) {
   // Dades connectades del catàleg per a vinculació opcional
   const [dbProductes, setDbProductes] = useState([]);
   const [dbProjects, setDbProjects] = useState([]);
-  const [dbMaquinaria, setDbMaquinaria] = useState([]);
+  const [dbMaquinaria, setDbMaquinaria] = useState(INITIAL_MAQUINARIA);
   const [dbEsdeveniments, setDbEsdeveniments] = useState([]);
 
   // Estat de Drag & Drop
@@ -220,8 +221,15 @@ export default function PerFerApp({ setActiveTab }) {
     }, () => {});
 
     const unsubMaq = onSnapshot(collection(db, "producc_maquinaria"), (snap) => {
-      setDbMaquinaria(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, () => {});
+      if (!snap.empty) {
+        setDbMaquinaria(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } else {
+        setDbMaquinaria(INITIAL_MAQUINARIA);
+      }
+    }, (err) => {
+      console.warn("Error escoltant producc_maquinaria:", err);
+      setDbMaquinaria(INITIAL_MAQUINARIA);
+    });
 
     const unsubEsdev = onSnapshot(collection(db, "producc_esdeveniments"), (snap) => {
       setDbEsdeveniments(snap.docs.map(d => ({ id: d.id, ...d.data() })));

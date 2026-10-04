@@ -421,19 +421,26 @@ export default function PerFerTaskModal({
                     onChange={e => {
                       const id = e.target.value;
                       const found = dbMaquinaria.find(m => m.id === id);
+                      const nomMaq = found ? (found.maquina || found.nom || found.titol || id) : '';
                       setFormData({
                         ...formData,
-                        vinculacio: { tipus: 'maquina', id, nom: found?.nom || id }
+                        vinculacio: { tipus: 'maquina', id, nom: nomMaq }
                       });
                     }}
                     className="flex-1 min-w-0 px-2.5 py-2 bg-surface text-on-surface rounded-xl border border-outline/20 text-xs outline-none focus:border-primary transition-all truncate"
                   >
-                    <option value="">Selecciona màquina...</option>
-                    {dbMaquinaria.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.nom} {m.model ? `(${m.model})` : ''}
-                      </option>
-                    ))}
+                    <option value="">
+                      {dbMaquinaria.length === 0 ? "Cap màquina disponible..." : "Selecciona màquina..."}
+                    </option>
+                    {dbMaquinaria.map(m => {
+                      const nomMaq = m.maquina || m.nom || m.titol || 'Sense nom';
+                      const extra = m.codiFabricant || m.fabricant || m.model || '';
+                      return (
+                        <option key={m.id} value={m.id}>
+                          {nomMaq} {extra ? `(${extra})` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 )}
 

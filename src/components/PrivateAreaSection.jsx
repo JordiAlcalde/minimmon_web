@@ -12,6 +12,7 @@ import { getDefaultTheme, saveDefaultTheme } from '../utils/themeUtils';
 import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
 import GeminiDescriptorModal from './common/GeminiDescriptorModal';
+import { getProductStockMetrics } from '../utils/productStockUtils';
 import { 
   Bell,
   Lock, 
@@ -682,6 +683,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
   // Modals Descriptor IA (Gemini) per a Productes i Projectes
   const [openProductAiDescriptor, setOpenProductAiDescriptor] = useState(false);
   const [openProjectAiDescriptor, setOpenProjectAiDescriptor] = useState(false);
+  const [dbOrdresFabricacio, setDbOrdresFabricacio] = useState([]);
 
   // Informacions Globals del Catàleg state
   const [dbInformacions, setDbInformacions] = useState([]);
@@ -1126,11 +1128,16 @@ export default function PrivateAreaSection({ setActiveTab }) {
       setDbMaquinaria(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.warn("Error producc_maquinaria:", err));
 
+    const unsubOF = onSnapshot(query(collection(db, "producc_ordres_fabricacio")), (snapshot) => {
+      setDbOrdresFabricacio(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error producc_ordres_fabricacio a PrivateAreaSection:", err));
+
     return () => {
       unsubEsc();
       unsubMat();
       unsubOp();
       unsubMaq();
+      unsubOF();
     };
   }, [isAuthenticated]);
 
@@ -5843,6 +5850,29 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </span>
                 </div>
 
+                {editingProducte.id && (() => {
+                  const m = getProductStockMetrics(editingProducte, dbOrdresFabricacio, pressupostos, dbEscandalls);
+                  if (m.fabricantSe > 0 || m.reservat > 0) {
+                    return (
+                      <div className="mb-4 p-3 rounded-xl bg-surface-container flex flex-wrap items-center gap-4 border border-outline/15 text-xs font-mono">
+                        {m.fabricantSe > 0 && (
+                          <div className="flex items-center gap-1.5 text-sky-700 dark:text-sky-300 font-bold">
+                            <Hammer className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                            <span>{m.fabricantSe} unitats fabricant-se ({m.ofsFabricant.length} OFs actives)</span>
+                          </div>
+                        )}
+                        {m.reservat > 0 && (
+                          <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-bold">
+                            <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>{m.reservat} unitats reservades en comandes (Disp. lliure: {m.estocDisponible})</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Estoc per a Venda */}
                   <div className="p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-500/30">
@@ -6909,30 +6939,62 @@ export default function PrivateAreaSection({ setActiveTab }) {
                                );
                              })()}
                             <td className="p-4 font-mono text-xs whitespace-nowrap min-w-[130px]">
-                              <div className="flex flex-col gap-1">
-                                {Number(p.estocActual || 0) > 0 ? (
-                                  <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold whitespace-nowrap">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                                    <span>{p.estocActual} venda</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1.5 text-slate-400 font-normal whitespace-nowrap">
-                                    <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0"></span>
-                                    <span>0 venda</span>
-                                  </span>
-                                )}
-                                {Number(p.estocMostres || 0) > 0 && (
-                                  <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
-                                    <span>{p.estocMostres} mostres</span>
-                                  </span>
-                                )}
-                                {p.ubicacioTaller && (
-                                  <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[140px] whitespace-nowrap" title={`Ubicació: ${p.ubicacioTaller}`}>
-                                    📍 {p.ubicacioTaller}
-                                  </span>
-                                )}
-                              </div>
+                              {(() => {
+                                const metrics = getProductStockMetrics(p, dbOrdresFabricacio, pressupostos, dbEscandalls);
+                                return (
+                                  <div className="flex flex-col gap-1">
+                                    {metrics.estocActual > 0 ? (
+                                      <span className="inline-flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold whitespace-nowrap">
+                                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                                        <span>{metrics.estocActual} venda</span>
+                                        {metrics.reservat > 0 && (
+                                          <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-normal">
+                                            ({metrics.estocDisponible} disp.)
+                                          </span>
+                                        )}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 text-slate-400 font-normal whitespace-nowrap">
+                                        <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0"></span>
+                                        <span>0 venda</span>
+                                      </span>
+                                    )}
+
+                                    {metrics.fabricantSe > 0 && (
+                                      <span 
+                                        className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-300 text-[11px] font-semibold whitespace-nowrap"
+                                        title={`${metrics.fabricantSe} unitats fabricant-se en ${metrics.ofsFabricant.length} OFs (${metrics.ofsFabricant.map(o => o.codi).join(', ')})`}
+                                      >
+                                        <Hammer className="w-3 h-3 text-sky-500 shrink-0" />
+                                        <span>{metrics.fabricantSe} fabricant-se</span>
+                                      </span>
+                                    )}
+
+                                    {metrics.reservat > 0 && (
+                                      <span 
+                                        className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 text-[11px] font-semibold whitespace-nowrap"
+                                        title={`${metrics.reservat} unitats reservades en comandes (${metrics.comandesReservades.map(c => `${c.codi}: ${c.quantitat} u`).join(', ')})`}
+                                      >
+                                        <Lock className="w-3 h-3 text-amber-500 shrink-0" />
+                                        <span>{metrics.reservat} reservat</span>
+                                      </span>
+                                    )}
+
+                                    {metrics.estocMostres > 0 && (
+                                      <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 text-[11px] font-semibold whitespace-nowrap">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                        <span>{metrics.estocMostres} mostres</span>
+                                      </span>
+                                    )}
+
+                                    {p.ubicacioTaller && (
+                                      <span className="text-[10px] text-on-surface-variant font-mono truncate max-w-[140px] whitespace-nowrap" title={`Ubicació: ${p.ubicacioTaller}`}>
+                                        📍 {p.ubicacioTaller}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="p-4 text-right">
                               <div className="inline-flex items-center justify-end gap-1.5">
