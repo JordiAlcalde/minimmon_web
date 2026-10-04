@@ -194,6 +194,7 @@ export default function OrdresFabricacioManager({
   // Filtres i cerques
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState('all'); // 'all' | 2026 | 2025 ...
+  const [selectedOpenCloseFilter, setSelectedOpenCloseFilter] = useState('obertes'); // 'obertes' (default) | 'tancades' | 'totes'
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('all'); // 'all' | 'cua' | 'en_curs' | 'acabats' | 'finalitzada' | 'cancel·lada'
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState('all'); // 'all' | 'urgent' | 'normal' | 'baixa'
   const [searchQuery, setSearchQuery] = useState('');
@@ -353,8 +354,14 @@ export default function OrdresFabricacioManager({
         if (ofYear !== parseInt(selectedYear, 10)) return false;
       }
 
-      // Filtre d'Estat
-      if (selectedStatusFilter !== 'all' && normalizeOFStatus(of.estat) !== selectedStatusFilter) {
+      // Filtre d'Estat (Obertes / Tancades / Totes)
+      const normEstat = normalizeOFStatus(of.estat);
+      const isClosed = normEstat === 'finalitzada' || normEstat === 'cancel·lada';
+      if (selectedOpenCloseFilter === 'obertes' && isClosed) return false;
+      if (selectedOpenCloseFilter === 'tancades' && !isClosed) return false;
+
+      // Filtre d'Etapa d'Estat (KPIs: cua, en_curs, acabats, finalitzada...)
+      if (selectedStatusFilter !== 'all' && normEstat !== selectedStatusFilter) {
         return false;
       }
 
@@ -420,7 +427,7 @@ export default function OrdresFabricacioManager({
 
       return (b.id || '').localeCompare(a.id || '');
     });
-  }, [ordresFabricacio, selectedYear, selectedStatusFilter, selectedPriorityFilter, searchQuery]);
+  }, [ordresFabricacio, selectedYear, selectedOpenCloseFilter, selectedStatusFilter, selectedPriorityFilter, searchQuery]);
 
   // Editar la quantitat d'una OF en estat 'cua' o 'en_curs' amb recalibrament de materials i estocs reservats
   const handleUpdateOFQuantitat = (ofId, newQuantity) => {
@@ -715,8 +722,20 @@ export default function OrdresFabricacioManager({
               onClick={() => {
                 if (kpi.isUrgent) {
                   setSelectedPriorityFilter(selectedPriorityFilter === 'urgent' ? 'all' : 'urgent');
+                  if (selectedOpenCloseFilter === 'tancades') {
+                    setSelectedOpenCloseFilter('obertes');
+                  }
                 } else {
                   setSelectedStatusFilter(kpi.filter);
+                  if (kpi.filter === 'finalitzada') {
+                    if (selectedOpenCloseFilter === 'obertes') {
+                      setSelectedOpenCloseFilter('tancades');
+                    }
+                  } else if (kpi.filter === 'cua' || kpi.filter === 'en_curs' || kpi.filter === 'acabats') {
+                    if (selectedOpenCloseFilter === 'tancades') {
+                      setSelectedOpenCloseFilter('obertes');
+                    }
+                  }
                 }
               }}
               className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -815,6 +834,34 @@ export default function OrdresFabricacioManager({
                 <option value="rapid" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>⚡ Ràpid</option>
                 <option value="urgent" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🟠 Urgent</option>
                 <option value="tragic" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>🔴 Tràgic</option>
+              </select>
+            </div>
+
+            {/* Selector d'Estat (Obertes / Tancades / Totes) */}
+            <div className={`flex items-center gap-1.5 border rounded-xl px-3 py-1.5 text-xs ${
+              isDark ? 'bg-slate-950 border-slate-700 text-slate-200' : 'bg-slate-50 border-slate-300 text-slate-800'
+            }`}>
+              <Layers className="w-4 h-4 text-amber-500 shrink-0" />
+              <span className={`text-[11px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Estat:</span>
+              <select
+                value={selectedOpenCloseFilter}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedOpenCloseFilter(val);
+                  if (val === 'obertes' && (selectedStatusFilter === 'finalitzada' || selectedStatusFilter === 'cancel·lada')) {
+                    setSelectedStatusFilter('all');
+                  }
+                  if (val === 'tancades' && (selectedStatusFilter === 'cua' || selectedStatusFilter === 'en_curs' || selectedStatusFilter === 'acabats')) {
+                    setSelectedStatusFilter('all');
+                  }
+                }}
+                className={`bg-transparent text-xs font-mono font-bold outline-none cursor-pointer ${
+                  isDark ? 'text-slate-100' : 'text-slate-900'
+                }`}
+              >
+                <option value="obertes" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Obertes</option>
+                <option value="tancades" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Tancades</option>
+                <option value="totes" className={isDark ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'}>Totes</option>
               </select>
             </div>
           </div>

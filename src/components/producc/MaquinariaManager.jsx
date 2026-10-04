@@ -239,11 +239,17 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
 
     const executionDate = maintenanceFormData.data || new Date().toISOString().split('T')[0];
     const horesExec = Number(maintenanceFormData.hores || selectedMaquinaForMaintenance.horesTreball || 0);
+    const prevHores = Number(
+      selectedMaquinaForMaintenance.ultimMantenimentHores ?? 
+      (selectedMaquinaForMaintenance.historicManteniments?.[0]?.hores ?? 0)
+    );
+    const horesDiferencia = Math.max(0, horesExec - prevHores);
 
     const newRecord = {
       id: `mrec-${Date.now()}`,
       data: executionDate,
       hores: horesExec,
+      horesTreballades: horesDiferencia,
       accions: { ...maintenanceFormData.accions },
       observacions: (maintenanceFormData.observacions || '').trim()
     };
@@ -484,6 +490,15 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
     warning: maquinaria.filter(m => getMaintenanceStatus(m).status === 'warning').length,
     ok: maquinaria.filter(m => getMaintenanceStatus(m).status === 'ok').length
   };
+
+  // Càlcul d'hores per al formulari de manteniment
+  const valorAnticHores = Number(
+    selectedMaquinaForMaintenance?.ultimMantenimentHores ?? 
+    (selectedMaquinaForMaintenance?.historicManteniments?.[0]?.hores ?? 0)
+  );
+  const currentHores = parseDecimal(maintenanceFormData.hores, 0);
+  const diffHores = currentHores - valorAnticHores;
+  const horesTreballades = Math.max(0, diffHores);
 
   return (
     <div className="space-y-6">
@@ -1470,28 +1485,52 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Data de la Intervenció *</label>
+                    <label className={`block mb-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Data de la intervenció *
+                    </label>
                     <input
                       type="date"
                       required
                       value={maintenanceFormData.data}
                       onChange={(e) => setMaintenanceFormData({ ...maintenanceFormData, data: e.target.value })}
                       className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
                       }`}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Hores Actuals de la Màquina</label>
+                    <label className={`block mb-1 font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                      Hores actuals (Run time)
+                    </label>
                     <DecimalInput
                       value={maintenanceFormData.hores}
                       onChange={(e, num) => setMaintenanceFormData({ ...maintenanceFormData, hores: num })}
                       className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
-                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                        isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-800'
                       }`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`block mb-1 font-medium truncate ${isDark ? 'text-slate-300' : 'text-slate-700'}`} title="Hores treballades (des de l'últim manteniment)">
+                      Hores treballades <span className={`text-[10px] font-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>(des de l'últim mant.)</span>
+                    </label>
+                    <input
+                      type="text"
+                      readOnly
+                      tabIndex={-1}
+                      value={`${formatDecimal(horesTreballades, 1)} h`}
+                      className={`w-full p-2.5 rounded-xl border outline-none font-mono font-semibold cursor-not-allowed select-none ${
+                        isDark 
+                          ? 'bg-slate-950/60 border-slate-800 text-amber-400' 
+                          : 'bg-slate-100 border-slate-200 text-amber-900'
+                      }`}
+                      title={valorAnticHores > 0 
+                        ? `Diferència: ${formatDecimal(currentHores, 1)}h (actuals) - ${formatDecimal(valorAnticHores, 1)}h (últim mant.)` 
+                        : `Primer manteniment (0h prèvies)`}
                     />
                   </div>
                 </div>
