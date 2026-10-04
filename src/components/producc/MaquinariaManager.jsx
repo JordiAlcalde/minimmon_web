@@ -548,8 +548,8 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
             onClick={() => setFilterMaintenance('overdue')}
             className={`px-3 py-1.5 rounded-xl font-medium transition-all cursor-pointer border flex items-center gap-1.5 ${
               filterMaintenance === 'overdue'
-                ? 'bg-red-500/20 border-red-500 text-red-300 font-bold'
-                : isDark ? 'bg-slate-950/60 border-slate-800 text-red-400 hover:bg-red-950/30' : 'bg-slate-50 border-slate-200 text-red-600 hover:bg-red-50'
+                ? isDark ? 'bg-red-500/20 border-red-500 text-red-300 font-bold' : 'bg-red-100 border-red-400 text-red-900 font-bold'
+                : isDark ? 'bg-slate-950/60 border-slate-800 text-red-400 hover:bg-red-950/30' : 'bg-slate-50 border-slate-200 text-red-700 hover:bg-red-50'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -561,8 +561,8 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
             onClick={() => setFilterMaintenance('warning')}
             className={`px-3 py-1.5 rounded-xl font-medium transition-all cursor-pointer border flex items-center gap-1.5 ${
               filterMaintenance === 'warning'
-                ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold'
-                : isDark ? 'bg-slate-950/60 border-slate-800 text-amber-400 hover:bg-amber-950/30' : 'bg-slate-50 border-slate-200 text-amber-700 hover:bg-amber-50'
+                ? isDark ? 'bg-amber-500/20 border-amber-500 text-amber-300 font-bold' : 'bg-amber-100 border-amber-400 text-amber-900 font-bold'
+                : isDark ? 'bg-slate-950/60 border-slate-800 text-amber-400 hover:bg-amber-950/30' : 'bg-slate-50 border-slate-200 text-amber-800 hover:bg-amber-50'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-amber-500" />
@@ -574,8 +574,8 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
             onClick={() => setFilterMaintenance('ok')}
             className={`px-3 py-1.5 rounded-xl font-medium transition-all cursor-pointer border flex items-center gap-1.5 ${
               filterMaintenance === 'ok'
-                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
-                : isDark ? 'bg-slate-950/60 border-slate-800 text-emerald-400 hover:bg-emerald-950/30' : 'bg-slate-50 border-slate-200 text-emerald-700 hover:bg-emerald-50'
+                ? isDark ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold' : 'bg-emerald-100 border-emerald-500 text-emerald-950 font-bold'
+                : isDark ? 'bg-slate-950/60 border-slate-800 text-emerald-400 hover:bg-emerald-950/30' : 'bg-slate-50 border-slate-200 text-emerald-800 hover:bg-emerald-50'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -619,9 +619,9 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                         onClick={() => handleOpenMaintenanceModal(m)}
                         className={`p-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-semibold border ${
                           maintStatus.status === 'overdue'
-                            ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                            ? (isDark ? 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20' : 'bg-red-50 border-red-200 text-red-700 hover:bg-red-100')
                             : maintStatus.status === 'warning'
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                            ? (isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20' : 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100')
                             : isDark ? 'border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-amber-400' : 'border-slate-200 text-slate-700 hover:bg-slate-100'
                         }`}
                         title="Gestionar manteniment de la màquina"
@@ -652,12 +652,12 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                   {/* Informació de Manteniment (Semàfor) */}
                   <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
                     maintStatus.status === 'overdue'
-                      ? 'bg-red-950/20 border-red-500/30 text-red-300'
+                      ? (isDark ? 'bg-red-950/40 border-red-500/30' : 'bg-red-50 border-red-200')
                       : maintStatus.status === 'warning'
-                      ? 'bg-amber-950/20 border-amber-500/30 text-amber-300'
+                      ? (isDark ? 'bg-amber-950/40 border-amber-500/30' : 'bg-amber-50 border-amber-200')
                       : maintStatus.status === 'ok'
-                      ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
-                      : isDark ? 'bg-slate-950/40 border-slate-800 text-slate-400' : 'bg-slate-50 border-slate-200 text-slate-600'
+                      ? (isDark ? 'bg-emerald-950/40 border-emerald-500/30' : 'bg-emerald-50 border-emerald-200')
+                      : (isDark ? 'bg-slate-950/40 border-slate-800' : 'bg-slate-50 border-slate-200')
                   }`}>
                     <div className="flex items-center gap-2 truncate">
                       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
@@ -666,10 +666,20 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                         maintStatus.status === 'ok' ? 'bg-emerald-500' : 'bg-slate-500'
                       }`} />
                       <div className="truncate">
-                        <span className="font-semibold block truncate">
+                        <span className={`font-bold block truncate ${
+                          maintStatus.status === 'overdue' ? (isDark ? 'text-red-200' : 'text-red-950') :
+                          maintStatus.status === 'warning' ? (isDark ? 'text-amber-200' : 'text-amber-950') :
+                          maintStatus.status === 'ok' ? (isDark ? 'text-emerald-200' : 'text-emerald-950') :
+                          (isDark ? 'text-slate-200' : 'text-slate-900')
+                        }`}>
                           Proper: {m.properMantenimentData ? formatDateDisplay(m.properMantenimentData) : 'Sense data'}
                         </span>
-                        <span className="text-[10px] opacity-80 font-mono">
+                        <span className={`text-[10px] font-mono font-medium ${
+                          maintStatus.status === 'overdue' ? (isDark ? 'text-red-300/90' : 'text-red-800') :
+                          maintStatus.status === 'warning' ? (isDark ? 'text-amber-300/90' : 'text-amber-800') :
+                          maintStatus.status === 'ok' ? (isDark ? 'text-emerald-300/90' : 'text-emerald-800') :
+                          (isDark ? 'text-slate-400' : 'text-slate-600')
+                        }`}>
                           {maintStatus.label} {m.horesTreball ? `· ${m.horesTreball}h ús` : ''} {actionsCount > 0 ? `· ${actionsCount} accions` : ''}
                         </span>
                       </div>
@@ -678,7 +688,7 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                     <button
                       type="button"
                       onClick={() => handleOpenMaintenanceModal(m)}
-                      className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-600 hover:bg-amber-500 text-white shrink-0 cursor-pointer shadow-2xs transition-all"
+                      className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-600 hover:bg-amber-500 text-white shrink-0 cursor-pointer shadow-2xs transition-all"
                     >
                       Revisar
                     </button>
@@ -704,7 +714,9 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
 
                   {(m.esLaser || m.parametresLaser || (m.bibliotecaMaterials && m.bibliotecaMaterials.length > 0)) && (
                     <div className="text-center">
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-bold border border-amber-500/30 inline-flex items-center gap-1 shadow-2xs">
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border inline-flex items-center gap-1 shadow-2xs ${
+                        isDark ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
                         <Zap className="w-2.5 h-2.5" />
                         {(m.bibliotecaMaterials || []).length} mats làser
                       </span>
@@ -1655,12 +1667,14 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold font-mono text-xs flex items-center gap-1.5">
+                            <span className={`px-2.5 py-1 rounded-lg border font-bold font-mono text-xs flex items-center gap-1.5 ${
+                              isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                            }`}>
                               <Calendar className="w-3.5 h-3.5" />
                               {formatDateDisplay(rec.data)}
                             </span>
                             {rec.hores > 0 && (
-                              <span className="font-mono text-slate-400 text-xs font-semibold">
+                              <span className={`font-mono text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                                 {rec.hores} hores d'ús
                               </span>
                             )}
@@ -1686,10 +1700,14 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                               const label = accDef?.titol || accId;
 
                               return (
-                                <div key={accId} className="flex items-center justify-between gap-2 border-b border-slate-800/40 pb-1 last:border-none last:pb-0">
-                                  <span className="text-slate-300 truncate">{label}</span>
+                                <div key={accId} className={`flex items-center justify-between gap-2 border-b pb-1 last:border-none last:pb-0 ${
+                                  isDark ? 'border-slate-800/40' : 'border-slate-100'
+                                }`}>
+                                  <span className={`truncate font-medium ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>{label}</span>
                                   <span className={`font-semibold shrink-0 font-mono ${
-                                    isDone ? 'text-emerald-400' : 'text-slate-500'
+                                    isDone 
+                                      ? (isDark ? 'text-emerald-400' : 'text-emerald-700') 
+                                      : (isDark ? 'text-slate-500' : 'text-slate-400')
                                   }`}>
                                     {isDone ? '✓ Revisat' : 'No realitzat'}
                                   </span>
@@ -1700,7 +1718,11 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                         )}
 
                         {rec.observacions && (
-                          <p className="text-[11px] text-slate-300 italic bg-amber-500/5 p-2 rounded border border-amber-500/10">
+                          <p className={`text-[11px] italic p-2 rounded border ${
+                            isDark 
+                              ? 'text-slate-300 bg-amber-500/5 border-amber-500/10' 
+                              : 'text-slate-800 bg-amber-50 border-amber-200'
+                          }`}>
                             "{rec.observacions}"
                           </p>
                         )}
