@@ -4,7 +4,7 @@ import {
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
   Package, Wrench, Layers, User, Phone, Sparkles, Check, ChevronDown, 
   ArrowLeft, RotateCw, FileText, Download, ChevronRight, BarChart2, Flame,
-  Boxes, Factory, HelpCircle, Zap, ArrowLeftRight
+  Boxes, Factory, HelpCircle, Zap, ArrowLeftRight, Store
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -188,6 +188,8 @@ export default function OrdresFabricacioManager({
   maquinaria = [],
   operacions = [],
   compres = [],
+  esdeveniments = [],
+  setEsdeveniments,
   setActiveProduccSubtab,
   isDark = true
 }) {
@@ -582,6 +584,40 @@ export default function OrdresFabricacioManager({
 
       return prevOFs.map(o => o.id === ofId ? updatedOF : o);
     });
+
+    // Si l'OF està vinculada a una línia d'esdeveniment (fira), incorporar les peces a la parada
+    if (newStatus === 'finalitzada' && setEsdeveniments && Array.isArray(esdeveniments)) {
+      const targetOF = ordresFabricacio.find(o => o.id === ofId);
+      const qFetes = closingData && closingData.pecesBones !== undefined 
+        ? Number(closingData.pecesBones) 
+        : (Number(targetOF?.quantitat) || 0);
+
+      if (qFetes > 0) {
+        setEsdeveniments(prevEvs => prevEvs.map(ev => {
+          const hasLinkedLine = (ev.linies || []).some(l => l.ofId === ofId);
+          if (!hasLinkedLine) return ev;
+
+          return {
+            ...ev,
+            linies: ev.linies.map(l => {
+              if (l.ofId === ofId && (l.unitatsPendentsFabricar || 0) > 0) {
+                const qInc = Math.min(l.unitatsPendentsFabricar, qFetes);
+                const agafades = l.unitatsAgafadesEstoc !== undefined ? l.unitatsAgafadesEstoc : (l.unitatsInicials || 0);
+                return {
+                  ...l,
+                  unitatsAgafadesEstoc: agafades,
+                  unitatsInicials: (l.unitatsInicials || 0) + qInc,
+                  unitatsRestants: (l.unitatsRestants || 0) + qInc,
+                  unitatsPendentsFabricar: Math.max(0, (l.unitatsPendentsFabricar || 0) - qInc),
+                  ofFinalitzada: true
+                };
+              }
+              return l;
+            })
+          };
+        }));
+      }
+    }
 
     // Assignar peces correctes a l'estoc de productes si correspon
     if (closingData && closingData.product && closingData.pecesBones > 0 && setProductes) {
@@ -1328,6 +1364,7 @@ export default function OrdresFabricacioManager({
             setClosingOFModal(null);
           }}
           isDark={isDark}
+          esdeveniments={esdeveniments}
         />
       )}
 
@@ -4043,12 +4080,22 @@ function CloseOFModal({
   modalData,
   onClose,
   onConfirm,
-  isDark
+  isDark,
+  esdeveniments = []
 }) {
   const { of, product, totalQty } = modalData;
   const [pecesDefectuoses, setPecesDefectuoses] = useState(0);
   const [pecesBones, setPecesBones] = useState(totalQty);
   const [motiuDefecte, setMotiuDefecte] = useState('');
+
+  const eventLinked = useMemo(() => {
+    if (!Array.isArray(esdeveniments)) return null;
+    return esdeveniments.find(ev => 
+      (ev.linies || []).some(l => l.ofId === of.id) || 
+      (of.origen && ev.nom && of.origen.toLowerCase().includes(ev.nom.toLowerCase())) ||
+      (of.comandaRef && ev.nom && of.comandaRef.toLowerCase().includes(ev.nom.toLowerCase()))
+    ) || null;
+  }, [esdeveniments, of]);
 
   const handleUpdateBones = (val) => {
     const num = Math.max(0, parseInt(val, 10) || 0);
@@ -4219,6 +4266,32 @@ function CloseOFModal({
 
           {product ? (
             <>
+              {eventLinked && (
+                <button
+                  type="button"
+                  disabled={pecesBones <= 0}
+                  onClick={() => onConfirm({
+                    ofId: of.id,
+                    product,
+                    pecesBones,
+                    pecesDefectuoses,
+                    motiuDefecte,
+                    destinacio: 'fira'
+                  })}
+                  className={`w-full p-3 rounded-xl border font-semibold text-xs flex items-center justify-between cursor-pointer transition-all ${
+                    isDark
+                      ? 'border-amber-500/50 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300'
+                      : 'border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-900 shadow-xs'
+                  } disabled:opacity-40`}
+                >
+                  <span className="flex items-center gap-2">
+                    <Store className="w-4 h-4 text-amber-500" />
+                    <span>Incorporar directament a la <strong>Parada de la Fira ({eventLinked.nom})</strong></span>
+                  </span>
+                  <span className="font-mono font-bold">+{pecesBones} u.</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 disabled={pecesBones <= 0}

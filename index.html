@@ -117,6 +117,44 @@
     <!-- Contenidor ocult per a Google Translate -->
     <div id="google_translate_element" style="display:none!important; visibility:hidden!important;"></div>
     <script type="text/javascript">
+      // Detecció d'idioma passat per paràmetre d'URL (?lang=es / ?lang=en / ?lang=fr / ?idioma=es)
+      (function() {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var l = (params.get('lang') || params.get('idioma') || '').toLowerCase();
+          var map = { 'ca': 'ca', 'es': 'es', 'en': 'en', 'fr': 'fr', 'cat': 'ca', 'esp': 'es', 'eng': 'en', 'fra': 'fr' };
+          var targetCode = map[l];
+          if (targetCode) {
+            // Netejar totes les galetes antigues per evitar conflictes entre subdominis/localhost
+            var host = window.location.hostname;
+            var domains = ['', host, '.' + host];
+            domains.forEach(function(d) {
+              var dAttr = d ? '; domain=' + d : '';
+              document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/' + dAttr;
+            });
+
+            // Establir la nova galeta
+            var val = targetCode === 'ca' ? '/ca/ca' : '/ca/' + targetCode;
+            document.cookie = 'googtrans=' + val + '; path=/;';
+            if (host && host !== 'localhost' && host !== '127.0.0.1') {
+              document.cookie = 'googtrans=' + val + '; path=/; domain=' + host + ';';
+              document.cookie = 'googtrans=' + val + '; path=/; domain=.' + host + ';';
+            }
+
+            // Sincronitzar el hash per forçar Google Translate a carregar l'idioma indicat
+            if (targetCode === 'ca') {
+              if (window.location.hash && window.location.hash.indexOf('googtrans') !== -1) {
+                window.location.hash = '';
+              }
+            } else {
+              window.location.hash = '#googtrans(ca|' + targetCode + ')';
+            }
+
+            localStorage.setItem('minimmon_user_lang', targetCode.toUpperCase());
+          }
+        } catch (e) {}
+      })();
+
       function googleTranslateElementInit() {
         new google.translate.TranslateElement({
           pageLanguage: 'ca',
@@ -124,6 +162,29 @@
           autoDisplay: false,
           layout: google.translate.TranslateElement.InlineLayout.SIMPLE
         }, 'google_translate_element');
+
+        // Assegurar que el selector intern de Google Translate s'activa amb l'idioma corresponent
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var l = (params.get('lang') || params.get('idioma') || '').toLowerCase();
+          var map = { 'ca': 'ca', 'es': 'es', 'en': 'en', 'fr': 'fr', 'cat': 'ca', 'esp': 'es', 'eng': 'en', 'fra': 'fr' };
+          var target = map[l];
+          if (target) {
+            var tries = 0;
+            var timer = setInterval(function() {
+              tries++;
+              var select = document.querySelector('.goog-te-combo');
+              if (select) {
+                clearInterval(timer);
+                if (select.value !== target) {
+                  select.value = target;
+                  select.dispatchEvent(new Event('change'));
+                }
+              }
+              if (tries > 30) clearInterval(timer);
+            }, 100);
+          }
+        } catch (e) {}
       }
     </script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>

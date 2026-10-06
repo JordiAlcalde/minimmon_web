@@ -715,6 +715,10 @@ export default function CompresManager({
       return (b.dataCreacio || '').localeCompare(a.dataCreacio || '');
     });
 
+  const modalTotalComanda = (formData.linies || []).reduce((acc, l) => {
+    return acc + ((Number(l.quantitatDemanada) || 0) * (Number(l.preuPactat) || 0));
+  }, 0);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1269,31 +1273,50 @@ export default function CompresManager({
 
               {/* Línies de comanda */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <div className={`flex flex-wrap items-center justify-between gap-3 border-b pb-2 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                   <div>
-                    <span className="font-semibold text-amber-400 text-sm">Línies de Material</span>
-                    <p className="text-[11px] text-slate-400">
+                    <span className={`font-bold text-sm ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>Línies de Material</span>
+                    <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       Configura el fabricant, packaging de compra i unitats que ingressaran a l'estoc.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newLine = createDefaultLine();
-                      setFormData(prev => ({
-                        ...prev,
-                        linies: [...prev.linies, newLine]
-                      }));
-                    }}
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Afegir Línia
-                  </button>
+
+                  <div className="flex items-center gap-3">
+                    {/* Indicador del Valor Total de la Comanda */}
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono shadow-2xs ${
+                      isDark 
+                        ? 'bg-slate-950/80 border-slate-700 text-slate-200' 
+                        : 'bg-amber-50/80 border-amber-300 text-slate-800'
+                    }`}>
+                      <span className={`text-[11px] font-sans font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Total Comanda:
+                      </span>
+                      <strong className={`text-sm font-bold font-mono ${
+                        isDark ? 'text-amber-400' : 'text-amber-900'
+                      }`}>
+                        {formatCurrency(modalTotalComanda, 2)}
+                      </strong>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLine = createDefaultLine();
+                        setFormData(prev => ({
+                          ...prev,
+                          linies: [...prev.linies, newLine]
+                        }));
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Afegir Línia
+                    </button>
+                  </div>
                 </div>
 
                 {formData.linies.length === 0 ? (
-                  <div className="p-8 text-center border border-dashed border-slate-800 rounded-2xl text-slate-500">
+                  <div className={`p-8 text-center border border-dashed rounded-2xl ${isDark ? 'border-slate-800 text-slate-500' : 'border-slate-300 text-slate-500'}`}>
                     No hi ha cap línia de material. Fes clic a "+ Afegir Línia" per començar.
                   </div>
                 ) : (
@@ -1314,12 +1337,12 @@ export default function CompresManager({
                         {/* Row 1: Selectors (Material, Fabricant, Unitat de Compra) */}
                         <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                           <div className="sm:col-span-5">
-                            <label className="block text-[10px] text-slate-400 mb-1 font-medium">Material *</label>
+                            <label className={`block text-[10px] mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Material *</label>
                             <select
                               value={l.materialId}
                               onChange={(e) => handleLineMaterialChange(idx, e.target.value)}
                               className={`w-full p-2 rounded-lg border text-xs outline-none ${
-                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'
+                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-800'
                               }`}
                             >
                               {[...materials].sort((a, b) => (a.material || '').localeCompare(b.material || '', 'ca')).map(m => (
@@ -1329,7 +1352,7 @@ export default function CompresManager({
                           </div>
 
                           <div className="sm:col-span-3">
-                            <label className="block text-[10px] text-slate-400 mb-1 font-medium flex items-center gap-1">
+                            <label className={`block text-[10px] mb-1 font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                               <Factory className="w-3 h-3 text-indigo-400" />
                               Fabricant
                             </label>
@@ -1337,7 +1360,7 @@ export default function CompresManager({
                               value={l.fabricantId || ''}
                               onChange={(e) => handleLineFabricantChange(idx, e.target.value)}
                               className={`w-full p-2 rounded-lg border text-xs outline-none ${
-                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'
+                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-800'
                               }`}
                             >
                               <option value="">-- Sense fabricant --</option>
@@ -1348,15 +1371,15 @@ export default function CompresManager({
                           </div>
 
                           <div className="sm:col-span-4">
-                            <label className="block text-[10px] text-slate-400 mb-1 font-medium flex items-center gap-1">
-                              <Box className="w-3 h-3 text-amber-500" />
+                            <label className={`block text-[10px] mb-1 font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
+                              <Box className={`w-3 h-3 ${isDark ? 'text-amber-500' : 'text-amber-700'}`} />
                               Unitat de Compra (Packaging)
                             </label>
                             <select
                               value={l.unitatCompraId || ''}
                               onChange={(e) => handleLineUnitatCompraChange(idx, e.target.value)}
                               className={`w-full p-2 rounded-lg border text-xs outline-none ${
-                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'
+                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-800'
                               }`}
                             >
                               <option value="">Unitat base ({mat?.unitat || 'u'}) [x1]</option>
@@ -1370,10 +1393,10 @@ export default function CompresManager({
                         </div>
 
                         {/* Row 2: Quantities, Stock conversion preview, Purchase price & Subtotal */}
-                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-2 border-t border-slate-800/40">
+                        <div className={`grid grid-cols-1 sm:grid-cols-12 gap-3 items-center pt-2 border-t ${isDark ? 'border-slate-800/40' : 'border-slate-200'}`}>
                           {/* Quantitat Demanada de Compra */}
                           <div className="sm:col-span-3">
-                            <label className="block text-[10px] text-slate-400 mb-1 font-medium">
+                            <label className={`block text-[10px] mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                               Quantitat Compra
                             </label>
                             <DecimalInput
@@ -1384,24 +1407,24 @@ export default function CompresManager({
                                 setFormData({ ...formData, linies: updated });
                               }}
                               className={`w-full p-2 rounded-lg border text-xs font-mono font-semibold ${
-                                isDark ? 'border-slate-800 bg-slate-900 text-amber-400' : 'border-slate-200 bg-white text-amber-600'
+                                isDark ? 'border-slate-800 bg-slate-900 text-amber-400' : 'border-slate-300 bg-white text-slate-900'
                               }`}
                             />
                           </div>
 
                           {/* Preview unitats de compra vs unitats reals que aniran a l'estoc */}
                           <div className="sm:col-span-4">
-                            <label className="block text-[10px] text-slate-400 mb-1 font-medium">
+                            <label className={`block text-[10px] mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                               Conversió a Estoc Real
                             </label>
                             <div className={`p-2 rounded-lg border flex items-center justify-between text-xs font-mono ${
                               factor > 1 
-                                ? isDark ? 'bg-cyan-950/30 border-cyan-800/50 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-800'
+                                ? isDark ? 'bg-cyan-950/30 border-cyan-800/50 text-cyan-300' : 'bg-cyan-50 border-cyan-200 text-cyan-800 font-medium'
                                 : isDark ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-white border-slate-200 text-slate-600'
                             }`}>
                               <span className="truncate">{l.quantitatDemanada || 0} pack(s)</span>
                               <ArrowRight className="w-3.5 h-3.5 shrink-0 mx-1 text-slate-500" />
-                              <span className="font-bold text-emerald-400 shrink-0">
+                              <span className={`font-bold shrink-0 ${isDark ? 'text-emerald-400' : 'text-emerald-800'}`}>
                                 {formatDecimal(unitsToStock)} {mat?.unitat || 'u'} estoc
                               </span>
                             </div>
@@ -1410,11 +1433,11 @@ export default function CompresManager({
                           {/* Preu de Compra (el que rebrà el proveïdor per pack) */}
                           <div className="sm:col-span-3">
                             <div className="flex items-center justify-between mb-1">
-                              <label className="text-[10px] text-slate-400 font-medium truncate">
+                              <label className={`text-[10px] font-medium truncate ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                                 Preu de Compra (€)
                               </label>
                               {factor > 1 && (
-                                <span className="text-[10px] text-slate-500 font-mono">
+                                <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>
                                   ({formatCurrency(unitCost, 3)}/{mat?.unitat || 'u'})
                                 </span>
                               )}
@@ -1427,7 +1450,7 @@ export default function CompresManager({
                                 setFormData({ ...formData, linies: updated });
                               }}
                               className={`w-full p-2 rounded-lg border text-xs font-mono font-semibold ${
-                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-200 bg-white text-slate-800'
+                                isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-white text-slate-900'
                               }`}
                             />
                           </div>
@@ -1435,8 +1458,8 @@ export default function CompresManager({
                           {/* Subtotal & Delete */}
                           <div className="sm:col-span-2 flex items-center justify-between gap-2">
                             <div>
-                              <label className="block text-[10px] text-slate-400 mb-1 font-medium">Subtotal</label>
-                              <div className="font-mono font-bold text-xs text-amber-400">
+                              <label className={`block text-[10px] mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Subtotal</label>
+                              <div className={`font-mono font-bold text-xs ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>
                                 {formatCurrency(subtotal, 2)}
                               </div>
                             </div>
@@ -1459,6 +1482,20 @@ export default function CompresManager({
                       </div>
                     );
                   })
+                )}
+
+                {/* Resum Total al peu de les línies */}
+                {formData.linies.length > 0 && (
+                  <div className={`flex items-center justify-between p-3.5 rounded-xl border font-mono ${
+                    isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+                  }`}>
+                    <span className={`text-xs font-sans font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      Total Comanda ({formData.linies.length} {formData.linies.length === 1 ? 'línia' : 'línies'}):
+                    </span>
+                    <span className={`text-base font-bold font-mono ${isDark ? 'text-amber-400' : 'text-amber-900'}`}>
+                      {formatCurrency(modalTotalComanda, 2)}
+                    </span>
+                  </div>
                 )}
               </div>
             </form>
@@ -1492,7 +1529,9 @@ export default function CompresManager({
                 <button 
                   type="button"
                   onClick={() => setReceptionModalOpen(false)} 
-                  className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                  className={`p-1.5 cursor-pointer rounded-xl transition-colors ${
+                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-400 hover:text-slate-800 hover:bg-slate-200'
+                  }`}
                   title="Tancar"
                 >
                   <X className="w-5 h-5" />
@@ -1503,7 +1542,7 @@ export default function CompresManager({
             <form id="reception-modal-form" onSubmit={handleConfirmReception} className="p-6 space-y-4 text-xs overflow-y-auto flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
+                  <label className={`block mb-1 font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                     <FileText className="w-3.5 h-3.5 text-amber-500" />
                     Núm. d'Albarà / Factura d'Entrada *
                   </label>
@@ -1513,15 +1552,15 @@ export default function CompresManager({
                     value={receptionData.numAlbara}
                     onChange={(e) => setReceptionData({ ...receptionData, numAlbara: e.target.value })}
                     className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
                     placeholder="P. ex. ALB-2026-8812"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                  <label className={`block mb-1 font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
+                    <Calendar className="w-3.5 h-3.5 text-emerald-500" />
                     Data Real de Recepció *
                   </label>
                   <input
@@ -1530,7 +1569,7 @@ export default function CompresManager({
                     value={receptionData.dataRecepcio}
                     onChange={(e) => setReceptionData({ ...receptionData, dataRecepcio: e.target.value })}
                     className={`w-full p-2.5 rounded-xl border outline-none font-mono ${
-                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
+                      isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200 text-slate-900'
                     }`}
                   />
                 </div>
@@ -1542,35 +1581,39 @@ export default function CompresManager({
                 }`}>
                   {selectedComandaToReceive.numComandaProveidor && (
                     <span className="flex items-center gap-1 font-mono">
-                      <Hash className="w-3.5 h-3.5 text-sky-400" />
-                      Nº Comanda Prov: <strong className="text-sky-400">{selectedComandaToReceive.numComandaProveidor}</strong>
+                      <Hash className={`w-3.5 h-3.5 ${isDark ? 'text-sky-400' : 'text-sky-600'}`} />
+                      Nº Comanda Prov: <strong className={isDark ? 'text-sky-400' : 'text-sky-700'}>{selectedComandaToReceive.numComandaProveidor}</strong>
                     </span>
                   )}
                   {selectedComandaToReceive.dataPrevista && (
                     <span className="flex items-center gap-1 font-mono">
-                      <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                      Data Prevista: <strong className="text-cyan-400">{selectedComandaToReceive.dataPrevista}</strong>
+                      <Clock className={`w-3.5 h-3.5 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} />
+                      Data Prevista: <strong className={isDark ? 'text-cyan-400' : 'text-cyan-700'}>{selectedComandaToReceive.dataPrevista}</strong>
                     </span>
                   )}
                 </div>
               )}
 
-              <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-2">
+              <div className={`p-3.5 rounded-xl border flex items-center gap-2.5 ${
+                isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-300 bg-emerald-50/80 shadow-2xs'
+              }`}>
                 <input
                   type="checkbox"
                   id="updatePricesCheck"
                   checked={receptionData.updatePrices}
                   onChange={(e) => setReceptionData({ ...receptionData, updatePrices: e.target.checked })}
-                  className="rounded text-emerald-500 focus:ring-emerald-500 cursor-pointer"
+                  className="rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer w-4 h-4"
                 />
-                <label htmlFor="updatePricesCheck" className="text-slate-200 font-medium cursor-pointer">
+                <label htmlFor="updatePricesCheck" className={`font-medium cursor-pointer text-xs ${
+                  isDark ? 'text-slate-200' : 'text-emerald-950 font-semibold'
+                }`}>
                   Actualitzar el preu de cost unitari i de pack del material segons aquesta comanda
                 </label>
               </div>
 
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-300 block">Comprovació de Quantitats Rebudes:</span>
+                  <span className={`font-semibold block ${isDark ? 'text-slate-300' : 'text-slate-800'}`}>Comprovació de Quantitats Rebudes:</span>
                   <div className="flex items-center gap-2 text-xs">
                     <button
                       type="button"
@@ -1581,11 +1624,13 @@ export default function CompresManager({
                         }));
                         setReceptionData({ ...receptionData, receivedLines: updated });
                       }}
-                      className="text-[11px] text-emerald-400 hover:text-emerald-300 underline cursor-pointer font-medium"
+                      className={`text-[11px] underline cursor-pointer font-medium ${
+                        isDark ? 'text-emerald-400 hover:text-emerald-300' : 'text-emerald-700 hover:text-emerald-800 font-bold'
+                      }`}
                     >
                       Rebre tot el pendent
                     </button>
-                    <span className="text-slate-600">·</span>
+                    <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>·</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -1595,7 +1640,9 @@ export default function CompresManager({
                         }));
                         setReceptionData({ ...receptionData, receivedLines: updated });
                       }}
-                      className="text-[11px] text-slate-400 hover:text-slate-300 underline cursor-pointer font-medium"
+                      className={`text-[11px] underline cursor-pointer font-medium ${
+                        isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-600 hover:text-slate-800'
+                      }`}
                     >
                       Posar tot a 0
                     </button>
@@ -1615,35 +1662,41 @@ export default function CompresManager({
                   return (
                     <div key={idx} className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
                       isLineComplete 
-                        ? isDark ? 'border-slate-800/60 bg-slate-950/20 opacity-70' : 'border-slate-200 bg-slate-50/50 opacity-75'
-                        : isDark ? 'border-slate-800 bg-slate-950/50' : 'border-slate-200 bg-white'
+                        ? isDark ? 'border-slate-800/60 bg-slate-950/20 opacity-70' : 'border-slate-200 bg-slate-100/70 opacity-75'
+                        : isDark ? 'border-slate-800 bg-slate-950/50' : 'border-slate-200 bg-white shadow-2xs'
                     }`}>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-slate-200 text-sm truncate">{mat?.material}</h4>
+                          <h4 className={`font-bold text-sm truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>{mat?.material}</h4>
                           {fab && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            <span className={`text-[10px] px-2 py-0.5 rounded border font-medium ${
+                              isDark ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+                            }`}>
                               {fab.fabricant}
                             </span>
                           )}
                           {isLineComplete && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                            <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold ${
+                              isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            }`}>
                               Completat ✓
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-400 font-mono mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span>Demanat: <strong className="text-slate-200">{l.quantitatDemanada}</strong> {packName}</span>
+                        <div className={`text-[11px] font-mono mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 ${
+                          isDark ? 'text-slate-400' : 'text-slate-600'
+                        }`}>
+                          <span>Demanat: <strong className={isDark ? 'text-slate-200' : 'text-slate-900 font-bold'}>{l.quantitatDemanada}</strong> {packName}</span>
                           {l.quantitatRebudaAnterior > 0 && (
-                            <span className="text-emerald-400">
+                            <span className={isDark ? 'text-emerald-400' : 'text-emerald-700 font-bold'}>
                               Rebut anteriorment: <strong>{l.quantitatRebudaAnterior}</strong>
                             </span>
                           )}
-                          <span className={l.quantitatPendent > 0 ? "text-amber-400 font-semibold" : "text-slate-500"}>
+                          <span className={l.quantitatPendent > 0 ? (isDark ? "text-amber-400 font-semibold" : "text-amber-800 font-bold") : (isDark ? "text-slate-500" : "text-slate-400")}>
                             Pendent: <strong>{l.quantitatPendent}</strong>
                           </span>
                           {factor > 1 && (
-                            <span className="text-cyan-400 text-[10px]">
+                            <span className={`text-[10px] ${isDark ? 'text-cyan-400' : 'text-cyan-700 font-semibold'}`}>
                               (x{factor} {mat?.unitat || 'u'})
                             </span>
                           )}
@@ -1652,7 +1705,7 @@ export default function CompresManager({
 
                       <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <label className="text-[11px] text-slate-400 whitespace-nowrap">Rebre ara ({packName}):</label>
+                          <label className={`text-[11px] whitespace-nowrap font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Rebre ara ({packName}):</label>
                           <DecimalInput
                             value={l.quantitatRebudaAra}
                             onChange={(e, num) => {
@@ -1660,14 +1713,20 @@ export default function CompresManager({
                               updated[idx].quantitatRebudaAra = num;
                               setReceptionData({ ...receptionData, receivedLines: updated });
                             }}
-                            className="w-20 p-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-200 font-mono text-center text-xs font-bold focus:border-amber-500 outline-none"
+                            className={`w-20 p-1.5 rounded-lg border font-mono text-center text-xs font-bold focus:border-amber-500 outline-none ${
+                              isDark ? 'border-slate-800 bg-slate-900 text-slate-200' : 'border-slate-300 bg-slate-50 text-slate-900'
+                            }`}
                           />
                         </div>
 
                         <div className={`p-1.5 px-2.5 rounded-lg font-mono text-xs font-semibold whitespace-nowrap ${
                           stockToAdd > 0
-                            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
-                            : 'bg-slate-800/40 border border-slate-700/40 text-slate-500'
+                            ? isDark
+                              ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                              : 'bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold'
+                            : isDark
+                              ? 'bg-slate-800/40 border border-slate-700/40 text-slate-500'
+                              : 'bg-slate-100 border border-slate-200 text-slate-500'
                         }`}>
                           +{formatDecimal(stockToAdd)} {mat?.unitat || 'u'} estoc
                         </div>
@@ -1680,7 +1739,7 @@ export default function CompresManager({
               {/* Checkbox per forçar tancament complet */}
               <div className={`p-3.5 rounded-xl border flex items-center gap-2.5 ${
                 receptionData.forceComplete 
-                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' 
+                  ? isDark ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-amber-400 bg-amber-50 text-amber-900 font-medium' 
                   : isDark ? 'border-slate-800 bg-slate-950/40 text-slate-300' : 'border-slate-200 bg-slate-50 text-slate-700'
               }`}>
                 <input

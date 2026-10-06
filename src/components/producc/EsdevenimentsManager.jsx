@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Calendar, 
   Store, 
@@ -8,6 +8,7 @@ import {
   Trash2, 
   Edit3, 
   CheckCircle2, 
+  CheckCircle,
   AlertTriangle, 
   ArrowRight, 
   ArrowLeft, 
@@ -35,11 +36,12 @@ import {
   ArrowUpDown,
   FileSpreadsheet,
   Hammer,
-  PlusCircle
+  PlusCircle,
+  RefreshCw
 } from 'lucide-react';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
-import { getNextOFId } from './OrdresFabricacioManager';
+import { getNextOFId, normalizeOFStatus, getOFStatusLabel } from './OrdresFabricacioManager';
 import { normalizeLaserConfig, DEFAULT_LASER_CONFIG } from '../../utils/laserUtils';
 import { isProductInGamma } from '../PrivateAreaSection';
 
@@ -453,6 +455,7 @@ export default function EsdevenimentsManager({
               return {
                 ...l,
                 unitatsPrevistes: novesPrevistes,
+                unitatsAgafadesEstoc: (l.unitatsAgafadesEstoc !== undefined ? l.unitatsAgafadesEstoc : (l.unitatsInicials || 0)) + agafadaEstoc,
                 unitatsInicials: novesInicials,
                 unitatsRestants: novesRestants,
                 unitatsPendentsFabricar: novesPendents,
@@ -474,6 +477,7 @@ export default function EsdevenimentsManager({
               preuOriginal: Number(selectedProductToAdd.preu) || 0,
               preuFira: preuFiraNum,
               unitatsPrevistes: totalFira,
+              unitatsAgafadesEstoc: agafadaEstoc,
               unitatsInicials: agafadaEstoc,
               unitatsPendentsFabricar: pendentFabricar,
               unitatsVenudes: 0,
@@ -866,6 +870,70 @@ export default function EsdevenimentsManager({
 
     alert(`✓ S'han incorporat ${q} peces fabricades de "${linia.nom}" a la parada de la fira!`);
   };
+
+  // Sincronització de línies de la fira amb les Ordres de Fabricació finalitzades
+  const handleSincronitzarAmbOFs = useCallback((silent = false) => {
+    if (!currentEvent || !setEsdeveniments || !Array.isArray(currentEvent.linies)) return 0;
+
+    let totalIncorporades = 0;
+    let liniesActualitzades = 0;
+
+    const novesLinies = currentEvent.linies.map(linia => {
+      if (!linia.ofId) return linia;
+      const linkedOF = (ordresFabricacio || []).find(o => o.id === linia.ofId || o.codi === linia.ofId);
+      if (!linkedOF) return linia;
+
+      const ofStatus = normalizeOFStatus(linkedOF.estat);
+      if (ofStatus === 'finalitzada' && (linia.unitatsPendentsFabricar || 0) > 0) {
+        const pecesFetes = linkedOF.pecesBones !== undefined ? Number(linkedOF.pecesBones) : (Number(linkedOF.quantitat) || 0);
+        const q = Math.min(linia.unitatsPendentsFabricar, pecesFetes > 0 ? pecesFetes : linia.unitatsPendentsFabricar);
+        if (q > 0) {
+          totalIncorporades += q;
+          liniesActualitzades++;
+          const agafadaEstocOriginal = linia.unitatsAgafadesEstoc !== undefined 
+            ? linia.unitatsAgafadesEstoc 
+            : (linia.unitatsInicials || 0);
+
+          return {
+            ...linia,
+            unitatsAgafadesEstoc: agafadaEstocOriginal,
+            unitatsInicials: (linia.unitatsInicials || 0) + q,
+            unitatsRestants: (linia.unitatsRestants || 0) + q,
+            unitatsPendentsFabricar: Math.max(0, (linia.unitatsPendentsFabricar || 0) - q),
+            ofFinalitzada: true
+          };
+        }
+      }
+      return linia;
+    });
+
+    if (liniesActualitzades > 0) {
+      setEsdeveniments(prev => prev.map(ev => ev.id === currentEvent.id ? { ...ev, linies: novesLinies } : ev));
+      if (!silent) {
+        alert(`✓ S'han sincronitzat ${liniesActualitzades} productes amb les seves Ordres de Fabricació finalitzades (+${totalIncorporades} peces incorporades a la parada).`);
+      }
+    } else if (!silent) {
+      alert("Totes les línies de la fira ja estan al dia amb les seves Ordres de Fabricació.");
+    }
+
+    return liniesActualitzades;
+  }, [currentEvent, ordresFabricacio, setEsdeveniments]);
+
+  // Sincronitzar automàticament en carregar o quan canvia l'estat d'ordresFabricacio
+  useEffect(() => {
+    if (!currentEvent || currentEvent.estat === 'tancat') return;
+    if (!ordresFabricacio || ordresFabricacio.length === 0) return;
+
+    const hiHaPendentsFinalitzades = (currentEvent.linies || []).some(linia => {
+      if (!linia.ofId || !linia.unitatsPendentsFabricar || linia.unitatsPendentsFabricar <= 0) return false;
+      const linkedOF = ordresFabricacio.find(o => o.id === linia.ofId || o.codi === linia.ofId);
+      return linkedOF && normalizeOFStatus(linkedOF.estat) === 'finalitzada';
+    });
+
+    if (hiHaPendentsFinalitzades) {
+      handleSincronitzarAmbOFs(true);
+    }
+  }, [currentEvent, ordresFabricacio, handleSincronitzarAmbOFs]);
 
   // Llençar manualment una OF per a una línia que té peces pendents de fabricar
   const handleLlençarOFManualPerLinia = (linia) => {
@@ -1856,23 +1924,38 @@ export default function EsdevenimentsManager({
               </p>
             </div>
             {currentEvent.estat !== 'tancat' && (
-              <button
-                onClick={() => {
-                  setSelectedProductToAdd(null);
-                  setQuantitatTotalFira(5);
-                  setQuantitatAgafadaEstoc(0);
-                  setCrearOFPerPendent(true);
-                  setProductSearch('');
-                  setFilterFamilia('all');
-                  setFilterGamma('all');
-                  setPreuFiraInput('');
-                  setShowAddProductModal(true);
-                }}
-                className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Assignar Peça a la Fira</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleSincronitzarAmbOFs(false)}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
+                    isDark 
+                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                  }`}
+                  title="Comprova l'estat de les Ordres de Fabricació a taller i incorpora les peces ja finalitzades a la parada"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Sincronitzar OFs</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedProductToAdd(null);
+                    setQuantitatTotalFira(5);
+                    setQuantitatAgafadaEstoc(0);
+                    setCrearOFPerPendent(true);
+                    setProductSearch('');
+                    setFilterFamilia('all');
+                    setFilterGamma('all');
+                    setPreuFiraInput('');
+                    setShowAddProductModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Assignar Peça a la Fira</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -1911,9 +1994,16 @@ export default function EsdevenimentsManager({
                   </thead>
                   <tbody className={`divide-y font-sans ${isDark ? 'divide-slate-800 text-slate-200' : 'divide-slate-200 text-slate-800'}`}>
                     {currentEvent.linies.map(linia => {
-                      const totalObj = linia.unitatsPrevistes || ((linia.unitatsInicials || 0) + (linia.unitatsPendentsFabricar || 0));
+                      const linkedOF = linia.ofId 
+                        ? (ordresFabricacio || []).find(o => o.id === linia.ofId || o.codi === linia.ofId) 
+                        : null;
+                      const ofStatusNorm = linkedOF ? normalizeOFStatus(linkedOF.estat) : null;
+                      const isOFFinalitzada = ofStatusNorm === 'finalitzada' || linia.ofFinalitzada;
+
+                      // Si l'OF està finalitzada / tancada, no s'ha de comptar com a pendent de fabricar
+                      const pendentsFabricar = isOFFinalitzada ? 0 : (linia.unitatsPendentsFabricar || 0);
+                      const totalObj = linia.unitatsPrevistes || ((linia.unitatsInicials || 0) + (pendentsFabricar || 0));
                       const percVenut = totalObj > 0 ? Math.round(((linia.unitatsVenudes || 0) / totalObj) * 100) : 0;
-                      const pendentsFabricar = linia.unitatsPendentsFabricar || 0;
 
                       return (
                         <tr key={linia.productId} className={`transition-colors ${isDark ? 'hover:bg-slate-800/60' : 'hover:bg-amber-50/40'}`}>
@@ -1982,7 +2072,13 @@ export default function EsdevenimentsManager({
                             )}
                           </td>
                           <td className={`py-2.5 px-3 text-center font-mono font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>{totalObj}</td>
-                          <td className={`py-2.5 px-3 text-center font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{linia.unitatsInicials || 0}</td>
+                          <td className={`py-2.5 px-3 text-center font-mono font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {linia.unitatsAgafadesEstoc !== undefined 
+                              ? linia.unitatsAgafadesEstoc 
+                              : (linia.unitatsPrevistes && linkedOF?.quantitat 
+                                  ? Math.max(0, linia.unitatsPrevistes - linkedOF.quantitat) 
+                                  : (linia.unitatsInicials || 0))}
+                          </td>
                           <td className="py-2.5 px-3 text-center">
                             {pendentsFabricar > 0 ? (
                               <div className="inline-flex flex-col items-center gap-1">
@@ -1994,9 +2090,27 @@ export default function EsdevenimentsManager({
                                   🔨 {pendentsFabricar} ptes.
                                 </span>
                                 {linia.ofId ? (
-                                  <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`} title="Ordre de Fabricació creada">
-                                    OF: {linia.ofId}
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveProduccSubtab && setActiveProduccSubtab('ordres_fabricacio')}
+                                    className={`text-[10px] font-mono hover:underline cursor-pointer flex items-center gap-1 transition-colors ${
+                                      isDark ? 'text-slate-400 hover:text-amber-400' : 'text-slate-600 hover:text-amber-700'
+                                    }`}
+                                    title="Veure Ordre de Fabricació a la pestanya d'OFs"
+                                  >
+                                    <span>OF: {linia.ofId}</span>
+                                    {ofStatusNorm && (
+                                      <span className={`text-[9px] px-1 py-0.2 rounded font-sans font-semibold ${
+                                        ofStatusNorm === 'en_curs' 
+                                          ? (isDark ? 'bg-sky-950/80 text-sky-300 border border-sky-800/40' : 'bg-sky-100 text-sky-800 border border-sky-300')
+                                          : ofStatusNorm === 'acabats'
+                                            ? (isDark ? 'bg-purple-950/80 text-purple-300 border border-purple-800/40' : 'bg-purple-100 text-purple-800 border border-purple-300')
+                                            : (isDark ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'bg-slate-100 text-slate-700 border border-slate-300')
+                                      }`}>
+                                        {getOFStatusLabel(ofStatusNorm)}
+                                      </span>
+                                    )}
+                                  </button>
                                 ) : currentEvent.estat !== 'tancat' ? (
                                   <button
                                     type="button"
@@ -2009,6 +2123,27 @@ export default function EsdevenimentsManager({
                                     + Llençar OF
                                   </button>
                                 ) : null}
+                              </div>
+                            ) : (isOFFinalitzada && linia.ofId) ? (
+                              <div className="inline-flex flex-col items-center gap-1">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                                  isDark 
+                                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-600/50 shadow-xs' 
+                                    : 'bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs'
+                                }`} title="Aquesta ordre de fabricació ja ha estat finalitzada i les peces s'han incorporat a la parada">
+                                  <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  Fabricada ✓
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveProduccSubtab && setActiveProduccSubtab('ordres_fabricacio')}
+                                  className={`text-[9px] font-mono hover:underline cursor-pointer ${
+                                    isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-800'
+                                  }`}
+                                  title="Veure Ordre de Fabricació a taller"
+                                >
+                                  OF: {linia.ofId}
+                                </button>
                               </div>
                             ) : (
                               <span className={`font-mono text-[11px] ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>-</span>

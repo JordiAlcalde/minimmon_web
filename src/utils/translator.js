@@ -45,7 +45,45 @@ export function initTransparentTranslatorCleaner() {
  * Obté l'idioma seleccionat actualment
  */
 export function getCurrentLanguage() {
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlLang = (params.get('lang') || params.get('idioma') || '').toUpperCase();
+      if (urlLang && SUPPORTED_LANGUAGES[urlLang]) {
+        return urlLang;
+      }
+    } catch (e) {}
+  }
   return localStorage.getItem(LANG_STORAGE_KEY) || 'CA';
+}
+
+export function clearGoogtransCookies() {
+  if (typeof window === 'undefined') return;
+  const host = window.location.hostname;
+  const domains = ['', host, '.' + host];
+  const domainParts = host.split('.');
+  if (domainParts.length > 2) {
+    domains.push('.' + domainParts.slice(-2).join('.'));
+  }
+  const paths = ['/', window.location.pathname];
+  domains.forEach(d => {
+    paths.forEach(p => {
+      const dAttr = d ? `; domain=${d}` : '';
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=${p}${dAttr};`;
+    });
+  });
+}
+
+export function setGoogtransCookie(targetCode) {
+  if (typeof window === 'undefined') return;
+  clearGoogtransCookies();
+  const val = targetCode === 'ca' ? '/ca/ca' : `/ca/${targetCode}`;
+  document.cookie = `googtrans=${val}; path=/;`;
+  const host = window.location.hostname;
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    document.cookie = `googtrans=${val}; path=/; domain=${host};`;
+    document.cookie = `googtrans=${val}; path=/; domain=.${host};`;
+  }
 }
 
 /**
@@ -56,19 +94,23 @@ export function setLanguage(langKey) {
   const currentLang = getCurrentLanguage();
   const targetCode = SUPPORTED_LANGUAGES[langKey] || 'ca';
   localStorage.setItem(LANG_STORAGE_KEY, langKey);
+  setGoogtransCookie(targetCode);
 
-  // Establir galetes de Google Translate per a l'idioma seleccionat
+  // Sincronitzar el hash
   if (targetCode === 'ca') {
-    document.cookie = "googtrans=/ca/ca; path=/;";
-    document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=." + window.location.hostname;
+    if (window.location.hash && window.location.hash.includes('googtrans')) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
   } else {
-    document.cookie = `googtrans=/ca/${targetCode}; path=/;`;
-    document.cookie = `googtrans=/ca/${targetCode}; path=/; domain=.` + window.location.hostname;
+    window.location.hash = `#googtrans(ca|${targetCode})`;
   }
 
-  // Recarregar la pàgina si l'idioma ha canviat per aplicar la traducció automàticament sense F5 manual
-  if (currentLang !== langKey) {
+  // Si l'element de Google Translate ja és al DOM, aplicar canvi immediat
+  const select = document.querySelector('.goog-te-combo');
+  if (select) {
+    select.value = targetCode;
+    select.dispatchEvent(new Event('change'));
+  } else if (currentLang !== langKey) {
     window.location.reload();
   }
 }

@@ -914,6 +914,8 @@ export default function ProduccApp({ setActiveTab }) {
             gammes={gammes}
             maquinaria={maquinaria}
             operacions={operacions}
+            esdeveniments={esdeveniments}
+            setEsdeveniments={setEsdevenimentsWithFirestore}
             setActiveProduccSubtab={setActiveProduccSubtab}
             isDark={isDark}
           />

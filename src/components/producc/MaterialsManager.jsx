@@ -899,7 +899,9 @@ export default function MaterialsManager({
             }`}>
               <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
                 <Layers className="w-5 h-5 text-amber-500 shrink-0" />
-                <span className="text-base sm:text-lg font-bold font-serif text-slate-200 shrink-0">
+                <span className={`text-base sm:text-lg font-bold font-serif shrink-0 ${
+                  isDark ? 'text-slate-200' : 'text-slate-800'
+                }`}>
                   {editingMaterial ? 'Editar Material:' : 'Nou Material:'}
                 </span>
                 <input
@@ -908,8 +910,10 @@ export default function MaterialsManager({
                   form="material-modal-form"
                   value={formData.material}
                   onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                  className={`flex-1 min-w-[180px] max-w-md px-3 py-1.5 rounded-xl border outline-none font-semibold text-sm sm:text-base text-amber-400 transition-all ${
-                    isDark ? 'bg-slate-950/90 border-slate-800 focus:border-amber-500/70' : 'bg-white border-slate-300 focus:border-amber-500'
+                  className={`flex-1 min-w-[180px] max-w-md px-3 py-1.5 rounded-xl border outline-none font-semibold text-sm sm:text-base transition-all ${
+                    isDark 
+                      ? 'bg-slate-950/90 border-slate-800 text-amber-400 focus:border-amber-500/70' 
+                      : 'bg-white border-slate-300 text-amber-900 font-bold focus:border-amber-600 shadow-2xs'
                   }`}
                   placeholder="P. ex. Contraxapat Til·ler 2 mm"
                 />
@@ -958,8 +962,8 @@ export default function MaterialsManager({
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="block text-slate-400 font-medium">Imatge del Material</label>
-                        <span className="text-[10px] text-amber-500 font-mono hidden sm:inline" title={RAW_MATERIALS_BASE_URL}>
+                        <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Imatge del Material</label>
+                        <span className={`text-[10px] font-mono hidden sm:inline ${isDark ? 'text-amber-400' : 'text-amber-800 font-semibold'}`} title={RAW_MATERIALS_BASE_URL}>
                           Prefix Raw GitHub actiu
                         </span>
                       </div>
@@ -998,11 +1002,13 @@ export default function MaterialsManager({
                   <div className="md:col-span-4 flex flex-col space-y-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-slate-400 font-medium">Grup / Categoria</label>
+                        <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Grup / Categoria</label>
                         <button
                           type="button"
                           onClick={handleQuickAddGrup}
-                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          className={`font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer ${
+                            isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-900'
+                          }`}
                           title="Afegir nou grup"
                         >
                           <Plus className="w-3 h-3" /> Nou
@@ -1062,7 +1068,7 @@ export default function MaterialsManager({
                 {/* Fila 3: Estoc Actual | Estoc Mínim | Unitat de Mesura */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Estoc Actual</label>
+                    <label className={`block mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Estoc Actual</label>
                     <DecimalInput
                       value={formData.estocActual}
                       onChange={(e, num) => setFormData({ ...formData, estocActual: num })}
@@ -1073,7 +1079,7 @@ export default function MaterialsManager({
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Estoc Mínim Alertes</label>
+                    <label className={`block mb-1 font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Estoc Mínim Alertes</label>
                     <DecimalInput
                       value={formData.estocMinim}
                       onChange={(e, num) => setFormData({ ...formData, estocMinim: num })}
@@ -1085,11 +1091,13 @@ export default function MaterialsManager({
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-400 font-medium">Unitat de Mesura *</label>
+                      <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Unitat de Mesura *</label>
                       <button
                         type="button"
                         onClick={handleQuickAddUnitat}
-                        className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                        className={`font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer ${
+                          isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-900'
+                        }`}
                         title="Afegir nova unitat de mesura"
                       >
                         <Plus className="w-3 h-3" /> Nova
@@ -1184,11 +1192,17 @@ export default function MaterialsManager({
 
               {/* 2. SECCIÓ PROVEÏDOR PRINCIPAL */}
               <div className="pt-2 space-y-4">
-                <div className="p-4 sm:p-5 rounded-2xl border border-amber-500/40 bg-amber-500/[0.05] shadow-sm space-y-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-500/20">
+                <div className={`p-4 sm:p-5 rounded-2xl border shadow-sm space-y-3.5 ${
+                  isDark ? 'border-amber-500/40 bg-amber-500/[0.05]' : 'border-amber-300 bg-amber-50/40'
+                }`}>
+                  <div className={`flex flex-wrap items-center justify-between gap-2 pb-2 border-b ${
+                    isDark ? 'border-amber-500/20' : 'border-amber-200'
+                  }`}>
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[11px] border border-amber-500/30">
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-[11px] border ${
+                        isDark ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-amber-100 text-amber-900 border-amber-300'
+                      }`}>
+                        <Star className={`w-3.5 h-3.5 ${isDark ? 'fill-amber-400 text-amber-400' : 'fill-amber-600 text-amber-600'}`} />
                         Proveïdor Principal (Referència per a Escandalls)
                       </span>
                     </div>
@@ -1198,11 +1212,13 @@ export default function MaterialsManager({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-slate-400 font-medium">Proveïdor *</label>
+                        <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Proveïdor *</label>
                         <button
                           type="button"
                           onClick={() => handleQuickAddProveidor(mainSuppIndex)}
-                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          className={`font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer ${
+                            isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-900'
+                          }`}
                           title="Crear nou proveïdor"
                         >
                           <Plus className="w-3 h-3" /> Nou
@@ -1247,14 +1263,16 @@ export default function MaterialsManager({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-slate-400 font-medium flex items-center gap-1">
+                        <label className={`block font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                           <Factory className="w-3 h-3 text-amber-500" />
                           Fabricant de la Matèria Prima
                         </label>
                         <button
                           type="button"
                           onClick={() => handleQuickAddFabricant(mainSuppIndex)}
-                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          className={`font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer ${
+                            isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-900'
+                          }`}
                           title="Crear nou fabricant"
                         >
                           <Plus className="w-3 h-3" /> Nou
@@ -1270,7 +1288,7 @@ export default function MaterialsManager({
                           }
                         }}
                         className={`w-full p-2 rounded-xl border outline-none cursor-pointer ${
-                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
                         }`}
                       >
                         <option value="">-- Selecciona fabricant --</option>
@@ -1283,14 +1301,16 @@ export default function MaterialsManager({
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-slate-400 font-medium flex items-center gap-1">
+                        <label className={`block font-medium flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                           <Box className="w-3 h-3 text-amber-500" />
                           Unitat de Compra (Packaging)
                         </label>
                         <button
                           type="button"
                           onClick={() => handleQuickAddPackaging(mainSuppIndex)}
-                          className="text-amber-400 hover:text-amber-300 font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer"
+                          className={`font-bold text-[11px] flex items-center gap-1 hover:underline cursor-pointer ${
+                            isDark ? 'text-amber-400 hover:text-amber-300' : 'text-amber-800 hover:text-amber-900'
+                          }`}
                           title="Crear nou packaging"
                         >
                           <Plus className="w-3 h-3" /> Nou
@@ -1324,14 +1344,14 @@ export default function MaterialsManager({
                     {mainIsPack && (
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
-                          <span className="text-[10px] text-amber-400 font-mono">×{mainPackagingFactor}</span>
+                          <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Preu / Pack (€)</label>
+                          <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>×{mainPackagingFactor}</span>
                         </div>
                         <DecimalInput
                           value={mainSupp.preuPack !== undefined ? mainSupp.preuPack : ''}
                           onChange={(e, num) => handleUpdateSupplierPricePack(mainSuppIndex, num)}
                           className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
-                            isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                            isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
                           }`}
                           placeholder="P. ex. 19,90"
                         />
@@ -1341,11 +1361,11 @@ export default function MaterialsManager({
                     {/* Textbox Preu / Unitat (calculat automàticament si factor > 1) */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-slate-400 font-medium">
+                        <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                           {mainIsPack ? `Preu / u (€ / ${formData.unitat})` : `Preu (€ / ${formData.unitat})`}
                         </label>
                         {mainIsPack && (
-                          <span className="text-[10px] text-emerald-400 font-mono" title={`Calculat: ${mainSupp.preuPack || 0} € ÷ ${mainPackagingFactor}`}>
+                          <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`} title={`Calculat: ${mainSupp.preuPack || 0} € ÷ ${mainPackagingFactor}`}>
                             ÷{mainPackagingFactor}
                           </span>
                         )}
@@ -1358,9 +1378,9 @@ export default function MaterialsManager({
                         }
                         onChange={(e, num) => handleUpdateSupplierUnitPrice(mainSuppIndex, num)}
                         className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
-                          mainIsPack ? 'border-amber-500/40 text-amber-300' : ''
+                          mainIsPack ? (isDark ? 'border-amber-500/40 text-amber-300' : 'border-amber-400 text-amber-900 bg-amber-50/50 font-bold') : ''
                         } ${
-                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                          isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
                         }`}
                       />
                     </div>
@@ -1463,11 +1483,11 @@ export default function MaterialsManager({
                             <div className="flex items-center gap-2.5 min-w-0">
                               <Building2 className="w-4 h-4 text-amber-500/70 shrink-0" />
                               <div className="truncate">
-                                <span className="font-bold text-slate-200">{provName}</span>
+                                <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{provName}</span>
                                 <span className="text-slate-500 mx-2">/</span>
-                                <span className="text-slate-400 font-medium">{fabName}</span>
+                                <span className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{fabName}</span>
                                 {alt.preu > 0 && (
-                                  <span className="ml-2.5 font-mono text-amber-400 font-semibold">
+                                  <span className={`ml-2.5 font-mono font-semibold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
                                     {Number(alt.preu).toFixed(2)} € / {formData.unitat}
                                   </span>
                                 )}
@@ -1487,7 +1507,11 @@ export default function MaterialsManager({
                                   e.stopPropagation();
                                   handleSetPrincipalSupplier(alt.originalIndex);
                                 }}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-[11px] font-semibold border border-amber-500/30 transition-all cursor-pointer active:scale-95"
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer active:scale-95 ${
+                                  isDark 
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30' 
+                                    : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
+                                }`}
                                 title="Passar aquest proveïdor a Principal"
                               >
                                 <Star className="w-3.5 h-3.5" />
@@ -1641,14 +1665,14 @@ export default function MaterialsManager({
                                 {altIsPack && (
                                   <div>
                                     <div className="flex items-center justify-between mb-1">
-                                      <label className="block text-slate-400 font-medium">Preu / Pack (€)</label>
-                                      <span className="text-[10px] text-amber-400 font-mono">×{altFactor}</span>
+                                      <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Preu / Pack (€)</label>
+                                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>×{altFactor}</span>
                                     </div>
                                     <DecimalInput
                                       value={alt.preuPack !== undefined ? alt.preuPack : ''}
                                       onChange={(e, num) => handleUpdateSupplierPricePack(alt.originalIndex, num)}
                                       className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
-                                        isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                        isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
                                       }`}
                                       placeholder="P. ex. 19,90"
                                     />
@@ -1657,11 +1681,11 @@ export default function MaterialsManager({
 
                                 <div>
                                   <div className="flex items-center justify-between mb-1">
-                                    <label className="block text-slate-400 font-medium">
+                                    <label className={`block font-medium ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                                       {altIsPack ? `Preu / u (€ / ${formData.unitat})` : `Preu (€ / ${formData.unitat})`}
                                     </label>
                                     {altIsPack && (
-                                      <span className="text-[10px] text-emerald-400 font-mono" title={`Calculat: ${alt.preuPack || 0} € ÷ ${altFactor}`}>
+                                      <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`} title={`Calculat: ${alt.preuPack || 0} € ÷ ${altFactor}`}>
                                         ÷{altFactor}
                                       </span>
                                     )}
@@ -1674,9 +1698,9 @@ export default function MaterialsManager({
                                     }
                                     onChange={(e, num) => handleUpdateSupplierUnitPrice(alt.originalIndex, num)}
                                     className={`w-full p-2 rounded-xl border outline-none font-mono font-semibold ${
-                                      altIsPack ? 'border-amber-500/40 text-amber-300' : ''
+                                      altIsPack ? (isDark ? 'border-amber-500/40 text-amber-300' : 'border-amber-400 text-amber-900 bg-amber-50/50 font-bold') : ''
                                     } ${
-                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200'
+                                      isDark ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-200 text-slate-800'
                                     }`}
                                   />
                                 </div>
