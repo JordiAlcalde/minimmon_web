@@ -54,7 +54,7 @@ export default function NfcLandingSection({ setActiveTab }) {
       'TEL;TYPE=CELL,VOICE:+34600000000',
       'EMAIL;TYPE=WORK,INTERNET:info@minimmon.cat',
       'URL:https://minimmon.cat',
-      'NOTE:Targeta de visita intel·ligent NFC en fusta massissa gravada a làser per Mínim Món.',
+      'NOTE:Targeta de visita intel·ligent NFC en fusta gravada a làser per Mínim Món.',
       'END:VCARD'
     ].join('\r\n');
 
@@ -157,7 +157,7 @@ export default function NfcLandingSection({ setActiveTab }) {
     {
       icon: Award,
       title: 'Fusta noble artesanal',
-      description: 'Substitueix el plàstic i les milers de targetes de paper d\'un sol ús per una peça de fusta massissa càlida, sostenible i gravada a làser d\'alta precisió al taller.'
+      description: 'Substitueix el plàstic i les milers de targetes de paper d\'un sol ús per una peça de fusta càlida, sostenible i gravada a làser d\'alta precisió al taller.'
     },
     {
       icon: Sparkles,
@@ -186,7 +186,7 @@ export default function NfcLandingSection({ setActiveTab }) {
     {
       badge: 'Hostaleria & Comerç',
       title: 'Marcadors de Taula & Expositors',
-      description: 'Suports de peu o cubs de fusta massissa per col·locar sobre taules, barres o taulells. Opcionalment combinable amb codi QR gravat.',
+      description: 'Suports de peu o cubs de fusta per col·locar sobre taules, barres o taulells. Opcionalment combinable amb codi QR gravat.',
       idealFor: 'Restaurants (carta digital), botigues (ressenyes Google 5★), hotels i clíniques.'
     },
     {
@@ -261,7 +261,7 @@ export default function NfcLandingSection({ setActiveTab }) {
         </h1>
 
         <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-8 text-base sm:text-lg leading-relaxed">
-          Targetes de visita, marcadors i etiquetes de fusta massissa artesanal amb sensor NFC integrat. 
+          Targetes de visita, marcadors i etiquetes de fusta artesanal amb sensor NFC integrat. 
           Sense aplicacions, sense paper i 100% configurable per tu en qualsevol moment.
         </p>
 
