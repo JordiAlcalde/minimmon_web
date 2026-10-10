@@ -37,8 +37,10 @@ import {
   FileSpreadsheet,
   Hammer,
   PlusCircle,
-  RefreshCw
+  RefreshCw,
+  ListChecks
 } from 'lucide-react';
+import EsdevenimentChecklist from './EsdevenimentChecklist';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
 import { getNextOFId, normalizeOFStatus, getOFStatusLabel } from './OrdresFabricacioManager';
@@ -63,7 +65,7 @@ export default function EsdevenimentsManager({
 }) {
   // Navigation & Selection State
   const [selectedEsdevenimentId, setSelectedEsdevenimentId] = useState(null);
-  const [activeTab, setActiveTab] = useState('dotacio'); // 'dotacio' | 'tpv' | 'liquidacio' | 'historic'
+  const [activeTab, setActiveTab] = useState('dotacio'); // 'dotacio' | 'checklist' | 'tpv' | 'liquidacio' | 'historic'
   const [filtreEstat, setFiltreEstat] = useState('tots'); // 'tots' | 'actius' | 'tancats'
   const [cercaEsdeveniment, setCercaEsdeveniment] = useState('');
 
@@ -1873,6 +1875,18 @@ export default function EsdevenimentsManager({
         </button>
 
         <button
+          onClick={() => setActiveTab('checklist')}
+          className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
+            activeTab === 'checklist'
+              ? (isDark ? 'border-amber-400 text-amber-300 bg-amber-950/30 rounded-t-lg' : 'border-amber-600 text-amber-900 bg-amber-50 rounded-t-lg font-black')
+              : (isDark ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-slate-600 hover:text-slate-900')
+          }`}
+        >
+          <ListChecks className="w-4 h-4" />
+          <span>2. Checklist de Material & Caixes ({currentEvent.checklist?.filter(i => i.preparat)?.length || 0}/{currentEvent.checklist?.length || 0})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('tpv')}
           className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer shrink-0 ${
             activeTab === 'tpv'
@@ -1881,7 +1895,7 @@ export default function EsdevenimentsManager({
           }`}
         >
           <Store className="w-4 h-4" />
-          <span>2. TPV Parada / Venda Ràpida</span>
+          <span>3. TPV Parada / Venda Ràpida</span>
         </button>
 
         <button
@@ -1893,7 +1907,7 @@ export default function EsdevenimentsManager({
           }`}
         >
           <DollarSign className="w-4 h-4" />
-          <span>3. Liquidació i Caixa</span>
+          <span>4. Liquidació i Caixa</span>
         </button>
 
         <button
@@ -1905,7 +1919,7 @@ export default function EsdevenimentsManager({
           }`}
         >
           <History className="w-4 h-4" />
-          <span>4. Històric Interanual ({edicionsComparativa.length})</span>
+          <span>5. Històric Interanual ({edicionsComparativa.length})</span>
         </button>
       </div>
 
@@ -1925,6 +1939,19 @@ export default function EsdevenimentsManager({
             </div>
             {currentEvent.estat !== 'tancat' && (
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('checklist')}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
+                    isDark 
+                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                  }`}
+                  title="Anar al Checklist de Material per controlar i col·locar les peces en caixes"
+                >
+                  <ListChecks className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Embalar en Caixes</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleSincronitzarAmbOFs(false)}
@@ -2241,7 +2268,20 @@ export default function EsdevenimentsManager({
       )}
 
       {/* ===================================================================
-          PESTANYA 2: TPV PARADA / VENDA RÀPIDA (PENSAT PER A MÒBIL/TABLET)
+          PESTANYA 2: CHECKLIST DE MATERIAL I CAIXES
+          =================================================================== */}
+      {activeTab === 'checklist' && (
+        <EsdevenimentChecklist
+          currentEvent={currentEvent}
+          setEsdeveniments={setEsdeveniments}
+          productes={productes}
+          isDark={isDark}
+          getProductImage={getProductImage}
+        />
+      )}
+
+      {/* ===================================================================
+          PESTANYA 3: TPV PARADA / VENDA RÀPIDA (PENSAT PER A MÒBIL/TABLET)
           =================================================================== */}
       {activeTab === 'tpv' && (
         <div className="space-y-4">
