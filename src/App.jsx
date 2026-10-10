@@ -11,6 +11,7 @@ import ProduccApp from './components/producc/ProduccApp';
 import ProjeccApp from './components/projecc/ProjeccApp';
 import PostingApp from './components/posting/PostingApp';
 import PerFerApp from './components/perfer/PerFerApp';
+import NfcLandingSection from './components/NfcLandingSection';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
 import OrderTrackingModal from './components/OrderTrackingModal';
@@ -109,6 +110,7 @@ export default function App() {
       const isProjeccDirect = urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc';
       const isPostingDirect = urlParams.get('posting') !== null || seccioParam === 'posting' || hash === '#posting';
       const isPerFerDirect = urlParams.get('perfer') !== null || seccioParam === 'perfer' || hash === '#perfer';
+      const isNfcDirect = urlParams.get('nfc') !== null || seccioParam === 'nfc' || hash === '#nfc' || hash.startsWith('#nfc');
 
       // Enllaç directe a seguiment de comanda (?comanda=REF o #seguiment-REF)
       const comandaParam = urlParams.get('comanda') || urlParams.get('seguiment') || (hash.startsWith('#seguiment-') ? hash.replace('#seguiment-', '') : null);
@@ -116,6 +118,11 @@ export default function App() {
       if (comandaParam) {
         setTrackingInitialRef(comandaParam);
         setIsTrackingOpen(true);
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      } else if (isNfcDirect) {
+        setActiveTab('nfc');
         if (window.location.hash) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
@@ -196,6 +203,8 @@ export default function App() {
       document.title = 'Mínim Món | POSTING';
     } else if (activeTab === 'perfer') {
       document.title = 'Mínim Món | PER FER';
+    } else if (activeTab === 'nfc') {
+      document.title = 'Mínim Món | Targetes i Productes NFC Intel·ligents';
     } else {
       document.title = 'Mínim Món | Essències en Miniatura';
     }
@@ -288,6 +297,10 @@ export default function App() {
 
         {activeTab === 'perfer' && (
           <PerFerApp setActiveTab={setActiveTab} />
+        )}
+
+        {activeTab === 'nfc' && (
+          <NfcLandingSection setActiveTab={handleSelectTab} />
         )}
       </main>
 

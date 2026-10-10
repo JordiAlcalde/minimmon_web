@@ -245,7 +245,10 @@ export default function ProduccApp({ setActiveTab }) {
         const oldItem = currentMap.get(id);
         if (!oldItem || JSON.stringify(oldItem) !== JSON.stringify(item)) {
           const { id: _, ...itemData } = item;
-          await setDoc(doc(db, collName, id), sanitizeData(itemData), { merge: true }).catch(e => console.error(`Error saving to ${collName}:`, e));
+          await setDoc(doc(db, collName, id), sanitizeData(itemData), { merge: true }).catch(e => {
+            console.error(`Error saving to ${collName}:`, e);
+            alert(`Error en desar a Firestore (${collName}): ${e.message || e}`);
+          });
         }
       }
     } catch (e) {

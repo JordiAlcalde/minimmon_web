@@ -3,8 +3,10 @@ import {
   Calculator, Plus, Search, Edit2, Trash2, Copy, Package, Wrench, Cpu, 
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
-  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap, RotateCw
+  Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap, RotateCw,
+  Printer, Paperclip, BookOpen, Eye, Upload
 } from 'lucide-react';
+import { compressImageFile } from '../../data/projeccInitialData';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { parseDecimal, formatDecimal, formatCurrency, formatDecimalInput } from '../../utils/numberUtils';
@@ -211,6 +213,171 @@ export default function EscandallsManager({
 
   // Estat per a visualitzar la imatge ampliada (Lightbox)
   const [zoomedImage, setZoomedImage] = useState(null);
+
+  // Estat per al Modal del Manual de Fabricació i Muntatge
+  const [manualModalEscandall, setManualModalEscandall] = useState(null);
+
+  // Helper per obrir fitxers PDF adjunts de manera segura en un Blob URL
+  const openPdfInNewTab = (dataUrl) => {
+    try {
+      const arr = dataUrl.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err) {
+      console.error('Error obrint PDF:', err);
+      const win = window.open();
+      if (win) {
+        win.document.write(`<iframe src="${dataUrl}" frameborder="0" style="border:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+      }
+    }
+  };
+
+  // Helper per recomprimir qualsevol imatge en format Data URL per mantenir-la lleugera (<45KB) per a Firestore
+  const compressDataUrl = (dataUrl, maxWidth = 800, maxHeight = 800, quality = 0.6) => {
+    return new Promise((resolve) => {
+      if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+        return resolve(dataUrl);
+      }
+      // Si la cadena ja és prou lleugera (< 55.000 caràcters, ~40KB), no cal recomprimir
+      if (dataUrl.length < 55000) {
+        return resolve(dataUrl);
+      }
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
+  // Pujar imatges o PDFs com a adjunts de muntatge a una operació
+  const handleUploadAdjuntsOperacio = async (opIdx, e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const newAdjunts = [];
+    for (const file of files) {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isImg = file.type.startsWith('image/');
+
+      if (!isPdf && !isImg) {
+        alert(`El fitxer "${file.name}" no és una imatge ni un PDF admès.`);
+        continue;
+      }
+
+      if (isPdf && file.size > 4 * 1024 * 1024) {
+        alert(`El fitxer PDF "${file.name}" supera els 4 MB. Recomanem optimitzar-lo per no excedir els límits de base de dades.`);
+      }
+
+      try {
+        let dataUrl = '';
+        if (isImg) {
+          // Comprimir imatge a 800x800px i qualitat 0.6 per mantenir claredat i mida lleugera (~35-45KB per foto)
+          dataUrl = await compressImageFile(file, 800, 800, 0.6);
+        } else {
+          // Llegir PDF com a Data URL
+          dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
+
+        if (dataUrl) {
+          newAdjunts.push({
+            id: `adj_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            nom: file.name.replace(/\.[^/.]+$/, ''),
+            tipus: isPdf ? 'pdf' : 'imatge',
+            url: dataUrl,
+            indicacions: '',
+            mida: file.size
+          });
+        }
+      } catch (err) {
+        console.error('Error processant fitxer adjunt:', err);
+        alert(`No s'ha pogut carregar el fitxer: ${file.name}`);
+      }
+    }
+
+    if (newAdjunts.length > 0) {
+      setFormData(prev => {
+        const nextOps = [...prev.operacions];
+        const currentList = nextOps[opIdx].adjuntsMuntatge || [];
+        nextOps[opIdx] = {
+          ...nextOps[opIdx],
+          adjuntsMuntatge: [...currentList, ...newAdjunts]
+        };
+        return { ...prev, operacions: nextOps };
+      });
+    }
+    e.target.value = '';
+  };
+
+  // Reordenar adjunt dins d'una operació
+  const handleMoveAdjunt = (opIdx, adjIdx, dir) => {
+    setFormData(prev => {
+      const nextOps = [...prev.operacions];
+      const adjList = [...(nextOps[opIdx].adjuntsMuntatge || [])];
+      const targetIdx = adjIdx + dir;
+      if (targetIdx < 0 || targetIdx >= adjList.length) return prev;
+      const [moved] = adjList.splice(adjIdx, 1);
+      adjList.splice(targetIdx, 0, moved);
+      nextOps[opIdx] = { ...nextOps[opIdx], adjuntsMuntatge: adjList };
+      return { ...prev, operacions: nextOps };
+    });
+  };
+
+  // Modificar camp (nom o indicacions) d'un adjunt
+  const handleUpdateAdjuntField = (opIdx, adjIdx, field, val) => {
+    setFormData(prev => {
+      const nextOps = [...prev.operacions];
+      const adjList = [...(nextOps[opIdx].adjuntsMuntatge || [])];
+      adjList[adjIdx] = { ...adjList[adjIdx], [field]: val };
+      nextOps[opIdx] = { ...nextOps[opIdx], adjuntsMuntatge: adjList };
+      return { ...prev, operacions: nextOps };
+    });
+  };
+
+  // Eliminar adjunt d'una operació
+  const handleDeleteAdjunt = (opIdx, adjIdx) => {
+    setFormData(prev => {
+      const nextOps = [...prev.operacions];
+      const adjList = (nextOps[opIdx].adjuntsMuntatge || []).filter((_, i) => i !== adjIdx);
+      nextOps[opIdx] = { ...nextOps[opIdx], adjuntsMuntatge: adjList };
+      return { ...prev, operacions: nextOps };
+    });
+  };
 
   // Estat per a mostrar o ocultar comentaris aclaratoris de línia
   const [showLineComments, setShowLineComments] = useState(true);
@@ -516,7 +683,10 @@ export default function EscandallsManager({
       ...esc,
       producteImatge: rawImg,
       materials: esc.materials ? esc.materials.map(m => ({ ...m })) : [],
-      operacions: esc.operacions ? esc.operacions.map(o => ({ ...o })) : [],
+      operacions: esc.operacions ? esc.operacions.map(o => ({
+        ...o,
+        adjuntsMuntatge: Array.isArray(o.adjuntsMuntatge) ? o.adjuntsMuntatge.map(a => ({ ...a })) : []
+      })) : [],
       maquinaria: esc.maquinaria ? esc.maquinaria.map(mq => ({ ...mq })) : [],
       opcionsCostos: esc.opcionsCostos ? JSON.parse(JSON.stringify(esc.opcionsCostos)) : {},
       parametresLaser: esc.parametresLaser ? JSON.parse(JSON.stringify(esc.parametresLaser)) : null
@@ -613,7 +783,10 @@ export default function EscandallsManager({
       margePercent: duplicatingSourceEsc.margePercent !== undefined ? duplicatingSourceEsc.margePercent : 65,
       notes: duplicatingSourceEsc.notes || '',
       materials: duplicatingSourceEsc.materials ? duplicatingSourceEsc.materials.map(m => ({ ...m })) : [],
-      operacions: duplicatingSourceEsc.operacions ? duplicatingSourceEsc.operacions.map(o => ({ ...o })) : [],
+      operacions: duplicatingSourceEsc.operacions ? duplicatingSourceEsc.operacions.map(o => ({
+        ...o,
+        adjuntsMuntatge: Array.isArray(o.adjuntsMuntatge) ? o.adjuntsMuntatge.map(a => ({ ...a })) : []
+      })) : [],
       maquinaria: duplicatingSourceEsc.maquinaria ? duplicatingSourceEsc.maquinaria.map(mq => ({ ...mq })) : [],
       opcionsCostos: newOpcionsCostos
     };
@@ -633,17 +806,53 @@ export default function EscandallsManager({
   };
 
   // Guardar escandall
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
     if (!formData.producteNom.trim()) {
       alert('Si us plau, especifica el nom del producte o projecte.');
       return;
     }
 
+    // 1. Optimitzar i recomprimir les imatges d'adjunts de muntatge que superin la mida òptima per a Firestore (<50KB)
+    let optimizedOperacions = formData.operacions;
+    try {
+      optimizedOperacions = await Promise.all(
+        (formData.operacions || []).map(async (op) => {
+          if (!Array.isArray(op.adjuntsMuntatge) || op.adjuntsMuntatge.length === 0) return op;
+          const optimizedAdjunts = await Promise.all(
+            op.adjuntsMuntatge.map(async (adj) => {
+              if (adj.tipus === 'imatge' && adj.url && adj.url.startsWith('data:image/') && adj.url.length > 55000) {
+                try {
+                  const recompressed = await compressDataUrl(adj.url, 800, 800, 0.6);
+                  return { ...adj, url: recompressed, mida: Math.round(recompressed.length * 0.75) };
+                } catch (err) {
+                  console.warn('Error comprimint adjunt:', err);
+                  return adj;
+                }
+              }
+              return adj;
+            })
+          );
+          return { ...op, adjuntsMuntatge: optimizedAdjunts };
+        })
+      );
+    } catch (err) {
+      console.warn('Error optimitzant operacions:', err);
+    }
+
+    const payloadToSave = { ...formData, operacions: optimizedOperacions };
+
+    // 2. Comprovar la mida total del document abans de gravar per assegurar que no excedeix el límit de Firestore (1 MB)
+    const jsonSize = JSON.stringify(payloadToSave).length;
+    if (jsonSize > 980000) {
+      alert(`Atenció: La mida d'aquest escandall (${Math.round(jsonSize / 1024)} KB) s'apropa o supera el límit màxim permès per Firestore (1024 KB). Recomanem reduir la mida dels fitxers o documents PDF adjunts per poder desar-lo.`);
+      return;
+    }
+
     if (editingEscandall) {
       // Comprovar si s'han modificat els materials de l'escandall
       const oldMats = editingEscandall.materials || [];
-      const newMats = formData.materials || [];
+      const newMats = payloadToSave.materials || [];
       const materialsChanged = oldMats.length !== newMats.length || oldMats.some((om, i) => {
         const nm = newMats[i];
         if (!nm) return true;
@@ -668,16 +877,16 @@ export default function EscandallsManager({
           setSyncOFModal({
             openOFs,
             selectedOfIds: openOFs.map(o => o.id),
-            formDataToSave: { ...formData, id: editingEscandall.id }
+            formDataToSave: { ...payloadToSave, id: editingEscandall.id }
           });
           return;
         }
       }
 
-      setEscandalls(prev => prev.map(e => e.id === editingEscandall.id ? { ...formData, id: e.id } : e));
+      setEscandalls(prev => prev.map(e => e.id === editingEscandall.id ? { ...payloadToSave, id: e.id } : e));
     } else {
       const newId = getNextSequentialId('esc', escandalls);
-      setEscandalls(prev => [...prev, { ...formData, id: newId }]);
+      setEscandalls(prev => [...prev, { ...payloadToSave, id: newId }]);
     }
     setModalOpen(false);
   };
@@ -1384,6 +1593,16 @@ export default function EscandallsManager({
                   }`}>
                     <button
                       type="button"
+                      onClick={() => setManualModalEscandall(esc)}
+                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                        isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-600 hover:text-emerald-700 hover:bg-slate-200'
+                      }`}
+                      title="Manual de Fabricació i Muntatge (Imprimible)"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleOpenEdit(esc)}
                       className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                         isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-600 hover:text-amber-700 hover:bg-slate-200'
@@ -1909,6 +2128,19 @@ export default function EscandallsManager({
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
+                  onClick={() => setManualModalEscandall(formData)}
+                  className={`px-3 py-1.5 rounded-xl border flex items-center gap-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    isDark
+                      ? 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/40'
+                      : 'border-emerald-500/50 text-emerald-800 hover:bg-emerald-50 bg-white'
+                  }`}
+                  title="Veure i imprimir Manual de Fabricació / Muntatge"
+                >
+                  <BookOpen className="w-4 h-4 text-emerald-500" />
+                  <span className="hidden sm:inline">Manual de Muntatge</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleSave}
                   className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 text-xs font-semibold shadow-md transition-all cursor-pointer"
                   title="Guardar Escandall"
@@ -2346,18 +2578,33 @@ export default function EscandallsManager({
                       <span className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         <Wrench className="w-4 h-4 text-emerald-500" /> 2. Operacions de Mà d'Obra (Taller)
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFormData(prev => ({
-                            ...prev,
-                            operacions: [...prev.operacions, { operacioId: '', costHora: 0, tempsMinuts: 10 }]
-                          }));
-                        }}
-                        className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer"
-                      >
-                        + Afegir Operació
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setManualModalEscandall(formData)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border flex items-center gap-1 cursor-pointer transition-all ${
+                            isDark
+                              ? 'border-emerald-500/40 text-emerald-300 hover:bg-emerald-950/40'
+                              : 'border-emerald-400 text-emerald-800 hover:bg-emerald-100 bg-emerald-50'
+                          }`}
+                          title="Imprimir Manual de Muntatge d'aquest producte"
+                        >
+                          <Printer className="w-3 h-3 text-emerald-600" />
+                          <span>Imprimir Manual</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              operacions: [...prev.operacions, { operacioId: '', costHora: 0, tempsMinuts: 10, comentari: '', adjuntsMuntatge: [] }]
+                            }));
+                          }}
+                          className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-semibold cursor-pointer"
+                        >
+                          + Afegir Operació
+                        </button>
+                      </div>
                     </div>
 
                     {/* Capçalera de Columnes per a Operacions */}
@@ -2486,7 +2733,7 @@ export default function EscandallsManager({
                                 </button>
                               </div>
 
-                              {/* Sub-Fila: Comentari aclaratori per a aquesta línia */}
+                              {/* Sub-Fila 1: Comentari aclaratori per a aquesta línia */}
                               {showLineComments && (
                                 <div className={`col-span-12 pt-1.5 flex items-center gap-2 border-t mt-1 ${
                                   isDark ? 'border-slate-800/60' : 'border-slate-200'
@@ -2511,6 +2758,196 @@ export default function EscandallsManager({
                                   />
                                 </div>
                               )}
+
+                              {/* Sub-Fila 2: Arxius i Fases de Muntatge (Imatges i PDFs) */}
+                              <div className={`col-span-12 pt-2 pb-1 border-t mt-1 space-y-2 ${
+                                isDark ? 'border-slate-800/60' : 'border-slate-200'
+                              }`}>
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                      isDark ? 'text-slate-300' : 'text-slate-700'
+                                    }`}>
+                                      <Paperclip className="w-3 h-3 text-emerald-500" />
+                                      Arxius de Muntatge:
+                                    </span>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
+                                      (item.adjuntsMuntatge || []).length > 0
+                                        ? (isDark ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold')
+                                        : (isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500')
+                                    }`}>
+                                      {(item.adjuntsMuntatge || []).length} {(item.adjuntsMuntatge || []).length === 1 ? 'arxiu' : 'arxius'}
+                                    </span>
+                                    <span className={`text-[10px] italic hidden sm:inline ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                      (Fases d'assemblatge, fotos i PDFs)
+                                    </span>
+                                  </div>
+
+                                  <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer transition-all border shadow-2xs bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:border-emerald-500/50">
+                                    <Plus className="w-3 h-3" />
+                                    <span>Afegir Imatge o PDF</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*,application/pdf"
+                                      multiple
+                                      onChange={(e) => handleUploadAdjuntsOperacio(idx, e)}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                </div>
+
+                                {/* Llistat ordenat d'arxius adjunts */}
+                                {(item.adjuntsMuntatge || []).length > 0 && (
+                                  <div className="space-y-2 pt-1">
+                                    {(item.adjuntsMuntatge || []).map((adj, adjIdx) => (
+                                      <div
+                                        key={adj.id || adjIdx}
+                                        className={`p-2.5 rounded-xl border transition-all ${
+                                          isDark
+                                            ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
+                                            : 'bg-slate-50/90 border-slate-200 hover:border-slate-300 shadow-2xs'
+                                        }`}
+                                      >
+                                        <div className="flex flex-col sm:flex-row items-start gap-3">
+                                          {/* Miniatura visual / Icona de document */}
+                                          <div className="shrink-0 flex sm:flex-col items-center gap-1">
+                                            {adj.tipus === 'imatge' ? (
+                                              <div
+                                                onClick={() => adj.url && setZoomedImage(adj.url)}
+                                                className={`w-20 h-20 rounded-lg border overflow-hidden relative group cursor-pointer ${
+                                                  isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300'
+                                                }`}
+                                                title="Clica per ampliar la foto"
+                                              >
+                                                <img
+                                                  src={adj.url}
+                                                  alt={adj.nom}
+                                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                                />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                  <ZoomIn className="w-4 h-4 text-white drop-shadow" />
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div
+                                                onClick={() => openPdfInNewTab(adj.url)}
+                                                className={`w-20 h-20 rounded-lg border flex flex-col items-center justify-center p-1.5 cursor-pointer hover:border-rose-400 transition-colors ${
+                                                  isDark ? 'bg-slate-900 border-rose-950/50 text-rose-400' : 'bg-rose-50/80 border-rose-200 text-rose-700'
+                                                }`}
+                                                title="Clica per obrir el PDF"
+                                              >
+                                                <FileText className="w-6 h-6 mb-1 text-rose-500" />
+                                                <span className="text-[9px] font-bold uppercase tracking-wider bg-rose-500 text-white px-1 py-0.2 rounded font-mono">PDF</span>
+                                                <span className="text-[9px] text-center truncate max-w-full mt-0.5 font-mono">{adj.nom}</span>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Cos central: Títol editable de la fase i Textbox d'indicacions */}
+                                          <div className="flex-1 min-w-0 space-y-1.5 w-full">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                                                  isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
+                                                }`}>
+                                                  Fase {adjIdx + 1}
+                                                </span>
+                                                <input
+                                                  type="text"
+                                                  value={adj.nom || ''}
+                                                  onChange={(e) => handleUpdateAdjuntField(idx, adjIdx, 'nom', e.target.value)}
+                                                  placeholder="Nom o títol del pas (ex: Fase 1 - Encolat del suport)"
+                                                  className={`w-full text-xs font-semibold px-2 py-0.5 rounded-lg border outline-none ${
+                                                    isDark ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-emerald-500/60' : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500'
+                                                  }`}
+                                                />
+                                              </div>
+
+                                              {/* Botons d'ordenació i eliminació */}
+                                              <div className="flex items-center gap-0.5 shrink-0">
+                                                <button
+                                                  type="button"
+                                                  disabled={adjIdx === 0}
+                                                  onClick={() => handleMoveAdjunt(idx, adjIdx, -1)}
+                                                  className={`p-1 rounded transition-colors ${
+                                                    adjIdx === 0
+                                                      ? 'text-slate-300 cursor-not-allowed opacity-30'
+                                                      : isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-200'
+                                                  }`}
+                                                  title="Moure pas amunt"
+                                                >
+                                                  <ChevronUp className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  disabled={adjIdx === (item.adjuntsMuntatge || []).length - 1}
+                                                  onClick={() => handleMoveAdjunt(idx, adjIdx, 1)}
+                                                  className={`p-1 rounded transition-colors ${
+                                                    adjIdx === (item.adjuntsMuntatge || []).length - 1
+                                                      ? 'text-slate-300 cursor-not-allowed opacity-30'
+                                                      : isDark ? 'text-slate-400 hover:text-emerald-400 hover:bg-slate-800' : 'text-slate-500 hover:text-emerald-700 hover:bg-slate-200'
+                                                  }`}
+                                                  title="Moure pas avall"
+                                                >
+                                                  <ChevronDown className="w-3.5 h-3.5" />
+                                                </button>
+                                                {adj.tipus === 'imatge' ? (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => adj.url && setZoomedImage(adj.url)}
+                                                    className={`p-1 rounded transition-colors ${
+                                                      isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:text-amber-700 hover:bg-slate-200'
+                                                    }`}
+                                                    title="Veure imatge ampliada"
+                                                  >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                  </button>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => openPdfInNewTab(adj.url)}
+                                                    className={`p-1 rounded transition-colors ${
+                                                      isDark ? 'text-slate-400 hover:text-rose-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-700 hover:bg-slate-200'
+                                                    }`}
+                                                    title="Obrir fitxer PDF"
+                                                  >
+                                                    <ExternalLink className="w-3.5 h-3.5" />
+                                                  </button>
+                                                )}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDeleteAdjunt(idx, adjIdx)}
+                                                  className={`p-1 rounded transition-colors cursor-pointer ${
+                                                    isDark ? 'text-slate-400 hover:text-red-400 hover:bg-slate-800' : 'text-slate-500 hover:text-rose-600 hover:bg-slate-200'
+                                                  }`}
+                                                  title="Eliminar fitxer"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </div>
+                                            </div>
+
+                                            {/* TEXTBOX PER A INDICACIONS */}
+                                            <div>
+                                              <textarea
+                                                rows={2}
+                                                value={adj.indicacions || ''}
+                                                onChange={(e) => handleUpdateAdjuntField(idx, adjIdx, 'indicacions', e.target.value)}
+                                                placeholder="Indicacions de muntatge per a aquest pas (ex: Aplicar 2 gotes de cola, alinear amb la ranura de 3mm, collar els cargols sense forçar...)..."
+                                                className={`w-full text-xs p-2 rounded-lg outline-none border resize-y ${
+                                                  isDark
+                                                    ? 'bg-slate-900 border-slate-800 text-slate-200 focus:border-emerald-500/60 placeholder:text-slate-600'
+                                                    : 'bg-white border-slate-300 text-slate-900 focus:border-emerald-500 placeholder:text-slate-400'
+                                                }`}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })}
@@ -3894,6 +4331,272 @@ export default function EscandallsManager({
           </div>
         </div>
       )}
+      {/* MODAL: MANUAL DE FABRICACIÓ I MUNTATGE IMPRIMIBLE */}
+      {manualModalEscandall && (
+        <ManufacturingManualModal
+          escandall={manualModalEscandall}
+          operacionsCatalog={operacions}
+          onClose={() => setManualModalEscandall(null)}
+          isDark={isDark}
+        />
+      )}
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------
+// SUBCOMPONENT: MANUAL DE FABRICACIÓ I MUNTATGE (IMPRIMIBLE / PRINT-READY)
+// --------------------------------------------------------------------------
+export function ManufacturingManualModal({ escandall, operacionsCatalog = [], onClose, isDark }) {
+  if (!escandall) return null;
+
+  const totalMinuts = (escandall.operacions || []).reduce((sum, o) => sum + Number(o.tempsMinuts || 0), 0);
+  const totalFases = (escandall.operacions || []).reduce((sum, o) => sum + (o.adjuntsMuntatge || []).length, 0);
+
+  const rawModalImg = escandall.producteImatge || '';
+  const displayImage = rawModalImg 
+    ? (resolveProducteMediaUrl(rawModalImg) || resolveMediaUrl(rawModalImg) || rawModalImg)
+    : '';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-xs animate-fadeIn print:p-0 print:bg-white print:static print:inset-auto print:z-auto print:block">
+      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden print:w-full print:max-w-none print:shadow-none print:rounded-none print:max-h-none print:overflow-visible">
+        
+        {/* Barra superior d'accions (NO IMPRIMIBLE) */}
+        <div className="shrink-0 p-4 flex items-center justify-between border-b border-slate-200 bg-slate-50 print:hidden">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-emerald-600" />
+            <div>
+              <span className="font-bold text-sm text-slate-800">Manual de Fabricació i Muntatge</span>
+              <p className="text-[11px] text-slate-500">Vista prèvia preparada per a impressió en paper o exportació a PDF</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+            >
+              <Printer className="w-4 h-4" /> Imprimir Manual
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-black rounded-lg cursor-pointer"
+              title="Tancar"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* CONTINGUT IMPRIMIBLE DEL MANUAL */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-8 font-sans print:p-6 print:overflow-visible text-slate-900 bg-white">
+          
+          {/* Capçalera del Document */}
+          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-5 gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-mono uppercase tracking-widest bg-slate-900 text-white px-2.5 py-0.5 rounded font-bold">
+                  MÍNIM MÓN
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">
+                  Dossier de Taller • Manual de Fabricació & Muntatge
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black font-serif text-slate-900 pt-1 leading-tight">
+                {escandall.producteNom || 'Manual de Muntatge'}
+              </h1>
+              <div className="flex items-center gap-3 text-xs font-mono text-slate-600 flex-wrap">
+                {escandall.producteCodi && (
+                  <span>Ref / Codi: <strong className="text-slate-900">{escandall.producteCodi}</strong></span>
+                )}
+                {escandall.familiaNom && (
+                  <span>Família: <strong className="text-slate-900">{escandall.familiaNom}</strong></span>
+                )}
+                {escandall.gammaNom && (
+                  <span>Gamma: <strong className="text-slate-900">{escandall.gammaNom}</strong></span>
+                )}
+                <span>Data d'Emissió: <strong className="text-slate-900">{new Date().toLocaleDateString('ca-ES')}</strong></span>
+              </div>
+            </div>
+
+            {/* Imatge del Producte Final */}
+            {displayImage && (
+              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl border border-slate-300 p-1 shrink-0 bg-white shadow-2xs">
+                <img
+                  src={displayImage}
+                  alt={escandall.producteNom}
+                  className="w-full h-full object-cover rounded-lg"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Resum Ràpid del Procés de Fabricació */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-mono print:break-inside-avoid">
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Total Operacions:</span>
+              <strong className="text-sm text-slate-900">{(escandall.operacions || []).length} operacions</strong>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Fases Documentades:</span>
+              <strong className="text-sm text-emerald-800">{totalFases} fases amb guia</strong>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Temps de Taller Estimat:</span>
+              <strong className="text-sm text-slate-900">{totalMinuts} minuts</strong>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Àmbit de Treball:</span>
+              <strong className="text-sm text-slate-900">{escandall.tipus || 'Producte Web'}</strong>
+            </div>
+          </div>
+
+          {/* Notes Generals de Fabricació (si n'hi ha) */}
+          {escandall.notes && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs print:break-inside-avoid">
+              <strong className="text-[10px] font-mono uppercase text-amber-900 block mb-1">
+                Notes Generals de Fabricació:
+              </strong>
+              <p className="text-slate-800 italic leading-relaxed">{escandall.notes}</p>
+            </div>
+          )}
+
+          {/* SEQÜÈNCIA D'OPERACIONS I FASES DE MUNTATGE */}
+          <div className="space-y-6">
+            <div className="border-b border-slate-300 pb-1 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wider font-mono text-slate-800">
+                Seqüència d'Operacions de Muntatge
+              </h2>
+              <span className="text-[11px] font-mono text-slate-500">
+                {(escandall.operacions || []).length} passos en total
+              </span>
+            </div>
+
+            {(escandall.operacions || []).length === 0 ? (
+              <p className="text-xs italic text-slate-500 py-4 text-center">
+                Aquest escandall no té operacions de taller assignades encara.
+              </p>
+            ) : (
+              (escandall.operacions || []).map((op, opIdx) => {
+                const opObj = operacionsCatalog.find(o => o.id === op.operacioId);
+                const opNom = opObj ? opObj.operacio : (op.operacio || `Operació #${opIdx + 1}`);
+                const adjunts = op.adjuntsMuntatge || [];
+
+                return (
+                  <div
+                    key={opIdx}
+                    className="border border-slate-300 rounded-2xl overflow-hidden print:break-inside-avoid shadow-2xs"
+                  >
+                    {/* Capçalera de l'Operació */}
+                    <div className="bg-slate-100 p-3 sm:p-4 border-b border-slate-300 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="w-7 h-7 rounded-full bg-slate-900 text-white font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                          {opIdx + 1}
+                        </span>
+                        <div>
+                          <h3 className="font-bold text-sm sm:text-base text-slate-900">{opNom}</h3>
+                          {op.comentari && (
+                            <p className="text-xs text-slate-700 italic mt-0.5">
+                              <strong>Nota aclaratòria:</strong> {op.comentari}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-300">
+                          {op.tempsMinuts || 0} min
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fases / Adjunts de Muntatge */}
+                    {adjunts.length > 0 ? (
+                      <div className="p-4 sm:p-5 space-y-4 bg-white">
+                        {adjunts.map((adj, adjIdx) => (
+                          <div
+                            key={adj.id || adjIdx}
+                            className="border border-slate-200 rounded-xl p-3 sm:p-4 bg-slate-50/60 print:break-inside-avoid space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                              <span className="font-mono text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                                <span className="px-1.5 py-0.5 bg-emerald-100 border border-emerald-300 rounded text-[10px] font-bold">
+                                  Pas {opIdx + 1}.{adjIdx + 1}
+                                </span>
+                                {adj.nom || `Fase de muntatge ${adjIdx + 1}`}
+                              </span>
+                              <span className="text-[10px] font-mono uppercase text-slate-500">
+                                {adj.tipus === 'imatge' ? 'Fotografia de procés' : 'Document PDF adjunt'}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                              {/* Visualització Imatge o PDF */}
+                              <div className="md:col-span-5 flex justify-center">
+                                {adj.tipus === 'imatge' ? (
+                                  <div className="w-full max-w-sm rounded-lg border border-slate-300 overflow-hidden bg-white shadow-2xs">
+                                    <img
+                                      src={adj.url}
+                                      alt={adj.nom}
+                                      className="w-full max-h-72 object-contain mx-auto"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-full p-4 rounded-lg border border-rose-200 bg-rose-50/80 flex items-center gap-3">
+                                    <FileText className="w-8 h-8 text-rose-600 shrink-0" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-bold text-rose-900 truncate">{adj.nom}</p>
+                                      <p className="text-[10px] text-rose-700">Fitxer PDF adjunt a la documentació</p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Indicacions de muntatge */}
+                              <div className="md:col-span-7 space-y-1">
+                                <span className="text-[10px] font-mono uppercase font-bold text-slate-600 block">
+                                  Indicacions i Passos de Muntatge:
+                                </span>
+                                <div className="p-3 bg-white border border-slate-200 rounded-lg text-xs leading-relaxed text-slate-800 whitespace-pre-wrap min-h-[65px]">
+                                  {adj.indicacions ? (
+                                    adj.indicacions
+                                  ) : (
+                                    <span className="text-slate-400 italic">Sense indicacions específiques addicionals per a aquesta fase.</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 text-xs italic text-slate-500 bg-white">
+                        Operació estàndard sense arxius fotogràfics de muntatge addicionals.
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Peu de Pàgina / Signatures de Control de Taller */}
+          <div className="pt-6 border-t-2 border-slate-900 flex items-center justify-between text-xs font-mono text-slate-600 print:break-inside-avoid">
+            <div>
+              <p className="font-bold text-slate-800">Mínim Món • Dossier de Muntatge i Control</p>
+              <p className="text-[10px] text-slate-500">Document confidencial de fabricació interna</p>
+            </div>
+            <div className="text-right space-y-1">
+              <p>Operari Responsable: _________________________</p>
+              <p className="text-[10px] text-slate-500">Data de Finalització: ____ / ____ / 2026</p>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
     </div>
   );
 }

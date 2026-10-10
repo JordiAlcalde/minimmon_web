@@ -4,7 +4,7 @@ import {
   Palette, Hammer, Share2, Globe, ShoppingBag, Sparkles, Tag, 
   Plus, CheckSquare, Square, Camera, Image as ImageIcon, Eye,
   Link2, Check, ArrowRight, Lightbulb, ListTodo, Hourglass, CheckCircle2,
-  Edit2
+  Edit2, ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import { PER_FER_COLUMNS, PER_FER_AMBITS, PER_FER_PRIORITATS } from '../../data/perFerInitialData';
 import { compressImageFile } from '../../data/projeccInitialData';
@@ -143,6 +143,39 @@ export default function PerFerTaskModal({
       ...prev,
       subtasques: prev.subtasques.filter(st => st.id !== subtaskId)
     }));
+  };
+
+  const handleMoveSubtask = (index, direction) => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= formData.subtasques.length) return;
+
+    setFormData(prev => {
+      const updated = [...prev.subtasques];
+      const temp = updated[index];
+      updated[index] = updated[newIndex];
+      updated[newIndex] = temp;
+      return {
+        ...prev,
+        subtasques: updated
+      };
+    });
+  };
+
+  const handleSortSubtasks = (criteria) => {
+    setFormData(prev => {
+      const updated = [...prev.subtasques];
+      if (criteria === 'alphabetical') {
+        updated.sort((a, b) => (a.text || '').localeCompare(b.text || '', 'ca', { sensitivity: 'base' }));
+      } else if (criteria === 'pending_first') {
+        updated.sort((a, b) => (a.completada ? 1 : 0) - (b.completada ? 1 : 0));
+      } else if (criteria === 'completed_first') {
+        updated.sort((a, b) => (b.completada ? 1 : 0) - (a.completada ? 1 : 0));
+      }
+      return {
+        ...prev,
+        subtasques: updated
+      };
+    });
   };
 
   const handleUploadImages = async (e) => {
@@ -559,7 +592,7 @@ export default function PerFerTaskModal({
 
           {/* Llista de Subtasques (Micro-Checklist) */}
           <div className="bg-surface-container-low p-4 rounded-xl border border-outline/15 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-4 h-4 text-primary" />
                 <span className="text-xs font-bold uppercase tracking-wider text-primary">
@@ -571,6 +604,26 @@ export default function PerFerTaskModal({
                   </span>
                 )}
               </div>
+              {formData.subtasques.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSortSubtasks('pending_first')}
+                    className="text-[10px] px-2 py-0.5 rounded bg-surface hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors cursor-pointer border border-outline/15 font-medium"
+                    title="Moure les subtasques pendents a dalt"
+                  >
+                    Pendents primer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSortSubtasks('alphabetical')}
+                    className="text-[10px] px-2 py-0.5 rounded bg-surface hover:bg-surface-container-highest text-on-surface-variant hover:text-primary transition-colors cursor-pointer border border-outline/15 font-medium"
+                    title="Ordenar alfabèticament de la A a la Z"
+                  >
+                    A-Z
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Barra de progrés */}
@@ -663,11 +716,29 @@ export default function PerFerTaskModal({
                           {st.text}
                         </span>
                       </button>
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveSubtask(idx, 'up')}
+                          className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant"
+                          title="Pujar subtasca (↑)"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === formData.subtasques.length - 1}
+                          onClick={() => handleMoveSubtask(idx, 'down')}
+                          className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded transition-colors cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-on-surface-variant"
+                          title="Baixar subtasca (↓)"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleStartEditSubtask(st)}
-                          className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded transition-colors cursor-pointer"
+                          className="p-1 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded transition-colors cursor-pointer ml-1"
                           title="Editar text de la subtasca"
                         >
                           <Edit2 className="w-3.5 h-3.5" />

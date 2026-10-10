@@ -4,7 +4,7 @@ import {
   CheckCircle2, PlayCircle, Eye, Printer, Trash2, X, Save, ArrowRight,
   Package, Wrench, Layers, User, Phone, Sparkles, Check, ChevronDown, 
   ArrowLeft, RotateCw, FileText, Download, ChevronRight, BarChart2, Flame,
-  Boxes, Factory, HelpCircle, Zap, ArrowLeftRight, Store
+  Boxes, Factory, HelpCircle, Zap, ArrowLeftRight, Store, BookOpen
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -14,6 +14,7 @@ import { AVAILABLE_FONTS } from '../FontSelectorDropdown';
 import { GIFT_PRODUCTS, MINIATURE_WORLDS } from '../../data/mockData';
 import { formatProductWithGamma, getSingularGammaName, getProductGammaLabel, isProductInGamma } from '../PrivateAreaSection';
 import LaserParametersEditor from './LaserParametersEditor';
+import { ManufacturingManualModal } from './EscandallsManager';
 import { DEFAULT_LASER_CONFIG, normalizeLaserConfig, areLaserConfigsEqual } from '../../utils/laserUtils';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 
@@ -205,6 +206,7 @@ export default function OrdresFabricacioManager({
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [selectedOFDetail, setSelectedOFDetail] = useState(null);
   const [printOF, setPrintOF] = useState(null);
+  const [manualModalOF, setManualModalOF] = useState(null);
   const [closingOFModal, setClosingOFModal] = useState(null);
 
   // Mapa de compres pendents per material (quantitats en camí en unitats base)
@@ -1248,6 +1250,30 @@ export default function OrdresFabricacioManager({
                           </button>
                           <button
                             type="button"
+                            onClick={() => {
+                              const rawLower = (of.nom || of.producteNom || '').toLowerCase().trim();
+                              const esc = (escandalls || []).find(e => 
+                                (of.escandallId && (e.id === of.escandallId || String(e.id) === String(of.escandallId))) ||
+                                (e.producteCodi && of.codiModelGenerat && e.producteCodi.toLowerCase().trim() === of.codiModelGenerat.toLowerCase().trim()) ||
+                                (e.producteNom && e.producteNom.toLowerCase().trim() === rawLower)
+                              );
+                              if (esc) {
+                                setManualModalOF(esc);
+                              } else {
+                                alert("No s'ha trobat cap escandall associat amb guia de fabricació per a aquesta ordre.");
+                              }
+                            }}
+                            className={`p-2 rounded-xl border transition-all cursor-pointer shadow-xs ${
+                              isDark 
+                                ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700 hover:text-emerald-300' 
+                                : 'bg-white hover:bg-slate-50 text-emerald-700 border-slate-300 hover:text-emerald-800'
+                            }`}
+                            title="Manual de Fabricació i Muntatge"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setPrintOF(of)}
                             className={`p-2 rounded-xl border transition-all cursor-pointer shadow-xs ${
                               isDark 
@@ -1373,6 +1399,18 @@ export default function OrdresFabricacioManager({
         <PrintWorkshopDossier
           ofData={printOF}
           onClose={() => setPrintOF(null)}
+          escandalls={escandalls}
+          operacions={operacions}
+        />
+      )}
+
+      {/* MODAL: MANUAL DE FABRICACIÓ I MUNTATGE */}
+      {manualModalOF && (
+        <ManufacturingManualModal
+          escandall={manualModalOF}
+          operacionsCatalog={operacions}
+          onClose={() => setManualModalOF(null)}
+          isDark={isDark}
         />
       )}
     </div>
@@ -3906,8 +3944,16 @@ function OFDetailModal({
 // --------------------------------------------------------------------------
 // SUBCOMPONENT: DOSSIER IMPRIMIBLE DE TALLER (PRINT-READY)
 // --------------------------------------------------------------------------
-function PrintWorkshopDossier({ ofData, onClose }) {
+function PrintWorkshopDossier({ ofData, onClose, escandalls = [], operacions = [] }) {
   const fontObj = AVAILABLE_FONTS.find(f => f.name === ofData.tipografia) || AVAILABLE_FONTS[0];
+  const [showManualModal, setShowManualModal] = useState(false);
+
+  const rawLower = (ofData.nom || ofData.producteNom || '').toLowerCase().trim();
+  const matchedEsc = (escandalls || []).find(e => 
+    (ofData.escandallId && (e.id === ofData.escandallId || String(e.id) === String(ofData.escandallId))) ||
+    (e.producteCodi && ofData.codiModelGenerat && e.producteCodi.toLowerCase().trim() === ofData.codiModelGenerat.toLowerCase().trim()) ||
+    (e.producteNom && e.producteNom.toLowerCase().trim() === rawLower)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-xs animate-fadeIn print:p-0 print:bg-white">
@@ -3917,6 +3963,16 @@ function PrintWorkshopDossier({ ofData, onClose }) {
         <div className="shrink-0 p-4 flex items-center justify-between border-b border-slate-200 print:hidden">
           <span className="font-mono text-xs font-bold text-slate-600">Vista Prèvia del Full de Taller</span>
           <div className="flex items-center gap-2">
+            {matchedEsc && (
+              <button
+                type="button"
+                onClick={() => setShowManualModal(true)}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all"
+                title="Veure i imprimir Manual de Fabricació"
+              >
+                <BookOpen className="w-4 h-4" /> Manual de Muntatge
+              </button>
+            )}
             <button
               type="button"
               onClick={() => window.print()}
@@ -4053,6 +4109,51 @@ function PrintWorkshopDossier({ ofData, onClose }) {
             </div>
           </div>
 
+          {/* Fases de Muntatge & Indicacions Clau (si l'escandall o l'OF té adjunts de muntatge) */}
+          {(() => {
+            const phases = (matchedEsc?.operacions || ofData.operacions || [])
+              .flatMap((op, opIdx) => (op.adjuntsMuntatge || []).map((adj, adjIdx) => ({
+                opNom: op.nom || `Operació ${opIdx + 1}`,
+                pas: `${opIdx + 1}.${adjIdx + 1}`,
+                ...adj
+              })));
+
+            if (phases.length === 0) return null;
+
+            return (
+              <div className="border border-slate-300 p-4 rounded-xl space-y-3 text-xs font-mono print:break-inside-avoid">
+                <div className="flex items-center justify-between border-b pb-1">
+                  <span className="font-bold text-[10px] uppercase text-emerald-800">
+                    Guia de Muntatge & Fases de Taller ({phases.length}):
+                  </span>
+                  <span className="text-[10px] text-slate-500">Mínim Món</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {phases.map((ph, pi) => (
+                    <div key={pi} className="p-2.5 border border-slate-200 rounded-lg bg-slate-50 flex items-start gap-2.5">
+                      {ph.tipus === 'imatge' && ph.url ? (
+                        <img src={ph.url} alt={ph.nom} className="w-16 h-16 object-cover rounded border border-slate-300 shrink-0" />
+                      ) : (
+                        <div className="w-16 h-16 bg-rose-50 border border-rose-200 rounded flex flex-col items-center justify-center shrink-0 text-rose-700">
+                          <FileText className="w-6 h-6 mb-0.5" />
+                          <span className="text-[8px] font-bold">PDF</span>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-[11px] text-slate-900 truncate">
+                          {ph.pas} - {ph.nom}
+                        </p>
+                        <p className="text-[10px] text-slate-600 font-sans italic line-clamp-3 mt-0.5">
+                          {ph.indicacions || 'Sense indicacions addicionals.'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Notes de Taller */}
           {ofData.notesTaller && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs">
@@ -4068,6 +4169,14 @@ function PrintWorkshopDossier({ ofData, onClose }) {
           </div>
         </div>
 
+        {/* Modal del manual de fabricació des del dossier */}
+        {showManualModal && matchedEsc && (
+          <ManufacturingManualModal
+            escandall={matchedEsc}
+            operacionsCatalog={operacions}
+            onClose={() => setShowManualModal(false)}
+          />
+        )}
       </div>
     </div>
   );
