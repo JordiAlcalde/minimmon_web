@@ -164,3 +164,97 @@ button.rounded-full,
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);
 }
+
+/* ==========================================================================
+   Configuració d'Impressió del Checklist d'Esdeveniments
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 12mm 10mm;
+  }
+
+  /* Ocultar la resta del DOM de l'app si el checklist o el catàleg de productes està en mode d'impressió */
+  body.checklist-printing-active > *:not(#print-checklist-portal),
+  body.productes-printing-active > *:not(#print-productes-portal) {
+    display: none !important;
+  }
+
+  body.checklist-printing-active,
+  body.productes-printing-active {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  #print-checklist-portal,
+  #print-productes-portal {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    inset: auto !important;
+    z-index: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #print-checklist-portal .print-modal-card,
+  #print-productes-portal .print-modal-card {
+    position: static !important;
+    display: block !important;
+    background: #ffffff !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #print-checklist-portal .print-modal-content,
+  #print-productes-portal .print-modal-content {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #print-checklist-portal table,
+  #print-productes-portal table {
+    width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  #print-checklist-portal thead,
+  #print-productes-portal thead {
+    display: table-header-group !important;
+  }
+
+  #print-checklist-portal tr,
+  #print-productes-portal tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+}
+

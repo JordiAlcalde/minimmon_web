@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Printer, 
   ListChecks, 
@@ -30,6 +31,7 @@ import {
   FileText
 } from 'lucide-react';
 import { formatCurrency } from '../../utils/numberUtils';
+import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 
 // Llista predefinida d'elements imprescindibles habituals de fira / mercat
 const PRESETS_MATERIAL_FIRA = [
@@ -66,7 +68,8 @@ export default function EsdevenimentChecklist({
   setEsdeveniments,
   productes = [],
   isDark = true,
-  getProductImage = () => ''
+  getProductImage = () => '',
+  onOpenPrintProductes
 }) {
   // Estat de filtres i vista
   const [filtreCaixa, setFiltreCaixa] = useState('totes');
@@ -79,6 +82,16 @@ export default function EsdevenimentChecklist({
   const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [selectedPresets, setSelectedPresets] = useState({});
+
+  // Control de classe a document.body per aïllar la impressió del checklist de manera neta
+  useEffect(() => {
+    if (showPrintModal) {
+      document.body.classList.add('checklist-printing-active');
+      return () => {
+        document.body.classList.remove('checklist-printing-active');
+      };
+    }
+  }, [showPrintModal]);
 
   // Formulari d'afegir element de text lliure ràpid
   const [nouConcepte, setNouConcepte] = useState('');
@@ -135,6 +148,56 @@ export default function EsdevenimentChecklist({
     return { total, preparats, pendents, percent, totalUnitats, unitatsPreparades };
   }, [checklist]);
 
+  // Resoldre la imatge de qualsevol element o producte del checklist de manera universal
+  const resolveItemImage = useCallback((item) => {
+    if (!item) return '';
+
+    // 1. Provar amb getProductImage proporcionat pel gestor pare
+    if (typeof getProductImage === 'function') {
+      const fromFn = getProductImage(item);
+      if (fromFn) return fromFn;
+    }
+
+    // 2. Si l'element té foto directa vàlida guardada
+    if (item.foto && typeof item.foto === 'string' && item.foto.trim() !== '') {
+      const direct = resolveProducteMediaUrl(item.foto) || resolveMediaUrl(item.foto);
+      if (direct) return direct;
+    }
+
+    // 3. Cerca directa al llistat de productes per productId, codi o concepte (nom)
+    if (Array.isArray(productes) && productes.length > 0) {
+      const targetId = item.productId || (item.id && !String(item.id).startsWith('chk_') ? item.id : null);
+      const targetCodi = item.codi;
+      const targetNom = (item.concepte || item.nom || '').trim().toLowerCase();
+
+      const prod = productes.find(p => 
+        (targetId && (p.id === targetId || p.codi === targetId)) ||
+        (targetCodi && (p.codi === targetCodi || p.id === targetCodi)) ||
+        (targetNom && p.nom && String(p.nom).trim().toLowerCase() === targetNom)
+      );
+
+      if (prod) {
+        if (typeof getProductImage === 'function') {
+          const fromProd = getProductImage(prod);
+          if (fromProd) return fromProd;
+        }
+
+        const raw = prod.imatgePrincipal || 
+                    (Array.isArray(prod.imatges) && prod.imatges.find(img => img && typeof img === 'string' && img.trim() !== '')) || 
+                    (Array.isArray(prod.fotos) && prod.fotos.find(f => f && typeof f === 'string' && f.trim() !== '')) ||
+                    prod.foto || 
+                    prod.imatge || 
+                    prod.image || 
+                    '';
+        if (raw) {
+          return resolveProducteMediaUrl(raw) || resolveMediaUrl(raw) || raw;
+        }
+      }
+    }
+
+    return '';
+  }, [getProductImage, productes]);
+
   // Toggle preparat
   const toggleItemPreparat = (itemId) => {
     const updated = checklist.map(item => {
@@ -173,6 +236,8 @@ export default function EsdevenimentChecklist({
   const handleAddCatalogProduct = () => {
     if (!selectedCatalogProduct) return;
 
+    const resolvedFoto = resolveItemImage(selectedCatalogProduct) || selectedCatalogProduct.foto || '';
+
     const newItem = {
       id: 'chk_prod_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       tipus: 'producte',
@@ -183,7 +248,7 @@ export default function EsdevenimentChecklist({
       preparat: false,
       productId: selectedCatalogProduct.id,
       codi: selectedCatalogProduct.codi || '',
-      foto: selectedCatalogProduct.foto || ''
+      foto: resolvedFoto
     };
 
     updateChecklist([...checklist, newItem]);
@@ -212,6 +277,7 @@ export default function EsdevenimentChecklist({
       );
 
       if (!jaExisteix) {
+        const resolvedFoto = l.foto || resolveItemImage(l) || '';
         nous.push({
           id: 'chk_dot_' + (l.id || l.productId || Date.now()) + '_' + Math.random().toString(36).substr(2, 4),
           tipus: 'producte',
@@ -222,7 +288,7 @@ export default function EsdevenimentChecklist({
           preparat: false,
           productId: l.productId || l.id,
           codi: l.codi || '',
-          foto: l.foto || ''
+          foto: resolvedFoto
         });
         afegits++;
       }
@@ -367,11 +433,27 @@ export default function EsdevenimentChecklist({
               type="button"
               onClick={() => setShowPrintModal(true)}
               className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs bg-amber-600 hover:bg-amber-500 text-white"
-              title="Obrir vista optimitzada per a impressió en paper o PDF"
+              title="Obrir vista optimitzada per a impressió en paper o PDF del checklist de caixes"
             >
               <Printer className="w-4 h-4" />
-              <span>Imprimir Llista</span>
+              <span>Imprimir Checklist</span>
             </button>
+
+            {onOpenPrintProductes && (
+              <button
+                type="button"
+                onClick={onOpenPrintProductes}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isDark
+                    ? 'bg-slate-800 hover:bg-slate-700 text-amber-400 border-amber-500/30'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                }`}
+                title="Imprimir llista de productes amb imatge, quantitat i preu"
+              >
+                <Printer className="w-4 h-4 text-amber-500" />
+                <span>Imprimir Productes & Preus</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -815,9 +897,12 @@ export default function EsdevenimentChecklist({
       {/* ===================================================================
           MODAL D'IMPRESSIÓ (PRINTABLE VIEW PROFESSIONAL)
           =================================================================== */}
-      {showPrintModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn">
+      {showPrintModal && typeof document !== 'undefined' && createPortal(
+        <div 
+          id="print-checklist-portal"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:static print:inset-auto print:z-auto print:bg-white print:block"
+        >
+          <div className="print-modal-card bg-white text-slate-900 w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn print:animate-none print:max-h-none print:h-auto print:overflow-visible print:shadow-none print:border-none print:rounded-none print:block print:w-full print:max-w-none">
             
             {/* Barra superior (Amagada a la impressió) */}
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 print:hidden">
@@ -849,10 +934,10 @@ export default function EsdevenimentChecklist({
             </div>
 
             {/* FULL IMPRIMIBLE (Format net en fons blanc per a impressió perfecta) */}
-            <div className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-6 text-slate-900 print:p-0 print:overflow-visible">
+            <div className="print-modal-content flex-1 overflow-y-auto p-6 sm:p-10 space-y-6 text-slate-900 print:p-0 print:overflow-visible print:h-auto print:max-h-none print:block">
               
               {/* Capçalera del Document */}
-              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4 gap-4">
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4 gap-4 break-inside-avoid">
                 <div>
                   <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold block mb-1">
                     MÍNIM MÓN • ARTESANIA EN FUSTA & MINIATURES
@@ -873,7 +958,7 @@ export default function EsdevenimentChecklist({
               </div>
 
               {/* Resum ràpid de caixes */}
-              <div className="grid grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-center text-xs font-mono">
+              <div className="grid grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-center text-xs font-mono break-inside-avoid">
                 <div>
                   <span className="text-slate-500 block text-[10px] uppercase">Total Elements</span>
                   <span className="text-base font-bold text-slate-900">{stats.total}</span>
@@ -893,17 +978,17 @@ export default function EsdevenimentChecklist({
               </div>
 
               {/* Taula Imprimible d'Elements */}
-              <div className="space-y-4">
+              <div className="space-y-4 print:space-y-4">
                 {Object.entries(itemsGroupedByCaixa).map(([caixaNom, items]) => (
-                  <div key={caixaNom} className="space-y-1.5 break-inside-avoid">
-                    <div className="flex items-center justify-between bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-xs">
+                  <div key={caixaNom} className="space-y-1.5 print:break-inside-auto">
+                    <div className="flex items-center justify-between bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-xs break-inside-avoid">
                       <span>📦 {caixaNom}</span>
                       <span className="font-mono text-[11px] text-slate-600">{items.length} elements</span>
                     </div>
 
-                    <table className="w-full text-left text-xs border-collapse border border-slate-200">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-300 font-mono text-[10px] uppercase text-slate-600">
+                    <table className="w-full text-left text-xs border-collapse border border-slate-200 print:break-inside-auto">
+                      <thead className="print:table-header-group">
+                        <tr className="bg-slate-50 border-b border-slate-300 font-mono text-[10px] uppercase text-slate-600 break-inside-avoid">
                           <th className="py-1.5 px-2.5 w-12 text-center">[ ] Fet</th>
                           <th className="py-1.5 px-3">Element / Concepte</th>
                           <th className="py-1.5 px-2 w-16 text-center">Quantitat</th>
@@ -912,7 +997,7 @@ export default function EsdevenimentChecklist({
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {items.map(item => (
-                          <tr key={item.id} className="hover:bg-slate-50">
+                          <tr key={item.id} className="hover:bg-slate-50 break-inside-avoid print:break-inside-avoid">
                             <td className="py-2 px-2.5 text-center">
                               <span className="inline-block w-4 h-4 border-2 border-slate-800 rounded-xs font-mono font-bold leading-none text-center">
                                 {item.preparat ? '✓' : ''}
@@ -949,8 +1034,10 @@ export default function EsdevenimentChecklist({
 
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
 
       {/* ===================================================================
           MODAL D'IMPRESCINDIBLES DE FIRA (PRESETS)
@@ -1099,7 +1186,7 @@ export default function EsdevenimentChecklist({
                 .slice(0, 30)
                 .map(prod => {
                   const isSel = selectedCatalogProduct?.id === prod.id;
-                  const img = getProductImage(prod);
+                  const img = resolveItemImage(prod);
                   return (
                     <div
                       key={prod.id}
@@ -1112,12 +1199,24 @@ export default function EsdevenimentChecklist({
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         {img ? (
-                          <img src={img} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-700" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0 text-slate-500">
-                            <Package className="w-4 h-4" />
-                          </div>
-                        )}
+                          <img 
+                            src={img} 
+                            alt="" 
+                            className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-700" 
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              if (e.currentTarget.nextElementSibling) {
+                                e.currentTarget.nextElementSibling.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <div 
+                          className="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center shrink-0 text-slate-500"
+                          style={{ display: img ? 'none' : 'flex' }}
+                        >
+                          <Package className="w-4 h-4" />
+                        </div>
                         <div className="min-w-0 text-xs">
                           <h5 className="font-bold truncate">{prod.nom}</h5>
                           <span className="font-mono text-[10px] text-slate-400">Ref: {prod.codi || '-'}</span>
@@ -1191,7 +1290,7 @@ export default function EsdevenimentChecklist({
   // Renderitzador d'una fila d'element del checklist
   function renderChecklistRow(item) {
     const isEditing = editingItemId === item.id;
-    const img = item.foto ? getProductImage(item) : '';
+    const img = resolveItemImage(item);
 
     if (isEditing) {
       return (
@@ -1285,15 +1384,31 @@ export default function EsdevenimentChecklist({
           </button>
 
           {/* Miniatura si és producte amb foto */}
-          {img && (
+          {img ? (
             <img 
               src={img} 
-              alt="" 
+              alt={item.concepte || 'Producte'} 
               className={`w-8 h-8 rounded-lg object-cover shrink-0 border ${
                 item.preparat ? 'opacity-50 grayscale' : 'border-slate-700'
               }`} 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextElementSibling) {
+                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                }
+              }}
             />
-          )}
+          ) : null}
+          {(!img && (item.tipus === 'producte' || item.productId || item.codi)) ? (
+            <div 
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 ${
+                isDark ? 'bg-slate-800 border-slate-700 text-slate-500' : 'bg-slate-100 border-slate-300 text-slate-400'
+              }`}
+              title="Producte de catàleg sense imatge"
+            >
+              <Package className="w-4 h-4" />
+            </div>
+          ) : null}
 
           {/* Detalls de l'element */}
           <div className="min-w-0 flex-1">

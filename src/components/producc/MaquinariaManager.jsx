@@ -1697,7 +1697,26 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedMaquinaForMaintenance.historicManteniments.map((rec, rIdx) => (
+                    {selectedMaquinaForMaintenance.historicManteniments.map((rec, rIdx) => {
+                      // Càlcul de la diferència d'hores respecte al manteniment anterior
+                      const prevRec = selectedMaquinaForMaintenance.historicManteniments[rIdx + 1];
+                      const curHores = parseDecimal(rec.hores, null);
+                      const prevHores = prevRec ? parseDecimal(prevRec.hores, null) : null;
+
+                      let diffHores = null;
+                      if (curHores !== null && prevHores !== null && prevHores >= 0) {
+                        diffHores = Math.max(0, Math.round((curHores - prevHores) * 10) / 10);
+                      } else if (rec.horesTreballades !== undefined && rec.horesTreballades !== null && Number(rec.horesTreballades) > 0) {
+                        diffHores = Math.round(Number(rec.horesTreballades) * 10) / 10;
+                      }
+
+                      const displayDiff = diffHores !== null 
+                        ? (diffHores % 1 === 0 
+                            ? String(diffHores) 
+                            : (String(rec.hores).includes(',') ? formatDecimal(diffHores, 1) : String(diffHores)))
+                        : null;
+
+                      return (
                       <div 
                         key={rec.id || rIdx}
                         className={`p-4 rounded-xl border space-y-2.5 transition-all ${
@@ -1705,7 +1724,7 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className={`px-2.5 py-1 rounded-lg border font-bold font-mono text-xs flex items-center gap-1.5 ${
                               isDark ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-emerald-50 border-emerald-300 text-emerald-900'
                             }`}>
@@ -1716,6 +1735,36 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                               <span className={`font-mono text-xs font-semibold ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                                 {rec.hores} hores d'ús
                               </span>
+                            )}
+                            {rec.hores > 0 && (
+                              diffHores !== null ? (
+                                <span 
+                                  className={`px-2 py-0.5 rounded-lg border font-mono text-xs font-semibold flex items-center gap-1 shrink-0 ${
+                                    isDark 
+                                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' 
+                                      : 'bg-amber-50 border-amber-300 text-amber-900'
+                                  }`}
+                                  title={prevRec && prevHores !== null
+                                    ? `Diferència: ${rec.hores}h - ${prevRec.hores}h (${displayDiff} hores d'ús entre aquest manteniment i l'anterior)`
+                                    : `${displayDiff} hores d'ús transcorregudes des de l'últim manteniment`
+                                  }
+                                >
+                                  <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                                  <span>+{displayDiff} h</span>
+                                  <span className="text-[10px] font-normal opacity-80 hidden sm:inline">des de l'anterior</span>
+                                </span>
+                              ) : (
+                                <span 
+                                  className={`px-2 py-0.5 rounded-lg border font-mono text-[10px] font-medium shrink-0 ${
+                                    isDark 
+                                      ? 'bg-slate-800/60 border-slate-700 text-slate-400' 
+                                      : 'bg-slate-200/70 border-slate-300 text-slate-600'
+                                  }`}
+                                  title="Primer manteniment registrat a l'històric d'aquesta màquina"
+                                >
+                                  Primer registre
+                                </span>
+                              )
                             )}
                           </div>
 
@@ -1766,7 +1815,8 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                           </p>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

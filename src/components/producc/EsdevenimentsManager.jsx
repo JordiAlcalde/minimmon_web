@@ -38,8 +38,10 @@ import {
   Hammer,
   PlusCircle,
   RefreshCw,
-  ListChecks
+  ListChecks,
+  Printer
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import EsdevenimentChecklist from './EsdevenimentChecklist';
 import { resolveProducteMediaUrl, resolveMediaUrl } from '../../utils/mediaUtils';
 import { formatCurrency, formatDecimal, parseDecimal } from '../../utils/numberUtils';
@@ -93,6 +95,20 @@ export default function EsdevenimentsManager({
     prioritatOF: 'normal'
   });
 
+  // Modal d'Impressió de la Llista de Productes de la Fira
+  const [showPrintProductesModal, setShowPrintProductesModal] = useState(false);
+  const [printProductesSort, setPrintProductesSort] = useState('nom'); // 'nom' | 'codi' | 'quantitat' | 'preu'
+  const [printProductesView, setPrintProductesView] = useState('taula'); // 'taula' | 'graella'
+
+  useEffect(() => {
+    if (showPrintProductesModal) {
+      document.body.classList.add('productes-printing-active');
+      return () => {
+        document.body.classList.remove('productes-printing-active');
+      };
+    }
+  }, [showPrintProductesModal]);
+
   // TPV Modal State
   const [tpvProducteSeleccionat, setTpvProducteSeleccionat] = useState(null);
   const [tpvQuantitat, setTpvQuantitat] = useState(1);
@@ -128,8 +144,9 @@ export default function EsdevenimentsManager({
     }
 
     // Buscar el producte complet al catàleg de productes
-    const targetId = prodOrLinia.productId || prodOrLinia.id;
+    const targetId = prodOrLinia.productId || (prodOrLinia.id && !String(prodOrLinia.id).startsWith('chk_') ? prodOrLinia.id : null);
     const targetCodi = prodOrLinia.codi;
+    const targetNom = prodOrLinia.nom || prodOrLinia.concepte;
     let prod = null;
     if (Array.isArray(productes) && productes.length > 0) {
       if (targetId) {
@@ -138,8 +155,8 @@ export default function EsdevenimentsManager({
       if (!prod && targetCodi) {
         prod = productes.find(p => p.codi === targetCodi || p.id === targetCodi);
       }
-      if (!prod && prodOrLinia.nom) {
-        const cleanName = String(prodOrLinia.nom).trim().toLowerCase();
+      if (!prod && targetNom) {
+        const cleanName = String(targetNom).trim().toLowerCase();
         prod = productes.find(p => p.nom && String(p.nom).trim().toLowerCase() === cleanName);
       }
     }
@@ -1311,6 +1328,209 @@ export default function EsdevenimentsManager({
     });
   }, [esdeveniments, filtreEstat, cercaEsdeveniment]);
 
+  // Modal Compartida per a Crear / Editar Esdeveniment (Accessible tant des del llistat com des del detall de la fira)
+  const renderEventModal = () => {
+    if (!showEventModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className={`${
+          isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+        } max-w-lg w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[90vh] overflow-y-auto`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            <div className="flex items-center gap-2">
+              <Store className="w-5 h-5 text-amber-500" />
+              <h3 className={`text-base font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                {editingEvent ? "Editar Esdeveniment / Fira" : "Nou Esdeveniment / Fira"}
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowEventModal(false)}
+              className={`p-1 rounded-lg cursor-pointer transition-colors ${
+                isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+              }`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3 text-xs">
+            <div>
+              <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Nom de l'Esdeveniment *</label>
+              <input
+                type="text"
+                value={formData.nom}
+                onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                placeholder="Ex: Fira Medieval de Vic"
+                className={`w-full p-2.5 border rounded-xl outline-none focus:border-amber-500 font-medium ${
+                  isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Any / Edició</label>
+                <input
+                  type="number"
+                  value={formData.edicioAny}
+                  onChange={(e) => setFormData({ ...formData, edicioAny: e.target.value })}
+                  className={`w-full p-2.5 border rounded-xl outline-none focus:border-amber-500 font-mono ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Lloc / Població</label>
+                <input
+                  type="text"
+                  value={formData.lloc}
+                  onChange={(e) => setFormData({ ...formData, lloc: e.target.value })}
+                  placeholder="Ex: Plaça Major, Vic"
+                  className={`w-full p-2.5 border rounded-xl outline-none focus:border-amber-500 ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Data d'Inici</label>
+                <input
+                  type="date"
+                  value={formData.dataInici}
+                  onChange={(e) => setFormData({ ...formData, dataInici: e.target.value })}
+                  className={`w-full p-2 border rounded-xl outline-none focus:border-amber-500 font-mono ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Data de Fi</label>
+                <input
+                  type="date"
+                  value={formData.dataFi}
+                  onChange={(e) => setFormData({ ...formData, dataFi: e.target.value })}
+                  className={`w-full p-2 border rounded-xl outline-none focus:border-amber-500 font-mono ${
+                    isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                  }`}
+                />
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-xl border space-y-2.5 ${
+              isDark ? 'bg-amber-950/20 border-amber-500/30' : 'bg-amber-50/50 border-amber-200'
+            }`}>
+              <span className={`font-bold block text-[11px] uppercase tracking-wider ${
+                isDark ? 'text-amber-300' : 'text-amber-900'
+              }`}>
+                Finances Inicials i Parada
+              </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-[11px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Despesa Parada (€)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.despesaParada}
+                    onChange={(e) => setFormData({ ...formData, despesaParada: e.target.value })}
+                    placeholder="0"
+                    className={`w-full p-2 border rounded-lg outline-none font-mono ${
+                      isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-[11px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Fons Caixa Inicial (€)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.fonsCaixaInicial}
+                    onChange={(e) => setFormData({ ...formData, fonsCaixaInicial: e.target.value })}
+                    placeholder="100"
+                    className={`w-full p-2 border rounded-lg outline-none font-mono ${
+                      isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-xl border space-y-2.5 ${
+              isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
+            }`}>
+              <span className={`font-bold block text-[11px] uppercase tracking-wider ${
+                isDark ? 'text-white' : 'text-slate-900'
+              }`}>
+                Col·laborador / Parada
+              </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`text-[11px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Nom del Col·laborador</label>
+                  <input
+                    type="text"
+                    value={formData.colaboradorNom}
+                    onChange={(e) => setFormData({ ...formData, colaboradorNom: e.target.value })}
+                    placeholder="Ex: Maria"
+                    className={`w-full p-2 border rounded-lg outline-none ${
+                      isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className={`text-[11px] block mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Comissió sobre vendes (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.colaboradorPercentatge}
+                      onChange={(e) => setFormData({ ...formData, colaboradorPercentatge: e.target.value })}
+                      placeholder="15"
+                      className={`w-full p-2 pr-7 border rounded-lg outline-none font-mono ${
+                        isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                      }`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono">%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className={`font-semibold block mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>Notes o Observacions</label>
+              <textarea
+                rows={2}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                placeholder="Detalls de la ubicació de la parada, horaris de muntatge..."
+                className={`w-full p-2 border rounded-xl outline-none focus:border-amber-500 text-xs ${
+                  isDark ? 'bg-slate-950 border-slate-700 text-white' : 'bg-white border-slate-300 text-slate-900'
+                }`}
+              />
+            </div>
+          </div>
+
+          <div className={`flex items-center justify-end gap-2 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+            <button
+              onClick={() => setShowEventModal(false)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              Cancel·lar
+            </button>
+            <button
+              onClick={handleSaveEvent}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all"
+            >
+              {editingEvent ? "Desar Canvis" : "Crear Esdeveniment"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // =========================================================================
   // VISTA 1: LLISTAT GENERAL D'ESDEVENIMENTS (SI NO N'HI HA CAP SELECCIONAT)
   // =========================================================================
@@ -1532,170 +1752,7 @@ export default function EsdevenimentsManager({
         )}
 
         {/* MODAL CREAR / EDITAR ESDEVENIMENT */}
-        {showEventModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-surface-container-lowest max-w-lg w-full rounded-2xl border border-outline/20 p-6 shadow-2xl space-y-4 animate-fadeIn">
-              <div className="flex items-center justify-between border-b border-outline/15 pb-3">
-                <div className="flex items-center gap-2">
-                  <Store className="w-5 h-5 text-amber-600" />
-                  <h3 className="text-base font-serif font-bold text-primary">
-                    {editingEvent ? "Editar Esdeveniment / Fira" : "Nou Esdeveniment / Fira"}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowEventModal(false)}
-                  className="p-1 rounded-lg text-on-surface-variant hover:bg-surface cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="font-semibold text-primary block mb-1">Nom de l'Esdeveniment *</label>
-                  <input
-                    type="text"
-                    value={formData.nom}
-                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                    placeholder="Ex: Fira Medieval de Vic"
-                    className="w-full p-2.5 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 font-medium text-on-surface"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-primary block mb-1">Any / Edició</label>
-                    <input
-                      type="number"
-                      value={formData.edicioAny}
-                      onChange={(e) => setFormData({ ...formData, edicioAny: e.target.value })}
-                      className="w-full p-2.5 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 font-mono text-on-surface"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-primary block mb-1">Lloc / Població</label>
-                    <input
-                      type="text"
-                      value={formData.lloc}
-                      onChange={(e) => setFormData({ ...formData, lloc: e.target.value })}
-                      placeholder="Ex: Plaça Major, Vic"
-                      className="w-full p-2.5 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 text-on-surface"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-primary block mb-1">Data d'Inici</label>
-                    <input
-                      type="date"
-                      value={formData.dataInici}
-                      onChange={(e) => setFormData({ ...formData, dataInici: e.target.value })}
-                      className="w-full p-2 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 font-mono text-on-surface"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-primary block mb-1">Data de Fi</label>
-                    <input
-                      type="date"
-                      value={formData.dataFi}
-                      onChange={(e) => setFormData({ ...formData, dataFi: e.target.value })}
-                      className="w-full p-2 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 font-mono text-on-surface"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 rounded-xl space-y-2.5">
-                  <span className="font-bold text-amber-900 dark:text-amber-200 block text-[11px] uppercase tracking-wider">
-                    Finances Inicials i Parada
-                  </span>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-on-surface-variant block mb-1">Despesa Parada (€)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        value={formData.despesaParada}
-                        onChange={(e) => setFormData({ ...formData, despesaParada: e.target.value })}
-                        placeholder="0"
-                        className="w-full p-2 bg-surface border border-outline/20 rounded-lg outline-none font-mono text-on-surface"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-on-surface-variant block mb-1">Fons Caixa Inicial (€)</label>
-                      <input
-                        type="number"
-                        step="any"
-                        value={formData.fonsCaixaInicial}
-                        onChange={(e) => setFormData({ ...formData, fonsCaixaInicial: e.target.value })}
-                        placeholder="100"
-                        className="w-full p-2 bg-surface border border-outline/20 rounded-lg outline-none font-mono text-on-surface"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-surface border border-outline/15 rounded-xl space-y-2.5">
-                  <span className="font-bold text-primary block text-[11px] uppercase tracking-wider">
-                    Col·laborador / Parada
-                  </span>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] text-on-surface-variant block mb-1">Nom del Col·laborador</label>
-                      <input
-                        type="text"
-                        value={formData.colaboradorNom}
-                        onChange={(e) => setFormData({ ...formData, colaboradorNom: e.target.value })}
-                        placeholder="Ex: Maria"
-                        className="w-full p-2 bg-surface border border-outline/20 rounded-lg outline-none text-on-surface"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-on-surface-variant block mb-1">Comissió sobre vendes (%)</label>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          step="any"
-                          value={formData.colaboradorPercentatge}
-                          onChange={(e) => setFormData({ ...formData, colaboradorPercentatge: e.target.value })}
-                          placeholder="15"
-                          className="w-full p-2 pr-7 bg-surface border border-outline/20 rounded-lg outline-none font-mono text-on-surface"
-                        />
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant font-mono">%</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-primary block mb-1">Notes o Observacions</label>
-                  <textarea
-                    rows={2}
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Detalls de la ubicació de la parada, horaris de muntatge..."
-                    className="w-full p-2 bg-surface border border-outline/20 rounded-xl outline-none focus:border-amber-500 text-on-surface text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline/15">
-                <button
-                  onClick={() => setShowEventModal(false)}
-                  className="px-3.5 py-2 text-on-surface-variant hover:bg-surface rounded-xl text-xs font-semibold cursor-pointer"
-                >
-                  Cancel·lar
-                </button>
-                <button
-                  onClick={handleSaveEvent}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs"
-                >
-                  {editingEvent ? "Desar Canvis" : "Crear Esdeveniment"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {renderEventModal()}
       </div>
     );
   }
@@ -1754,10 +1811,11 @@ export default function EsdevenimentsManager({
           {currentEvent.estat === 'preparacio' && (
             <button
               onClick={() => handleSetEventStatus('en_curs')}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              title="Prémer en començar la fira per marcar la parada com a activa"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Obrir Parada (En Curs)</span>
+              <span>Obrir Parada</span>
             </button>
           )}
 
@@ -1937,34 +1995,47 @@ export default function EsdevenimentsManager({
                 En assignar peces, pots agafar les que tinguis a l'estoc del taller i deixar la resta com a pendents de fabricar.
               </p>
             </div>
-            {currentEvent.estat !== 'tancat' && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('checklist')}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
-                    isDark 
-                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                  }`}
-                  title="Anar al Checklist de Material per controlar i col·locar les peces en caixes"
-                >
-                  <ListChecks className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Embalar en Caixes</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSincronitzarAmbOFs(false)}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
-                    isDark 
-                      ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                  }`}
-                  title="Comprova l'estat de les Ordres de Fabricació a taller i incorpora les peces ja finalitzades a la parada"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Sincronitzar OFs</span>
-                </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowPrintProductesModal(true)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0 bg-amber-600 hover:bg-amber-500 text-white"
+                title="Obrir llista imprimible amb imatges, noms, quantitats i preus dels productes"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Imprimir Llista Productes</span>
+              </button>
+
+              {currentEvent.estat !== 'tancat' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('checklist')}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
+                      isDark 
+                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                    }`}
+                    title="Anar al Checklist de Material per controlar i col·locar les peces en caixes"
+                  >
+                    <ListChecks className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Embalar en Caixes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSincronitzarAmbOFs(false)}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all border cursor-pointer shrink-0 ${
+                      isDark 
+                        ? 'bg-slate-800 hover:bg-slate-750 text-slate-200 border-slate-700 hover:text-white' 
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                    }`}
+                    title="Comprova l'estat de les Ordres de Fabricació a taller i incorpora les peces ja finalitzades a la parada"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Sincronitzar OFs</span>
+                  </button>
+                </>
+              )}
                 <button
                   onClick={() => {
                     setSelectedProductToAdd(null);
@@ -1983,7 +2054,6 @@ export default function EsdevenimentsManager({
                   <span>Assignar Peça a la Fira</span>
                 </button>
               </div>
-            )}
           </div>
 
           {/* Taula de línies de fira */}
@@ -2277,6 +2347,7 @@ export default function EsdevenimentsManager({
           productes={productes}
           isDark={isDark}
           getProductImage={getProductImage}
+          onOpenPrintProductes={() => setShowPrintProductesModal(true)}
         />
       )}
 
@@ -3848,6 +3919,349 @@ export default function EsdevenimentsManager({
           </div>
         </div>
       )}
+
+      {/* ===================================================================
+          MODAL D'IMPRESSIÓ DE PRODUCTES (FOTOS, NOMS, QUANTITATS I PREUS)
+          =================================================================== */}
+      {showPrintProductesModal && currentEvent && typeof document !== 'undefined' && createPortal(
+        <div 
+          id="print-productes-portal"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:static print:inset-auto print:z-auto print:bg-white print:block"
+        >
+          <div className="print-modal-card bg-white text-slate-900 w-full max-w-4xl max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fadeIn print:animate-none print:max-h-none print:h-auto print:overflow-visible print:shadow-none print:border-none print:rounded-none print:block print:w-full print:max-w-none">
+            
+            {/* Barra superior de control (Amagada a la impressió) */}
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 print:hidden flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-amber-600" />
+                <div>
+                  <h4 className="font-bold text-sm text-slate-900">Previsualització d'Impressió de Productes de la Fira</h4>
+                  <p className="text-[11px] text-slate-500">Imatges, noms, quantitats i preus de les peces portades a l'esdeveniment</p>
+                </div>
+              </div>
+
+              {/* Botons d'acció i filtres */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Selector de vista: Taula vs Graella */}
+                <div className="flex items-center rounded-xl p-0.5 border border-slate-300 bg-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setPrintProductesView('taula')}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
+                      printProductesView === 'taula' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Taula d'Inventari
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintProductesView('graella')}
+                    className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
+                      printProductesView === 'graella' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Catàleg Visual
+                  </button>
+                </div>
+
+                {/* Ordenació */}
+                <select
+                  value={printProductesSort}
+                  onChange={(e) => setPrintProductesSort(e.target.value)}
+                  className="text-xs py-1.5 px-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 font-medium cursor-pointer outline-none"
+                  title="Ordenar la llista per..."
+                >
+                  <option value="nom">Ordenar: Nom A-Z</option>
+                  <option value="codi">Ordenar: Codi/Ref</option>
+                  <option value="quantitat">Ordenar: Quantitat (més a menys)</option>
+                  <option value="preu">Ordenar: Preu (més a menys)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Imprimir ara (Ctrl+P)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintProductesModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-800 rounded-lg cursor-pointer transition-colors"
+                  title="Tancar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* FULL IMPRIMIBLE (Format net per a impressió perfecta) */}
+            <div className="print-modal-content flex-1 overflow-y-auto p-6 sm:p-10 space-y-6 text-slate-900 print:p-0 print:overflow-visible print:h-auto print:max-h-none print:block">
+              
+              {/* Capçalera del Document */}
+              <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4 gap-4 break-inside-avoid">
+                <div>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold block mb-1">
+                    MÍNIM MÓN • ARTESANIA EN FUSTA & MINIATURES
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black font-serif text-slate-900">
+                    Llista de Productes de la Parada
+                  </h2>
+                  <h3 className="text-sm font-semibold text-amber-800 mt-1">
+                    {currentEvent.nom} ({currentEvent.edicioAny || new Date().getFullYear()})
+                  </h3>
+                </div>
+
+                <div className="text-right text-xs font-mono space-y-1">
+                  <div><strong>Lloc:</strong> {currentEvent.lloc || 'No especificat'}</div>
+                  <div><strong>Dates:</strong> {currentEvent.dataInici} {currentEvent.dataFi && currentEvent.dataFi !== currentEvent.dataInici ? `fins ${currentEvent.dataFi}` : ''}</div>
+                  {currentEvent.colaborador?.nom && (
+                    <div><strong>Responsable:</strong> {currentEvent.colaborador.nom}</div>
+                  )}
+                  <div><strong>Fons de Caixa:</strong> {formatCurrency(currentEvent.fonsCaixaInicial || 0)}</div>
+                </div>
+              </div>
+
+              {/* Resum KPI imprimible */}
+              {(() => {
+                const linies = [...(currentEvent.linies || [])];
+                linies.sort((a, b) => {
+                  if (printProductesSort === 'codi') return (a.codi || '').localeCompare(b.codi || '');
+                  if (printProductesSort === 'quantitat') {
+                    const qA = a.unitatsPrevistes || a.unitatsInicials || 0;
+                    const qB = b.unitatsPrevistes || b.unitatsInicials || 0;
+                    return qB - qA;
+                  }
+                  if (printProductesSort === 'preu') {
+                    const pA = (a.preuFira !== undefined && a.preuFira !== '') ? Number(a.preuFira) : Number(a.preuOriginal || 0);
+                    const pB = (b.preuFira !== undefined && b.preuFira !== '') ? Number(b.preuFira) : Number(b.preuOriginal || 0);
+                    return pB - pA;
+                  }
+                  return (a.nom || '').localeCompare(b.nom || '');
+                });
+
+                let totalUnitats = 0;
+                let valorTotal = 0;
+                linies.forEach(l => {
+                  const q = l.unitatsPrevistes || l.unitatsInicials || 0;
+                  const p = (l.preuFira !== undefined && l.preuFira !== '') ? Number(l.preuFira) : Number(l.preuOriginal || 0);
+                  totalUnitats += q;
+                  valorTotal += (q * p);
+                });
+
+                return (
+                  <>
+                    <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-center text-xs font-mono break-inside-avoid">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-sans">Models / Referències</span>
+                        <span className="text-base font-bold text-slate-900">{linies.length}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-sans">Total Peces Portades</span>
+                        <span className="text-base font-bold text-slate-900">{totalUnitats} u.</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-sans">Valoració Total Parada</span>
+                        <span className="text-base font-bold text-emerald-700">{formatCurrency(valorTotal)}</span>
+                      </div>
+                    </div>
+
+                    {/* CONTINGUT: MODE TAULA D'INVENTARI */}
+                    {printProductesView === 'taula' ? (
+                      <div className="space-y-4 print:space-y-4">
+                        <table className="w-full text-left text-xs border-collapse border border-slate-200 print:break-inside-auto">
+                          <thead className="print:table-header-group">
+                            <tr className="bg-slate-100 border-b-2 border-slate-300 font-mono text-[10px] uppercase text-slate-700 break-inside-avoid">
+                              <th className="py-2.5 px-3 w-16 text-center">Imatge</th>
+                              <th className="py-2.5 px-3">Producte & Referència</th>
+                              <th className="py-2.5 px-3 w-20 text-center">Quantitat</th>
+                              <th className="py-2.5 px-3 w-28 text-right">Preu Fira</th>
+                              <th className="py-2.5 px-3 w-28 text-right">Subtotal</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {linies.map((linia, idx) => {
+                              const img = getProductImage(linia);
+                              const quantitat = linia.unitatsPrevistes || linia.unitatsInicials || 0;
+                              const preuUnitari = (linia.preuFira !== undefined && linia.preuFira !== '' && linia.preuFira !== null) 
+                                ? Number(linia.preuFira) 
+                                : Number(linia.preuOriginal || 0);
+                              const preuOriginal = Number(linia.preuOriginal || 0);
+                              const teDescompte = linia.preuFira !== undefined && linia.preuFira !== '' && Number(linia.preuFira) !== preuOriginal;
+                              const subtotal = quantitat * preuUnitari;
+
+                              return (
+                                <tr key={linia.productId || idx} className="hover:bg-slate-50 break-inside-avoid print:break-inside-avoid">
+                                  {/* Imatge */}
+                                  <td className="py-2 px-3 text-center align-middle">
+                                    <div className="w-12 h-12 rounded-lg border border-slate-200 overflow-hidden mx-auto bg-slate-50 flex items-center justify-center">
+                                      {img ? (
+                                        <img 
+                                          src={img} 
+                                          alt={linia.nom} 
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                            if (e.currentTarget.nextElementSibling) {
+                                              e.currentTarget.nextElementSibling.style.display = 'flex';
+                                            }
+                                          }}
+                                        />
+                                      ) : null}
+                                      <div 
+                                        className="w-full h-full flex items-center justify-center text-slate-400"
+                                        style={{ display: img ? 'none' : 'flex' }}
+                                      >
+                                        <Package className="w-5 h-5" />
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  {/* Nom i Referència */}
+                                  <td className="py-2 px-3 align-middle">
+                                    <div className="font-bold text-xs text-slate-900 leading-snug">
+                                      {linia.nom}
+                                    </div>
+                                    {linia.codi && (
+                                      <div className="text-[10px] font-mono text-slate-500 mt-0.5">
+                                        Ref: {linia.codi}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  {/* Quantitat */}
+                                  <td className="py-2 px-3 text-center align-middle">
+                                    <span className="font-mono font-bold text-sm text-slate-900">{quantitat}</span>
+                                    <span className="text-[10px] text-slate-500 font-mono ml-0.5">u.</span>
+                                  </td>
+
+                                  {/* Preu Unitari */}
+                                  <td className="py-2 px-3 text-right font-mono align-middle">
+                                    <div className="font-bold text-xs text-slate-900">
+                                      {formatCurrency(preuUnitari)}
+                                    </div>
+                                    {teDescompte && preuOriginal > 0 && (
+                                      <div className="text-[10px] text-slate-400 line-through">
+                                        PVP {formatCurrency(preuOriginal)}
+                                      </div>
+                                    )}
+                                  </td>
+
+                                  {/* Subtotal */}
+                                  <td className="py-2 px-3 text-right font-mono font-bold text-xs text-slate-900 align-middle">
+                                    {formatCurrency(subtotal)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-slate-100 font-mono font-bold text-xs text-slate-900 border-t-2 border-slate-300 break-inside-avoid">
+                              <td colSpan={2} className="py-2.5 px-3 text-right uppercase">Total:</td>
+                              <td className="py-2.5 px-3 text-center text-sm">{totalUnitats} u.</td>
+                              <td className="py-2.5 px-3"></td>
+                              <td className="py-2.5 px-3 text-right text-sm text-emerald-800">{formatCurrency(valorTotal)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    ) : (
+                      /* CONTINGUT: MODE GRAELLA DE CATÀLEG */
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 print:grid-cols-3 print:gap-2.5">
+                        {linies.map((linia, idx) => {
+                          const img = getProductImage(linia);
+                          const quantitat = linia.unitatsPrevistes || linia.unitatsInicials || 0;
+                          const preuUnitari = (linia.preuFira !== undefined && linia.preuFira !== '' && linia.preuFira !== null) 
+                            ? Number(linia.preuFira) 
+                            : Number(linia.preuOriginal || 0);
+                          const preuOriginal = Number(linia.preuOriginal || 0);
+                          const teDescompte = linia.preuFira !== undefined && linia.preuFira !== '' && Number(linia.preuFira) !== preuOriginal;
+
+                          return (
+                            <div 
+                              key={linia.productId || idx} 
+                              className="p-3 rounded-xl border border-slate-300 bg-white flex flex-col justify-between gap-2 break-inside-avoid print:break-inside-avoid shadow-2xs"
+                            >
+                              <div className="space-y-2">
+                                <div className="aspect-square w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                                  {img ? (
+                                    <img 
+                                      src={img} 
+                                      alt={linia.nom} 
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        if (e.currentTarget.nextElementSibling) {
+                                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                                        }
+                                      }}
+                                    />
+                                  ) : null}
+                                  <div 
+                                    className="w-full h-full flex items-center justify-center text-slate-400"
+                                    style={{ display: img ? 'none' : 'flex' }}
+                                  >
+                                    <Package className="w-8 h-8" />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <h4 className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
+                                    {linia.nom}
+                                  </h4>
+                                  {linia.codi && (
+                                    <span className="font-mono text-[10px] text-slate-500 block mt-0.5">
+                                      Ref: {linia.codi}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-200 flex items-end justify-between font-mono">
+                                <div>
+                                  <span className="text-[10px] text-slate-500 uppercase block font-sans">Quantitat</span>
+                                  <span className="font-bold text-sm text-slate-900">{quantitat} u.</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-500 uppercase block font-sans">Preu Fira</span>
+                                  <span className="font-bold text-sm text-amber-700">{formatCurrency(preuUnitari)}</span>
+                                  {teDescompte && preuOriginal > 0 && (
+                                    <span className="text-[9px] text-slate-400 line-through block">
+                                      {formatCurrency(preuOriginal)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+
+              {/* Peu de Pàgina Imprimible amb Espai de Signatura */}
+              <div className="border-t-2 border-slate-300 pt-6 mt-8 flex justify-between items-end text-xs font-mono text-slate-600 break-inside-avoid">
+                <div>
+                  <p>Llista generada el {new Date().toLocaleDateString('ca-ES')} a les {new Date().toLocaleTimeString('ca-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+                  <p className="text-[10px] text-slate-500 mt-1">Mínim Món • Taller d'Artesania i Espais en Miniatura</p>
+                </div>
+                <div className="w-64 border-t border-slate-400 pt-1 text-center text-[11px]">
+                  Signatura / Conformitat de càrrega
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal d'Edició de l'Esdeveniment */}
+      {renderEventModal()}
     </div>
   );
 }
+
