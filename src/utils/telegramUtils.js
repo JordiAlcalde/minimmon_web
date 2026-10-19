@@ -207,3 +207,63 @@ ${detalls}
   }
 }
 
+/**
+ * Envia un recordatori a Telegram amb el text de la publicació llest per copiar
+ */
+export async function sendTelegramPostingReminder({ post }) {
+  try {
+    const { botToken, chatId } = await getTelegramConfig();
+
+    if (!botToken || !chatId) {
+      console.log('Notificació de Telegram pendent de configurar Token i Chat ID');
+      return false;
+    }
+
+    if (!post) return false;
+
+    const tipusLabels = {
+      producte: '🪵 Producte artesanal',
+      projecte: '🎨 Projecte Atelier',
+      esdeveniment: '🎪 Esdeveniment / Fira',
+      novetat: '📣 Novetat / Notícia',
+      filosofia: '🌿 Filosofia & Taller'
+    };
+
+    const tipusNom = tipusLabels[post.tipus] || '📸 Publicació de xarxes';
+    const cleanTitol = post.title || 'Sense títol a la imatge';
+    const cleanData = post.dataPublicacio || 'Avui';
+    const cleanHora = post.horaPublicacio ? ` a les ${post.horaPublicacio}h` : '';
+    const cleanCopy = post.copyText || '(No s\'ha redactat cap text de peu de foto)';
+
+    const text = `
+✨ <b>AVÍS DE PUBLICACIÓ - MÍNIM MÓN</b> ✨
+
+📅 <b>Data prevista:</b> ${cleanData}${cleanHora}
+🏷️ <b>Temàtica:</b> ${tipusNom}
+🖼️ <b>Títol a la imatge:</b> ${cleanTitol}
+${post.subtitle ? `💬 <b>Subtítol:</b> ${post.subtitle}\n` : ''}${post.tagText && post.showTag ? `🏷️ <b>Etiqueta:</b> ${post.tagText}\n` : ''}
+📋 <b>TEXT PER COPIAR AL POST (Instagram):</b>
+--------------------------------
+${cleanCopy}
+--------------------------------
+
+🚀 <i>Obre Instagram al teu mòbil i penja la publicació preparada!</i>
+    `.trim();
+
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+
+    return response.ok;
+  } catch (err) {
+    console.warn('Error enviant avís de publicació a Telegram:', err);
+    return false;
+  }
+}
+

@@ -117,6 +117,7 @@ export default function EsdevenimentsManager({
 
   // Close Event confirmation modal
   const [showCloseConfirmModal, setShowCloseConfirmModal] = useState(false);
+  const [showRevertStockModal, setShowRevertStockModal] = useState(false);
 
   // Formulari Esdeveniment (Crear / Editar)
   const [formData, setFormData] = useState({
@@ -1081,19 +1082,27 @@ export default function EsdevenimentsManager({
   const handleTancarEsdevenimentIRetornar = () => {
     if (!currentEvent) return;
 
-    // 1. Reincorporar totes les unitats restants a l'estoc general del taller
-    const liniesAmbRestants = (currentEvent.linies || []).filter(l => (l.unitatsRestants || 0) > 0);
+    if (currentEvent.estat === 'tancat') {
+      alert("⚠️ Aquesta fira ja està tancada. Si necessites corregir l'estoc retornat, fes servir el botó de correcció.");
+      setShowCloseConfirmModal(false);
+      return;
+    }
+
+    // 1. Reincorporar totes les unitats restants que encara no hagin estat retornades
+    const liniesAmbRestants = (currentEvent.linies || []).filter(l => (l.unitatsRestants || 0) > 0 && !l.retornatAEstoc);
     
-    setProductes(prev => prev.map(p => {
-      const linia = liniesAmbRestants.find(l => l.productId === p.id);
-      if (linia && linia.unitatsRestants > 0) {
-        return {
-          ...p,
-          estocActual: (parseInt(p.estocActual, 10) || 0) + linia.unitatsRestants
-        };
-      }
-      return p;
-    }));
+    if (liniesAmbRestants.length > 0) {
+      setProductes(prev => prev.map(p => {
+        const linia = liniesAmbRestants.find(l => l.productId === p.id || (p.codi && l.codi && p.codi === l.codi));
+        if (linia && linia.unitatsRestants > 0) {
+          return {
+            ...p,
+            estocActual: (parseInt(p.estocActual, 10) || 0) + linia.unitatsRestants
+          };
+        }
+        return p;
+      }));
+    }
 
     // 2. Calcular liquidació final i marcar com a tancat
     const vendes = currentEvent.vendes || [];
@@ -1123,14 +1132,71 @@ export default function EsdevenimentsManager({
           ...ev,
           estat: 'tancat',
           liquidacio: liquidacioFinal,
-          linies: (ev.linies || []).map(l => ({ ...l, retornatAEstoc: true }))
+          linies: (ev.linies || []).map(l => ({
+            ...l,
+            retornatAEstoc: true,
+            unitatsRetornadesTaller: l.unitatsRestants !== undefined ? l.unitatsRestants : (l.unitatsRetornadesTaller || 0)
+          }))
         };
       }
       return ev;
     }));
 
     setShowCloseConfirmModal(false);
-    alert(`✓ Fira "${currentEvent.nom}" tancada amb èxit!\n\nS'han retornat automàticament ${liniesAmbRestants.reduce((acc, l) => acc + l.unitatsRestants, 0)} peces sobrants a l'estoc general del taller.`);
+    const totalRetornades = liniesAmbRestants.reduce((acc, l) => acc + l.unitatsRestants, 0);
+    alert(`✓ Fira "${currentEvent.nom}" tancada amb èxit!\n\nS'han retornat automàticament ${totalRetornades} peces sobrants a l'estoc general del taller.`);
+  };
+
+  // --- REVERSIÓ / CORRECCIÓ DEL RETORN D'ESTOC (PER DUPLICACIONS O RECOMPTES) ---
+  const handleRevertirRetornEstoc = () => {
+    if (!currentEvent) return;
+
+    if (liniesAmbRetorn.length === 0) {
+      alert("No s'ha detectat cap quantitat retornada en aquesta fira per revertir.");
+      return;
+    }
+
+    const totalPecesARestar = liniesAmbRetorn.reduce((acc, l) => acc + l.quantitatRetornada, 0);
+
+    const confirma = window.confirm(
+      `⚠️ Vols corregir l'estoc general del taller descomptant les ${totalPecesARestar} peces retornades per la fira "${currentEvent.nom}"?\n\n` +
+      `• S'actualitzaran ${liniesAmbRetorn.length} productes del catàleg.\n` +
+      `• Es restarà de cada producte exactament el nombre de peces que es van sumar en tancar la fira.\n\n` +
+      `Prem ACCEPTAR per aplicar la correcció immediata.`
+    );
+    if (!confirma) return;
+
+    // 1. Restar de productes
+    setProductes(prev => prev.map(p => {
+      const target = liniesAmbRetorn.find(l => l.productId === p.id || (p.codi && l.codi && p.codi === l.codi));
+      if (target && target.quantitatRetornada > 0) {
+        return {
+          ...p,
+          estocActual: Math.max(0, (parseInt(p.estocActual, 10) || 0) - target.quantitatRetornada)
+        };
+      }
+      return p;
+    }));
+
+    // 2. Marcar a l'esdeveniment que s'ha revertit el retorn d'estoc
+    setEsdeveniments(prev => prev.map(ev => {
+      if (ev.id === currentEvent.id) {
+        return {
+          ...ev,
+          retornRevertit: true,
+          dataReversioRetorn: new Date().toISOString(),
+          linies: (ev.linies || []).map(l => ({
+            ...l,
+            retornatAEstoc: false,
+            unitatsRetornadesTaller: 0
+          }))
+        };
+      }
+      return ev;
+    }));
+
+    setShowRevertStockModal(false);
+    alert(`✓ Correcció aplicada correctament!\n\nS'han descomptat ${totalPecesARestar} peces de l'estoc general del taller dels ${liniesAmbRetorn.length} productes afectats. Els estocs han tornat a la normalitat!`);
   };
 
   // Tancar l'esdeveniment sense tocar ni traspassar els estocs del taller (ideal per a proves o gestió externa)
@@ -1272,6 +1338,31 @@ export default function EsdevenimentsManager({
       percVendaGlobal
     };
   }, [currentEvent]);
+
+  // Llista de productes i quantitats retornades a l'estoc del taller per aquesta fira
+  const liniesAmbRetorn = useMemo(() => {
+    if (!currentEvent) return [];
+    return (currentEvent.linies || []).map(l => {
+      const prod = (productes || []).find(p => p.id === l.productId || (p.codi && l.codi && p.codi === l.codi));
+      const venudes = l.unitatsVenudes || 0;
+      const qRetornada = l.unitatsRetornadesTaller !== undefined && l.unitatsRetornadesTaller > 0
+        ? l.unitatsRetornadesTaller
+        : (l.unitatsRestants !== undefined && l.unitatsRestants > 0
+            ? l.unitatsRestants
+            : Math.max(0, (l.unitatsInicials || 0) - venudes));
+
+      const estocActual = prod ? (parseInt(prod.estocActual, 10) || 0) : 0;
+      const estocCorregit = Math.max(0, estocActual - qRetornada);
+
+      return {
+        ...l,
+        producteRef: prod || null,
+        quantitatRetornada: qRetornada,
+        estocActualTaller: estocActual,
+        estocCorregitTaller: estocCorregit
+      };
+    }).filter(l => l.quantitatRetornada > 0);
+  }, [currentEvent, productes]);
 
   // --- COMPARATIVA HISTÒRICA INTERANUAL ---
   const edicionsComparativa = useMemo(() => {
@@ -1847,14 +1938,30 @@ export default function EsdevenimentsManager({
           )}
 
           {currentEvent.estat === 'tancat' && (
-            <button
-              onClick={handleReobrirEsdeveniment}
-              className={`px-3 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
-                isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-              }`}
-            >
-              <span>Reobrir Fira</span>
-            </button>
+            <>
+              <button
+                onClick={handleReobrirEsdeveniment}
+                className={`px-3 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer ${
+                  isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                }`}
+              >
+                <span>Reobrir Fira</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowRevertStockModal(true)}
+                className={`px-3 py-1.5 border rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs ${
+                  isDark 
+                    ? 'border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300' 
+                    : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800'
+                }`}
+                title="Descomptar de l'estoc del taller les peces retornades d'aquesta fira si es van duplicar"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                <span>Corregir Retorn Duplicat ({liniesAmbRetorn.reduce((acc, l) => acc + l.quantitatRetornada, 0)} u.)</span>
+              </button>
+            </>
           )}
 
           <button
@@ -2753,10 +2860,43 @@ export default function EsdevenimentsManager({
                   </p>
                 </div>
               ) : (
-                <div className={`p-3 rounded-xl border text-center text-xs ${
-                  isDark ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-slate-100 border-slate-200 text-slate-600'
+                <div className={`p-4 rounded-xl border text-xs space-y-3 ${
+                  isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-50 border-slate-200'
                 }`}>
-                  ✓ Aquest esdeveniment està tancat.
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-500 flex items-center gap-1.5">
+                      <Check className="w-4 h-4" />
+                      <span>Esdeveniment tancat i liquidat</span>
+                    </span>
+                    <span className={`text-[10px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {currentEvent.liquidacio?.dataTancament ? new Date(currentEvent.liquidacio.dataTancament).toLocaleDateString('ca-ES') : ''}
+                    </span>
+                  </div>
+
+                  <div className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <div>
+                      <span className={`font-bold block text-xs ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        Peces retornades al taller: {liniesAmbRetorn.reduce((acc, l) => acc + l.quantitatRetornada, 0)} unitats
+                      </span>
+                      <span className={`text-[11px] block mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Si no s'havien descomptat prèviament del taller i l'estoc ha quedat duplicat, pots corregir-lo fàcilment:
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowRevertStockModal(true)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                        isDark 
+                          ? 'border-rose-500/40 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300' 
+                          : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Corregir Retorn Duplicat</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -4257,6 +4397,116 @@ export default function EsdevenimentsManager({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ===================================================================
+          MODAL: CORRECCIÓ D'ESTOC DUPLICAT (DESFER RETORN DE FIRA)
+          =================================================================== */}
+      {showRevertStockModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`${
+            isDark ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+          } max-w-2xl w-full rounded-2xl border p-6 space-y-4 animate-fadeIn max-h-[92vh] flex flex-col`}>
+            
+            <div className={`flex items-center justify-between border-b pb-3 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+              <div className="flex items-center gap-2.5 text-rose-500">
+                <RotateCcw className="w-5 h-5" />
+                <h3 className={`text-base font-serif font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Corregir Estoc del Taller (Desfer Retorn Duplicat)
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowRevertStockModal(false)}
+                className={`p-1 rounded-lg cursor-pointer transition-colors ${
+                  isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className={`p-3.5 rounded-xl border text-xs leading-relaxed space-y-1.5 shrink-0 ${
+              isDark ? 'bg-rose-950/20 border-rose-500/30 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-900'
+            }`}>
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>Què fa aquesta acció?</span>
+              </p>
+              <p>
+                Si les peces no s'havien descomptat prèviament de l'estoc del taller quan es van carregar a la fira (o es van retornar per duplicat), en tancar la fira el sistema les va sumar de més a l'estoc general.
+              </p>
+              <p>
+                Aquesta eina <strong>resta de l'estoc general del taller exactament les unitats no venudes que es van reincorporar</strong> per deixar els teus estocs nets i ajustats a la realitat física.
+              </p>
+            </div>
+
+            {/* Taula de peces a corregir */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[160px] border rounded-xl overflow-hidden">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className={`border-b font-mono font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10 ${
+                    isDark ? 'bg-slate-950 text-slate-400 border-slate-800' : 'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}>
+                    <th className="py-2.5 px-3">Producte</th>
+                    <th className="py-2.5 px-3 text-center">Estoc Actual Taller</th>
+                    <th className="py-2.5 px-3 text-center text-rose-500">A Restar (Fira)</th>
+                    <th className="py-2.5 px-3 text-right text-emerald-600 font-black">Estoc Resultant</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y font-mono ${isDark ? 'divide-slate-800 text-slate-200' : 'divide-slate-200 text-slate-800'}`}>
+                  {liniesAmbRetorn.map((l, idx) => (
+                    <tr key={l.productId || idx} className={isDark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}>
+                      <td className="py-2 px-3 font-sans">
+                        <span className="font-bold block text-xs">{l.nom}</span>
+                        {l.codi && <span className="text-[10px] text-slate-400 block font-mono">{l.codi}</span>}
+                      </td>
+                      <td className="py-2 px-3 text-center font-bold">{l.estocActualTaller} u.</td>
+                      <td className="py-2 px-3 text-center text-rose-500 font-bold">-{l.quantitatRetornada} u.</td>
+                      <td className="py-2 px-3 text-right text-emerald-600 font-bold">{l.estocCorregitTaller} u.</td>
+                    </tr>
+                  ))}
+                  {liniesAmbRetorn.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-slate-500 font-sans">
+                        No hi ha cap línia amb peces retornades registrada en aquesta fira.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Resum i Botons */}
+            <div className={`pt-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 ${
+              isDark ? 'border-slate-800' : 'border-slate-200'
+            }`}>
+              <div className="text-xs font-mono">
+                Total a restar: <strong className="text-rose-500 text-sm font-black">{liniesAmbRetorn.reduce((acc, l) => acc + l.quantitatRetornada, 0)} peces</strong> ({liniesAmbRetorn.length} productes)
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowRevertStockModal(false)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-colors ${
+                    isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Cancel·lar
+                </button>
+                <button
+                  type="button"
+                  disabled={liniesAmbRetorn.length === 0}
+                  onClick={handleRevertirRetornEstoc}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white rounded-xl text-xs font-bold cursor-pointer shadow-xs transition-all flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Aplicar Correcció i Descomptar</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
       )}
 
       {/* Modal d'Edició de l'Esdeveniment */}

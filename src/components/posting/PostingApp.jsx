@@ -7,8 +7,15 @@ import {
   POSTING_FORMATS, 
   POSTING_TEMPLATES, 
   renderPostingCanvas, 
-  exportCanvasToPng 
+  exportCanvasToPng,
+  hexToRgba
 } from '../../utils/postingCanvasRenderer';
+import { AVAILABLE_FONTS } from '../FontSelectorDropdown';
+import { 
+  generatePostingAssistantContent, 
+  getGeminiApiKey, 
+  setGeminiApiKey 
+} from '../../utils/geminiAiService';
 import { 
   Sparkles, 
   Download, 
@@ -32,8 +39,37 @@ import {
   FolderPlus,
   HelpCircle,
   Link2,
-  RotateCcw
+  RotateCcw,
+  Wand2,
+  Lightbulb,
+  MessageSquare,
+  Key,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  Images,
+  CopyPlus,
+  Move,
+  ArrowUp,
+  ArrowDown,
+  ArrowRight,
+  Palette,
+  EyeOff,
+  Smile,
+  Calendar as CalendarIcon,
+  CalendarPlus,
+  Clock,
+  Send
 } from 'lucide-react';
+import PostingCalendar from './PostingCalendar';
+import { 
+  subscribeScheduledPosts, 
+  saveScheduledPost, 
+  getNextRecommendedDate, 
+  formatDateISO, 
+  POST_CONTENT_TYPES 
+} from '../../services/postingScheduleService';
 
 /**
  * Extreu i normalitza totes les fotografies d'un producte o projecte
@@ -100,7 +136,112 @@ export function extractItemImages(item, type) {
   return resolvedList;
 }
 
+export const DEFAULT_BRAND_SLOGANS = [
+  "Espais en miniatura",
+  "Capturant la memòria, l'espai i l'emoció",
+  "L'essència del que som, en miniatura",
+  "Cada línia té un nom. Cada volum, una ànima"
+];
+
+export const INITIAL_CUSTOM_LAYERS = [
+  {
+    id: 'layer-1',
+    name: 'Capa 1',
+    enabled: false,
+    text: '',
+    fontId: 'caveat',
+    fontName: 'Caveat',
+    fontFamily: "'Caveat', cursive",
+    fontSize: 34, // píxels base del canvas 1080px (proporció harmònica amb el títol)
+    maxWidthPercent: 58, // % d'amplada màxima abans de saltar de línia
+    textColor: '#FFFFFF',
+    bgColor: '#3D2B1F',
+    bgOpacity: 80, // 0 (transparent) a 100 (sòlid)
+    x: 50, // % horitzontal (centrat)
+    y: 28  // % vertical
+  },
+  {
+    id: 'layer-2',
+    name: 'Capa 2',
+    enabled: false,
+    text: '',
+    fontId: 'dancing',
+    fontName: 'Dancing Script',
+    fontFamily: "'Dancing Script', cursive",
+    fontSize: 32,
+    maxWidthPercent: 58,
+    textColor: '#FAF7F2',
+    bgColor: '#C86D3B',
+    bgOpacity: 85,
+    x: 50,
+    y: 78
+  }
+];
+
+export const QUICK_LAYER_PHRASES = [
+  "✨ Fet a mà al taller",
+  "🪵 Fusta noble 100% natural",
+  "Personalització amb nom",
+  "🤍 Record artesanal únic",
+  "Edició limitada de temporada",
+  "🌿 Artesania feta amb calma"
+];
+
+export const FAVORITE_ARTISAN_EMOJIS = [
+  '✨', '🪵', '🌿', '🤍', '🤎', '🔨', '🪚', '🎁', '🍂', '🌾', '⭐', '🏷️', '☕', '🫶'
+];
+
+export const ARTISAN_EMOJI_GROUPS = [
+  {
+    name: 'Fusta & Taller',
+    emojis: ['🪵', '🔨', '🪚', '📐', '🪓', '🏠', '🪑', '🚪']
+  },
+  {
+    name: 'Natura & Calma',
+    emojis: ['🌿', '🍃', '🌾', '🍂', '🌰', '🌲', '🪴', '🌻']
+  },
+  {
+    name: 'Brillantor & Detalls',
+    emojis: ['✨', '⭐', '🌟', '💫', '🎁', '🎀', '🏷️', '🪄']
+  },
+  {
+    name: 'Calidesa & Cors',
+    emojis: ['🤍', '🤎', '💛', '🧡', '🖤', '🫶', '☕', '📜']
+  }
+];
+
+
+export const TEXT_COLOR_PRESETS = [
+  { label: 'Blanc pur', value: '#FFFFFF' },
+  { label: 'Crema càlid', value: '#FAF7F2' },
+  { label: 'Daurat suau', value: '#E6D3C1' },
+  { label: 'Fosc Mínim Món', value: '#3D2B1F' },
+  { label: 'Terracota', value: '#C86D3B' },
+  { label: 'Negre fusta', value: '#1A120C' }
+];
+
+export const BG_COLOR_PRESETS = [
+  { label: 'Sense fons (Transparent)', value: 'transparent', opacity: 0 },
+  { label: 'Fosc Mínim Món', value: '#3D2B1F', opacity: 80 },
+  { label: 'Fusta Xocolata', value: '#2E2016', opacity: 85 },
+  { label: 'Terracota artesà', value: '#C86D3B', opacity: 85 },
+  { label: 'Blanc Cru', value: '#FAF7F2', opacity: 90 },
+  { label: 'Negre suau', value: '#18120E', opacity: 75 }
+];
+
 export default function PostingApp({ setActiveTab }) {
+  // 0. Navegació Principal: Editor vs Calendari
+  const [activeMainTab, setActiveMainTab] = useState('editor'); // 'editor' | 'calendar'
+  const [scheduledPosts, setScheduledPosts] = useState([]);
+  const [editingScheduledPostId, setEditingScheduledPostId] = useState(null);
+  const [scheduledDate, setScheduledDate] = useState(() => formatDateISO(new Date()));
+  const [scheduledTime, setScheduledTime] = useState('10:00');
+  const [scheduledType, setScheduledType] = useState('producte');
+  const [scheduledNotes, setScheduledNotes] = useState('');
+  const [showSaveScheduleModal, setShowSaveScheduleModal] = useState(false);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [saveScheduleToast, setSaveScheduleToast] = useState(null);
+
   // 1. Dades de Firestore
   const [dbProducts, setDbProducts] = useState([]);
   const [dbProjects, setDbProjects] = useState([]);
@@ -122,6 +263,445 @@ export default function PostingApp({ setActiveTab }) {
   const [showPrice, setShowPrice] = useState(false);
   const [showTag, setShowTag] = useState(true);
   const [showLogo, setShowLogo] = useState(true);
+  const [imageFit, setImageFit] = useState('cover'); // 'cover' | 'contain'
+  const [blurIntensity, setBlurIntensity] = useState(35); // 0% a 80% (ajust del difuminat de fons)
+  const [textScale, setTextScale] = useState(1); // 1 = normal/llegible, 1.15 = gran, 1.3 = molt gran
+
+  // 3c. Capes de Text Lliures Personalitzades (Capa 1 i Capa 2)
+  const [customLayers, setCustomLayers] = useState(INITIAL_CUSTOM_LAYERS);
+  const [selectedLayerTab, setSelectedLayerTab] = useState('layer-1');
+  const previewContainerRef = useRef(null);
+  const activeDragRef = useRef(null);
+
+  const activeLayer = useMemo(() => {
+    return customLayers.find(l => l.id === selectedLayerTab) || customLayers[0];
+  }, [customLayers, selectedLayerTab]);
+
+  const [showAllEmojis, setShowAllEmojis] = useState(false);
+  const layerTextareaRef = useRef(null);
+
+  const handleInsertEmoji = (emoji) => {
+    // Si la capa està desactivada, activem-la automàticament amb aquest emoji
+    if (!activeLayer.enabled) {
+      updateActiveLayer({ enabled: true, text: emoji });
+      return;
+    }
+
+    const textarea = layerTextareaRef.current;
+    const currentText = activeLayer.text || '';
+    if (textarea && typeof textarea.selectionStart === 'number') {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = currentText.substring(0, start) + emoji + currentText.substring(end);
+      updateActiveLayer({ text: newText });
+      setTimeout(() => {
+        if (layerTextareaRef.current) {
+          layerTextareaRef.current.focus();
+          const newPos = start + emoji.length;
+          layerTextareaRef.current.setSelectionRange(newPos, newPos);
+        }
+      }, 10);
+    } else {
+      updateActiveLayer({ text: currentText ? `${currentText} ${emoji}` : emoji });
+    }
+  };
+
+  const updateActiveLayer = (updates) => {
+    setCustomLayers(prev => prev.map(l => {
+      if (l.id === selectedLayerTab) {
+        return { ...l, ...updates };
+      }
+      return l;
+    }));
+  };
+
+  const toggleLayerEnabled = (layerId) => {
+    setCustomLayers(prev => prev.map(l => {
+      if (l.id === layerId) {
+        const nextEnabled = !l.enabled;
+        return {
+          ...l,
+          enabled: nextEnabled,
+          text: nextEnabled && !l.text ? '✨ Text lliure' : l.text
+        };
+      }
+      return l;
+    }));
+  };
+
+  const nudgeLayer = (layerId, deltaX, deltaY) => {
+    setCustomLayers(prev => prev.map(l => {
+      if (l.id === layerId) {
+        const newX = Math.round(Math.max(5, Math.min(95, l.x + deltaX)));
+        const newY = Math.round(Math.max(5, Math.min(95, l.y + deltaY)));
+        return { ...l, x: newX, y: newY };
+      }
+      return l;
+    }));
+  };
+
+  const handleLayerPointerDown = (e, layerId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedLayerTab(layerId);
+    activeDragRef.current = {
+      layerId,
+      startX: e.clientX,
+      startY: e.clientY
+    };
+    try {
+      previewContainerRef.current?.setPointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  const handleContainerPointerMove = (e) => {
+    if (!activeDragRef.current) return;
+    const rect = previewContainerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+
+    const xClamped = Math.round(Math.max(6, Math.min(94, ((e.clientX - rect.left) / rect.width) * 100)));
+    const yClamped = Math.round(Math.max(6, Math.min(94, ((e.clientY - rect.top) / rect.height) * 100)));
+
+    setCustomLayers(prev => prev.map(l => {
+      if (l.id === activeDragRef.current.layerId) {
+        return { ...l, x: xClamped, y: yClamped };
+      }
+      return l;
+    }));
+  };
+
+  const handleContainerPointerUp = (e) => {
+    if (activeDragRef.current) {
+      try {
+        previewContainerRef.current?.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+      activeDragRef.current = null;
+    }
+  };
+
+  // Subtítol / Lema de Capçalera (Segell Mínim Món)
+  const [brandSlogans, setBrandSlogans] = useState(() => {
+    try {
+      const saved = localStorage.getItem('minimmon_brand_slogans');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return DEFAULT_BRAND_SLOGANS;
+  });
+
+  const [headerSlogan, setHeaderSlogan] = useState(() => {
+    try {
+      const savedLast = localStorage.getItem('minimmon_last_header_slogan');
+      if (savedLast) return savedLast;
+    } catch (_) {}
+    return DEFAULT_BRAND_SLOGANS[0];
+  });
+
+  const [newSloganInput, setNewSloganInput] = useState('');
+  const [showAddSloganForm, setShowAddSloganForm] = useState(false);
+
+  const handleAddCustomSlogan = (e) => {
+    if (e) e.preventDefault();
+    const clean = newSloganInput.trim();
+    if (!clean) return;
+    let updated = brandSlogans;
+    if (!brandSlogans.includes(clean)) {
+      updated = [...brandSlogans, clean];
+      setBrandSlogans(updated);
+      try {
+        localStorage.setItem('minimmon_brand_slogans', JSON.stringify(updated));
+      } catch (_) {}
+    }
+    setSubtitle(clean);
+    setHeaderSlogan(clean);
+    try {
+      localStorage.setItem('minimmon_last_header_slogan', clean);
+    } catch (_) {}
+    setNewSloganInput('');
+    setShowAddSloganForm(false);
+  };
+
+  const handleSelectHeaderSlogan = (slogan) => {
+    setSubtitle(slogan);
+    setHeaderSlogan(slogan);
+    try {
+      localStorage.setItem('minimmon_last_header_slogan', slogan);
+    } catch (_) {}
+  };
+
+  // 3b. Mode de Publicació i Gestor de Carrusel Multifoto (2 a 10 imatges)
+  const [postMode, setPostMode] = useState('single'); // 'single' | 'carousel'
+  const [slides, setSlides] = useState([
+    {
+      id: 'slide-1',
+      title: 'Mínim Món a la Fira',
+      subtitle: 'Espais en miniatura i records artesanals.',
+      photoUrl: '',
+      tagText: '✨ Fira Artesana',
+      imageFit: 'cover',
+      blurIntensity: 35,
+      showTag: true,
+      showLogo: true,
+      customLayers: []
+    },
+    {
+      id: 'slide-2',
+      title: 'Detalls de la parada',
+      subtitle: 'Peces fetes a mà una a una amb fusta noble.',
+      photoUrl: '',
+      tagText: '🪵 Fet amb ànima',
+      imageFit: 'cover',
+      blurIntensity: 35,
+      showTag: true,
+      showLogo: true,
+      customLayers: []
+    },
+    {
+      id: 'slide-3',
+      title: 'Gràcies per la visita!',
+      subtitle: 'Més informació i encàrrecs a @minimmon.cat',
+      photoUrl: '',
+      tagText: '🤍 Mínim Món',
+      imageFit: 'cover',
+      blurIntensity: 35,
+      showTag: true,
+      showLogo: true,
+      customLayers: []
+    }
+  ]);
+  const [activeSlideIdx, setActiveSlideIdx] = useState(0);
+  const isSyncingSlideRef = useRef(false);
+  const [isDownloadingCarousel, setIsDownloadingCarousel] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(null);
+
+  // Sincronització: Diapositiva activa -> Controls locals
+  useEffect(() => {
+    if (postMode === 'carousel' && slides[activeSlideIdx]) {
+      isSyncingSlideRef.current = true;
+      const s = slides[activeSlideIdx];
+      setTitle(s.title || '');
+      setSubtitle(s.subtitle || '');
+      if (s.photoUrl) setSelectedPhotoUrl(s.photoUrl);
+      setTagText(s.tagText || '✨ Personalització inclosa');
+      setImageFit(s.imageFit || 'cover');
+      setBlurIntensity(s.blurIntensity ?? 35);
+      setShowTag(s.showTag ?? true);
+      setShowLogo(s.showLogo ?? true);
+      if (s.customLayers && Array.isArray(s.customLayers) && s.customLayers.length > 0) {
+        setCustomLayers(s.customLayers);
+      } else {
+        setCustomLayers(INITIAL_CUSTOM_LAYERS);
+      }
+      const timer = setTimeout(() => {
+        isSyncingSlideRef.current = false;
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [activeSlideIdx, postMode]);
+
+  // Sincronització: Canvis a Controls locals -> Diapositiva activa
+  useEffect(() => {
+    if (postMode === 'carousel' && !isSyncingSlideRef.current) {
+      setSlides(prev => {
+        const cur = prev[activeSlideIdx];
+        if (!cur) return prev;
+        if (
+          cur.title === title &&
+          cur.subtitle === subtitle &&
+          cur.photoUrl === selectedPhotoUrl &&
+          cur.tagText === tagText &&
+          cur.imageFit === imageFit &&
+          cur.blurIntensity === blurIntensity &&
+          cur.showTag === showTag &&
+          cur.showLogo === showLogo &&
+          JSON.stringify(cur.customLayers || []) === JSON.stringify(customLayers)
+        ) {
+          return prev;
+        }
+        const updated = [...prev];
+        updated[activeSlideIdx] = {
+          ...cur,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+        return updated;
+      });
+    }
+  }, [title, subtitle, selectedPhotoUrl, tagText, imageFit, blurIntensity, showTag, showLogo, customLayers, postMode, activeSlideIdx]);
+
+  // Canvi de Mode (Post Simple vs Carrusel)
+  const handleSwitchMode = (newMode) => {
+    if (newMode === postMode) return;
+    setPostMode(newMode);
+    if (newMode === 'carousel') {
+      setSlides(prev => {
+        const f1 = selectedPhotoUrl || availableImages[0] || resolveMediaUrl('images/tots_productes.jpg');
+        const f2 = availableImages[1] || availableImages[0] || f1;
+        const f3 = availableImages[2] || availableImages[1] || f1;
+        return [
+          {
+            id: 'slide-1',
+            title: title || 'Mínim Món a la Fira',
+            subtitle: subtitle || 'Espais en miniatura i records gravats.',
+            photoUrl: prev[0]?.photoUrl || f1,
+            tagText: tagText || '✨ Fira Artesana',
+            imageFit: imageFit || 'cover',
+            blurIntensity: blurIntensity ?? 35,
+            showTag: true,
+            showLogo: true
+          },
+          {
+            id: 'slide-2',
+            title: prev[1]?.title || 'Detalls de la parada',
+            subtitle: prev[1]?.subtitle || 'Peces fetes a mà una a una amb fusta noble.',
+            photoUrl: prev[1]?.photoUrl || f2,
+            tagText: prev[1]?.tagText || '🔨 Taller Mínim Món',
+            imageFit: prev[1]?.imageFit || 'cover',
+            blurIntensity: prev[1]?.blurIntensity ?? 35,
+            showTag: true,
+            showLogo: true
+          },
+          {
+            id: 'slide-3',
+            title: prev[2]?.title || 'Gràcies per la visita!',
+            subtitle: prev[2]?.subtitle || 'Més informació i encàrrecs a @minimmon.cat',
+            photoUrl: prev[2]?.photoUrl || f3,
+            tagText: prev[2]?.tagText || '🤍 Fet amb ànima',
+            imageFit: prev[2]?.imageFit || 'cover',
+            blurIntensity: prev[2]?.blurIntensity ?? 35,
+            showTag: true,
+            showLogo: true
+          }
+        ];
+      });
+      setActiveSlideIdx(0);
+    }
+  };
+
+  const handleAddSlide = () => {
+    if (slides.length >= 10) {
+      alert("Instagram admet un màxim de 10 diapositives per carrusel.");
+      return;
+    }
+    const nextIdx = slides.length + 1;
+    const fallback = availableImages[nextIdx - 1] || availableImages[0] || selectedPhotoUrl;
+    const newSlide = {
+      id: `slide-${Date.now()}`,
+      title: `Diapositiva ${nextIdx}`,
+      subtitle: 'Creacions úniques en fusta natural.',
+      photoUrl: fallback,
+      tagText: '✨ Mínim Món',
+      imageFit: 'cover',
+      blurIntensity: 35,
+      showTag: true,
+      showLogo: true
+    };
+    setSlides(prev => [...prev, newSlide]);
+    setActiveSlideIdx(slides.length);
+  };
+
+  const handleRemoveSlide = (idxToRemove) => {
+    if (slides.length <= 2) {
+      alert("Un carrusel ha de contenir com a mínim 2 diapositives.");
+      return;
+    }
+    setSlides(prev => prev.filter((_, i) => i !== idxToRemove));
+    if (activeSlideIdx >= slides.length - 1) {
+      setActiveSlideIdx(Math.max(0, slides.length - 2));
+    } else if (activeSlideIdx === idxToRemove) {
+      setActiveSlideIdx(Math.max(0, idxToRemove - 1));
+    }
+  };
+
+  const handleDuplicateSlide = (idxToDup) => {
+    if (slides.length >= 10) return;
+    const orig = slides[idxToDup];
+    const dup = {
+      ...orig,
+      id: `slide-${Date.now()}`,
+      title: `${orig.title} (còpia)`
+    };
+    const updated = [...slides];
+    updated.splice(idxToDup + 1, 0, dup);
+    setSlides(updated);
+    setActiveSlideIdx(idxToDup + 1);
+  };
+
+  const handlePrevSlide = () => {
+    if (activeSlideIdx > 0) setActiveSlideIdx(activeSlideIdx - 1);
+  };
+
+  const handleNextSlide = () => {
+    if (activeSlideIdx < slides.length - 1) setActiveSlideIdx(activeSlideIdx + 1);
+  };
+
+  // Descàrrega seqüencial de totes les diapositives del carrusel en fitxers PNG numerats
+  const handleDownloadCarousel = async () => {
+    if (!canvasRef.current || isDownloadingCarousel) return;
+    setIsDownloadingCarousel(true);
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        const s = slides[i];
+        setDownloadProgress({ current: i + 1, total: slides.length });
+        await renderPostingCanvas(canvasRef.current, {
+          format,
+          template,
+          title: s.title,
+          subtitle: s.subtitle,
+          tagText: s.tagText,
+          priceText: '',
+          showPrice: false,
+          showTag: s.showTag,
+          showLogo: s.showLogo,
+          photoUrl: s.photoUrl,
+          imageFit: s.imageFit,
+          blurIntensity: s.blurIntensity,
+          headerSlogan,
+          customLayers: (s.customLayers && s.customLayers.length > 0) ? s.customLayers : (i === activeSlideIdx ? customLayers : []),
+          textScale: textScale || 1
+        });
+        const safe = (s.title || 'carrusel').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 20);
+        const filename = `carrusel-minimmon-${i + 1}-de-${slides.length}-${safe}-${format.replace(':', 'x')}.png`;
+        exportCanvasToPng(canvasRef.current, filename);
+        // Breu descans per evitar bloquejos del navegador
+        await new Promise(r => setTimeout(r, 340));
+      }
+
+      // Restaurar el render de la diapositiva que estava seleccionada
+      const cur = slides[activeSlideIdx];
+      await renderPostingCanvas(canvasRef.current, {
+        format,
+        template,
+        title: cur.title,
+        subtitle: cur.subtitle,
+        tagText: cur.tagText,
+        priceText: '',
+        showPrice: false,
+        showTag: cur.showTag,
+        showLogo: cur.showLogo,
+        photoUrl: cur.photoUrl,
+        imageFit: cur.imageFit,
+        blurIntensity: cur.blurIntensity,
+        headerSlogan,
+        customLayers: [],
+        textScale: textScale || 1
+      });
+    } catch (err) {
+      console.error("Error descarregant el carrusel:", err);
+    } finally {
+      setIsDownloadingCarousel(false);
+      setDownloadProgress(null);
+    }
+  };
 
   // 4. Estat de Redacció de Copy
   const [copyStyle, setCopyStyle] = useState('emocional'); // 'emocional' | 'regal' | 'taller'
@@ -133,6 +713,16 @@ export default function PostingApp({ setActiveTab }) {
   const [customUrlInput, setCustomUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
   const fileInputRef = useRef(null);
+
+  // 6. Estat de Tema Lliure i Assistent IA
+  const [freeTopic, setFreeTopic] = useState('');
+  const [freeTopicTone, setFreeTopicTone] = useState('noticia'); // 'noticia' | 'emocional' | 'taller' | 'filosofia' | 'regal'
+  const [isAnalyzingTopic, setIsAnalyzingTopic] = useState(false);
+  const [topicAnalysisResult, setTopicAnalysisResult] = useState(null);
+  const [showHashtags, setShowHashtags] = useState(true);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
 
   // Referències Canvas
   const canvasRef = useRef(null);
@@ -161,6 +751,174 @@ export default function PostingApp({ setActiveTab }) {
     };
   }, []);
 
+  // 1b. Subscripció a les publicacions planificades a Firestore
+  useEffect(() => {
+    const unsub = subscribeScheduledPosts((posts) => {
+      setScheduledPosts(posts);
+    });
+    return () => unsub();
+  }, []);
+
+  const pendingScheduledCount = useMemo(() => {
+    return scheduledPosts.filter(p => p.estat !== 'publicada').length;
+  }, [scheduledPosts]);
+
+  // Càrrega d'un post des del calendari cap a l'editor
+  const handleLoadScheduledPost = (post) => {
+    if (!post) return;
+    setEditingScheduledPostId(post.id);
+    setScheduledDate(post.dataPublicacio || formatDateISO(new Date()));
+    setScheduledTime(post.horaPublicacio || '10:00');
+    setScheduledType(post.tipus || 'producte');
+    setScheduledNotes(post.notes || '');
+
+    if (post.format) setFormat(post.format);
+    if (post.template) setTemplate(post.template);
+    if (post.title !== undefined) setTitle(post.title);
+    if (post.subtitle !== undefined) setSubtitle(post.subtitle);
+    if (post.tagText !== undefined) setTagText(post.tagText);
+    if (post.priceText !== undefined) setPriceText(post.priceText);
+    if (post.showTag !== undefined) setShowTag(post.showTag);
+    if (post.showPrice !== undefined) setShowPrice(post.showPrice);
+    if (post.photoUrl !== undefined) setSelectedPhotoUrl(post.photoUrl);
+    if (post.imageFit) setImageFit(post.imageFit);
+    if (post.blurIntensity !== undefined) setBlurIntensity(post.blurIntensity);
+    if (post.headerSlogan) setHeaderSlogan(post.headerSlogan);
+
+    if (Array.isArray(post.customLayers) && post.customLayers.length > 0) {
+      setCustomLayers(post.customLayers);
+    } else {
+      setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+    }
+
+    if (post.postMode) setPostMode(post.postMode);
+    if (Array.isArray(post.slides) && post.slides.length > 0) {
+      setSlides(post.slides);
+      setActiveSlideIdx(0);
+    }
+
+    setGeneratedCopy(post.copyText || '');
+
+    // L'assumpte és el breu tema inicial (ex: "Fira d'artesania"), mai el text sencer del copy
+    setFreeTopic(post.freeTopic || '');
+
+    if (post.sourceType) setSourceType(post.sourceType);
+
+    if (post.textScale !== undefined) setTextScale(post.textScale);
+    else setTextScale(1);
+
+    if (post.selectedItemId) {
+      const allItems = [...dbProducts, ...dbProjects];
+      const match = allItems.find(it => it.id === post.selectedItemId);
+      if (match) {
+        setSelectedItem(match);
+      }
+    } else if (post.sourceType === 'custom') {
+      setSelectedItem({ nom: 'Tema lliure' });
+    }
+
+    setActiveMainTab('editor');
+    setSaveScheduleToast(`Publicació del ${post.dataPublicacio} carregada a l'editor!`);
+    setTimeout(() => setSaveScheduleToast(null), 3000);
+  };
+
+  // Restableix l'editor completament en blanc per a una nova publicació
+  const resetEditorToBlank = (targetDate = null) => {
+    setEditingScheduledPostId(null);
+    setScheduledDate(targetDate || getNextRecommendedDate(scheduledPosts));
+    setScheduledTime('10:00');
+    setScheduledType('producte');
+    setScheduledNotes('');
+    setFreeTopic('');
+    setGeneratedCopy('');
+    setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+    setSelectedLayerTab('layer-1');
+    setPostMode('single');
+    setFormat('4:5');
+    setTemplate('atelier');
+    setImageFit('cover');
+    setBlurIntensity(35);
+    setTextScale(1);
+    setShowTag(true);
+    setShowPrice(false);
+
+    if (dbProducts.length > 0) {
+      const initial = dbProducts.find(p => p.nom && p.nom.toLowerCase().includes('finestra')) || dbProducts[0];
+      setSourceType('productes');
+      handleSelectItem(initial, 'productes');
+    } else {
+      setSourceType('productes');
+      setSelectedItem(null);
+      setTitle('Peça artesanal');
+      setSubtitle('Elaborada a mà en fusta de primera qualitat.');
+      setSelectedPhotoUrl(resolveMediaUrl('images/tots_productes.jpg'));
+      setTagText('✨ Personalització inclosa');
+      setPriceText('');
+    }
+  };
+
+  const handleResetToNewPost = () => {
+    resetEditorToBlank();
+    setSaveScheduleToast("Has obert una nova publicació independent en blanc.");
+    setTimeout(() => setSaveScheduleToast(null), 2500);
+  };
+
+  const handleCreateNewForDate = (dateStr) => {
+    resetEditorToBlank(dateStr || formatDateISO(new Date()));
+    setActiveMainTab('editor');
+  };
+
+  const handleSaveCurrentToSchedule = async () => {
+    setIsSavingSchedule(true);
+    try {
+      const postPayload = {
+        id: editingScheduledPostId || undefined,
+        dataPublicacio: scheduledDate,
+        horaPublicacio: scheduledTime,
+        tipus: scheduledType,
+        notes: scheduledNotes,
+        estat: 'pendent',
+
+        // Contingut visual
+        format,
+        template,
+        title,
+        subtitle,
+        tagText,
+        priceText,
+        showTag,
+        showPrice,
+        photoUrl: selectedPhotoUrl,
+        imageFit,
+        blurIntensity,
+        headerSlogan,
+        customLayers,
+        textScale: textScale || 1,
+
+        // Mode carrusel
+        postMode,
+        slides,
+
+        // Text de redacció i assumpte per separat
+        copyText: generatedCopy || '',
+        freeTopic: freeTopic || '',
+        sourceType,
+        selectedItemId: selectedItem?.id || null
+      };
+
+      const docId = await saveScheduledPost(postPayload);
+      setEditingScheduledPostId(docId);
+      setShowSaveScheduleModal(false);
+      setSaveScheduleToast(`✓ Publicació guardada al calendari per al ${scheduledDate}!`);
+      setTimeout(() => setSaveScheduleToast(null), 3500);
+    } catch (e) {
+      console.error(e);
+      alert("Error guardant la publicació a Firestore. Comprova la connexió.");
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
   // Selecció inicial del primer producte quan carreguen les dades
   useEffect(() => {
     if (dbProducts.length > 0 && !selectedItem && sourceType === 'productes') {
@@ -170,17 +928,22 @@ export default function PostingApp({ setActiveTab }) {
   }, [dbProducts]);
 
   // Canvi d'element seleccionat i càrrega automàtica de dades
+  // Canvi d'element seleccionat i càrrega automàtica de dades
   const handleSelectItem = (item, type) => {
     setSelectedItem(item);
     if (!item) return;
 
+    let itemTitle = 'Peça artesanal';
+    let itemSub = 'Elaborada a mà en fusta de primera qualitat.';
+    let imgs = [];
+
     if (type === 'productes') {
-      const itemTitle = item.nom || 'Peça artesanal';
-      const itemSub = item.descripcio 
+      itemTitle = item.nom || 'Peça artesanal';
+      itemSub = item.descripcio 
         ? (item.descripcio.split('\n')[0].length > 70 ? item.descripcio.split('\n')[0].slice(0, 67) + '...' : item.descripcio.split('\n')[0])
         : 'Elaborada a mà en fusta de primera qualitat.';
       
-      const imgs = extractItemImages(item, 'productes');
+      imgs = extractItemImages(item, 'productes');
       const resolvedImg = imgs[0] || resolveMediaUrl('images/tots_productes.jpg');
 
       setTitle(itemTitle);
@@ -196,10 +959,10 @@ export default function PostingApp({ setActiveTab }) {
       setShowPrice(false);
 
     } else if (type === 'projectes') {
-      const itemTitle = item.titol || item.title || item.nom || 'Projecte de Taller';
-      const itemSub = item.subtitol || item.subtitle || item.encarrec || item.description || item.branca || 'Creació artesanal única a mida.';
+      itemTitle = item.titol || item.title || item.nom || 'Projecte de Taller';
+      itemSub = item.subtitol || item.subtitle || item.encarrec || item.description || item.branca || 'Creació artesanal única a mida.';
       
-      const imgs = extractItemImages(item, 'projectes');
+      imgs = extractItemImages(item, 'projectes');
       const resolvedImg = imgs[0] || resolveMediaUrl('images/tots_productes.jpg');
 
       setTitle(itemTitle);
@@ -209,10 +972,28 @@ export default function PostingApp({ setActiveTab }) {
       setShowTag(true);
       setShowPrice(false);
     }
+
+    // Si estem en Mode Carrusel i l'element té més fotos, les assignem automàticament a les primeres diapositives
+    if (postMode === 'carousel' && Array.isArray(imgs) && imgs.length > 1) {
+      setSlides(prev => {
+        const copy = [...prev];
+        if (copy[0]) {
+          copy[0] = { ...copy[0], title: itemTitle, subtitle: itemSub, photoUrl: imgs[0] };
+        }
+        if (copy[1] && imgs[1]) {
+          copy[1] = { ...copy[1], title: 'Detalls i acabats', subtitle: 'Peces artesanals amb fusta noble i caràcter.', photoUrl: imgs[1] };
+        }
+        if (copy[2] && imgs[2]) {
+          copy[2] = { ...copy[2], title: 'Mínim Món', subtitle: 'Peces creades amb ànima al taller.', photoUrl: imgs[2] };
+        }
+        return copy;
+      });
+    }
   };
 
-  // Generador de Copies per a Instagram segons l'estil escollit
+  // Generador automàtic per a Productes i Projectes (només si no estem en mode tema lliure)
   useEffect(() => {
+    if (sourceType === 'custom') return;
     if (!selectedItem) {
       setGeneratedCopy('');
       return;
@@ -236,13 +1017,65 @@ export default function PostingApp({ setActiveTab }) {
       copyBody = `${itemDesc}\n\nPeces amb ànima, fetes a Catalunya amb paciència i passió pel treball ben fet.`;
     }
 
-    const hashtags = `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`;
+    const hashtags = showHashtags 
+      ? `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`
+      : '';
 
     setGeneratedCopy(`${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`);
-  }, [selectedItem, title, subtitle, copyStyle]);
+  }, [selectedItem, title, subtitle, copyStyle, sourceType, showHashtags]);
 
-  // Re-renderitzar el canvas cada cop que canvia qualsevol paràmetre visual
+  // Funció per analitzar i generar copy i disseny per a Tema Lliure amb IA
+  const handleAnalyzeFreeTopic = async (customTopicText = null) => {
+    const textToAnalyze = (typeof customTopicText === 'string' ? customTopicText : freeTopic).trim();
+    if (!textToAnalyze && !title.trim()) {
+      alert("Si us plau, escriu breument de quin assumpte o novetat vols parlar en aquest post.");
+      return;
+    }
+
+    setIsAnalyzingTopic(true);
+    try {
+      const res = await generatePostingAssistantContent({
+        topic: textToAnalyze || title.trim(),
+        tone: freeTopicTone,
+        imageUrl: selectedPhotoUrl,
+        existingTitle: title,
+        format: format
+      });
+
+      if (res) {
+        if (res.titol) setTitle(res.titol);
+        if (res.subtitol) setSubtitle(res.subtitol);
+        if (res.etiqueta) setTagText(res.etiqueta);
+        setTopicAnalysisResult(res);
+        setSelectedVariantIdx(0);
+
+        let finalCopy = res.copy;
+        if (!showHashtags) {
+          finalCopy = finalCopy.replace(/\n*#minimmon[\s\S]*$/i, '').trimEnd();
+        }
+        setGeneratedCopy(finalCopy);
+      }
+    } catch (err) {
+      console.error("Error analitzant el tema lliure:", err);
+      alert("No s'ha pogut completar l'anàlisi automàtica. Pots redactar el text manualment.");
+    } finally {
+      setIsAnalyzingTopic(false);
+    }
+  };
+
+  // Aplicar una variant de text generada per la IA
+  const handleApplyVariant = (idx, variantText) => {
+    setSelectedVariantIdx(idx);
+    let finalCopy = variantText;
+    if (!showHashtags) {
+      finalCopy = finalCopy.replace(/\n*#minimmon[\s\S]*$/i, '').trimEnd();
+    }
+    setGeneratedCopy(finalCopy);
+  };
+
+  // Re-renderitzar el canvas cada cop que canvia qualsevol paràmetre visual o es canvia de pestanya
   useEffect(() => {
+    if (activeMainTab !== 'editor') return;
     let active = true;
     setIsRendering(true);
 
@@ -258,7 +1091,12 @@ export default function PostingApp({ setActiveTab }) {
           showPrice,
           showTag,
           showLogo,
-          photoUrl: selectedPhotoUrl
+          photoUrl: selectedPhotoUrl,
+          imageFit,
+          blurIntensity,
+          headerSlogan,
+          customLayers: [], // Buit a la previsualització interactiva: els divs DOM interactius són els que mostren les capes!
+          textScale: textScale || 1
         });
         setIsRendering(false);
       }
@@ -268,7 +1106,24 @@ export default function PostingApp({ setActiveTab }) {
       active = false;
       clearTimeout(timer);
     };
-  }, [format, template, title, subtitle, tagText, priceText, showPrice, showTag, showLogo, selectedPhotoUrl]);
+  }, [
+    activeMainTab, 
+    editingScheduledPostId, 
+    format, 
+    template, 
+    title, 
+    subtitle, 
+    tagText, 
+    priceText, 
+    showPrice, 
+    showTag, 
+    showLogo, 
+    selectedPhotoUrl, 
+    imageFit, 
+    blurIntensity, 
+    headerSlogan,
+    textScale
+  ]);
 
   // Filtrar la llista d'elements
   const filteredList = useMemo(() => {
@@ -289,10 +1144,51 @@ export default function PostingApp({ setActiveTab }) {
   }, [selectedItem, sourceType]);
 
   // Descarregar imatge
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!canvasRef.current) return;
-    const safeTitle = (title || 'post-minimmon').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
-    exportCanvasToPng(canvasRef.current, `minimmon-${safeTitle}-${format.replace(':', 'x')}.png`);
+    setIsRendering(true);
+    try {
+      // 1. Renderitza al Canvas d'alta resolució (1080px) incloent les capes per al fitxer PNG
+      await renderPostingCanvas(canvasRef.current, {
+        format,
+        template,
+        title,
+        subtitle,
+        tagText,
+        priceText,
+        showPrice,
+        showTag,
+        showLogo,
+        photoUrl: selectedPhotoUrl,
+        imageFit,
+        blurIntensity,
+        headerSlogan,
+        customLayers,
+        textScale: textScale || 1
+      });
+      const safeTitle = (title || 'post-minimmon').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
+      exportCanvasToPng(canvasRef.current, `minimmon-${safeTitle}-${format.replace(':', 'x')}.png`);
+    } finally {
+      // 2. Restaura el canvas sense les capes perquè a la pantalla les mostrin només els divs interactius
+      await renderPostingCanvas(canvasRef.current, {
+        format,
+        template,
+        title,
+        subtitle,
+        tagText,
+        priceText,
+        showPrice,
+        showTag,
+        showLogo,
+        photoUrl: selectedPhotoUrl,
+        imageFit,
+        blurIntensity,
+        headerSlogan,
+        customLayers: [],
+        textScale: textScale || 1
+      });
+      setIsRendering(false);
+    }
   };
 
   // Copiar copy al porta-retalls
@@ -385,11 +1281,157 @@ export default function PostingApp({ setActiveTab }) {
         </div>
       </header>
 
-      {/* 2. Àrea Principal de Treball en 2 Columnes */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* COLUMNA ESQUERRA: Controls, Selecció i Copywriting (7 de 12 columnes) */}
-        <div className="lg:col-span-7 space-y-6">
+      {/* Selector de Vistes Principals: Creador vs Calendari */}
+      <div className="bg-[#2E2016] border-b border-white/10 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 py-2">
+            <button
+              type="button"
+              onClick={() => setActiveMainTab('editor')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                activeMainTab === 'editor'
+                  ? 'bg-amber-100 text-amber-950 shadow-xs'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-700" />
+              <span>Disseny & Creador de Post</span>
+              {editingScheduledPostId && (
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Editant post del calendari" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveMainTab('calendar')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                activeMainTab === 'calendar'
+                  ? 'bg-amber-100 text-amber-950 shadow-xs'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <CalendarIcon className="w-3.5 h-3.5 text-amber-700" />
+              <span>Calendari & Pla Editorial</span>
+              {pendingScheduledCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-600 text-white">
+                  {pendingScheduledCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {editingScheduledPostId && activeMainTab === 'editor' && (
+            <div className="hidden sm:flex items-center gap-2 text-xs">
+              <span className="text-amber-200/90 font-medium">
+                📅 Modificant post del {scheduledDate}
+              </span>
+              <button
+                type="button"
+                onClick={handleResetToNewPost}
+                className="text-[11px] text-amber-300 hover:text-white underline cursor-pointer"
+              >
+                Nou post en blanc
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 2. Àrea Principal de Treball */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
+
+        {activeMainTab === 'calendar' ? (
+          <PostingCalendar
+            scheduledPosts={scheduledPosts}
+            onEditPost={handleLoadScheduledPost}
+            onCreateNewForDate={handleCreateNewForDate}
+          />
+        ) : (
+          <>
+            {/* Banner informatiu d'edició d'un post programat */}
+            {editingScheduledPostId && (
+              <div className="p-3.5 bg-amber-100/90 border border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+                <div className="flex items-center gap-2.5 text-xs text-amber-950">
+                  <CalendarIcon className="w-4 h-4 text-amber-800 shrink-0" />
+                  <span>
+                    Estàs modificant la publicació planificada per al <strong>{scheduledDate}</strong> ({scheduledTime}h).
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveScheduleModal(true)}
+                    className="px-3 py-1.5 bg-[#3D2B1F] hover:bg-black text-white text-xs font-bold rounded-xl cursor-pointer shadow-2xs"
+                  >
+                    Desar canvis al Calendari
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetToNewPost}
+                    className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-xl border border-outline/20 cursor-pointer shadow-2xs"
+                  >
+                    Crear nou post en blanc
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* BARRA SUPERIOR: Selector de Format de Publicació (Post Simple vs Carrusel Multifoto) */}
+            <div className="bg-white p-4 rounded-2xl border border-outline/15 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-800 to-[#3D2B1F] text-white flex items-center justify-center shrink-0 shadow-xs">
+              {postMode === 'carousel' ? <Images className="w-5 h-5 text-amber-200" /> : <Layers className="w-5 h-5 text-amber-200" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-[#3D2B1F]">
+                  {postMode === 'carousel' ? 'Mode Carrusel Multifoto per a Instagram' : 'Mode Post Simple (1 Imatge)'}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200/60">
+                  {postMode === 'carousel' ? `${slides.length} diapositives preparades` : 'Foto única'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {postMode === 'carousel' 
+                  ? 'Ideal per a fires, resum d’actes o sèries de productes. Descarrega totes les imatges numerades en un sol clic per pujar a Meta.' 
+                  : 'Crea una composició directa d’una sola peça o novetat per al feed o stories.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-[#F4EFEA] p-1 rounded-xl shrink-0 self-stretch sm:self-auto justify-center">
+            <button
+              type="button"
+              onClick={() => handleSwitchMode('single')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                postMode === 'single'
+                  ? 'bg-[#3D2B1F] text-white shadow-xs'
+                  : 'text-slate-700 hover:text-black hover:bg-black/5'
+              }`}
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>Post Simple</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSwitchMode('carousel')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                postMode === 'carousel'
+                  ? 'bg-[#3D2B1F] text-white shadow-xs'
+                  : 'text-slate-700 hover:text-black hover:bg-black/5'
+              }`}
+            >
+              <Images className="w-3.5 h-3.5" />
+              <span>Carrusel ({slides.length} fotos)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Graella de dues columnes */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* COLUMNA ESQUERRA: Controls, Selecció i Copywriting (7 de 12 columnes) */}
+          <div className="lg:col-span-7 space-y-6">
 
           {/* BLOC 1: Selector de Contingut de la Web */}
           <section className="bg-white p-5 rounded-2xl border border-outline/15 shadow-xs space-y-4">
@@ -431,13 +1473,18 @@ export default function PostingApp({ setActiveTab }) {
                   type="button"
                   onClick={() => {
                     setSourceType('custom');
-                    setSelectedItem({ nom: 'Peça a mida' });
+                    setSelectedItem({ nom: 'Tema lliure' });
+                    if (!title || title === 'Peça artesanal') setTitle('Mínim Món');
+                    if (!subtitle) setSubtitle('Artesania en fusta natural i memòria.');
+                    if (!tagText || tagText === 'Personalització inclosa') setTagText('✨ Novetat');
+                    if (!selectedPhotoUrl) setSelectedPhotoUrl(resolveMediaUrl('images/tots_productes.jpg'));
                   }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                     sourceType === 'custom' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
                   }`}
                 >
-                  Foto lliure
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Tema lliure</span>
                 </button>
               </div>
             </div>
@@ -494,16 +1541,189 @@ export default function PostingApp({ setActiveTab }) {
                 </div>
               </div>
             ) : (
-              /* Mode Foto Lliure: Pujar imatge pròpia */
-              <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-outline/30 text-center space-y-2">
-                <Upload className="w-6 h-6 text-amber-700 mx-auto" />
-                <p className="text-xs font-semibold text-slate-700">Puja una foto del taller des del teu equip</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCustomImageUpload}
-                  className="text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-amber-700 file:text-white hover:file:bg-amber-800 cursor-pointer"
-                />
+              /* Mode Tema Lliure: Assistent Integrat amb IA de Gemini & Mínim Món */
+              <div className="space-y-4 animate-fadeIn">
+                <div className="p-4 bg-gradient-to-br from-amber-500/10 via-amber-50/60 to-white rounded-2xl border border-amber-500/30 space-y-3.5 shadow-xs">
+                  
+                  {/* Capçalera de l'assistent */}
+                  <div className="flex items-center justify-between gap-2 border-b border-amber-900/10 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-amber-700 text-white flex items-center justify-center shadow-xs">
+                        <Sparkles className="w-4 h-4 text-amber-200" />
+                      </div>
+                      <div>
+                        <h3 className="font-serif font-bold text-sm text-[#3D2B1F]">
+                          Assistent de Tema Lliure
+                        </h3>
+                        <p className="text-[10px] text-slate-500">
+                          Analitza l'assumpte i redacta el post amb la filosofia de Mínim Món
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setApiKeyInput(getGeminiApiKey());
+                        setShowApiKeyModal(true);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-amber-900/15 hover:border-amber-900/30 text-[11px] font-semibold text-amber-900 flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      title="Configurar clau d'API de Google Gemini"
+                    >
+                      <Key className="w-3 h-3 text-amber-700" />
+                      <span className="hidden sm:inline">Clau IA</span>
+                      {getGeminiApiKey() ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="API Key activa"></span>
+                      ) : (
+                        <span className="text-[9px] text-amber-600 bg-amber-100 px-1 rounded">Local</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 1. Camp de l'assumpte */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-[#3D2B1F]">
+                      De quin assumpte o novetat vols parlar en aquest post?
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={freeTopic}
+                      onChange={(e) => setFreeTopic(e.target.value)}
+                      placeholder="Ex: Anunciar que acabem d'estrenar el nou web www.minimmon.cat, explicant la nostra passió per la fusta natural, miniatures i el taller artesanal..."
+                      className="w-full p-2.5 text-xs font-sans rounded-xl bg-white border border-amber-900/20 focus:outline-none focus:border-amber-700 text-slate-800 shadow-inner"
+                    />
+                  </div>
+
+                  {/* Suggeriments ràpids d'inspiració */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                      <Lightbulb className="w-3 h-3 text-amber-600" /> Idees ràpides (fes clic per provar-ho):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: '🚀 Estrena del nou web', topic: 'Anunciar l’estrena del nou web oficial de Mínim Món (www.minimmon.cat), convidant a visitar el catàleg i la galeria de diorames.' },
+                        { label: '🎪 Fira d’artesania', topic: 'Participació a la propera fira d’artesania aquest cap de setmana, portant les noves peces de fusta i exposició.' },
+                        { label: '🪵 Al taller amb calma', topic: 'Com treballem la fusta natural al taller, la combinació entre el gravat làser i el muntatge a mà pacient.' },
+                        { label: '🤍 Història d’un record', topic: 'El significat d’un diorama o regal personalitzat com a record viu que atura el temps.' },
+                        { label: '🎁 Detall artesanal únic', topic: 'Peces i clauers de fusta dissenyats especialment per a un detall únic i ple de sentiment.' }
+                      ].map((chip, cIdx) => (
+                        <button
+                          key={cIdx}
+                          type="button"
+                          onClick={() => {
+                            setFreeTopic(chip.topic);
+                            handleAnalyzeFreeTopic(chip.topic);
+                          }}
+                          className="px-2 py-0.5 rounded-lg bg-white/80 hover:bg-amber-100/80 border border-amber-900/15 text-[10px] text-amber-950 font-medium transition-all cursor-pointer"
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Enfocament o to */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-[11px] font-bold text-slate-700">
+                      Enfocament o to desitjat:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {[
+                        { id: 'noticia', label: '📣 Notícia / Anunci' },
+                        { id: 'emocional', label: '🤍 Emocional' },
+                        { id: 'taller', label: '🔨 Taller & Ofici' },
+                        { id: 'filosofia', label: '🌿 Filosofia' }
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setFreeTopicTone(t.id)}
+                          className={`py-1.5 px-2 rounded-xl text-[11px] font-semibold border transition-all cursor-pointer text-center ${
+                            freeTopicTone === t.id
+                              ? 'bg-[#3D2B1F] text-white border-[#3D2B1F] shadow-xs'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border-outline/15'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Botó d'acció per analitzar i generar */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      disabled={isAnalyzingTopic}
+                      onClick={() => handleAnalyzeFreeTopic()}
+                      className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-700 via-amber-800 to-[#3D2B1F] hover:from-amber-600 hover:to-black text-white text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 active:scale-[0.99]"
+                    >
+                      {isAnalyzingTopic ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-200" />
+                          <span>Analitzant assumpte i redactant contingut...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Analitzar assumpte i generar contingut (Copy + Títols)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Resultat de l'anàlisi si s'ha generat */}
+                  {topicAnalysisResult && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 animate-fadeIn text-xs text-emerald-950">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1.5 text-emerald-900">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          Contingut generat per al post!
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-mono">
+                          {topicAnalysisResult.fromAi ? 'Model Gemini IA ✓' : 'Motor Contextual Mínim Món ✓'}
+                        </span>
+                      </div>
+                      
+                      {/* Canvi ràpid de variants */}
+                      {topicAnalysisResult.variantsCopy && topicAnalysisResult.variantsCopy.length > 0 && (
+                        <div className="pt-1 border-t border-emerald-200/60">
+                          <p className="text-[10px] text-emerald-800 font-semibold mb-1">
+                            Tria la variant de text que prefereixis:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleApplyVariant(0, topicAnalysisResult.copy)}
+                              className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                                selectedVariantIdx === 0
+                                  ? 'bg-emerald-800 text-white shadow-xs'
+                                  : 'bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
+                              }`}
+                            >
+                              Variant 1 (Principal)
+                            </button>
+                            {topicAnalysisResult.variantsCopy.map((v, vIdx) => (
+                              <button
+                                key={vIdx}
+                                type="button"
+                                onClick={() => handleApplyVariant(vIdx + 1, v.copy)}
+                                className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all ${
+                                  selectedVariantIdx === vIdx + 1
+                                    ? 'bg-emerald-800 text-white shadow-xs'
+                                    : 'bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                }`}
+                              >
+                                {v.estil || `Variant ${vIdx + 2}`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
               </div>
             )}
           </section>
@@ -513,8 +1733,13 @@ export default function PostingApp({ setActiveTab }) {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline/10 pb-3">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-amber-700" />
-                <h2 className="font-serif text-base font-semibold text-[#3D2B1F]">
-                  2. Imatge del Post
+                <h2 className="font-serif text-base font-semibold text-[#3D2B1F] flex items-center gap-2">
+                  <span>2. Imatge del Post</span>
+                  {postMode === 'carousel' && (
+                    <span className="text-[11px] font-sans font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200/60">
+                      Editant Diapo {activeSlideIdx + 1} de {slides.length} {activeSlideIdx === 0 ? '(Portada)' : ''}
+                    </span>
+                  )}
                 </h2>
               </div>
               
@@ -587,6 +1812,30 @@ export default function PostingApp({ setActiveTab }) {
               </div>
             )}
 
+            {/* Foto actualment seleccionada / activa */}
+            {selectedPhotoUrl && (
+              <div className="flex items-center gap-3 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl">
+                <img
+                  src={selectedPhotoUrl}
+                  alt="Foto activa"
+                  className="w-16 h-16 object-cover rounded-xl border border-amber-900/15 shadow-2xs shrink-0 bg-white"
+                />
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="text-xs font-bold text-amber-950">
+                      Foto activa de la publicació
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate">
+                    {selectedPhotoUrl.startsWith('data:') 
+                      ? '✓ Imatge pujada des del teu equip' 
+                      : (selectedPhotoUrl.startsWith('http') ? 'Imatge externa per URL' : selectedPhotoUrl)}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* B. Botons d'acció per pujar o canviar foto */}
             <div className="pt-2 border-t border-outline/10 flex flex-wrap items-center gap-3">
               {/* File upload hidden input */}
@@ -642,6 +1891,74 @@ export default function PostingApp({ setActiveTab }) {
                 </button>
               </div>
             )}
+
+            {/* D. Selector d'Ajust de la Foto (Omplir marc vs Encaixar sencera) */}
+            <div className="pt-3 border-t border-outline/10 space-y-3 bg-[#FAF8F5] p-3 rounded-xl border border-amber-900/10">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <span className="text-xs font-bold text-[#3D2B1F] block">Ajust de la foto al requadre</span>
+                  <span className="text-[11px] text-slate-500">
+                    {imageFit === 'cover' 
+                      ? 'Omple tot el marc (ideal per a fotos centrades; retalla els extrems si és panoràmica)' 
+                      : 'Mostra la foto sencera al 100% amb fons difuminat adaptable'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-outline/15 shrink-0 shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setImageFit('cover')}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      imageFit === 'cover' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                    title="Omplir tot el marc del post"
+                  >
+                    Omplir marc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageFit('contain')}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      imageFit === 'contain' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                    title="Encaixar tota la foto sense cap retall"
+                  >
+                    Encaixar sencera (100%)
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-opció: Selector lliscant de Difuminat de Fons (0% al 80%) */}
+              {imageFit === 'contain' && (
+                <div className="pt-2.5 border-t border-amber-900/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-lg border border-amber-900/5 animate-fadeIn">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-[#3D2B1F]">Difuminat de fons</span>
+                      <span className="text-xs font-mono font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                        {blurIntensity}%
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 block">
+                      {blurIntensity === 0 
+                        ? '0% = Fons net sòlid (sense cap halo o duplicat)' 
+                        : 'Ajusta el contrast entre la imatge en primer plà i el fons (màx. 80%)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5 min-w-[200px] sm:w-56">
+                    <span className="text-[10px] font-semibold text-slate-400">0%</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="80"
+                      step="5"
+                      value={blurIntensity}
+                      onChange={(e) => setBlurIntensity(Number(e.target.value))}
+                      className="w-full accent-[#3D2B1F] cursor-pointer"
+                    />
+                    <span className="text-[10px] font-semibold text-slate-400">80%</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* BLOC 3: Format d'Instagram i Plantilla d'Estil */}
@@ -679,19 +1996,19 @@ export default function PostingApp({ setActiveTab }) {
               {/* Plantilles */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Estil Visual</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {Object.values(POSTING_TEMPLATES).map(tpl => (
                     <button
                       key={tpl.id}
                       type="button"
                       onClick={() => setTemplate(tpl.id)}
-                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-between gap-1 ${
                         template === tpl.id
                           ? 'bg-[#3D2B1F] text-white border-[#3D2B1F] shadow-xs'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-outline/15'
                       }`}
                     >
-                      <span className="text-xs font-bold truncate">{tpl.nom}</span>
+                      <span className="text-xs font-bold truncate w-full">{tpl.nom}</span>
                       <div className="w-4 h-4 rounded-full border border-black/20" style={{ backgroundColor: tpl.bgColor }}></div>
                     </button>
                   ))}
@@ -712,25 +2029,159 @@ export default function PostingApp({ setActiveTab }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Etiqueta destacada (Badge)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600">Etiqueta destacada (Badge)</label>
+                    <span className="text-[10px]">
+                      {!showTag ? (
+                        <span className="text-amber-800 font-semibold bg-amber-100/80 px-1.5 py-0.5 rounded">Oculta a la imatge</span>
+                      ) : tagText?.length > 35 ? (
+                        <span className="text-amber-800 font-semibold" title="Text llarg: s'ajusta automàticament de mida a la píndola">
+                          {tagText.length} caràcters (auto-ajustat)
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Recomanat: text concís</span>
+                      )}
+                    </span>
+                  </div>
                   <input
                     type="text"
+                    disabled={!showTag}
                     value={tagText}
                     onChange={(e) => setTagText(e.target.value)}
-                    placeholder="Ex: ✨ Personalització inclosa"
-                    className="w-full px-3 py-1.5 text-xs font-sans rounded-lg bg-slate-50 border border-outline/20 focus:outline-none focus:border-amber-700"
+                    placeholder={showTag ? "Ex: ✨ Personalització inclosa" : "(Etiqueta desactivada)"}
+                    className={`w-full px-3 py-1.5 text-xs font-sans rounded-lg border transition-all ${
+                      showTag 
+                        ? 'bg-slate-50 border-outline/20 focus:outline-none focus:border-amber-700 text-slate-800' 
+                        : 'bg-slate-100 border-outline/10 text-slate-400 cursor-not-allowed'
+                    }`}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">Subtítol o frase a la imatge</label>
-                <input
-                  type="text"
-                  value={subtitle}
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs font-sans text-slate-700 rounded-lg bg-slate-50 border border-outline/20 focus:outline-none focus:border-amber-700"
-                />
+              {/* Subtítol o frase a la imatge (amb selector integrat de lemes de marca) */}
+              <div className="space-y-2 p-3 bg-amber-50/50 rounded-xl border border-amber-200/60">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[#3D2B1F]">
+                      Subtítol o lema a la imatge
+                    </label>
+                    <span className="text-[10px] text-slate-500 block">
+                      Apareix sota el títol (s'adapta dinàmicament en alçada, mida de lletra i línies segons la llargada)
+                    </span>
+                  </div>
+
+                  {!showAddSloganForm && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSloganForm(true)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold text-amber-900 bg-white hover:bg-amber-100/70 border border-amber-300/80 rounded-md shadow-2xs transition-all cursor-pointer self-start sm:self-auto shrink-0"
+                      title="Afegir una nova frase persistent a la llista"
+                    >
+                      <Plus className="w-3 h-3 text-amber-700" />
+                      <span>Nova frase a la llista</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Desplegable de frases i lemes de marca */}
+                <div className="flex gap-2">
+                  <select
+                    value={brandSlogans.includes(subtitle) ? subtitle : ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setSubtitle(e.target.value);
+                      }
+                    }}
+                    className="w-full px-3 py-1.5 text-xs font-medium text-slate-800 bg-white rounded-lg border border-amber-300/80 focus:outline-none focus:ring-1 focus:ring-amber-700 shadow-2xs cursor-pointer"
+                  >
+                    <option value="" disabled>-- Tria una frase o lema de la llista --</option>
+                    {brandSlogans.map((slogan, idx) => (
+                      <option key={idx} value={slogan}>
+                        {slogan}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Formulari inline per afegir una nova frase persistent */}
+                {showAddSloganForm && (
+                  <div className="pt-2 border-t border-amber-200/60 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 animate-fadeIn">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newSloganInput}
+                      onChange={(e) => setNewSloganInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomSlogan();
+                        }
+                      }}
+                      placeholder="Escriu una nova frase o lema per desar..."
+                      className="flex-1 px-3 py-1.5 text-xs text-slate-800 bg-white rounded-lg border border-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-700 shadow-2xs"
+                    />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleAddCustomSlogan}
+                        disabled={!newSloganInput.trim()}
+                        className="px-3 py-1.5 text-xs font-semibold bg-[#3D2B1F] text-white rounded-lg hover:bg-black transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        Afegir i aplicar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddSloganForm(false);
+                          setNewSloganInput('');
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      >
+                        Cancel·lar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Camp de text editable per personalitzar lliurement el subtítol */}
+                <div>
+                  <span className="text-[10px] text-slate-400 block mb-1">Text del subtítol a la imatge:</span>
+                  <input
+                    type="text"
+                    value={subtitle}
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    placeholder="Escriu o retoca el subtítol..."
+                    className="w-full px-3 py-1.5 text-xs font-sans text-slate-800 rounded-lg bg-white border border-outline/20 focus:outline-none focus:border-amber-700"
+                  />
+                </div>
+
+                {/* Selector ràpid de mida de lletra dels textos principals */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-amber-200/60 text-xs">
+                  <div>
+                    <span className="text-[11px] font-bold text-[#3D2B1F] block">Mida dels textos (Títol i Subtítol)</span>
+                    <span className="text-[10px] text-slate-500">Augmenta el cos de lletra per a màxima visibilitat</span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-amber-900/15 shrink-0 shadow-2xs">
+                    {[
+                      { scale: 1, label: 'Llegible (Defecte)' },
+                      { scale: 1.15, label: 'Gran (+15%)' },
+                      { scale: 1.3, label: 'Molt Gran (+30%)' }
+                    ].map(opt => (
+                      <button
+                        key={opt.scale}
+                        type="button"
+                        onClick={() => setTextScale(opt.scale)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                          textScale === opt.scale
+                            ? 'bg-[#3D2B1F] text-white shadow-xs'
+                            : 'text-slate-600 hover:text-black hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Caselles d'elements visuals */}
@@ -740,19 +2191,9 @@ export default function PostingApp({ setActiveTab }) {
                     type="checkbox"
                     checked={showTag}
                     onChange={(e) => setShowTag(e.target.checked)}
-                    className="w-4 h-4 rounded text-amber-700 accent-amber-700"
+                    className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
                   />
-                  <span>Mostrar Etiqueta</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={showLogo}
-                    onChange={(e) => setShowLogo(e.target.checked)}
-                    className="w-4 h-4 rounded text-amber-700 accent-amber-700"
-                  />
-                  <span>Mostrar Segell MínimMón</span>
+                  <span>Mostrar Etiqueta a la imatge</span>
                 </label>
 
                 {priceText && (
@@ -761,7 +2202,7 @@ export default function PostingApp({ setActiveTab }) {
                       type="checkbox"
                       checked={showPrice}
                       onChange={(e) => setShowPrice(e.target.checked)}
-                      className="w-4 h-4 rounded text-amber-700 accent-amber-700"
+                      className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
                     />
                     <span>Mostrar Preu ({priceText})</span>
                   </label>
@@ -770,61 +2211,699 @@ export default function PostingApp({ setActiveTab }) {
             </div>
           </section>
 
-          {/* BLOC 4: Generador de Copywriting i Hashtags */}
+          {/* BLOC 4: Capes de Text Lliure (Capa 1 i Capa 2) */}
+          <section className="bg-white p-5 rounded-2xl border border-outline/15 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-outline/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-amber-700" />
+                <h2 className="font-serif text-base font-semibold text-[#3D2B1F] flex items-center gap-2">
+                  <span>4. Capes de Text Lliure</span>
+                  <span className="text-[10px] font-sans font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200/60">
+                    Informal & Creatiu
+                  </span>
+                </h2>
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Afegeix textos lliures i situa'ls on vulguis a la foto
+              </span>
+            </div>
+
+            {/* Pestanyes de selecció de capa: Capa 1 i Capa 2 */}
+            <div className="flex items-center gap-2 bg-[#F3ECE4] p-1.5 rounded-xl">
+              {customLayers.map((layer) => {
+                const isSelected = selectedLayerTab === layer.id;
+                const isEnabled = layer.enabled && layer.text && layer.text.trim().length > 0;
+                return (
+                  <button
+                    key={layer.id}
+                    type="button"
+                    onClick={() => setSelectedLayerTab(layer.id)}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                      isSelected
+                        ? 'bg-[#3D2B1F] text-white shadow-xs'
+                        : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${
+                        isEnabled ? (isSelected ? 'bg-amber-300' : 'bg-emerald-600') : 'bg-slate-300'
+                      }`} />
+                      <span className="truncate">{layer.name}</span>
+                    </div>
+                    {isEnabled ? (
+                      <span className={`text-[10px] font-normal truncate max-w-[120px] ${
+                        isSelected ? 'text-amber-200' : 'text-slate-500'
+                      }`}>
+                        "{layer.text}"
+                      </span>
+                    ) : (
+                      <span className={`text-[10px] font-mono ${
+                        isSelected ? 'text-white/60' : 'text-slate-400'
+                      }`}>
+                        (Desactivada)
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Panell de configuració de la capa activa */}
+            <div className="space-y-4 pt-1">
+              {/* Commutador d'activació i accions ràpides */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-outline/10">
+                <label className="flex items-center gap-2.5 cursor-pointer font-bold text-xs text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={activeLayer.enabled}
+                    onChange={() => toggleLayerEnabled(activeLayer.id)}
+                    className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
+                  />
+                  <span>Mostrar la {activeLayer.name} a la imatge</span>
+                </label>
+
+                {activeLayer.enabled && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateActiveLayer({ text: '' })}
+                      className="text-[11px] text-slate-500 hover:text-red-700 flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Netejar text"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Buidar text</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {activeLayer.enabled ? (
+                <>
+                  {/* Text de la capa */}
+                  <div className="space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Contingut del text ({activeLayer.name}):
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                        <span>💡 Obre tots els emojis del sistema:</span>
+                        <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[9px] font-bold text-slate-700">Win</kbd>
+                        <span>+</span>
+                        <kbd className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-300 font-mono text-[9px] font-bold text-slate-700">.</kbd>
+                      </span>
+                    </div>
+
+                    {/* Paleta d'icones ràpides d'artesania Mínim Món */}
+                    <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200/60 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
+                          <Smile className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span>Icones artesanals (fes clic per inserir):</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowAllEmojis(prev => !prev)}
+                          className="text-[10px] font-semibold text-amber-800 hover:text-amber-950 underline underline-offset-2 cursor-pointer shrink-0"
+                        >
+                          {showAllEmojis ? 'Menys icones ▲' : 'Veure per categories ▼'}
+                        </button>
+                      </div>
+
+                      {/* Icones destacades ràpides */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {FAVORITE_ARTISAN_EMOJIS.map((emoji, eIdx) => (
+                          <button
+                            key={eIdx}
+                            type="button"
+                            onClick={() => handleInsertEmoji(emoji)}
+                            className="w-7 h-7 rounded-lg bg-white hover:bg-amber-100/90 border border-amber-900/10 hover:border-amber-500/50 text-base flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:scale-120 active:scale-95"
+                            title={`Inserir ${emoji} al text`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Llistat complet per categories si s'ha desplegat */}
+                      {showAllEmojis && (
+                        <div className="pt-2 border-t border-amber-200/60 space-y-2 animate-fadeIn">
+                          {ARTISAN_EMOJI_GROUPS.map((group, gIdx) => (
+                            <div key={gIdx} className="space-y-1">
+                              <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
+                                {group.name}
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {group.emojis.map((emoji, emojiIdx) => (
+                                  <button
+                                    key={emojiIdx}
+                                    type="button"
+                                    onClick={() => handleInsertEmoji(emoji)}
+                                    className="w-7 h-7 rounded-lg bg-white hover:bg-amber-100/90 border border-amber-900/10 hover:border-amber-500/50 text-base flex items-center justify-center transition-all cursor-pointer shadow-2xs hover:scale-120 active:scale-95"
+                                    title={`Inserir ${emoji} al text`}
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <textarea
+                      ref={layerTextareaRef}
+                      rows={2}
+                      value={activeLayer.text}
+                      onChange={(e) => updateActiveLayer({ text: e.target.value })}
+                      placeholder="Ex: ✨ Fet a mà amb fusta de roure..."
+                      className="w-full px-3 py-2 text-xs font-medium text-slate-800 rounded-xl bg-slate-50 border border-outline/20 focus:outline-none focus:border-amber-700 resize-none shadow-2xs"
+                    />
+
+                    {/* Frases ràpides d'inspiració */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[10px] text-slate-400 font-semibold">Exemples ràpids:</span>
+                      {QUICK_LAYER_PHRASES.map((phrase, pIdx) => (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => updateActiveLayer({ text: phrase })}
+                          className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#F3ECE4] hover:bg-amber-100 text-[#3D2B1F] border border-amber-300/40 transition-all cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          {phrase}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Selector de Font (les fonts disponibles a l'app) */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">
+                        Tipografia ({AVAILABLE_FONTS.length} estils de l'app):
+                      </label>
+                      <span className="text-[10px] text-amber-800 font-mono font-semibold">
+                        {activeLayer.fontName}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {AVAILABLE_FONTS.map(f => {
+                        const isFontSelected = activeLayer.fontId === f.id || activeLayer.fontName === f.name;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => updateActiveLayer({
+                              fontId: f.id,
+                              fontName: f.name,
+                              fontFamily: f.fontFamily
+                            })}
+                            className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
+                              isFontSelected
+                                ? 'bg-amber-50 border-amber-600 ring-1 ring-amber-500 shadow-xs'
+                                : 'bg-white hover:bg-slate-50 border-outline/15'
+                            }`}
+                          >
+                            <span 
+                              className="text-sm font-semibold truncate block" 
+                              style={{ fontFamily: f.fontFamily }}
+                            >
+                              {f.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono truncate">
+                              {f.label.split('(')[1]?.replace(')', '') || f.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Mida de la font */}
+                  <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-outline/10">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Type className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Mida de la font:</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ fontSize: Math.max(18, (activeLayer.fontSize || 34) - 2) })}
+                          className="w-6 h-6 rounded-md bg-white border border-outline/20 flex items-center justify-center font-bold text-xs text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs font-mono font-bold text-[#3D2B1F] min-w-[42px] text-center">
+                          {activeLayer.fontSize || 34}px
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ fontSize: Math.min(70, (activeLayer.fontSize || 34) + 2) })}
+                          className="w-6 h-6 rounded-md bg-white border border-outline/20 flex items-center justify-center font-bold text-xs text-slate-700 hover:bg-slate-100 cursor-pointer shadow-2xs"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-slate-400 font-mono">18px</span>
+                      <input
+                        type="range"
+                        min="18"
+                        max="70"
+                        step="2"
+                        value={activeLayer.fontSize || 34}
+                        onChange={(e) => updateActiveLayer({ fontSize: Number(e.target.value) })}
+                        className="w-full accent-[#3D2B1F] cursor-pointer"
+                      />
+                      <span className="text-[10px] text-slate-400 font-mono">70px</span>
+                    </div>
+
+                    {/* Presets ràpids de mida */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {[
+                        { label: 'Subtil', size: 24 },
+                        { label: 'Normal', size: 34 },
+                        { label: 'Destacat', size: 44 },
+                        { label: 'Gran', size: 56 }
+                      ].map(preset => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => updateActiveLayer({ fontSize: preset.size })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer ${
+                            (activeLayer.fontSize || 34) === preset.size
+                              ? 'bg-[#3D2B1F] text-white border-[#3D2B1F]'
+                              : 'bg-white hover:bg-slate-100 text-slate-600 border-outline/20'
+                          }`}
+                        >
+                          {preset.label} ({preset.size}px)
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amplada de la Càpsula / Ajust de línia */}
+                  <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-outline/10">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Move className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Amplada de la càpsula:</span>
+                      </label>
+                      <span className="text-xs font-mono font-bold text-[#3D2B1F]">
+                        {activeLayer.maxWidthPercent || 58}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] text-slate-400 font-mono">35%</span>
+                      <input
+                        type="range"
+                        min="35"
+                        max="90"
+                        step="3"
+                        value={activeLayer.maxWidthPercent || 58}
+                        onChange={(e) => updateActiveLayer({ maxWidthPercent: Number(e.target.value) })}
+                        className="w-full accent-[#3D2B1F] cursor-pointer"
+                      />
+                      <span className="text-[10px] text-slate-400 font-mono">90%</span>
+                    </div>
+
+                    {/* Presets ràpids d'amplada */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {[
+                        { label: 'Compacta', percent: 45 },
+                        { label: 'Equilibrada', percent: 58 },
+                        { label: 'Àmplia', percent: 74 },
+                        { label: 'Bàner total', percent: 88 }
+                      ].map(wp => (
+                        <button
+                          key={wp.label}
+                          type="button"
+                          onClick={() => updateActiveLayer({ maxWidthPercent: wp.percent })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer ${
+                            (activeLayer.maxWidthPercent || 58) === wp.percent
+                              ? 'bg-[#3D2B1F] text-white border-[#3D2B1F]'
+                              : 'bg-white hover:bg-slate-100 text-slate-600 border-outline/20'
+                          }`}
+                        >
+                          {wp.label} ({wp.percent}%)
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Colors: Color de text i Color de fons amb transparència */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Color del Text */}
+                    <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-outline/10">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Palette className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Color del text:</span>
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={activeLayer.textColor || '#FFFFFF'}
+                            onChange={(e) => updateActiveLayer({ textColor: e.target.value })}
+                            className="w-6 h-6 rounded-md border border-outline/20 cursor-pointer p-0 overflow-hidden"
+                            title="Tria qualsevol color de text"
+                          />
+                          <span className="text-[10px] font-mono text-slate-600 font-semibold uppercase">
+                            {activeLayer.textColor || '#FFFFFF'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Paleta ràpida de text */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {TEXT_COLOR_PRESETS.map((tc, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => updateActiveLayer({ textColor: tc.value })}
+                            className={`w-6 h-6 rounded-full border transition-transform cursor-pointer relative shadow-2xs ${
+                              activeLayer.textColor === tc.value ? 'scale-115 ring-2 ring-amber-600 border-white' : 'hover:scale-105 border-black/20'
+                            }`}
+                            style={{ backgroundColor: tc.value }}
+                            title={tc.label}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Color de Fons i Transparència */}
+                    <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-outline/10">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <Palette className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Fons i transparència:</span>
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="color"
+                            value={activeLayer.bgColor && activeLayer.bgColor !== 'transparent' ? activeLayer.bgColor : '#3D2B1F'}
+                            onChange={(e) => updateActiveLayer({ bgColor: e.target.value })}
+                            className="w-6 h-6 rounded-md border border-outline/20 cursor-pointer p-0 overflow-hidden"
+                            title="Tria el color de fons"
+                          />
+                          <span className="text-[10px] font-mono font-semibold text-slate-600">
+                            {activeLayer.bgOpacity === 0 ? 'Cap fons' : `${activeLayer.bgOpacity}%`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Slider de Transparència/Opacitat */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                          <span>0% (Transparent)</span>
+                          <span className="font-bold text-amber-900 font-mono">
+                            {activeLayer.bgOpacity === 0 ? 'Sense fons (0%)' : `${activeLayer.bgOpacity}% opacitat`}
+                          </span>
+                          <span>100% (Sòlid)</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={typeof activeLayer.bgOpacity === 'number' ? activeLayer.bgOpacity : 80}
+                          onChange={(e) => updateActiveLayer({ bgOpacity: Number(e.target.value) })}
+                          className="w-full accent-[#3D2B1F] cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Paleta ràpida de fons */}
+                      <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                        {BG_COLOR_PRESETS.map((bc, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => updateActiveLayer({
+                              bgColor: bc.value,
+                              bgOpacity: bc.opacity
+                            })}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border transition-all cursor-pointer ${
+                              (activeLayer.bgOpacity === bc.opacity && (bc.value === 'transparent' || activeLayer.bgColor === bc.value))
+                                ? 'bg-[#3D2B1F] text-white border-[#3D2B1F]'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 border-outline/20'
+                            }`}
+                            title={bc.label}
+                          >
+                            {bc.label.split(' ')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Posició i Desplaçament de Precisió */}
+                  <div className="space-y-2.5 p-3.5 bg-amber-50/50 rounded-xl border border-amber-200/60">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <Move className="w-4 h-4 text-amber-700" />
+                        <span className="text-xs font-bold text-[#3D2B1F]">
+                          Posició i desplaçament ({activeLayer.name}):
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-semibold self-start sm:self-auto">
+                        X: {activeLayer.x}% | Y: {activeLayer.y}%
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 bg-white/80 rounded-lg border border-amber-200/60 text-[11px] text-[#3D2B1F] flex items-center gap-2">
+                      <span className="text-base">👆</span>
+                      <span>
+                        <strong>Genial:</strong> Pots fer clic i <strong>arrossegar aquesta capa directament</strong> sobre la imatge de la dreta amb el ratolí o el dit!
+                      </span>
+                    </div>
+
+                    {/* Fletxes direccionals de precisió i botons d'alineació ràpida */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                      {/* D-Pad de Fletxes */}
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => nudgeLayer(activeLayer.id, 0, -3)}
+                          className="p-1.5 rounded-lg bg-white border border-outline/20 hover:bg-amber-100 text-[#3D2B1F] shadow-2xs cursor-pointer transition-all active:scale-95"
+                          title="Moure cap amunt"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => nudgeLayer(activeLayer.id, -3, 0)}
+                            className="p-1.5 rounded-lg bg-white border border-outline/20 hover:bg-amber-100 text-[#3D2B1F] shadow-2xs cursor-pointer transition-all active:scale-95"
+                            title="Moure cap a l'esquerra"
+                          >
+                            <ArrowLeft className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateActiveLayer({ x: 50, y: 50 })}
+                            className="px-2 py-1.5 rounded-lg bg-white border border-outline/20 hover:bg-amber-100 text-[10px] font-bold text-[#3D2B1F] shadow-2xs cursor-pointer transition-all"
+                            title="Centrar completament"
+                          >
+                            Centre
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => nudgeLayer(activeLayer.id, 3, 0)}
+                            className="p-1.5 rounded-lg bg-white border border-outline/20 hover:bg-amber-100 text-[#3D2B1F] shadow-2xs cursor-pointer transition-all active:scale-95"
+                            title="Moure cap a la dreta"
+                          >
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => nudgeLayer(activeLayer.id, 0, 3)}
+                          className="p-1.5 rounded-lg bg-white border border-outline/20 hover:bg-amber-100 text-[#3D2B1F] shadow-2xs cursor-pointer transition-all active:scale-95"
+                          title="Moure cap avall"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Botons d'Alineació Ràpida */}
+                      <div className="grid grid-cols-2 gap-1.5 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ x: 50, y: 22 })}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-amber-100 border border-amber-300/60 text-[#3D2B1F] transition-all cursor-pointer shadow-2xs text-center"
+                        >
+                          ⬆ A dalt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ x: 50, y: 50 })}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-amber-100 border border-amber-300/60 text-[#3D2B1F] transition-all cursor-pointer shadow-2xs text-center"
+                        >
+                          ⏹ Al mig
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ x: 50, y: 78 })}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-amber-100 border border-amber-300/60 text-[#3D2B1F] transition-all cursor-pointer shadow-2xs text-center"
+                        >
+                          ⬇ A baix
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateActiveLayer({ x: 50 })}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-amber-100 border border-amber-300/60 text-[#3D2B1F] transition-all cursor-pointer shadow-2xs text-center"
+                        >
+                          ↔ Centrar X
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-outline/20 text-center space-y-2">
+                  <p className="text-xs text-slate-500">
+                    La <strong>{activeLayer.name}</strong> està actualment desactivada.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleLayerEnabled(activeLayer.id)}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#3D2B1F] text-white text-xs font-bold hover:bg-black transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Activar {activeLayer.name}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* BLOC 5: Generador de Copywriting i Hashtags */}
           <section className="bg-white p-5 rounded-2xl border border-outline/15 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-outline/10 pb-3">
               <div className="flex items-center gap-2">
                 <Type className="w-4 h-4 text-amber-700" />
                 <h2 className="font-serif text-base font-semibold text-[#3D2B1F]">
-                  4. Text redactat per a la publicació (Copy)
+                  5. Text redactat per a la publicació (Copy)
                 </h2>
               </div>
 
-              {/* Selector d'estil de text */}
-              <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
+              {/* Selector d'estil de text per a productes/projectes */}
+              {sourceType !== 'custom' ? (
+                <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setCopyStyle('emocional')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🤍 Emocional
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopyStyle('regal')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🎁 Regal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCopyStyle('taller')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🔨 Taller
+                  </button>
+                </div>
+              ) : (
+                /* Botó ràpid per regenerar amb IA en tema lliure */
                 <button
                   type="button"
-                  onClick={() => setCopyStyle('emocional')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                  }`}
+                  disabled={isAnalyzingTopic}
+                  onClick={() => handleAnalyzeFreeTopic()}
+                  className="px-3 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  🤍 Emocional
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Regenerar text amb IA</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCopyStyle('regal')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                  }`}
-                >
-                  🎁 Regal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCopyStyle('taller')}
-                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                    copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                  }`}
-                >
-                  🔨 Taller
-                </button>
-              </div>
+              )}
             </div>
+
+            {/* Selector de variants generades per a tema lliure */}
+            {sourceType === 'custom' && topicAnalysisResult?.variantsCopy && topicAnalysisResult.variantsCopy.length > 0 && (
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 animate-fadeIn">
+                <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-700" /> Variants generades per l'assistent:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyVariant(0, topicAnalysisResult.copy)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                      selectedVariantIdx === 0
+                        ? 'bg-[#3D2B1F] text-white shadow-xs'
+                        : 'bg-white hover:bg-amber-100 text-[#3D2B1F] border border-amber-900/15'
+                    }`}
+                  >
+                    Principal
+                  </button>
+                  {topicAnalysisResult.variantsCopy.map((v, vIdx) => (
+                    <button
+                      key={vIdx}
+                      type="button"
+                      onClick={() => handleApplyVariant(vIdx + 1, v.copy)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
+                        selectedVariantIdx === vIdx + 1
+                          ? 'bg-[#3D2B1F] text-white shadow-xs'
+                          : 'bg-white hover:bg-amber-100 text-[#3D2B1F] border border-amber-900/15'
+                      }`}
+                    >
+                      {v.estil || `Variant ${vIdx + 2}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="relative">
               <textarea
                 rows={6}
                 value={generatedCopy}
                 onChange={(e) => setGeneratedCopy(e.target.value)}
+                placeholder="El text redactat del post apareixerà aquí. Pots editar-lo lliurement..."
                 className="w-full p-3.5 text-xs font-sans leading-relaxed rounded-xl bg-slate-50 border border-outline/20 focus:outline-none focus:border-amber-700 text-slate-800"
               />
             </div>
 
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-[11px] text-slate-500">
-                Pots editar qualsevol part del text abans de copiar-lo.
-              </span>
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
+              {/* Commutador de Hashtags / Etiquetes */}
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 text-xs">
+                <input
+                  type="checkbox"
+                  checked={showHashtags}
+                  onChange={(e) => {
+                    const nextVal = e.target.checked;
+                    setShowHashtags(nextVal);
+                    const hashtagsRegex = /\n*#minimmon[\s\S]*$/i;
+                    if (!nextVal) {
+                      setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd());
+                    } else {
+                      const hashtags = `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`;
+                      setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd() + hashtags);
+                    }
+                  }}
+                  className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
+                />
+                <span>Incloure hashtags / etiquetes (#)</span>
+              </label>
 
               <button
                 type="button"
@@ -843,7 +2922,7 @@ export default function PostingApp({ setActiveTab }) {
                 ) : (
                   <>
                     <Copy className="w-4 h-4" />
-                    <span>Copiar text i hashtags</span>
+                    <span>Copiar text per a Instagram</span>
                   </>
                 )}
               </button>
@@ -860,7 +2939,7 @@ export default function PostingApp({ setActiveTab }) {
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-amber-700" />
                 <h3 className="font-serif text-base font-semibold text-[#3D2B1F]">
-                  Previsualització del Post
+                  {postMode === 'carousel' ? 'Previsualització del Carrusel' : 'Previsualització del Post'}
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
@@ -868,41 +2947,264 @@ export default function PostingApp({ setActiveTab }) {
               </span>
             </div>
 
-            {/* Contenidor del Canvas amb escalat responsive per cabre a la pantalla */}
-            <div className="bg-[#EAE5DE] p-4 rounded-xl flex items-center justify-center overflow-hidden min-h-[360px]">
+            {/* Mode Carrusel: Selector i Gestor de Diapositives */}
+            {postMode === 'carousel' && (
+              <div className="bg-[#FAF7F2] p-3 rounded-xl border border-amber-900/10 space-y-2.5 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Images className="w-3.5 h-3.5 text-amber-800" />
+                    <span className="text-xs font-bold text-[#3D2B1F]">Diapositives ({slides.length}/10)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleDuplicateSlide(activeSlideIdx)}
+                      title="Duplicar aquesta diapositiva"
+                      className="px-2 py-0.5 text-[11px] font-semibold text-slate-600 hover:text-black bg-white hover:bg-slate-50 border border-outline/15 rounded-md shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <CopyPlus className="w-3 h-3 text-slate-500" />
+                      <span>Duplicar</span>
+                    </button>
+                    {slides.length < 10 && (
+                      <button
+                        type="button"
+                        onClick={handleAddSlide}
+                        title="Afegir nova diapositiva al carrusel"
+                        className="px-2 py-0.5 text-[11px] font-semibold text-amber-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300/80 rounded-md shadow-2xs flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3 text-amber-700" />
+                        <span>Afegir</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tira de pestanyes / miniatures de diapositiva */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5">
+                  {slides.map((s, idx) => {
+                    const isCur = activeSlideIdx === idx;
+                    return (
+                      <div
+                        key={s.id || idx}
+                        onClick={() => setActiveSlideIdx(idx)}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
+                          isCur
+                            ? 'bg-[#3D2B1F] text-white shadow-xs'
+                            : 'bg-white hover:bg-amber-50/60 text-slate-700 border border-outline/15'
+                        }`}
+                      >
+                        <span>{idx === 0 ? '1. Portada' : `${idx + 1}. Diapo`}</span>
+                        {slides.length > 2 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveSlide(idx);
+                            }}
+                            title="Eliminar diapositiva"
+                            className={`p-0.5 rounded hover:bg-red-500/20 text-[10px] ${
+                              isCur ? 'text-white/70 hover:text-white' : 'text-slate-400 hover:text-red-600'
+                            }`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Contenidor del Canvas amb escalat responsive i navegació de carrusel */}
+            <div className="bg-[#EAE5DE] p-4 rounded-xl flex items-center justify-center overflow-hidden min-h-[360px] relative group">
+              {/* Fletxa Esquerra en Mode Carrusel */}
+              {postMode === 'carousel' && (
+                <button
+                  type="button"
+                  onClick={handlePrevSlide}
+                  disabled={activeSlideIdx === 0}
+                  className={`absolute left-2.5 z-10 p-2 rounded-full bg-white/90 text-[#3D2B1F] shadow-md transition-all cursor-pointer ${
+                    activeSlideIdx === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:scale-105 active:scale-95'
+                  }`}
+                  title="Diapositiva anterior"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
               <div 
-                className="relative rounded-lg shadow-xl overflow-hidden border border-black/10 bg-white transition-all max-w-full"
+                ref={previewContainerRef}
+                onPointerMove={handleContainerPointerMove}
+                onPointerUp={handleContainerPointerUp}
+                onPointerCancel={handleContainerPointerUp}
+                className="relative rounded-lg shadow-xl overflow-hidden border border-black/10 bg-white transition-all max-w-full select-none"
                 style={{ 
                   aspectRatio: POSTING_FORMATS[format]?.aspect || '4/5',
                   maxHeight: '520px',
+                  height: '520px',
                   width: 'auto'
                 }}
               >
                 <canvas
                   ref={canvasRef}
-                  className="w-full h-full object-contain block"
+                  className="w-full h-full object-contain block pointer-events-none"
                 />
                 {isRendering && (
                   <div className="absolute inset-0 bg-white/60 backdrop-blur-xs flex items-center justify-center">
                     <RefreshCw className="w-6 h-6 text-amber-700 animate-spin" />
                   </div>
                 )}
+
+                {/* Capes de text lliures interactives directament sobre la imatge */}
+                {customLayers.map((layer) => {
+                  if (!layer.enabled || !layer.text || !layer.text.trim()) return null;
+                  const isSelected = selectedLayerTab === layer.id;
+                  const scaleRatio = format === '1:1' ? 0.481 : (format === '4:5' ? 0.385 : 0.271);
+                  const layerFs = (layer.fontSize || 34) * scaleRatio;
+                  const maxWPercent = layer.maxWidthPercent || 58;
+
+                  return (
+                    <div
+                      key={layer.id}
+                      onPointerDown={(e) => handleLayerPointerDown(e, layer.id)}
+                      className={`absolute select-none cursor-grab active:cursor-grabbing transition-shadow z-20 group/layer ${
+                        isSelected
+                          ? 'ring-2 ring-amber-500 ring-offset-2 ring-offset-transparent shadow-lg'
+                          : 'hover:ring-2 hover:ring-amber-400/70 hover:shadow-md'
+                      }`}
+                      style={{
+                        left: `${layer.x}%`,
+                        top: `${layer.y}%`,
+                        transform: 'translate(-50%, -50%)',
+                        backgroundColor: hexToRgba(layer.bgColor, layer.bgOpacity),
+                        color: layer.textColor || '#FFFFFF',
+                        fontFamily: layer.fontFamily,
+                        fontSize: `${layerFs.toFixed(1)}px`,
+                        padding: `${Math.round(layerFs * 0.40)}px ${Math.round(layerFs * 0.70)}px`,
+                        borderRadius: `${Math.min(24, Math.round(layerFs * 0.50))}px`,
+                        boxShadow: layer.bgOpacity > 0 ? '0 4px 14px rgba(0,0,0,0.22)' : 'none',
+                        whiteSpace: 'pre-wrap',
+                        textAlign: 'center',
+                        lineHeight: 1.34,
+                        maxWidth: `${maxWPercent}%`,
+                        wordBreak: 'break-word',
+                        touchAction: 'none'
+                      }}
+                      title="Fes clic per editar o arrossega per moure aquesta capa per la imatge"
+                    >
+                      <span>{layer.text}</span>
+
+                      {/* Etiqueta flotant de la capa (indicador visual amigable) */}
+                      <div 
+                        className={`absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider pointer-events-none transition-all flex items-center gap-1 whitespace-nowrap shadow-xs ${
+                          isSelected 
+                            ? 'bg-amber-700 text-white opacity-100 scale-100' 
+                            : 'bg-black/75 text-white/90 opacity-0 group-hover/layer:opacity-100 scale-95 group-hover/layer:scale-100'
+                        }`}
+                      >
+                        <Move className="w-2.5 h-2.5 text-amber-200" />
+                        <span>{layer.name}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Punts de paginació d'Instagram */}
+                {postMode === 'carousel' && (
+                  <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md">
+                    {slides.map((_, i) => (
+                      <span
+                        key={i}
+                        className={`block rounded-full transition-all ${
+                          activeSlideIdx === i ? 'w-2 h-2 bg-white scale-110' : 'w-1.5 h-1.5 bg-white/50'
+                        }`}
+                      />
+                    ))}
+                    <span className="text-[10px] font-mono text-white/90 font-bold ml-1">
+                      {activeSlideIdx + 1}/{slides.length}
+                    </span>
+                  </div>
+                )}
               </div>
+
+              {/* Fletxa Dreta en Mode Carrusel */}
+              {postMode === 'carousel' && (
+                <button
+                  type="button"
+                  onClick={handleNextSlide}
+                  disabled={activeSlideIdx === slides.length - 1}
+                  className={`absolute right-2.5 z-10 p-2 rounded-full bg-white/90 text-[#3D2B1F] shadow-md transition-all cursor-pointer ${
+                    activeSlideIdx === slides.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white hover:scale-105 active:scale-95'
+                  }`}
+                  title="Diapositiva següent"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
             </div>
 
-            {/* Botó Principal: Descarregar PNG */}
+            {/* Botons d'Acció / Descàrrega */}
             <div className="space-y-2 pt-2">
+              {postMode === 'carousel' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDownloadCarousel}
+                    disabled={isDownloadingCarousel}
+                    className="w-full py-3.5 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-black text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-[0.98] disabled:opacity-80"
+                  >
+                    {isDownloadingCarousel ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-200" />
+                        <span>
+                          Descarregant diapo {downloadProgress?.current || 1} de {downloadProgress?.total || slides.length}...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>Descarregar tot el Carrusel ({slides.length} PNGs numerats)</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Descarregar només la diapositiva actual ({activeSlideIdx + 1} de {slides.length})</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-black text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-[0.98]"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Descarregar Imatge PNG (1080px)</span>
+                </button>
+              )}
+
+              {/* Botó destacat per Guardar i Programar al Calendari */}
               <button
                 type="button"
-                onClick={handleDownload}
-                className="w-full py-3.5 bg-gradient-to-r from-amber-700 to-[#3D2B1F] hover:from-amber-600 hover:to-black text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-[0.98]"
+                onClick={() => setShowSaveScheduleModal(true)}
+                className="w-full py-3 bg-white hover:bg-amber-50 text-[#3D2B1F] border-2 border-[#3D2B1F] hover:border-black font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 text-sm cursor-pointer active:scale-[0.98]"
               >
-                <Download className="w-4 h-4" />
-                <span>Descarregar Imatge PNG (1080px)</span>
+                <CalendarPlus className="w-4 h-4 text-amber-700" />
+                <span>
+                  {editingScheduledPostId ? '📅 Actualitzar al Calendari' : '📅 Desar i Programar al Calendari'}
+                </span>
               </button>
 
               <p className="text-[11px] text-center text-slate-500">
-                Resolució nativa neta de 1080px d'alta qualitat, sense marques d'aigua.
+                {postMode === 'carousel'
+                  ? 'Fitxers numerats (carrusel-1, carrusel-2...) llestos per pujar tots d’un cop a Meta Business Suite o Instagram.'
+                  : 'Resolució nativa neta de 1080px d’alta qualitat, sense marques d’aigua.'}
               </p>
             </div>
 
@@ -910,9 +3212,13 @@ export default function PostingApp({ setActiveTab }) {
             <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
               <HelpCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
               <div className="space-y-1">
-                <p className="font-semibold text-amber-900">Com publicar-ho en 30 segons:</p>
+                <p className="font-semibold text-amber-900">
+                  {postMode === 'carousel' ? 'Com publicar el carrusel a Meta en 30 segons:' : 'Com publicar-ho en 30 segons:'}
+                </p>
                 <p className="text-[11px] text-amber-900/80 leading-relaxed">
-                  Pots enviar la imatge al teu mòbil i pujar-la a Instagram, o obrir <strong>Meta Business Suite</strong> al navegador per programar posts gratuïtament.
+                  {postMode === 'carousel'
+                    ? 'Obre Meta Business Suite i en fer «Crear publicació», selecciona els ' + slides.length + ' fitxers PNG junts. Meta els ordenarà sols conservant el mateix estil!'
+                    : 'Pots enviar la imatge al teu mòbil i pujar-la a Instagram, o obrir Meta Business Suite al navegador per programar posts gratuïtament.'}
                 </p>
                 <a
                   href="https://business.facebook.com/latest/composer"
@@ -930,7 +3236,235 @@ export default function PostingApp({ setActiveTab }) {
 
         </div>
 
+      </div>
+          </>
+        )}
+
       </main>
+
+      {/* Modal de Desar i Programar al Calendari */}
+      {showSaveScheduleModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-outline/15 animate-scaleUp">
+            <div className="flex items-center justify-between border-b border-outline/10 pb-3">
+              <div className="flex items-center gap-2">
+                <CalendarPlus className="w-5 h-5 text-amber-700" />
+                <h3 className="font-serif font-bold text-base text-[#3D2B1F]">
+                  {editingScheduledPostId ? 'Actualitzar publicació al Calendari' : 'Desar i Programar Publicació'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSaveScheduleModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              {/* Tria de Data */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-slate-700">Data de publicació:</label>
+                  <button
+                    type="button"
+                    onClick={() => setScheduledDate(getNextRecommendedDate(scheduledPosts))}
+                    className="text-[10px] font-semibold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                  >
+                    ⚡ Següent data lliure recomanada
+                  </button>
+                </div>
+                <input
+                  type="date"
+                  value={scheduledDate}
+                  onChange={(e) => setScheduledDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-outline/20 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-amber-700"
+                />
+              </div>
+
+              {/* Tria d'Hora */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Hora aproximada de publicació:</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="w-28 px-2.5 py-1.5 bg-slate-50 border border-outline/20 rounded-xl text-xs font-mono font-bold text-slate-800"
+                  />
+                  <div className="flex items-center gap-1">
+                    {[
+                      { label: '10:00 (Matí)', val: '10:00' },
+                      { label: '14:00 (Migdia)', val: '14:00' },
+                      { label: '19:30 (Vespre)', val: '19:30' }
+                    ].map(h => (
+                      <button
+                        key={h.val}
+                        type="button"
+                        onClick={() => setScheduledTime(h.val)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-medium border transition-all cursor-pointer ${
+                          scheduledTime === h.val
+                            ? 'bg-[#3D2B1F] text-white border-[#3D2B1F]'
+                            : 'bg-white hover:bg-slate-50 text-slate-600 border-outline/20'
+                        }`}
+                      >
+                        {h.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Temàtica del Post */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">Temàtica / Tipus de contingut:</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {POST_CONTENT_TYPES.map(t => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setScheduledType(t.id)}
+                      className={`p-2 rounded-xl text-left border transition-all cursor-pointer flex items-center gap-2 ${
+                        scheduledType === t.id
+                          ? 'border-amber-700 ring-1 ring-amber-700 shadow-2xs font-bold'
+                          : 'bg-white hover:bg-slate-50 border-outline/15 text-slate-700'
+                      }`}
+                      style={scheduledType === t.id ? { backgroundColor: t.bgLight, color: t.color } : {}}
+                    >
+                      <span className="text-base">{t.icon}</span>
+                      <span className="truncate">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes personals */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Notes internes (opcional):</label>
+                <textarea
+                  rows={2}
+                  value={scheduledNotes}
+                  onChange={(e) => setScheduledNotes(e.target.value)}
+                  placeholder="Ex: Recordar etiquetar a @firaartesans o preparar un reel curt..."
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-outline/20 rounded-xl text-xs text-slate-800 resize-none"
+                />
+              </div>
+
+              <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200/60 text-[11px] text-amber-900 leading-relaxed">
+                💡 Es desarà tota la composició exacta (foto, títols, capes de text lliure, plantilla i copy redactat) a Firestore per recuperar-la o rebre l'avís de Telegram el dia programat.
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-outline/10">
+              <button
+                type="button"
+                onClick={() => setShowSaveScheduleModal(false)}
+                className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+              >
+                Cancel·lar
+              </button>
+              <button
+                type="button"
+                disabled={isSavingSchedule}
+                onClick={handleSaveCurrentToSchedule}
+                className="px-4 py-2 text-xs font-bold bg-[#3D2B1F] hover:bg-black text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <CalendarPlus className="w-3.5 h-3.5 text-amber-300" />
+                <span>{isSavingSchedule ? 'Desant a Firestore...' : (editingScheduledPostId ? 'Actualitzar al Calendari' : 'Desar i Programar')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast de confirmació de desat */}
+      {saveScheduleToast && (
+        <div className="fixed bottom-6 right-6 z-50 p-3.5 bg-[#3D2B1F] text-white rounded-2xl border border-amber-400/40 shadow-xl text-xs font-bold animate-fadeIn flex items-center gap-2.5">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{saveScheduleToast}</span>
+        </div>
+      )}
+
+      {/* Modal de configuració de la Clau d'API de Gemini */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-outline/20 space-y-4">
+            <div className="flex items-center justify-between border-b border-outline/10 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-700 text-white flex items-center justify-center">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-base text-[#3D2B1F]">
+                    Clau d'API de Google Gemini
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Per a la generació intel·ligent de contingut</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Pots introduir la teva clau gratuïta de <strong>Google AI Studio (Gemini)</strong> per gaudir de generació il·limitada de títols, subtítols i copies adaptats a Mínim Món. Es desa exclusivament al teu navegador.
+            </p>
+
+            <div className="space-y-1">
+              <label className="block text-[11px] font-bold text-slate-700">Clau d'API (AIza...):</label>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full px-3 py-2 text-xs font-mono rounded-xl bg-slate-50 border border-outline/20 focus:outline-none focus:border-amber-700"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              {getGeminiApiKey() ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeminiApiKey('');
+                    setApiKeyInput('');
+                    alert("S'ha esborrat la clau d'API.");
+                  }}
+                  className="text-xs text-rose-700 hover:underline font-semibold cursor-pointer"
+                >
+                  Esborrar clau
+                </button>
+              ) : <span></span>}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+                >
+                  Tancar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeminiApiKey(apiKeyInput.trim());
+                    setShowApiKeyModal(false);
+                    alert("Clau d'API desada amb èxit!");
+                  }}
+                  className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#3D2B1F] hover:bg-black text-white shadow-xs cursor-pointer"
+                >
+                  Desar clau
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

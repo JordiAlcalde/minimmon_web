@@ -62,6 +62,38 @@ RESPON EXCLUSIVAMENT EN FORMAT JSON VÀLID (sense cometes de markdown de codi si
     }
   ]
 }`
+,
+
+  posting: `Ets el redactor i creador de continguts oficial d'Instagram de "Mínim Món" (taller artesanal de Jordi Alcalde, fusta natural, miniatures, diorames i regals únics a Catalunya - web: minimmon.cat, instagram: @minimmon58).
+La teva missió és analitzar l'assumpte o tema lliure que et proposa l'artesà i, si s'escau, la fotografia aportada, i generar una proposta completa de post d'Instagram que transmeti la filosofia de Mínim Món:
+- Valors: L'art de la paciència, la tecnologia del present (gravat làser de precisió) al servei de l'emoció, la calidesa de la fusta natural, l'ofici de tota una vida i la voluntat d'aturar el temps en petits formats tangibles.
+- To: Proper, càlid, sensible sense caure en la sensibleria buida, poètic però clar, professional i artesanal.
+- Redacció en català impecable.
+
+A partir de l'assumpte i indicacions proposades, has de proporcionar:
+1. "titol": Títol breu, concís i potent per a col·locar sobre la imatge del post (màxim 5-7 paraules).
+2. "subtitol": Subtítol breu o frase evocadora d'una sola línia per a la imatge (màxim 12 paraules).
+3. "etiqueta": Etiqueta curta o insígnia per a la imatge (ex: "✨ Novetat", "🌿 Al taller", "🪵 Fusta amb ànima", "📢 Estrena del web", "🕊️ Record únic", etc.).
+4. "copy": Text complet del post per a Instagram (amb ganxo inicial atractiu, desenvolupament càlid que expliqui l'essència, crida a l'acció natural invitant a visitar l'enllaç de la bio cap a www.minimmon.cat o perfil @minimmon58, i una selecció d'etiquetes/hashtags rellevants).
+5. "variantsCopy": Llista de 2 o 3 variants de copy amb diferents enfocaments (per exemple: una més Emocional/Poètica, una de Taller/Artesania i una altra Directa/Notícia).
+
+RESPON EXCLUSIVAMENT EN FORMAT JSON VÀLID (sense cometes de markdown ni codi afegit) amb aquesta estructura exacta:
+{
+  "titol": "Títol breu per a la imatge",
+  "subtitol": "Subtítol breu per a la imatge",
+  "etiqueta": "Píndola curta per a la imatge",
+  "copy": "Text complet del post d'Instagram amb salts de línia, crida a l'acció i hashtags",
+  "variantsCopy": [
+    {
+      "estil": "Emocional i Poètica",
+      "copy": "Text de la primera variant..."
+    },
+    {
+      "estil": "Taller i Procés",
+      "copy": "Text de la segona variant..."
+    }
+  ]
+}`
 };
 
 export function getGeminiApiKey() {
@@ -270,6 +302,11 @@ export async function callGeminiDescriptor({
     if (contextInfo.encarrec) userText += `- Apunts previs d'encàrrec: ${contextInfo.encarrec}\n`;
     if (contextInfo.art) userText += `- Apunts previs de traducció artística: ${contextInfo.art}\n`;
     if (contextInfo.resolucio) userText += `- Apunts previs de resolució: ${contextInfo.resolucio}\n`;
+  } else if (type === 'posting') {
+    if (contextInfo.assumpte) userText += `- Assumpte o tema del post: ${contextInfo.assumpte}\n`;
+    if (contextInfo.to) userText += `- Enfocament o to desitjat: ${contextInfo.to}\n`;
+    if (contextInfo.format) userText += `- Format d'Instagram: ${contextInfo.format}\n`;
+    if (contextInfo.titolPrevi) userText += `- Títol previ considerat: ${contextInfo.titolPrevi}\n`;
   } else {
     // productes
     if (contextInfo.nom) userText += `- Nom actual: ${contextInfo.nom}\n`;
@@ -367,3 +404,114 @@ export async function callGeminiDescriptor({
     data: parsedJson
   };
 }
+
+/**
+ * Assistent integrat de Copywriting i disseny per a Tema Lliure a Posting
+ */
+export async function generatePostingAssistantContent({
+  topic = '',
+  tone = 'noticia', // 'noticia' | 'emocional' | 'taller' | 'filosofia' | 'regal'
+  imageUrl = '',
+  existingTitle = '',
+  format = '4:5',
+  apiKeyOverride = null
+}) {
+  const cleanTopic = (topic || '').trim();
+  const apiKey = apiKeyOverride || getGeminiApiKey();
+
+  // 1. Si tenim clau d'API de Gemini, fem servir la potència del model
+  if (apiKey) {
+    try {
+      const res = await callGeminiDescriptor({
+        type: 'posting',
+        contextInfo: {
+          assumpte: cleanTopic || 'Novetat de Mínim Món',
+          to: tone,
+          format,
+          titolPrevi: existingTitle
+        },
+        images: imageUrl ? [imageUrl] : [],
+        apiKeyOverride: apiKey
+      });
+
+      if (res?.data && res.data.copy && res.data.titol) {
+        return {
+          titol: res.data.titol,
+          subtitol: res.data.subtitol || 'Artesania amb ànima en fusta natural.',
+          etiqueta: res.data.etiqueta || '✨ Novetat',
+          copy: res.data.copy,
+          variantsCopy: Array.isArray(res.data.variantsCopy) ? res.data.variantsCopy : [],
+          fromAi: true
+        };
+      }
+    } catch (err) {
+      console.warn("Falla de crida a Gemini per a Posting, activant generador contextual local:", err);
+    }
+  }
+
+  // 2. Generador contextual local intel·ligent (fallback autònom de Mínim Món)
+  const isWebTheme = /web|estrena|estrenem|nova pàgina|nou web|llançament|online|portal|inici/i.test(cleanTopic);
+  const isFiraTheme = /fira|mercat|parada|cap de setmana|diumenge|dissabte|trobada/i.test(cleanTopic);
+  const isTallerTheme = /taller|fusta|làser|gravat|eina|procés|banc|encenall|màquina/i.test(cleanTopic);
+  const isDioramaTheme = /diorama|mons mínims|miniatura|record|espai|memòria/i.test(cleanTopic);
+
+  let titol = 'Mínim Món';
+  let subtitol = 'Artesania amb ànima i fusta natural.';
+  let etiqueta = '✨ Novetat';
+  let copyIntro = '';
+  let copyBody = '';
+  let copyCta = '🔗 Teniu l’enllaç a la bio (@minimmon58) o a www.minimmon.cat per descobrir-ne tots els detalls!';
+
+  if (isWebTheme) {
+    titol = 'Estrenem nou web!';
+    subtitol = 'Una finestra oberta al nostre univers artesanal.';
+    etiqueta = '✨ Nou Web';
+    copyIntro = 'Després de moltes hores de feina al taller i davant la pantalla, per fi us podem presentar el nou web de Mínim Món! 🪵✨\n\nUn espai creat amb la mateixa calma i cura amb què tractem cada peça de fusta.';
+    copyBody = 'A www.minimmon.cat hi trobareu:\n🌿 La nostra filosofia i la manera d’entendre aquest ofici.\n🖼️ Els nostres Mons Mínims i diorames fets a mà.\n🔑 El catàleg complet de peces i detalls personalitzats.\n🔨 Una mirada íntima al taller i a tot el procés creatiu.\n\nUs convidem a passejar-hi, tafanejar cada racó i fer-nos arribar les vostres impressions!';
+  } else if (isFiraTheme) {
+    titol = 'Ens veiem a la fira!';
+    subtitol = 'Portem les nostres creacions de fusta a peu de carrer.';
+    etiqueta = '📍 Parada artesana';
+    copyIntro = 'Aquest cap de setmana traiem el taller al carrer! 🪵🎪\n\nEstem preparant les caixes amb tota la il·lusió per retrobar-nos amb vosaltres i compartir l’artesania en viu.';
+    copyBody = `${cleanTopic ? cleanTopic + '\n\n' : ''}Tindrem exposats els nostres diorames 'Mons Mínims', clauers únics, peces de regal i estarem encantats d’explicar-vos com prenen forma al taller. Si sou a prop, passeu a saludar!`;
+  } else if (isTallerTheme || tone === 'taller') {
+    titol = 'L’ànima del taller';
+    subtitol = 'On la tecnologia es fon amb l’ofici artesanal.';
+    etiqueta = '🔨 Des del Taller';
+    copyIntro = 'Hi ha una màgia especial en l’olor de la fusta acabada de tallar i el so tranquil del taller. 🪵⚙️';
+    copyBody = `${cleanTopic ? cleanTopic + '\n\n' : 'Cada projecte comença com una idea i es converteix en realitat combinant el càlcul precís del làser amb l’acabat pacient i càlid de les nostres mans.\n\n'}Perquè a Mínim Món no només treballem materials; creem peces que guarden memòria.`;
+  } else if (tone === 'emocional' || isDioramaTheme) {
+    titol = 'L’art d’aturar el temps';
+    subtitol = 'Capturar records i espais en petits formats tangibles.';
+    etiqueta = '🤍 Record únic';
+    copyIntro = 'Hi ha moments, llocs i persones que mereixen quedar gravats per sempre. 🪵🕊️';
+    copyBody = `${cleanTopic ? cleanTopic + '\n\n' : 'A Mínim Món traduïm emocions a relleus, ombres i textures. Cada peça és una història que connecta el passat amb el present a través de la fusta natural.\n\n'}Fet a mà, amb paciència i amb tota la sensibilitat que cada record es mereix.`;
+  } else {
+    titol = cleanTopic ? (cleanTopic.length > 35 ? cleanTopic.slice(0, 32) + '...' : cleanTopic) : 'Creacions amb ànima';
+    subtitol = 'Fusta, paciència i tecnologia al servei de l’emoció.';
+    etiqueta = '✨ Mínim Món';
+    copyIntro = `${cleanTopic || 'Un nou projecte pren vida al nostre taller.'} 🪵✨`;
+    copyBody = 'Elaborat a mà a Catalunya, cuidant cada detall mil·limètric i respectant la veta natural de la fusta per aconseguir un resultat autèntic i irrepetible.';
+  }
+
+  const hashtags = '\n\n#minimmon #artesaniacatalana #fustaartesanal #fetama #diorames #espaisenminiatura #fetacatalunya #dissenyartesanal #recordsenfusta #tallerartesanal';
+
+  const mainCopy = `${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`;
+
+  const variantEmocional = `${copyIntro.replace('!', '.')} 🪵🤍\n\nLa fusta té memòria, i al nostre taller ens agrada escoltar-la i donar-li forma amb calma.\n\n${copyBody}\n\n${copyCta}${hashtags}`;
+
+  const variantTaller = `Directe des del nostre banc de treball! 🔨🪵\n\n${cleanTopic || 'Continuem creant noves peces i perfeccionant cada relleu al taller.'}\n\nPeces úniques que combinen el gravat làser d’alta precisió amb el tacte càlid de l’artesania tradicional.\n\n${copyCta}${hashtags}`;
+
+  return {
+    titol,
+    subtitol,
+    etiqueta,
+    copy: mainCopy,
+    variantsCopy: [
+      { estil: 'To Emocional & Memòria', copy: variantEmocional },
+      { estil: 'To Taller & Ofici', copy: variantTaller }
+    ],
+    fromAi: false
+  };
+}
+
