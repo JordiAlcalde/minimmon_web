@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mínim Món — Pla Editorial Instagram (Octubre - Desembre 2026)</title>
+  <style>
+    /* Estils generals per a pantalla */
+    :root {
+      --primary: #3D2B1F;
+      --accent: #8C6239;
+      --bg-card: #FAF7F2;
+      --border-color: #E2D9CE;
+      --text-main: #241A13;
+      --text-muted: #6B5D52;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      background-color: #F4EFEB;
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      padding: 40px 48px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+
+    /* Barra flotant d'eines per pantalla */
+    .print-bar {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--primary);
+      color: #FFFFFF;
+      padding: 12px 24px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 12px rgba(61,43,31,0.25);
+    }
+
+    .print-btn {
+      background: #D4A373;
+      color: #261B13;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .print-btn:hover {
+      background: #E6BC8E;
+      transform: translateY(-1px);
+    }
+
+    /* Encapçalament del document */
+    .header {
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+
+    .header-logo {
+      font-family: Georgia, "Playfair Display", serif;
+      font-size: 28px;
+      font-weight: bold;
+      color: var(--primary);
+      letter-spacing: 0.5px;
+    }
+
+    .header-subtitle {
+      font-size: 14px;
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+
+    .header-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Avís de materials */
+    .callout {
+      background: #FAF7F2;
+      border-left: 4px solid var(--accent);
+      padding: 14px 16px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 28px;
+      font-size: 13px;
+      color: var(--text-main);
+    }
+
+    .callout-title {
+      font-weight: bold;
+      color: var(--primary);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    /* Taula resum */
+    .table-section {
+      margin-bottom: 36px;
+      page-break-after: always;
+    }
+
+    .section-title {
+      font-family: Georgia, serif;
+      font-size: 19px;
+      color: var(--primary);
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    th {
+      background: #F2EBE3;
+      color: var(--primary);
+      text-align: left;
+      padding: 8px 10px;
+      font-weight: 700;
+      border: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 7px 10px;
+      border: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #FAF8F5;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-prod {
+      background: #FEF3C7;
+      color: #92400E;
+    }
+
+    .badge-proj {
+      background: #FFEDD5;
+      color: #9A3412;
+    }
+
+    .badge-filo {
+      background: #D1FAE5;
+      color: #065F46;
+    }
+
+    .checkbox-box {
+      width: 16px;
+      height: 16px;
+      border: 1.5px solid #8C7765;
+      border-radius: 3px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* Graella de fitxes detallades */
+    .posts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .post-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 14px 16px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      position: relative;
+    }
+
+    .post-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      border-bottom: 1px dashed var(--border-color);
+      padding-bottom: 6px;
+    }
+
+    .post-num {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--accent);
+    }
+
+    .post-date {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .post-title {
+      font-family: Georgia, serif;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--primary);
+      margin-bottom: 6px;
+      line-height: 1.3;
+    }
+
+    .post-focus {
+      font-size: 11px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .post-body {
+      font-size: 12px;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      line-height: 1.45;
+    }
+
+    .post-visual {
+      font-size: 11px;
+      background: #FAF7F2;
+      border-left: 3px solid #D4A373;
+      padding: 6px 10px;
+      border-radius: 0 4px 4px 0;
+      color: #4A3E36;
+      line-height: 1.4;
+    }
+
+    .post-visual strong {
+      color: var(--primary);
+    }
+
+    .notes-space {
+      margin-top: 8px;
+      border-top: 1px dotted #D1C7BD;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    /* ESTILS PER A IMPRESSIÓ EN PAPER (A4 / PDF) */
+    @media print {
+      body {
+        background: #FFFFFF !important;
+        padding: 0 !important;
+        color: #000000 !important;
+      }
+
+      .no-print, .print-bar {
+        display: none !important;
+      }
+
+      .container {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+      }
+
+      @page {
+        size: A4 portrait;
+        margin: 12mm 12mm 12mm 12mm;
+      }
+
+      .table-section {
+        page-break-after: always;
+      }
+
+      .posts-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .post-card {
+        border: 1px solid #CCCCCC !important;
+        background: #FFFFFF !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+        padding: 10px 12px !important;
+      }
+
+      .post-visual {
+        background: #F7F5F2 !important;
+        border-left: 2.5px solid #8C6239 !important;
+      }
+
+      th {
+        background: #ECE6DE !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      tr:nth-child(even) td {
+        background-color: #FAFAFA !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .badge {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Barra flotant d'eines (s'oculta al imprimir) -->
+  <div class="print-bar no-print">
+    <div>
+      <strong>Pla Editorial d'Instagram — Mínim Món</strong>
+      <span style="opacity: 0.8; font-size: 13px; margin-left: 8px;">(Tardor & Nadal 2026)</span>
+    </div>
+    <button class="print-btn" onclick="window.print()">
+      🖨️ Imprimir document / Guardar en PDF
+    </button>
+  </div>
+
+  <div class="container">
+    
+    <!-- Encapçalament -->
+    <header class="header">
+      <div class="header-logo">MÍNIM MÓN</div>
+      <div class="header-subtitle">Planificació Editorial d'Instagram — Octubre a Desembre 2026</div>
+      <div class="header-meta">
+        <strong>Cadència:</strong> 2 publicacions/setmana (Dimarts i Dijous) &nbsp;|&nbsp; 
+        <strong>Total:</strong> 20 publicacions &nbsp;|&nbsp; 
+        <strong>Àmbit:</strong> Productes artesans i Projectes d'Atelier
+      </div>
+    </header>
+
+    <!-- Guia de material i enfocament -->
+    <div class="callout">
+      <span class="callout-title">🌿 Pauta de comunicació sobre els materials:</span>
+      Treballem amb <strong>contraxapat de bedoll de qualitat seleccionada</strong>. En el discurs evitem conceptes inadequats com "fusta massissa" o "fusta noble", i en reivindiquem les virtuts pròpies de l'ofici: <strong>precisió en el tall mil·limètric</strong>, <strong>estabilitat estructural</strong> (les capes laminades no s'alabaran ni s'esberlaran amb els anys) i la <strong>calidesa visual i tàctil</strong> dels tons naturals del bedoll polits i protegits a mà.
+    </div>
+
+    <!-- TAULA RESUM DE LA PLANIFICACIÓ -->
+    <section class="table-section">
+      <h2 class="section-title">Taula Cronològica de Publicacions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 38px;">#</th>
+            <th style="width: 85px;">Data</th>
+            <th style="width: 85px;">Tipus</th>
+            <th>Enfocament</th>
+            <th>Títol orientatiu</th>
+            <th style="width: 45px; text-align: center;">Revisió</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>01</strong></td>
+            <td>Dt 27/10</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Personalització & Intimisme</td>
+            <td><em>Finestres que guarden moments</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>02</strong></td>
+            <td>Dj 29/10</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Imaginació & Món en miniatura</td>
+            <td><em>La màgia del que és petit</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>03</strong></td>
+            <td>Dt 03/11</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Matèria primera & Precisió</td>
+            <td><em>L'equilibri del bedoll seleccionat</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>04</strong></td>
+            <td>Dj 05/11</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Intimisme & Històries familiars</td>
+            <td><em>Reconstruir un record familiar</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>05</strong></td>
+            <td>Dt 10/11</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Diversitat & Ús quotidià</td>
+            <td><em>Peces lleugeres que t'acompanyen</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>06</strong></td>
+            <td>Dj 12/11</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Taller & Procés artesanal</td>
+            <td><em>Entre línies, làser i paciència</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>07</strong></td>
+            <td>Dt 17/11</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Personalització oculta</td>
+            <td><em>Paraules que només saps tu</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>08</strong></td>
+            <td>Dj 19/11</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Il·luminació & Màgia d'espai</td>
+            <td><em>Quan s'encén la llum càlida</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>09</strong></td>
+            <td>Dt 24/11</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Regal conscient (Nadal)</td>
+            <td><em>Triar regals que no caduquen</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>10</strong></td>
+            <td>Dj 26/11</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Curiositat & Racons secrets</td>
+            <td><em>El secret dels racons secrets</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>11</strong></td>
+            <td>Dt 01/12</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Tradició nadalenca</td>
+            <td><em>L'arbre amb els nostres noms</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>12</strong></td>
+            <td>Dj 03/12</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Durabilitat & Permanència</td>
+            <td><em>Peces pensades per quedar-se</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>13</strong></td>
+            <td>Dt 08/12</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Intimisme d'hivern (Festiu)</td>
+            <td><em>El refugi de la calidesa</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>14</strong></td>
+            <td>Dj 10/12</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Celebració & Detalls de taula</td>
+            <td><em>Petits gestos a la taula</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>15</strong></td>
+            <td>Dt 15/12</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Termini artesanal (Últims dies)</td>
+            <td><em>Fetes una a una, sense presses</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>16</strong></td>
+            <td>Dj 17/12</td>
+            <td><span class="badge badge-proj">Projecte</span></td>
+            <td>Ofici & Temps dedicat</td>
+            <td><em>L'art de no tenir pressa</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>17</strong></td>
+            <td>Dt 22/12</td>
+            <td><span class="badge badge-prod">Producte</span></td>
+            <td>Presentació & Embalatge</td>
+            <td><em>L'aroma del taller a casa</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>18</strong></td>
+            <td>Dj 24/12</td>
+            <td><span class="badge badge-filo">Intimisme</span></td>
+            <td>Vigília de Nadal & Agraïment</td>
+            <td><em>Històries que aquesta nit s'obren</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>19</strong></td>
+            <td>Dt 29/12</td>
+            <td><span class="badge badge-proj">Balanç</span></td>
+            <td>Mosaic & Retrospectiva</td>
+            <td><em>Un any de petits mons creats</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+          <tr>
+            <td><strong>20</strong></td>
+            <td>Dj 31/12</td>
+            <td><span class="badge badge-filo">Futur</span></td>
+            <td>Cap d'Any & Mirada endavant</td>
+            <td><em>Noves fustes per modelar</em></td>
+            <td style="text-align: center;"><span class="checkbox-box"></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- FITXES DETALLADES DE CADA PUBLICACIÓ -->
+    <section>
+      <h2 class="section-title">Fitxes de Treball per a Posting</h2>
+      
+      <div class="posts-grid">
+        
+        <!-- Post 01 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #01</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 27 Octubre</span>
+          </div>
+          <h3 class="post-title">Finestres que guarden moments</h3>
+          <span class="post-focus">Enfocament: Personalització & Intimisme</span>
+          <p class="post-body">
+            La peça <em>Finestra</em> com a suport d'un moment inoblidable: gravat d'una data de naixement, el nom d'un fill o un aniversari especial.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Primer pla de la peça Finestra amb llum natural càlida, destacant la textura setinada del bedoll i la nitidesa del gravat.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 02 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #02</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 29 Octubre</span>
+          </div>
+          <h3 class="post-title">La màgia del que és petit</h3>
+          <span class="post-focus">Enfocament: Imaginació & Món en miniatura</span>
+          <p class="post-body">
+            Viatge visual per l'interior de <em>La Llibreria del Temps Aturat</em>. La capacitat de desconnectar del soroll quotidià contemplant un racó ple de detalls.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Perspectiva interior a 45 graus captant la profunditat de les prestatgeries minúscules i l'ambient càlid.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Record Artesanal o Atelier (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 03 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #03</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 03 Novembre</span>
+          </div>
+          <h3 class="post-title">L'equilibri del bedoll seleccionat</h3>
+          <span class="post-focus">Enfocament: Matèria primera & Precisió</span>
+          <p class="post-body">
+            Transparència de taller: per què el contraxapat de bedoll calibrat és insubstituïble per tallar amb netedat, no deformar-se i oferir un tacte suau i càlid.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Macrofotografia d'un clauer o placa on s'apreciï el gra suau de la superfície i el perfil laminat característic del cantell polit.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 04 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #04</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 05 Novembre</span>
+          </div>
+          <h3 class="post-title">Reconstruir un record familiar</h3>
+          <span class="post-focus">Enfocament: Intimisme & Històries personals</span>
+          <p class="post-body">
+            Encàrrecs personalitzats que recreen a petita escala la façana de la casa dels avis o un racó que ja no existeix però que es conserva per a la família.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Detall de la porta o façana en miniatura amb un element nostàlgic visible (el número de portal, un rètol antic).
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Fusta & Elegància (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 05 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #05</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 10 Novembre</span>
+          </div>
+          <h3 class="post-title">Peces lleugeres que t'acompanyen</h3>
+          <span class="post-focus">Enfocament: Diversitat & Ús quotidià</span>
+          <p class="post-body">
+            Objectes d'ús diari (clauers d'inicial, punts de llibre): com la lleugeresa i resistència del contraxapat permeten dur artesania sempre a sobre sense pes.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Foto estil de vida: clauer d'inicial de bedoll al costat d'una llibreta i unes claus sobre una taula de cafè.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Informal / Fresh (1:1)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 06 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #06</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 12 Novembre</span>
+          </div>
+          <h3 class="post-title">Entre línies, làser i paciència</h3>
+          <span class="post-focus">Enfocament: Taller & Procés artesanal</span>
+          <p class="post-body">
+            La combinació de tall d'alta precisió per a encaixos nets amb el treball manual de poliment, desbarbat i encolat pacient peça a peça.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> El banc de treball amb peces soltes acabades de tallar, pinces de precisió i el plànol o esbós a la vista.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 07 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #07</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 17 Novembre</span>
+          </div>
+          <h3 class="post-title">Paraules que només saps tu</h3>
+          <span class="post-focus">Enfocament: Personalització oculta</span>
+          <p class="post-body">
+            La complicitat del gravat al revers de la peça: una coordenada, una data secreta o una paraula en clau que només qui regala i qui rep coneixen.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Foto en carrusel: cara A elegant i cara B amb una frase curta i emotiva gravada a la fusta.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Record Artesanal (1:1)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 08 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #08</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 19 Novembre</span>
+          </div>
+          <h3 class="post-title">Quan s'encén la llum càlida</h3>
+          <span class="post-focus">Enfocament: Il·luminació & Màgia d'espai</span>
+          <p class="post-body">
+            La integració invisible dels micro-LEDs. Com un projecte decoratiu es transforma a la nit en un petit fanal de pau per a la sala d'estar.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Foto en penombra on la llum daurada interior dibuixa siluetes i fa brillar els tons de la fusta.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Fusta & Elegància (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 09 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #09</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 24 Novembre</span>
+          </div>
+          <h3 class="post-title">Triar regals que no caduquen</h3>
+          <span class="post-focus">Enfocament: Regal conscient & Anticipació</span>
+          <p class="post-body">
+            Reflexió prèvia a la febre de Nadal: escollir amb calma, apostar per peces úniques de proximitat i evitar compres impersonals de darrera hora.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Peça petita de fusta lligada amb cordill de jute natural i una branqueta de romaní o pi fresc.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 10 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #10</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 26 Novembre</span>
+          </div>
+          <h3 class="post-title">El secret dels racons secrets</h3>
+          <span class="post-focus">Enfocament: Curiositat & Racons amagats</span>
+          <p class="post-body">
+            El plaer de descobrir micro-detalls: un llibre obert a la pàgina 4, una ampolleta de vidre sobre un taulell o una escala diminuta.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Primeríssim pla (zoom) d'un micro-detall molt enginyós de l'interior del projecte.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (1:1)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 11 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #11</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 01 Desembre</span>
+          </div>
+          <h3 class="post-title">L'arbre amb els nostres noms</h3>
+          <span class="post-focus">Enfocament: Tradició nadalenca</span>
+          <p class="post-body">
+            Adorns nadalencs de bedoll gravats amb els noms de la família. Una peça viva que es penja any rere any i explica qui som.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Adorns de fusta penjant d'una branca d'avet natural amb desenfocament de llumetes càlides al darrere.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Record Artesanal (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 12 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #12</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 03 Desembre</span>
+          </div>
+          <h3 class="post-title">Peces pensades per quedar-se</h3>
+          <span class="post-focus">Enfocament: Durabilitat & Permanència</span>
+          <p class="post-body">
+            La resistència de la fusta contraxapada: les seves capes creuades impedeixen que es vincli, creant peces estables que no perden l'encaix amb els anys.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Vista frontal completa d'un diorama mostrant la netedat geomètrica i la solidesa constructiva.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 13 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #13</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dt 08 Desembre</span>
+          </div>
+          <h3 class="post-title">El refugi de la calidesa</h3>
+          <span class="post-focus">Enfocament: Intimisme d'hivern (Festiu)</span>
+          <p class="post-body">
+            La Puríssima: el fred a fora i el recolliment a la llar. Com els elements naturals de fusta aporten serenitat i pau a qualsevol habitació.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> El diorama integrat a una llibreria domèstica real, envoltat de llibres i d'una tassa calenta.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Fusta & Elegància (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 14 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #14</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dj 10 Desembre</span>
+          </div>
+          <h3 class="post-title">Petits gestos a la taula</h3>
+          <span class="post-focus">Enfocament: Celebració & Detalls de taula</span>
+          <p class="post-body">
+            Marquesitxos i identificadors de fusta de bedoll per als àpats familiars: donar la benvinguda a cada comensal amb un record que s'endurà a casa.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Taula de festa parada amb estovalles de lli, plat de ceràmica i el detall de fusta gravat amb el nom al centre.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (1:1)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 15 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #15</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 15 Desembre</span>
+          </div>
+          <h3 class="post-title">Fetes una a una, sense presses</h3>
+          <span class="post-focus">Enfocament: Termini artesanal (Últims dies)</span>
+          <p class="post-body">
+            Avís transparent de calendari per a peces personalitzades abans de Nadal: l'artesania requereix el seu temps de tall, poliment i assecat que cal respectar.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Taulell del taller amb una sèrie de peces en procés de poliment i acabat amb olis naturals.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Informal / Fresh (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 16 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #16</span>
+            <span class="badge badge-proj">PROJECTE</span>
+            <span class="post-date">Dj 17 Desembre</span>
+          </div>
+          <h3 class="post-title">L'art de no tenir pressa</h3>
+          <span class="post-focus">Enfocament: Ofici & Temps dedicat</span>
+          <p class="post-body">
+            L'elogi de la feina reposada: dedicar hores a un sol encaix de fusta perquè quedi impecable, enfront d'un món que ho vol tot ràpid i en massa.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Les mans de l'artesà sostenint una petita peça amb pinces mentre l'ajusta amb compte a l'estructura.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 17 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #17</span>
+            <span class="badge badge-prod">PRODUCTE</span>
+            <span class="post-date">Dt 22 Desembre</span>
+          </div>
+          <h3 class="post-title">L'aroma del taller a casa</h3>
+          <span class="post-focus">Enfocament: Presentació & Embalatge</span>
+          <p class="post-body">
+            L'emoció de rebre el paquet: protegit amb viruta de fusta natural, l'olor característica de taller acabat de treballar i la targeta manuscrita.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Caixa d'enviament kraft oberta amb la peça reposant sobre un llit d'encenalls de fusta nets.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (1:1)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 18 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #18</span>
+            <span class="badge badge-filo">INTIMISME</span>
+            <span class="post-date">Dj 24 Desembre</span>
+          </div>
+          <h3 class="post-title">Històries que aquesta nit s'obren</h3>
+          <span class="post-focus">Enfocament: Vigília de Nadal & Agraïment</span>
+          <p class="post-body">
+            La felicitat de saber que aquesta nit moltes llars obriran paquets que porten l'ànima de Mínim Món i l'afecte de qui els ha encarregat.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Peça de fusta il·luminada per una espelma suau, transmetent pau, calidesa i intimisme familiar.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Fusta & Elegància (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 19 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #19</span>
+            <span class="badge badge-proj">BALANÇ</span>
+            <span class="post-date">Dt 29 Desembre</span>
+          </div>
+          <h3 class="post-title">Un any de petits mons creats</h3>
+          <span class="post-focus">Enfocament: Mosaic & Retrospectiva</span>
+          <p class="post-body">
+            Retrospectiva del 2026: dels clauers més senzills als diorames més complexos. Celebració de la creativitat compartida amb la comunitat.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Composició mosaic amb 4 peces o moments representatius del treball fet al taller durant tot l'any.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Record Artesanal (1:1 o Carrusel)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+        <!-- Post 20 -->
+        <article class="post-card">
+          <div class="post-card-header">
+            <span class="post-num">POST #20</span>
+            <span class="badge badge-filo">FUTUR</span>
+            <span class="post-date">Dj 31 Desembre</span>
+          </div>
+          <h3 class="post-title">Noves fustes per modelar</h3>
+          <span class="post-focus">Enfocament: Cap d'Any & Mirada endavant</span>
+          <p class="post-body">
+            Tancar el cicle mirant el banc de fusteria net, amb nous taulells verges a punt per donar forma als projectes i somnis que començaran el 2027.
+          </p>
+          <div class="post-visual">
+            <strong>Imatge recomanada:</strong> Taulells de contraxapat de bedoll apilats i llibretes de disseny en blanc amb la llum de capvespre al taller.
+          </div>
+          <div class="notes-space">
+            <span>Plantilla: Atelier Cru (4:5)</span>
+            <span>Estat: [ ] Llest per maquetar</span>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- Peu de pàgina del document -->
+    <footer style="margin-top: 40px; border-top: 1px solid var(--border-color); padding-top: 14px; text-align: center; font-size: 11px; color: var(--text-muted);">
+      Mínim Món © 2026 — Document de treball intern per a la planificació i maquetació a Posting.
+    </footer>
+
+  </div>
+
+</body>
+</html>

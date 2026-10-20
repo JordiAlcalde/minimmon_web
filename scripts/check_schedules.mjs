@@ -153,6 +153,83 @@ ${item.preu ? `💰 <b>Preu:</b> ${item.preu}€\n` : ''}
   return count;
 }
 
+async function processPostingSchedules(botToken, chatId) {
+  console.log(`\nRevisant col·lecció 'posting_planificacio' (Calendari de publicacions)...`);
+  try {
+    const snapshot = await getDocs(collection(db, 'posting_planificacio'));
+    const now = Date.now();
+    let count = 0;
+
+    for (const docSnap of snapshot.docs) {
+      const post = docSnap.data();
+
+      // Només publicacions pendents que no hagin estat notificades
+      if (post.estat === 'publicada' || post.notificatTelegram) continue;
+      if (!post.dataPublicacio) continue;
+
+      const hora = post.horaPublicacio || '10:00';
+      const [h, m] = hora.split(':').map(Number);
+      const [year, month, day] = post.dataPublicacio.split('-').map(Number);
+
+      // Ajust d'hora de Madrid (península) per executar-se en qualsevol entorn (com GitHub Actions UTC)
+      const testUtc = new Date(Date.UTC(year, month - 1, day, h || 10, m || 0));
+      const madridDateStr = testUtc.toLocaleString('en-US', { timeZone: 'Europe/Madrid' });
+      const madridDate = new Date(madridDateStr);
+      const offsetMs = testUtc.getTime() - madridDate.getTime();
+      const scheduledTime = testUtc.getTime() + offsetMs;
+
+      // Si ja s'ha assolit l'hora i data establertes (amb un marge raonable de fins a 7 dies)
+      const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+      if (now >= scheduledTime && scheduledTime >= sevenDaysAgo) {
+        console.log(`[POSTING] Publicació '${post.title || docSnap.id}' ha assolit la data i hora programada (${post.dataPublicacio} ${hora}h).`);
+
+        const tipusLabels = {
+          producte: '🪵 Producte artesanal',
+          projecte: '🎨 Projecte Atelier',
+          esdeveniment: '🎪 Esdeveniment / Fira',
+          novetat: '📣 Novetat / Notícia',
+          filosofia: '🌿 Filosofia & Taller'
+        };
+        const tipusNom = tipusLabels[post.tipus] || '📸 Publicació de xarxes';
+        const cleanTitol = post.title || 'Sense títol a la imatge';
+        const cleanData = post.dataPublicacio;
+        const cleanHora = post.horaPublicacio ? ` a les ${post.horaPublicacio}h` : '';
+        const cleanCopy = post.copyText ? post.copyText.trim() : '(Sense text de peu de foto)';
+
+        const msg = `
+🔔 <b>RECORDATORI AUTOMÀTIC DE PUBLICACIÓ</b>
+━━━━━━━━━━━━━━━━━━━━
+📅 <b>Programat per a:</b> ${cleanData}${cleanHora}
+🏷️ <b>Temàtica:</b> ${tipusNom}
+🖼️ <b>Títol imatge:</b> ${cleanTitol}
+${post.subtitle ? `💬 <b>Subtítol:</b> ${post.subtitle}\n` : ''}${post.tagText && post.showTag ? `🏷️ <b>Etiqueta:</b> ${post.tagText}\n` : ''}
+📋 <b>TEXT PER COPIAR AL POST (Instagram):</b>
+━━━━━━━━━━━━━━━━━━━━
+${cleanCopy}
+━━━━━━━━━━━━━━━━━━━━
+
+🚀 <i>Obre Instagram al teu dispositiu, tria la imatge i enganxa aquest text!</i>
+        `.trim();
+
+        const sent = await sendTelegramMessage(botToken, chatId, msg);
+        if (sent) {
+          await updateDoc(doc(db, 'posting_planificacio', docSnap.id), {
+            notificatTelegram: true,
+            dataNotificatTelegram: new Date().toISOString()
+          });
+          console.log(`-> Notificació de publicació enviada automàticament per a '${cleanTitol}'.`);
+          count++;
+        }
+      }
+    }
+
+    return count;
+  } catch (err) {
+    console.error("Error revisant posting_planificacio:", err.message);
+    return 0;
+  }
+}
+
 async function run() {
   console.log("=== Comprovador de Programacions de Mínim Món ===");
   console.log("Hora actual:", new Date().toISOString());
@@ -166,8 +243,9 @@ async function run() {
 
   const notifProds = await processCollection('productes', 'producte', botToken, chatId);
   const notifProjs = await processCollection('projectes', 'projecte', botToken, chatId);
+  const notifPosting = await processPostingSchedules(botToken, chatId);
 
-  console.log(`\nComprovació finalitzada. Notificacions enviades: ${notifProds + notifProjs}`);
+  console.log(`\nComprovació finalitzada. Notificacions enviades: ${notifProds + notifProjs + notifPosting}`);
   process.exit(0);
 }
 

@@ -2,8 +2,8 @@ name: Comprovador de Programació i Avisos Telegram
 
 on:
   schedule:
-    # S'executa cada hora al minut 0 (100% gratuït dins dels 2.000 minuts/mes de GitHub Actions)
-    - cron: '0 * * * *'
+    # S'executa cada 30 minuts de manera automàtica (100% gratuït dins dels 2.000 minuts/mes de GitHub Actions)
+    - cron: '*/30 * * * *'
   # Permet executar-lo manualment des de la pestanya 'Actions' de GitHub quan es vulgui
   workflow_dispatch:
 

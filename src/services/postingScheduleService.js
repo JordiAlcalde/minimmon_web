@@ -18,6 +18,7 @@ import {
   onSnapshot,
   serverTimestamp 
 } from 'firebase/firestore';
+import { sendTelegramPostingReminder } from '../utils/telegramUtils';
 
 export const POSTING_SCHEDULE_COLLECTION = 'posting_planificacio';
 
@@ -206,15 +207,21 @@ export async function deleteScheduledPost(id) {
 }
 
 /**
- * Canvia ràpidament la data d'una publicació
+ * Canvia ràpidament la data i opcionalment l'hora d'una publicació,
+ * reiniciant l'avís automàtic de Telegram per a la nova data
  */
-export async function updatePostDate(id, newDate) {
+export async function updatePostDate(id, newDate, newTime = null) {
   if (!id || !newDate) return;
   const docRef = doc(db, POSTING_SCHEDULE_COLLECTION, id);
-  await updateDoc(docRef, {
+  const updateData = {
     dataPublicacio: newDate,
+    notificatTelegram: false,
     updatedAt: serverTimestamp()
-  });
+  };
+  if (newTime !== null) {
+    updateData.horaPublicacio = newTime;
+  }
+  await updateDoc(docRef, updateData);
 }
 
 /**
@@ -296,3 +303,54 @@ export function analyzeEditorialMix(posts = []) {
     suggestedNextType: minCategory
   };
 }
+
+/**
+ * Comprova si hi ha publicacions programades que han assolit el seu dia i hora
+ * i que encara no han estat notificades per Telegram, enviant l'avís automàticament
+ * i marcant-les a Firestore per no duplicar mai l'enviament.
+ * @param {Array} posts - Llista de publicacions planificades de Firestore
+ * @returns {Promise<number>} - Nombre d'avisos enviats
+ */
+export async function checkAndNotifyDuePostingSchedules(posts = []) {
+  if (!Array.isArray(posts) || posts.length === 0) return 0;
+
+  const now = Date.now();
+  let count = 0;
+
+  for (const post of posts) {
+    // Només posts pendents i no notificats anteriorment
+    if (!post || post.estat === 'publicada' || post.notificatTelegram) continue;
+    if (!post.dataPublicacio) continue;
+
+    const hora = post.horaPublicacio || '10:00';
+    const [h, m] = hora.split(':').map(Number);
+    const [year, month, day] = post.dataPublicacio.split('-').map(Number);
+
+    const postDate = new Date(year, month - 1, day, h || 10, m || 0, 0);
+    const postTime = postDate.getTime();
+
+    // Marge de seguretat de fins a 7 dies per si l'ordinador ha estat apagat
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+
+    if (now >= postTime && postTime >= sevenDaysAgo) {
+      try {
+        console.log(`[Posting Schedule] Enviant avís automàtic per al post: "${post.title || post.id}" (${post.dataPublicacio} ${hora}h)`);
+        const ok = await sendTelegramPostingReminder({ post });
+        if (ok && post.id) {
+          const docRef = doc(db, POSTING_SCHEDULE_COLLECTION, post.id);
+          await updateDoc(docRef, {
+            notificatTelegram: true,
+            dataNotificatTelegram: new Date().toISOString()
+          });
+          count++;
+          console.log(`[Posting Schedule] Avís automàtic enviat i registrat amb èxit per a "${post.title || post.id}"`);
+        }
+      } catch (err) {
+        console.warn(`[Posting Schedule] Error enviant avís automàtic a Telegram:`, err);
+      }
+    }
+  }
+
+  return count;
+}
+

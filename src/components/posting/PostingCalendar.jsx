@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -19,7 +19,8 @@ import {
   Copy,
   Check,
   Eye,
-  Info
+  Info,
+  Bell
 } from 'lucide-react';
 import { 
   POST_CONTENT_TYPES, 
@@ -30,7 +31,8 @@ import {
   updatePostDate, 
   togglePostStatus, 
   shiftPendingPostsInCascade, 
-  analyzeEditorialMix 
+  analyzeEditorialMix,
+  checkAndNotifyDuePostingSchedules
 } from '../../services/postingScheduleService';
 import { sendTelegramPostingReminder } from '../../utils/telegramUtils';
 import { resolveMediaUrl } from '../../utils/mediaUtils';
@@ -67,6 +69,18 @@ export default function PostingCalendar({
   const [isShifting, setIsShifting] = useState(false);
   const [telegramStatus, setTelegramStatus] = useState(null);
   const [copiedPostId, setCopiedPostId] = useState(null);
+
+  // Comprovació automàtica en segon pla d'avisos que han assolit data i hora
+  useEffect(() => {
+    if (!scheduledPosts || scheduledPosts.length === 0) return;
+    checkAndNotifyDuePostingSchedules(scheduledPosts);
+
+    const intervalId = setInterval(() => {
+      checkAndNotifyDuePostingSchedules(scheduledPosts);
+    }, 60000); // revisa cada minut mentre el calendari està obert
+
+    return () => clearInterval(intervalId);
+  }, [scheduledPosts]);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -220,8 +234,9 @@ export default function PostingCalendar({
                   {scheduledPosts.filter(p => p.estat !== 'publicada').length} pendents
                 </span>
               </h2>
-              <p className="text-xs text-slate-500">
-                Distribueix les publicacions amb calma, espaiades i amb avís directe al teu Telegram.
+              <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span><b>Avisos automàtics per Telegram:</b> Rebràs el missatge automàticament al teu mòbil el dia i hora establerts.</span>
               </p>
             </div>
           </div>
@@ -462,8 +477,14 @@ export default function PostingCalendar({
                                 <span>Fet</span>
                               </span>
                             ) : (
-                              <span className="text-[9px] font-mono text-slate-400">
-                                {post.horaPublicacio || '10h'}
+                              <span 
+                                className={`text-[9px] font-mono flex items-center gap-0.5 ${
+                                  post.notificatTelegram ? 'text-sky-700 font-bold' : 'text-slate-500'
+                                }`}
+                                title={post.notificatTelegram ? "Avís automàtic de Telegram ja enviat ✓" : `Avís automàtic programat a les ${post.horaPublicacio || '10:00'}h`}
+                              >
+                                <Bell className={`w-2.5 h-2.5 ${post.notificatTelegram ? 'text-sky-600' : 'text-slate-400'}`} />
+                                <span>{post.horaPublicacio || '10h'}</span>
                               </span>
                             )}
                           </div>
@@ -555,6 +576,16 @@ export default function PostingCalendar({
                             Pendent
                           </span>
                         )}
+
+                        {post.notificatTelegram ? (
+                          <span className="text-[10px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full flex items-center gap-1" title="L'avís automàtic ja s'ha enviat al teu Telegram ✓">
+                            <Check className="w-2.5 h-2.5 text-sky-600" /> Avís enviat
+                          </span>
+                        ) : !isPublished ? (
+                          <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full flex items-center gap-1" title={`Rebràs l'avís automàticament a Telegram el dia ${post.dataPublicacio} a les ${post.horaPublicacio || '10:00'}h`}>
+                            <Bell className="w-2.5 h-2.5 text-sky-600" /> Avís automàtic {post.horaPublicacio || '10:00'}h
+                          </span>
+                        ) : null}
                       </div>
 
                       <h4 className="font-serif font-bold text-sm text-[#3D2B1F] truncate">
@@ -579,7 +610,7 @@ export default function PostingCalendar({
                       type="button"
                       onClick={() => handleSendTelegram(post)}
                       className="p-2 rounded-xl text-slate-600 hover:text-sky-700 hover:bg-sky-50 border border-outline/15 transition-all cursor-pointer"
-                      title="Enviar avís i text ara a Telegram"
+                      title={post.notificatTelegram ? "Reenviar recordatori manualment a Telegram" : "Avançar o provar l'avís a Telegram ara"}
                     >
                       <Send className="w-4 h-4" />
                     </button>
@@ -714,17 +745,31 @@ export default function PostingCalendar({
               </p>
             </div>
 
-            {/* Reprogramació ràpida de data */}
-            <div className="flex items-center justify-between p-2.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs">
-              <span className="font-bold text-amber-950">Moure de data:</span>
-              <div className="flex items-center gap-1.5">
+            {/* Reprogramació ràpida de data i hora */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50/70 rounded-xl border border-amber-200/70 text-xs">
+              <div>
+                <span className="font-bold text-amber-950 block">Moure data i hora de publicació:</span>
+                <span className="text-[11px] text-amber-800">L'avís automàtic es reprogramarà per a la nova cita.</span>
+              </div>
+              <div className="flex items-center gap-1.5 self-end sm:self-center">
                 <input
                   type="date"
                   value={selectedPostDetail.dataPublicacio}
                   onChange={(e) => {
                     if (e.target.value) {
-                      updatePostDate(selectedPostDetail.id, e.target.value);
-                      setSelectedPostDetail(prev => ({ ...prev, dataPublicacio: e.target.value }));
+                      updatePostDate(selectedPostDetail.id, e.target.value, selectedPostDetail.horaPublicacio || '10:00');
+                      setSelectedPostDetail(prev => ({ ...prev, dataPublicacio: e.target.value, notificatTelegram: false }));
+                    }
+                  }}
+                  className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-xs text-slate-800 font-mono font-bold cursor-pointer"
+                />
+                <input
+                  type="time"
+                  value={selectedPostDetail.horaPublicacio || '10:00'}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      updatePostDate(selectedPostDetail.id, selectedPostDetail.dataPublicacio, e.target.value);
+                      setSelectedPostDetail(prev => ({ ...prev, horaPublicacio: e.target.value, notificatTelegram: false }));
                     }
                   }}
                   className="px-2 py-1 rounded-lg bg-white border border-amber-300 text-xs text-slate-800 font-mono font-bold cursor-pointer"
@@ -732,16 +777,34 @@ export default function PostingCalendar({
               </div>
             </div>
 
-            {/* Botons d'acció */}
-            <div className="flex items-center justify-between pt-2 border-t border-outline/10">
+            {/* Estat de l'avís automàtic per Telegram */}
+            <div className="flex items-center justify-between p-3 bg-sky-50/80 rounded-xl border border-sky-200/80 text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center shrink-0">
+                  <Bell className="w-4 h-4 text-sky-700" />
+                </div>
+                <div>
+                  <span className="font-bold text-sky-950 block">Avís automàtic a Telegram:</span>
+                  <span className="text-[11px] text-sky-850">
+                    {selectedPostDetail.notificatTelegram
+                      ? "✓ Ja s'ha enviat automàticament al teu Telegram"
+                      : `Programat automàticament per al ${selectedPostDetail.dataPublicacio} a les ${selectedPostDetail.horaPublicacio || '10:00'}h`}
+                  </span>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => handleSendTelegram(selectedPostDetail)}
-                className="px-3 py-1.5 rounded-xl border border-sky-300 hover:bg-sky-50 text-sky-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-white hover:bg-sky-100 border border-sky-300 text-sky-900 font-semibold text-[11px] shrink-0 flex items-center gap-1 cursor-pointer shadow-2xs"
+                title={selectedPostDetail.notificatTelegram ? "Reenviar recordatori manualment a Telegram" : "Avançar o provar l'avís ara mateix"}
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Enviar avís a Telegram</span>
+                <Send className="w-3 h-3 text-sky-600" />
+                <span>{selectedPostDetail.notificatTelegram ? 'Reenviar' : 'Provar ara'}</span>
               </button>
+            </div>
+
+            {/* Botons d'acció */}
+            <div className="flex items-center justify-end pt-2 border-t border-outline/10">
 
               <div className="flex items-center gap-2">
                 <button
