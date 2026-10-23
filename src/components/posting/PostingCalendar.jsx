@@ -465,12 +465,19 @@ export default function PostingCalendar({
                           }`}
                         >
                           <div className="flex items-center justify-between gap-1">
-                            <span
-                              className="text-[9px] font-bold px-1.5 py-0.2 rounded-md truncate"
-                              style={{ backgroundColor: typeMeta.bgLight, color: typeMeta.color }}
-                            >
-                              {typeMeta.icon} {typeMeta.label}
-                            </span>
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span
+                                className="text-[9px] font-bold px-1.5 py-0.2 rounded-md truncate"
+                                style={{ backgroundColor: typeMeta.bgLight, color: typeMeta.color }}
+                              >
+                                {typeMeta.icon} {typeMeta.label}
+                              </span>
+                              {(post.postMode === 'carousel' || post.postMode === 'carrusel') && (
+                                <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300/60 shrink-0" title={`Carrusel de ${post.slides?.length || 0} diapositives`}>
+                                  📸 {post.slides?.length || ''}
+                                </span>
+                              )}
+                            </div>
                             {isPublished ? (
                               <span className="text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
                                 <CheckCircle2 className="w-2.5 h-2.5" />
@@ -705,6 +712,11 @@ export default function PostingCalendar({
                 <div className="text-[11px] text-slate-500 pt-1 space-y-0.5">
                   <p>Format: <strong className="font-mono">{selectedPostDetail.format || '4:5'}</strong></p>
                   <p>Plantilla: <strong className="capitalize">{selectedPostDetail.template || 'atelier'}</strong></p>
+                  {(selectedPostDetail.postMode === 'carousel' || selectedPostDetail.postMode === 'carrusel') && (
+                    <p className="text-amber-900 font-bold flex items-center gap-1">
+                      📸 Carrusel preparat ({selectedPostDetail.slides?.length || 0} diapositives)
+                    </p>
+                  )}
                   {selectedPostDetail.customLayers?.length > 0 && (
                     <p className="text-amber-800 font-medium">
                       ✨ Inclou {selectedPostDetail.customLayers.filter(l => l.enabled).length} capes de text personalitzades

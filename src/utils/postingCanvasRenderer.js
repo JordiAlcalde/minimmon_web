@@ -68,10 +68,16 @@ export function loadImageAsync(src) {
     }, 6000);
 
     const isDataOrBlob = src.startsWith('data:') || src.startsWith('blob:');
+    const isRemoteHttp = src.startsWith('http://') || src.startsWith('https://');
+
     const img = new Image();
-    if (!isDataOrBlob) {
+    // Només s'aplica crossOrigin a imatges remotes HTTP/HTTPS.
+    // Les imatges locals relatives (./imatges/..., /images/..., data:, blob:) no ho requereixen
+    // i pot provocar fallades de seguretat CORS en entorns locals.
+    if (isRemoteHttp) {
       img.crossOrigin = 'anonymous';
     }
+
     img.onload = () => {
       if (!done) {
         done = true;
@@ -80,7 +86,7 @@ export function loadImageAsync(src) {
       }
     };
     img.onerror = () => {
-      if (isDataOrBlob) {
+      if (isDataOrBlob || !isRemoteHttp) {
         if (!done) {
           done = true;
           clearTimeout(timeout);
@@ -88,7 +94,7 @@ export function loadImageAsync(src) {
         }
         return;
       }
-      // Intent sense anonymous si falla el header CORS
+      // Intent sense anonymous si falla el header CORS en imatges remotes
       const fallback = new Image();
       fallback.onload = () => {
         if (!done) {

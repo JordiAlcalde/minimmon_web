@@ -473,35 +473,65 @@ export default function PostingApp({ setActiveTab }) {
   ]);
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
   const isSyncingSlideRef = useRef(false);
+  const isLoadedFromScheduleRef = useRef(false);
+  const prevSelectedItemRef = useRef(null);
+  const prevCopyStyleRef = useRef(null);
   const [isDownloadingCarousel, setIsDownloadingCarousel] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(null);
 
-  // Sincronització: Diapositiva activa -> Controls locals
-  useEffect(() => {
-    if (postMode === 'carousel' && slides[activeSlideIdx]) {
-      isSyncingSlideRef.current = true;
-      const s = slides[activeSlideIdx];
-      setTitle(s.title || '');
-      setSubtitle(s.subtitle || '');
-      if (s.photoUrl) setSelectedPhotoUrl(s.photoUrl);
-      setTagText(s.tagText || '✨ Personalització inclosa');
-      setImageFit(s.imageFit || 'cover');
-      setBlurIntensity(s.blurIntensity ?? 35);
-      setShowTag(s.showTag ?? true);
-      setShowLogo(s.showLogo ?? true);
-      if (s.customLayers && Array.isArray(s.customLayers) && s.customLayers.length > 0) {
-        setCustomLayers(s.customLayers);
-      } else {
-        setCustomLayers(INITIAL_CUSTOM_LAYERS);
-      }
-      const timer = setTimeout(() => {
-        isSyncingSlideRef.current = false;
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [activeSlideIdx, postMode]);
+  // Transició atòmica i síncrona entre diapositives del carrusel
+  const handleSelectSlide = (targetIdx) => {
+    if (targetIdx === activeSlideIdx || targetIdx < 0 || targetIdx >= slides.length) return;
 
-  // Sincronització: Canvis a Controls locals -> Diapositiva activa
+    // 1. Guardem síncronament els controls actuals a la diapositiva que deixem
+    const updatedSlides = slides.map((s, idx) => {
+      if (idx === activeSlideIdx) {
+        return {
+          ...s,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+      }
+      return s;
+    });
+
+    const targetSlide = updatedSlides[targetIdx];
+    if (!targetSlide) return;
+
+    isSyncingSlideRef.current = true;
+    setSlides(updatedSlides);
+    setActiveSlideIdx(targetIdx);
+
+    // 2. Carreguem síncronament la diapositiva de destí als controls
+    setTitle(targetSlide.title || '');
+    setSubtitle(targetSlide.subtitle || '');
+    const pUrl = targetSlide.photoUrl || '';
+    setSelectedPhotoUrl(pUrl ? (pUrl.startsWith('data:') || pUrl.startsWith('http') ? pUrl : resolveMediaUrl(pUrl)) : '');
+    setTagText(targetSlide.tagText !== undefined ? targetSlide.tagText : '✨ Personalització inclosa');
+    setImageFit(targetSlide.imageFit || 'cover');
+    setBlurIntensity(targetSlide.blurIntensity ?? 35);
+    setShowTag(targetSlide.showTag ?? true);
+    setShowLogo(targetSlide.showLogo ?? true);
+    if (Array.isArray(targetSlide.customLayers) && targetSlide.customLayers.length > 0) {
+      setCustomLayers(targetSlide.customLayers);
+    } else {
+      setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+    }
+
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 150);
+  };
+
+  // Sincronització: Canvis a Controls locals mentre s'escriu -> Diapositiva activa
+  // IMPORTANT: No depèn d'activeSlideIdx per evitar sobreescriure diapositives en canviar de pestanya
   useEffect(() => {
     if (postMode === 'carousel' && !isSyncingSlideRef.current) {
       setSlides(prev => {
@@ -536,7 +566,7 @@ export default function PostingApp({ setActiveTab }) {
         return updated;
       });
     }
-  }, [title, subtitle, selectedPhotoUrl, tagText, imageFit, blurIntensity, showTag, showLogo, customLayers, postMode, activeSlideIdx]);
+  }, [title, subtitle, selectedPhotoUrl, tagText, imageFit, blurIntensity, showTag, showLogo, customLayers, postMode]);
 
   // Canvi de Mode (Post Simple vs Carrusel)
   const handleSwitchMode = (newMode) => {
@@ -544,6 +574,10 @@ export default function PostingApp({ setActiveTab }) {
     setPostMode(newMode);
     if (newMode === 'carousel') {
       setSlides(prev => {
+        // Si ja tenim diapositives vàlides personalitzades, no les sobreescrivim
+        if (Array.isArray(prev) && prev.length >= 2 && prev.some(s => s.title && s.title !== 'Mínim Món a la Fira')) {
+          return prev;
+        }
         const f1 = selectedPhotoUrl || availableImages[0] || resolveMediaUrl('images/tots_productes.jpg');
         const f2 = availableImages[1] || availableImages[0] || f1;
         const f3 = availableImages[2] || availableImages[1] || f1;
@@ -557,7 +591,8 @@ export default function PostingApp({ setActiveTab }) {
             imageFit: imageFit || 'cover',
             blurIntensity: blurIntensity ?? 35,
             showTag: true,
-            showLogo: true
+            showLogo: true,
+            customLayers: customLayers || []
           },
           {
             id: 'slide-2',
@@ -568,7 +603,8 @@ export default function PostingApp({ setActiveTab }) {
             imageFit: prev[1]?.imageFit || 'cover',
             blurIntensity: prev[1]?.blurIntensity ?? 35,
             showTag: true,
-            showLogo: true
+            showLogo: true,
+            customLayers: []
           },
           {
             id: 'slide-3',
@@ -579,7 +615,8 @@ export default function PostingApp({ setActiveTab }) {
             imageFit: prev[2]?.imageFit || 'cover',
             blurIntensity: prev[2]?.blurIntensity ?? 35,
             showTag: true,
-            showLogo: true
+            showLogo: true,
+            customLayers: []
           }
         ];
       });
@@ -603,10 +640,50 @@ export default function PostingApp({ setActiveTab }) {
       imageFit: 'cover',
       blurIntensity: 35,
       showTag: true,
-      showLogo: true
+      showLogo: true,
+      customLayers: INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' }))
     };
-    setSlides(prev => [...prev, newSlide]);
-    setActiveSlideIdx(slides.length);
+
+    // 1. Guardem primer la diapositiva actual
+    const flushedSlides = slides.map((s, idx) => {
+      if (idx === activeSlideIdx) {
+        return {
+          ...s,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+      }
+      return s;
+    });
+
+    const newTargetIdx = flushedSlides.length;
+    const finalSlides = [...flushedSlides, newSlide];
+
+    isSyncingSlideRef.current = true;
+    setSlides(finalSlides);
+    setActiveSlideIdx(newTargetIdx);
+
+    // 2. Carreguem síncronament la nova diapositiva als controls
+    setTitle(newSlide.title);
+    setSubtitle(newSlide.subtitle);
+    setSelectedPhotoUrl(newSlide.photoUrl ? (newSlide.photoUrl.startsWith('data:') || newSlide.photoUrl.startsWith('http') ? newSlide.photoUrl : resolveMediaUrl(newSlide.photoUrl)) : '');
+    setTagText(newSlide.tagText);
+    setImageFit(newSlide.imageFit);
+    setBlurIntensity(newSlide.blurIntensity);
+    setShowTag(newSlide.showTag);
+    setShowLogo(newSlide.showLogo);
+    setCustomLayers(newSlide.customLayers);
+
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 150);
   };
 
   const handleRemoveSlide = (idxToRemove) => {
@@ -614,34 +691,122 @@ export default function PostingApp({ setActiveTab }) {
       alert("Un carrusel ha de contenir com a mínim 2 diapositives.");
       return;
     }
-    setSlides(prev => prev.filter((_, i) => i !== idxToRemove));
-    if (activeSlideIdx >= slides.length - 1) {
-      setActiveSlideIdx(Math.max(0, slides.length - 2));
+    const flushedSlides = slides.map((s, idx) => {
+      if (idx === activeSlideIdx) {
+        return {
+          ...s,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+      }
+      return s;
+    });
+
+    const remaining = flushedSlides.filter((_, i) => i !== idxToRemove);
+    let newTargetIdx = activeSlideIdx;
+    if (activeSlideIdx >= remaining.length) {
+      newTargetIdx = remaining.length - 1;
     } else if (activeSlideIdx === idxToRemove) {
-      setActiveSlideIdx(Math.max(0, idxToRemove - 1));
+      newTargetIdx = Math.max(0, idxToRemove - 1);
     }
+
+    const targetSlide = remaining[newTargetIdx];
+
+    isSyncingSlideRef.current = true;
+    setSlides(remaining);
+    setActiveSlideIdx(newTargetIdx);
+
+    if (targetSlide) {
+      setTitle(targetSlide.title || '');
+      setSubtitle(targetSlide.subtitle || '');
+      const pUrl = targetSlide.photoUrl || '';
+      setSelectedPhotoUrl(pUrl ? (pUrl.startsWith('data:') || pUrl.startsWith('http') ? pUrl : resolveMediaUrl(pUrl)) : '');
+      setTagText(targetSlide.tagText !== undefined ? targetSlide.tagText : '✨ Personalització inclosa');
+      setImageFit(targetSlide.imageFit || 'cover');
+      setBlurIntensity(targetSlide.blurIntensity ?? 35);
+      setShowTag(targetSlide.showTag ?? true);
+      setShowLogo(targetSlide.showLogo ?? true);
+      if (Array.isArray(targetSlide.customLayers) && targetSlide.customLayers.length > 0) {
+        setCustomLayers(targetSlide.customLayers);
+      } else {
+        setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+      }
+    }
+
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 150);
   };
 
   const handleDuplicateSlide = (idxToDup) => {
     if (slides.length >= 10) return;
-    const orig = slides[idxToDup];
+    const flushedSlides = slides.map((s, idx) => {
+      if (idx === activeSlideIdx) {
+        return {
+          ...s,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+      }
+      return s;
+    });
+
+    const orig = flushedSlides[idxToDup];
+    if (!orig) return;
     const dup = {
       ...orig,
       id: `slide-${Date.now()}`,
       title: `${orig.title} (còpia)`
     };
-    const updated = [...slides];
-    updated.splice(idxToDup + 1, 0, dup);
+
+    const updated = [...flushedSlides];
+    const newTargetIdx = idxToDup + 1;
+    updated.splice(newTargetIdx, 0, dup);
+
+    isSyncingSlideRef.current = true;
     setSlides(updated);
-    setActiveSlideIdx(idxToDup + 1);
+    setActiveSlideIdx(newTargetIdx);
+
+    setTitle(dup.title || '');
+    setSubtitle(dup.subtitle || '');
+    const pUrl = dup.photoUrl || '';
+    setSelectedPhotoUrl(pUrl ? (pUrl.startsWith('data:') || pUrl.startsWith('http') ? pUrl : resolveMediaUrl(pUrl)) : '');
+    setTagText(dup.tagText !== undefined ? dup.tagText : '✨ Personalització inclosa');
+    setImageFit(dup.imageFit || 'cover');
+    setBlurIntensity(dup.blurIntensity ?? 35);
+    setShowTag(dup.showTag ?? true);
+    setShowLogo(dup.showLogo ?? true);
+    if (Array.isArray(dup.customLayers) && dup.customLayers.length > 0) {
+      setCustomLayers(dup.customLayers);
+    } else {
+      setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+    }
+
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 150);
   };
 
   const handlePrevSlide = () => {
-    if (activeSlideIdx > 0) setActiveSlideIdx(activeSlideIdx - 1);
+    if (activeSlideIdx > 0) handleSelectSlide(activeSlideIdx - 1);
   };
 
   const handleNextSlide = () => {
-    if (activeSlideIdx < slides.length - 1) setActiveSlideIdx(activeSlideIdx + 1);
+    if (activeSlideIdx < slides.length - 1) handleSelectSlide(activeSlideIdx + 1);
   };
 
   // Descàrrega seqüencial de totes les diapositives del carrusel en fitxers PNG numerats
@@ -766,6 +931,10 @@ export default function PostingApp({ setActiveTab }) {
   // Càrrega d'un post des del calendari cap a l'editor
   const handleLoadScheduledPost = (post) => {
     if (!post) return;
+    // Bloquegem efectes de sincronització inversa i de regeneració de copy mentre carreguem
+    isSyncingSlideRef.current = true;
+    isLoadedFromScheduleRef.current = true;
+
     setEditingScheduledPostId(post.id);
     setScheduledDate(post.dataPublicacio || formatDateISO(new Date()));
     setScheduledTime(post.horaPublicacio || '10:00');
@@ -774,48 +943,82 @@ export default function PostingApp({ setActiveTab }) {
 
     if (post.format) setFormat(post.format);
     if (post.template) setTemplate(post.template);
-    if (post.title !== undefined) setTitle(post.title);
-    if (post.subtitle !== undefined) setSubtitle(post.subtitle);
-    if (post.tagText !== undefined) setTagText(post.tagText);
-    if (post.priceText !== undefined) setPriceText(post.priceText);
-    if (post.showTag !== undefined) setShowTag(post.showTag);
-    if (post.showPrice !== undefined) setShowPrice(post.showPrice);
-    if (post.photoUrl !== undefined) setSelectedPhotoUrl(post.photoUrl);
-    if (post.imageFit) setImageFit(post.imageFit);
-    if (post.blurIntensity !== undefined) setBlurIntensity(post.blurIntensity);
+    if (post.textScale !== undefined) setTextScale(post.textScale);
+    else setTextScale(1);
     if (post.headerSlogan) setHeaderSlogan(post.headerSlogan);
 
-    if (Array.isArray(post.customLayers) && post.customLayers.length > 0) {
-      setCustomLayers(post.customLayers);
-    } else {
-      setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
-    }
+    // Normalització del mode carrusel ('carousel' o 'carrusel')
+    const isCarousel = post.postMode === 'carousel' || post.postMode === 'carrusel';
+    const targetMode = isCarousel ? 'carousel' : (post.postMode || 'single');
+    setPostMode(targetMode);
 
-    if (post.postMode) setPostMode(post.postMode);
-    if (Array.isArray(post.slides) && post.slides.length > 0) {
+    if (isCarousel && Array.isArray(post.slides) && post.slides.length > 0) {
       setSlides(post.slides);
       setActiveSlideIdx(0);
+
+      // Carreguem directament les dades de la portada (diapositiva 0) als controls
+      const s0 = post.slides[0] || {};
+      setTitle(s0.title !== undefined ? s0.title : (post.title || ''));
+      setSubtitle(s0.subtitle !== undefined ? s0.subtitle : (post.subtitle || ''));
+      const photoToUse = s0.photoUrl || post.photoUrl || '';
+      setSelectedPhotoUrl(photoToUse ? (photoToUse.startsWith('data:') || photoToUse.startsWith('http') ? photoToUse : resolveMediaUrl(photoToUse)) : '');
+      setTagText(s0.tagText !== undefined ? s0.tagText : (post.tagText || '✨ Personalització inclosa'));
+      setImageFit(s0.imageFit || post.imageFit || 'cover');
+      setBlurIntensity(s0.blurIntensity ?? post.blurIntensity ?? 35);
+      setShowTag(s0.showTag ?? post.showTag ?? true);
+      setShowLogo(s0.showLogo ?? post.showLogo ?? true);
+
+      if (Array.isArray(s0.customLayers) && s0.customLayers.length > 0) {
+        setCustomLayers(s0.customLayers);
+      } else if (Array.isArray(post.customLayers) && post.customLayers.length > 0) {
+        setCustomLayers(post.customLayers);
+      } else {
+        setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+      }
+    } else {
+      if (post.title !== undefined) setTitle(post.title);
+      if (post.subtitle !== undefined) setSubtitle(post.subtitle);
+      if (post.tagText !== undefined) setTagText(post.tagText);
+      if (post.priceText !== undefined) setPriceText(post.priceText);
+      if (post.showTag !== undefined) setShowTag(post.showTag);
+      if (post.showPrice !== undefined) setShowPrice(post.showPrice);
+      const photoToUse = post.photoUrl || '';
+      setSelectedPhotoUrl(photoToUse ? (photoToUse.startsWith('data:') || photoToUse.startsWith('http') ? photoToUse : resolveMediaUrl(photoToUse)) : '');
+      if (post.imageFit) setImageFit(post.imageFit);
+      if (post.blurIntensity !== undefined) setBlurIntensity(post.blurIntensity);
+
+      if (Array.isArray(post.customLayers) && post.customLayers.length > 0) {
+        setCustomLayers(post.customLayers);
+      } else {
+        setCustomLayers(INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' })));
+      }
     }
 
     setGeneratedCopy(post.copyText || '');
-
-    // L'assumpte és el breu tema inicial (ex: "Fira d'artesania"), mai el text sencer del copy
     setFreeTopic(post.freeTopic || '');
+    const activeSourceType = post.sourceType || (post.selectedItemId ? 'productes' : 'custom');
+    setSourceType(activeSourceType);
 
-    if (post.sourceType) setSourceType(post.sourceType);
-
-    if (post.textScale !== undefined) setTextScale(post.textScale);
-    else setTextScale(1);
-
+    let resolvedItem = null;
     if (post.selectedItemId) {
       const allItems = [...dbProducts, ...dbProjects];
       const match = allItems.find(it => it.id === post.selectedItemId);
       if (match) {
-        setSelectedItem(match);
+        resolvedItem = match;
+      } else {
+        resolvedItem = { id: post.selectedItemId, nom: post.title || 'Element guardat' };
       }
-    } else if (post.sourceType === 'custom') {
-      setSelectedItem({ nom: 'Tema lliure' });
+    } else {
+      resolvedItem = { nom: activeSourceType === 'custom' ? 'Tema lliure' : (post.title || 'Element guardat') };
     }
+    setSelectedItem(resolvedItem);
+    prevSelectedItemRef.current = resolvedItem;
+    prevCopyStyleRef.current = copyStyle;
+
+    // Alliberem el bloqueig un cop assentat el render inicial
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 350);
 
     setActiveMainTab('editor');
     setSaveScheduleToast(`Publicació del ${post.dataPublicacio} carregada a l'editor!`);
@@ -871,6 +1074,30 @@ export default function PostingApp({ setActiveTab }) {
   const handleSaveCurrentToSchedule = async () => {
     setIsSavingSchedule(true);
     try {
+      // Sincronització explícita de la diapositiva activa amb els controls actuals abans de desar
+      const isCarousel = postMode === 'carousel' || postMode === 'carrusel';
+      const syncedSlides = (isCarousel && Array.isArray(slides))
+        ? slides.map((s, idx) => {
+            if (idx === activeSlideIdx) {
+              return {
+                ...s,
+                title,
+                subtitle,
+                photoUrl: selectedPhotoUrl,
+                tagText,
+                imageFit,
+                blurIntensity,
+                showTag,
+                showLogo,
+                customLayers
+              };
+            }
+            return s;
+          })
+        : slides;
+
+      const coverSlide = (isCarousel && Array.isArray(syncedSlides) && syncedSlides[0]) ? syncedSlides[0] : null;
+
       const postPayload = {
         id: editingScheduledPostId || undefined,
         dataPublicacio: scheduledDate,
@@ -879,25 +1106,25 @@ export default function PostingApp({ setActiveTab }) {
         notes: scheduledNotes,
         estat: 'pendent',
 
-        // Contingut visual
+        // Contingut visual (per a carrusels, la portada o arrel reflecteix la diapo 1)
         format,
         template,
-        title,
-        subtitle,
-        tagText,
+        title: isCarousel && coverSlide ? (coverSlide.title || title) : title,
+        subtitle: isCarousel && coverSlide ? (coverSlide.subtitle || subtitle) : subtitle,
+        tagText: isCarousel && coverSlide ? (coverSlide.tagText || tagText) : tagText,
         priceText,
-        showTag,
+        showTag: isCarousel && coverSlide ? (coverSlide.showTag ?? showTag) : showTag,
         showPrice,
-        photoUrl: selectedPhotoUrl,
-        imageFit,
-        blurIntensity,
+        photoUrl: isCarousel && coverSlide ? (coverSlide.photoUrl || selectedPhotoUrl) : selectedPhotoUrl,
+        imageFit: isCarousel && coverSlide ? (coverSlide.imageFit || imageFit) : imageFit,
+        blurIntensity: isCarousel && coverSlide ? (coverSlide.blurIntensity ?? blurIntensity) : blurIntensity,
         headerSlogan,
-        customLayers,
+        customLayers: isCarousel && coverSlide ? (coverSlide.customLayers || customLayers) : customLayers,
         textScale: textScale || 1,
 
         // Mode carrusel
-        postMode,
-        slides,
+        postMode: isCarousel ? 'carousel' : 'single',
+        slides: syncedSlides,
 
         // Text de redacció i assumpte per separat
         copyText: generatedCopy || '',
@@ -912,22 +1139,22 @@ export default function PostingApp({ setActiveTab }) {
       setSaveScheduleToast(`✓ Publicació guardada al calendari per al ${scheduledDate}!`);
       setTimeout(() => setSaveScheduleToast(null), 3500);
     } catch (e) {
-      console.error(e);
-      alert("Error guardant la publicació a Firestore. Comprova la connexió.");
+      console.error("Error guardant la publicació a Firestore:", e);
+      const detail = e?.message ? ` (${e.message})` : '';
+      alert(`Error guardant la publicació a Firestore${detail}. Revisa la connexió o la mida de les imatges.`);
     } finally {
       setIsSavingSchedule(false);
     }
   };
 
-  // Selecció inicial del primer producte quan carreguen les dades
+  // Selecció inicial del primer producte quan carreguen les dades (només en publicacions noves)
   useEffect(() => {
-    if (dbProducts.length > 0 && !selectedItem && sourceType === 'productes') {
+    if (dbProducts.length > 0 && !selectedItem && sourceType === 'productes' && !editingScheduledPostId) {
       const initial = dbProducts.find(p => p.nom && p.nom.toLowerCase().includes('finestra')) || dbProducts[0];
       handleSelectItem(initial, 'productes');
     }
-  }, [dbProducts]);
+  }, [dbProducts, editingScheduledPostId]);
 
-  // Canvi d'element seleccionat i càrrega automàtica de dades
   // Canvi d'element seleccionat i càrrega automàtica de dades
   const handleSelectItem = (item, type) => {
     setSelectedItem(item);
@@ -993,9 +1220,29 @@ export default function PostingApp({ setActiveTab }) {
 
   // Generador automàtic per a Productes i Projectes (només si no estem en mode tema lliure)
   useEffect(() => {
+    // Si s'ha carregat una publicació des del calendari, mai sobreescrivim el copy que té guardat l'usuari
+    if (isLoadedFromScheduleRef.current) {
+      isLoadedFromScheduleRef.current = false;
+      return;
+    }
+    // Si estem en una publicació planificada existent i ja té text de copy, mai la sobreescrivim automàticament
+    if (editingScheduledPostId && generatedCopy) {
+      return;
+    }
     if (sourceType === 'custom') return;
     if (!selectedItem) {
       setGeneratedCopy('');
+      return;
+    }
+
+    // Si estem en una publicació planificada existent i ja té text de copy, no la sobreescrivim
+    // tret que l'usuari canviï explícitament d'element seleccionat o d'estil de redacció
+    const isNewItem = prevSelectedItemRef.current !== selectedItem;
+    const isNewStyle = prevCopyStyleRef.current !== copyStyle;
+    prevSelectedItemRef.current = selectedItem;
+    prevCopyStyleRef.current = copyStyle;
+
+    if (editingScheduledPostId && !isNewItem && !isNewStyle && generatedCopy) {
       return;
     }
 
@@ -1024,11 +1271,19 @@ export default function PostingApp({ setActiveTab }) {
     setGeneratedCopy(`${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`);
   }, [selectedItem, title, subtitle, copyStyle, sourceType, showHashtags]);
 
-  // Funció per analitzar i generar copy i disseny per a Tema Lliure amb IA
-  const handleAnalyzeFreeTopic = async (customTopicText = null) => {
-    const textToAnalyze = (typeof customTopicText === 'string' ? customTopicText : freeTopic).trim();
+  // Funció per analitzar i generar copy i disseny per a qualsevol tipus de post (Productes, Projectes o Tema Lliure)
+  const handleAnalyzeCopyContent = async (customTopicText = null) => {
+    let textToAnalyze = (typeof customTopicText === 'string' ? customTopicText : freeTopic).trim();
+    
+    // Si estem en Productes o Projectes, agafem el nom i descripció de l'element seleccionat
+    if (sourceType !== 'custom' && selectedItem) {
+      const itemNom = selectedItem.nom || selectedItem.titol || title || '';
+      const itemDesc = selectedItem.descripcio || selectedItem.subtitol || selectedItem.art || subtitle || '';
+      textToAnalyze = textToAnalyze || `${itemNom}: ${itemDesc}`;
+    }
+
     if (!textToAnalyze && !title.trim()) {
-      alert("Si us plau, escriu breument de quin assumpte o novetat vols parlar en aquest post.");
+      alert("Si us plau, selecciona un producte/projecte o indica breument de què tracta el post.");
       return;
     }
 
@@ -1036,16 +1291,20 @@ export default function PostingApp({ setActiveTab }) {
     try {
       const res = await generatePostingAssistantContent({
         topic: textToAnalyze || title.trim(),
-        tone: freeTopicTone,
+        tone: sourceType === 'custom' ? freeTopicTone : copyStyle,
         imageUrl: selectedPhotoUrl,
         existingTitle: title,
-        format: format
+        format: format,
+        itemType: sourceType,
+        itemData: selectedItem
       });
 
       if (res) {
-        if (res.titol) setTitle(res.titol);
-        if (res.subtitol) setSubtitle(res.subtitol);
-        if (res.etiqueta) setTagText(res.etiqueta);
+        if (sourceType === 'custom') {
+          if (res.titol) setTitle(res.titol);
+          if (res.subtitol) setSubtitle(res.subtitol);
+          if (res.etiqueta) setTagText(res.etiqueta);
+        }
         setTopicAnalysisResult(res);
         setSelectedVariantIdx(0);
 
@@ -1056,12 +1315,14 @@ export default function PostingApp({ setActiveTab }) {
         setGeneratedCopy(finalCopy);
       }
     } catch (err) {
-      console.error("Error analitzant el tema lliure:", err);
-      alert("No s'ha pogut completar l'anàlisi automàtica. Pots redactar el text manualment.");
+      console.error("Error analitzant el copy:", err);
+      alert("No s'ha pogut completar la generació automàtica del copy. Pots redactar-lo manualment.");
     } finally {
       setIsAnalyzingTopic(false);
     }
   };
+
+  const handleAnalyzeFreeTopic = handleAnalyzeCopyContent;
 
   // Aplicar una variant de text generada per la IA
   const handleApplyVariant = (idx, variantText) => {
@@ -1203,14 +1464,42 @@ export default function PostingApp({ setActiveTab }) {
     }
   };
 
-  // Pujar imatge personalitzada des del disc
+  // Pujar imatge personalitzada des del disc amb optimització automàtica per a Firestore i Canvas
   const handleCustomImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (event) => {
-      setSelectedPhotoUrl(event.target.result);
-      if (!title) setTitle('Peça especial');
+      const rawDataUrl = event.target.result;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 850;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.68);
+        setSelectedPhotoUrl(compressedDataUrl);
+        if (!title) setTitle('Peça especial');
+      };
+      img.onerror = () => {
+        setSelectedPhotoUrl(rawDataUrl);
+        if (!title) setTitle('Peça especial');
+      };
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
   };
@@ -2792,53 +3081,56 @@ export default function PostingApp({ setActiveTab }) {
                 </h2>
               </div>
 
-              {/* Selector d'estil de text per a productes/projectes */}
-              {sourceType !== 'custom' ? (
-                <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setCopyStyle('emocional')}
-                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                      copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                    }`}
-                  >
-                    🤍 Emocional
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCopyStyle('regal')}
-                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                      copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                    }`}
-                  >
-                    🎁 Regal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCopyStyle('taller')}
-                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                      copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                    }`}
-                  >
-                    🔨 Taller
-                  </button>
-                </div>
-              ) : (
-                /* Botó ràpid per regenerar amb IA en tema lliure */
+              {/* Botons d'estil i botó generador amb IA */}
+              <div className="flex flex-wrap items-center gap-2">
+                {sourceType !== 'custom' && (
+                  <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setCopyStyle('emocional')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                        copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                      }`}
+                    >
+                      🤍 Emocional
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCopyStyle('regal')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                        copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                      }`}
+                    >
+                      🎁 Regal
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCopyStyle('taller')}
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                        copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                      }`}
+                    >
+                      🔨 Taller
+                    </button>
+                  </div>
+                )}
+
+                {/* Botó generador amb IA disponible tant per a Productes, Projectes com Tema Lliure */}
                 <button
                   type="button"
                   disabled={isAnalyzingTopic}
-                  onClick={() => handleAnalyzeFreeTopic()}
-                  className="px-3 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  onClick={() => handleAnalyzeCopyContent()}
+                  className="px-3 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Genera propostes de text noves amb IA basades en aquest producte/projecte"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Regenerar text amb IA</span>
+                  <span>{isAnalyzingTopic ? 'Generant...' : 'Generar text nou amb IA'}</span>
                 </button>
-              )}
+              </div>
             </div>
 
-            {/* Selector de variants generades per a tema lliure */}
-            {sourceType === 'custom' && topicAnalysisResult?.variantsCopy && topicAnalysisResult.variantsCopy.length > 0 && (
+            {/* Selector de variants generades per la IA (disponible per a Productes, Projectes i Tema Lliure) */}
+            {topicAnalysisResult?.variantsCopy && topicAnalysisResult.variantsCopy.length > 0 && (
               <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 animate-fadeIn">
                 <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-amber-700" /> Variants generades per l'assistent:
@@ -2986,7 +3278,7 @@ export default function PostingApp({ setActiveTab }) {
                     return (
                       <div
                         key={s.id || idx}
-                        onClick={() => setActiveSlideIdx(idx)}
+                        onClick={() => handleSelectSlide(idx)}
                         className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 select-none ${
                           isCur
                             ? 'bg-[#3D2B1F] text-white shadow-xs'

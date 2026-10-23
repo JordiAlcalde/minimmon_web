@@ -133,21 +133,132 @@ export function subscribeScheduledPosts(onUpdate, onError) {
 }
 
 /**
+ * Neteja recursiva per eliminar qualsevol camp 'undefined' abans de desar a Firestore
+ */
+function cleanForFirestore(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(cleanForFirestore).filter(x => x !== undefined);
+  }
+  if (typeof obj === 'object') {
+    // Si és un FieldValue de Firestore com serverTimestamp, mantenir-lo intacte
+    if (obj.toDate || obj._methodName || (obj.constructor && obj.constructor.name === 'FieldValue')) {
+      return obj;
+    }
+    const res = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (v !== undefined) {
+        res[k] = cleanForFirestore(v);
+      }
+    }
+    return res;
+  }
+  return obj;
+}
+
+function sanitizeLayers(layers) {
+  if (!Array.isArray(layers)) return [];
+  return layers.map((l, i) => ({
+    id: l.id || `layer-${i + 1}`,
+    name: l.name || `Capa ${i + 1}`,
+    enabled: Boolean(l.enabled),
+    text: l.text || '',
+    fontId: l.fontId || 'caveat',
+    fontName: l.fontName || 'Caveat',
+    fontFamily: l.fontFamily || "'Caveat', cursive",
+    fontSize: Number(l.fontSize) || 34,
+    maxWidthPercent: Number(l.maxWidthPercent) || 58,
+    textColor: l.textColor || '#FFFFFF',
+    bgColor: l.bgColor || '#3D2B1F',
+    bgOpacity: Number(l.bgOpacity ?? 80),
+    x: Number(l.x ?? 50),
+    y: Number(l.y ?? 28)
+  }));
+}
+
+/**
+ * Assegura que una imatge en Base64 no superi la mida recomanada (~40-60KB per foto)
+ * per garantir que carrusels multifoto mai excedeixin el límit estricte d'1 MiB de Firestore.
+ */
+async function compressDataUrlIfNeeded(dataUrl, maxDim = 800, quality = 0.65) {
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+    return dataUrl;
+  }
+  // Si ja és una imatge ultra lleugera (< 45KB), no cal recomprimir
+  if (dataUrl.length < 45000) {
+    return dataUrl;
+  }
+  if (typeof document !== 'undefined') {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+  return dataUrl;
+}
+
+/**
  * Desa o actualitza una publicació planificada a Firestore
  */
 export async function saveScheduledPost(postData) {
   try {
     const colRef = collection(db, POSTING_SCHEDULE_COLLECTION);
     const now = serverTimestamp();
+    const isCarousel = postData.postMode === 'carousel' || postData.postMode === 'carrusel';
+
+    // Per a carrusels, la foto d'arrel només és una miniatura del calendari (max 360px ~10KB)
+    // per evitar duplicar pes inútilment amb les diapositives
+    const rootMaxDim = isCarousel ? 360 : 800;
+    const rootQuality = isCarousel ? 0.60 : 0.65;
+    const compressedPhotoUrl = await compressDataUrlIfNeeded(postData.photoUrl || '', rootMaxDim, rootQuality);
+
+    // Comprimir fotos de les diapositives
+    let processedSlides = [];
+    if (Array.isArray(postData.slides)) {
+      processedSlides = await Promise.all(
+        postData.slides.map(async (s, idx) => ({
+          id: s.id || `slide-${idx + 1}`,
+          title: s.title || '',
+          subtitle: s.subtitle || '',
+          photoUrl: await compressDataUrlIfNeeded(s.photoUrl || '', 800, 0.65),
+          tagText: s.tagText || '',
+          imageFit: s.imageFit || 'cover',
+          blurIntensity: s.blurIntensity !== undefined ? Number(s.blurIntensity) : 35,
+          showTag: s.showTag !== undefined ? Boolean(s.showTag) : true,
+          showLogo: s.showLogo !== undefined ? Boolean(s.showLogo) : true,
+          customLayers: sanitizeLayers(s.customLayers)
+        }))
+      );
+    }
 
     // Dades netes que es desen
-    const payload = {
+    const rawPayload = {
       dataPublicacio: postData.dataPublicacio || formatDateISO(new Date()),
       horaPublicacio: postData.horaPublicacio || '10:00',
       estat: postData.estat || 'pendent', // 'pendent' | 'publicada'
       tipus: postData.tipus || 'producte',
       notes: postData.notes || '',
-      notificatTelegram: postData.notificatTelegram || false,
+      notificatTelegram: Boolean(postData.notificatTelegram),
 
       // Contingut visual del disseny
       format: postData.format || '4:5',
@@ -156,20 +267,20 @@ export async function saveScheduledPost(postData) {
       subtitle: postData.subtitle || '',
       tagText: postData.tagText || '',
       priceText: postData.priceText || '',
-      showTag: postData.showTag !== undefined ? postData.showTag : true,
-      showPrice: postData.showPrice !== undefined ? postData.showPrice : false,
-      photoUrl: postData.photoUrl || '',
+      showTag: postData.showTag !== undefined ? Boolean(postData.showTag) : true,
+      showPrice: postData.showPrice !== undefined ? Boolean(postData.showPrice) : false,
+      photoUrl: compressedPhotoUrl,
       imageFit: postData.imageFit || 'cover',
-      blurIntensity: postData.blurIntensity !== undefined ? postData.blurIntensity : 35,
+      blurIntensity: postData.blurIntensity !== undefined ? Number(postData.blurIntensity) : 35,
       headerSlogan: postData.headerSlogan || 'Espais en miniatura',
 
       // Capes de text lliures (Capa 1 i Capa 2)
-      customLayers: Array.isArray(postData.customLayers) ? postData.customLayers : [],
-      textScale: postData.textScale !== undefined ? postData.textScale : 1,
+      customLayers: sanitizeLayers(postData.customLayers),
+      textScale: postData.textScale !== undefined ? Number(postData.textScale) : 1,
 
-      // Mode carrusel
-      postMode: postData.postMode || 'single',
-      slides: Array.isArray(postData.slides) ? postData.slides : [],
+      // Mode carrusel ('carousel' | 'single')
+      postMode: (postData.postMode === 'carousel' || postData.postMode === 'carrusel') ? 'carousel' : (postData.postMode || 'single'),
+      slides: processedSlides,
 
       // Text de redacció (Copy d'Instagram)
       copyText: postData.copyText || '',
@@ -179,6 +290,8 @@ export async function saveScheduledPost(postData) {
 
       updatedAt: now
     };
+
+    const payload = cleanForFirestore(rawPayload);
 
     if (postData.id) {
       // Edició existent
