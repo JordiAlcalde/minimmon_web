@@ -203,7 +203,7 @@ export default function ProjectWizard({ isOpen, onClose, initialItemTitle = '' }
                   <div className="form-group mt-3">
                     <label className="form-label">Fusta principal preferida:</label>
                     <div className="wood-chips-grid">
-                      {['Roure natural', 'Noguer fosquet', 'Bedoll claret', 'Faig càlid'].map(wood => (
+                      {['Roure natural', 'Noguer fosquet', 'Til·ler claret', 'Faig càlid'].map(wood => (
                         <div 
                           key={wood}
                           className={`wood-chip ${formData.preferredWood === wood ? 'selected' : ''}`}

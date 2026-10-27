@@ -60,8 +60,22 @@ import {
   Calendar as CalendarIcon,
   CalendarPlus,
   Clock,
-  Send
+  Send,
+  Ban,
+  AlertCircle,
+  X
 } from 'lucide-react';
+import { 
+  DEFAULT_BANNED_HASHTAGS,
+  subscribeToBannedHashtags,
+  saveBannedHashtags,
+  filterBannedHashtagsFromText,
+  findBannedHashtagsInText
+} from '../../utils/bannedHashtags';
+import { 
+  generateSlideTextForImage, 
+  buildCarouselSlidesFromItem 
+} from '../../utils/carouselTextGenerator';
 import PostingCalendar from './PostingCalendar';
 import { 
   subscribeScheduledPosts, 
@@ -510,11 +524,32 @@ export default function PostingApp({ setActiveTab }) {
     setActiveSlideIdx(targetIdx);
 
     // 2. Carreguem síncronament la diapositiva de destí als controls
-    setTitle(targetSlide.title || '');
-    setSubtitle(targetSlide.subtitle || '');
+    let slideTitle = targetSlide.title || '';
+    let slideSubtitle = targetSlide.subtitle || '';
+    let slideTag = targetSlide.tagText;
+
+    // Si la diapositiva tenia guardat un títol residual defectuós de token d'imatge (com '9k=', '9k-', etc.)
+    if (!slideTitle || /^[0-9a-zA-Z]{1,4}[=&#-]$/.test(slideTitle.trim()) || /[=&#]/.test(slideTitle)) {
+      const regenerated = generateSlideTextForImage({
+        imgUrl: targetSlide.photoUrl,
+        slideIdx: targetIdx,
+        totalSlides: updatedSlides.length,
+        item: selectedItem,
+        itemType: sourceType
+      });
+      slideTitle = regenerated.title;
+      slideSubtitle = regenerated.subtitle;
+      slideTag = regenerated.tagText;
+      targetSlide.title = slideTitle;
+      targetSlide.subtitle = slideSubtitle;
+      if (slideTag) targetSlide.tagText = slideTag;
+    }
+
+    setTitle(slideTitle);
+    setSubtitle(slideSubtitle);
     const pUrl = targetSlide.photoUrl || '';
     setSelectedPhotoUrl(pUrl ? (pUrl.startsWith('data:') || pUrl.startsWith('http') ? pUrl : resolveMediaUrl(pUrl)) : '');
-    setTagText(targetSlide.tagText !== undefined ? targetSlide.tagText : '✨ Personalització inclosa');
+    setTagText(slideTag !== undefined ? slideTag : '✨ Personalització inclosa');
     setImageFit(targetSlide.imageFit || 'cover');
     setBlurIntensity(targetSlide.blurIntensity ?? 35);
     setShowTag(targetSlide.showTag ?? true);
@@ -573,53 +608,71 @@ export default function PostingApp({ setActiveTab }) {
     if (newMode === postMode) return;
     setPostMode(newMode);
     if (newMode === 'carousel') {
-      setSlides(prev => {
-        // Si ja tenim diapositives vàlides personalitzades, no les sobreescrivim
-        if (Array.isArray(prev) && prev.length >= 2 && prev.some(s => s.title && s.title !== 'Mínim Món a la Fira')) {
-          return prev;
+      const imgsToUse = (Array.isArray(availableImages) && availableImages.length > 0)
+        ? availableImages
+        : [selectedPhotoUrl || resolveMediaUrl('images/tots_productes.jpg')];
+
+      // Generem les diapositives adaptades a cadascuna de les fotos disponibles de la peça
+      const generated = buildCarouselSlidesFromItem(selectedItem, sourceType, imgsToUse);
+      if (generated.length >= 2) {
+        setSlides(generated);
+        setActiveSlideIdx(0);
+        setTitle(generated[0].title);
+        setSubtitle(generated[0].subtitle);
+        setSelectedPhotoUrl(generated[0].photoUrl);
+        setTagText(generated[0].tagText);
+        return;
+      }
+
+      // Si només tenim 1 foto, creem 3 diapositives representatives
+      const f1 = selectedPhotoUrl || imgsToUse[0] || resolveMediaUrl('images/tots_productes.jpg');
+      const f2 = imgsToUse[1] || f1;
+      const f3 = imgsToUse[2] || f2;
+
+      const t1 = generateSlideTextForImage({ imgUrl: f1, slideIdx: 0, totalSlides: 3, item: selectedItem, itemType: sourceType });
+      const t2 = generateSlideTextForImage({ imgUrl: f2, slideIdx: 1, totalSlides: 3, item: selectedItem, itemType: sourceType });
+      const t3 = generateSlideTextForImage({ imgUrl: f3, slideIdx: 2, totalSlides: 3, item: selectedItem, itemType: sourceType });
+
+      const fallbackCarousel = [
+        {
+          id: 'slide-1',
+          title: title || t1.title,
+          subtitle: subtitle || t1.subtitle,
+          photoUrl: f1,
+          tagText: tagText || t1.tagText,
+          imageFit: imageFit || 'cover',
+          blurIntensity: blurIntensity ?? 35,
+          showTag: true,
+          showLogo: true,
+          customLayers: customLayers || []
+        },
+        {
+          id: 'slide-2',
+          title: t2.title,
+          subtitle: t2.subtitle,
+          photoUrl: f2,
+          tagText: t2.tagText,
+          imageFit: 'cover',
+          blurIntensity: 35,
+          showTag: true,
+          showLogo: true,
+          customLayers: []
+        },
+        {
+          id: 'slide-3',
+          title: t3.title,
+          subtitle: t3.subtitle,
+          photoUrl: f3,
+          tagText: t3.tagText,
+          imageFit: 'cover',
+          blurIntensity: 35,
+          showTag: true,
+          showLogo: true,
+          customLayers: []
         }
-        const f1 = selectedPhotoUrl || availableImages[0] || resolveMediaUrl('images/tots_productes.jpg');
-        const f2 = availableImages[1] || availableImages[0] || f1;
-        const f3 = availableImages[2] || availableImages[1] || f1;
-        return [
-          {
-            id: 'slide-1',
-            title: title || 'Mínim Món a la Fira',
-            subtitle: subtitle || 'Espais en miniatura i records gravats.',
-            photoUrl: prev[0]?.photoUrl || f1,
-            tagText: tagText || '✨ Fira Artesana',
-            imageFit: imageFit || 'cover',
-            blurIntensity: blurIntensity ?? 35,
-            showTag: true,
-            showLogo: true,
-            customLayers: customLayers || []
-          },
-          {
-            id: 'slide-2',
-            title: prev[1]?.title || 'Detalls de la parada',
-            subtitle: prev[1]?.subtitle || 'Peces fetes a mà una a una amb fusta noble.',
-            photoUrl: prev[1]?.photoUrl || f2,
-            tagText: prev[1]?.tagText || '🔨 Taller Mínim Món',
-            imageFit: prev[1]?.imageFit || 'cover',
-            blurIntensity: prev[1]?.blurIntensity ?? 35,
-            showTag: true,
-            showLogo: true,
-            customLayers: []
-          },
-          {
-            id: 'slide-3',
-            title: prev[2]?.title || 'Gràcies per la visita!',
-            subtitle: prev[2]?.subtitle || 'Més informació i encàrrecs a @minimmon.cat',
-            photoUrl: prev[2]?.photoUrl || f3,
-            tagText: prev[2]?.tagText || '🤍 Fet amb ànima',
-            imageFit: prev[2]?.imageFit || 'cover',
-            blurIntensity: prev[2]?.blurIntensity ?? 35,
-            showTag: true,
-            showLogo: true,
-            customLayers: []
-          }
-        ];
-      });
+      ];
+
+      setSlides(fallbackCarousel);
       setActiveSlideIdx(0);
     }
   };
@@ -631,12 +684,22 @@ export default function PostingApp({ setActiveTab }) {
     }
     const nextIdx = slides.length + 1;
     const fallback = availableImages[nextIdx - 1] || availableImages[0] || selectedPhotoUrl;
+    
+    // Generació automàtica del títol i subtítol segons la imatge inserida a aquesta posició
+    const textData = generateSlideTextForImage({
+      imgUrl: fallback,
+      slideIdx: slides.length,
+      totalSlides: slides.length + 1,
+      item: selectedItem,
+      itemType: sourceType
+    });
+
     const newSlide = {
       id: `slide-${Date.now()}`,
-      title: `Diapositiva ${nextIdx}`,
-      subtitle: 'Creacions úniques en fusta natural.',
+      title: textData.title,
+      subtitle: textData.subtitle,
       photoUrl: fallback,
-      tagText: '✨ Mínim Món',
+      tagText: textData.tagText || '✨ Mínim Món',
       imageFit: 'cover',
       blurIntensity: 35,
       showTag: true,
@@ -884,10 +947,50 @@ export default function PostingApp({ setActiveTab }) {
   const [freeTopicTone, setFreeTopicTone] = useState('noticia'); // 'noticia' | 'emocional' | 'taller' | 'filosofia' | 'regal'
   const [isAnalyzingTopic, setIsAnalyzingTopic] = useState(false);
   const [topicAnalysisResult, setTopicAnalysisResult] = useState(null);
+  const [aiCopiesByStyle, setAiCopiesByStyle] = useState(null); // { emocional: string, taller: string, regal: string }
   const [showHashtags, setShowHashtags] = useState(true);
   const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
+
+  // 7. Registre de Hashtags Vetats (mai es poden fer servir en cap ocasió tret que es retirin)
+  const [bannedHashtags, setBannedHashtags] = useState(DEFAULT_BANNED_HASHTAGS);
+  const [showBannedManager, setShowBannedManager] = useState(false);
+  const [newBannedTagInput, setNewBannedTagInput] = useState('');
+
+  useEffect(() => {
+    const unsub = subscribeToBannedHashtags(setBannedHashtags);
+    return unsub;
+  }, []);
+
+  const handleAddBannedHashtag = (e) => {
+    if (e) e.preventDefault();
+    const clean = newBannedTagInput.trim().replace(/^#+/, '');
+    if (!clean) return;
+    const formatted = `#${clean}`;
+    if (!bannedHashtags.some(t => t.toLowerCase() === formatted.toLowerCase())) {
+      const updated = [...bannedHashtags, formatted];
+      setBannedHashtags(updated);
+      saveBannedHashtags(updated);
+    }
+    setNewBannedTagInput('');
+  };
+
+  const handleRemoveBannedHashtag = (tagToRemove) => {
+    const updated = bannedHashtags.filter(t => t.toLowerCase() !== tagToRemove.toLowerCase());
+    setBannedHashtags(updated);
+    saveBannedHashtags(updated);
+  };
+
+  const handleResetBannedHashtags = () => {
+    setBannedHashtags(DEFAULT_BANNED_HASHTAGS);
+    saveBannedHashtags(DEFAULT_BANNED_HASHTAGS);
+  };
+
+  // Detecció en viu de hashtags vetats al copy
+  const detectedBannedInCopy = useMemo(() => {
+    return findBannedHashtagsInText(generatedCopy, bannedHashtags);
+  }, [generatedCopy, bannedHashtags]);
 
   // Referències Canvas
   const canvasRef = useRef(null);
@@ -1200,21 +1303,90 @@ export default function PostingApp({ setActiveTab }) {
       setShowPrice(false);
     }
 
-    // Si estem en Mode Carrusel i l'element té més fotos, les assignem automàticament a les primeres diapositives
+    // Si estem en Mode Carrusel, generem les diapositives adaptades a cadascuna de les fotos del nou element seleccionat
     if (postMode === 'carousel' && Array.isArray(imgs) && imgs.length > 1) {
-      setSlides(prev => {
-        const copy = [...prev];
-        if (copy[0]) {
-          copy[0] = { ...copy[0], title: itemTitle, subtitle: itemSub, photoUrl: imgs[0] };
-        }
-        if (copy[1] && imgs[1]) {
-          copy[1] = { ...copy[1], title: 'Detalls i acabats', subtitle: 'Peces artesanals amb fusta noble i caràcter.', photoUrl: imgs[1] };
-        }
-        if (copy[2] && imgs[2]) {
-          copy[2] = { ...copy[2], title: 'Mínim Món', subtitle: 'Peces creades amb ànima al taller.', photoUrl: imgs[2] };
-        }
-        return copy;
+      const generatedSlides = buildCarouselSlidesFromItem(item, type, imgs);
+      if (generatedSlides.length >= 2) {
+        setSlides(generatedSlides);
+      }
+    }
+  };
+
+  // Aplica una fotografia a la diapositiva actual i en dedueix títol i subtítol si escau
+  const handleApplyPhotoToCurrentSlide = (imgUrl, customFileName = '') => {
+    setSelectedPhotoUrl(imgUrl);
+    if (postMode === 'carousel') {
+      const textData = generateSlideTextForImage({
+        imgUrl,
+        slideIdx: activeSlideIdx,
+        totalSlides: slides.length,
+        item: selectedItem,
+        itemType: sourceType,
+        fileName: customFileName
       });
+      if (textData) {
+        // A les diapositives 2 i següents (o a la 1 si no hi ha títol previ), adaptem títol i subtítol a la imatge
+        if (activeSlideIdx > 0 || !title) {
+          setTitle(textData.title);
+          setSubtitle(textData.subtitle);
+          if (textData.tagText) setTagText(textData.tagText);
+        }
+      }
+    }
+  };
+
+  // Regenera el títol i subtítol de la diapositiva activa segons la seva imatge o context
+  const handleRegenerateCurrentSlideText = () => {
+    const currentSlide = slides[activeSlideIdx];
+    const photoToUse = currentSlide?.photoUrl || selectedPhotoUrl;
+    const textData = generateSlideTextForImage({
+      imgUrl: photoToUse,
+      slideIdx: activeSlideIdx,
+      totalSlides: slides.length,
+      item: selectedItem,
+      itemType: sourceType
+    });
+    if (textData) {
+      setTitle(textData.title);
+      setSubtitle(textData.subtitle);
+      if (textData.tagText) setTagText(textData.tagText);
+      setSlides(prev => prev.map((s, idx) => {
+        if (idx === activeSlideIdx) {
+          return {
+            ...s,
+            title: textData.title,
+            subtitle: textData.subtitle,
+            tagText: textData.tagText || s.tagText
+          };
+        }
+        return s;
+      }));
+    }
+  };
+
+  // Regenera automàticament tots els títols i subtítols de totes les diapositives del carrusel segons la seva imatge
+  const handleAutoGenerateAllSlidesText = () => {
+    const updated = slides.map((s, idx) => {
+      const textData = generateSlideTextForImage({
+        imgUrl: s.photoUrl,
+        slideIdx: idx,
+        totalSlides: slides.length,
+        item: selectedItem,
+        itemType: sourceType
+      });
+      return {
+        ...s,
+        title: textData.title,
+        subtitle: textData.subtitle,
+        tagText: textData.tagText || s.tagText
+      };
+    });
+    setSlides(updated);
+    const cur = updated[activeSlideIdx];
+    if (cur) {
+      setTitle(cur.title);
+      setSubtitle(cur.subtitle);
+      setTagText(cur.tagText);
     }
   };
 
@@ -1236,7 +1408,11 @@ export default function PostingApp({ setActiveTab }) {
     }
 
     // Si estem en una publicació planificada existent i ja té text de copy, no la sobreescrivim
-    // tret que l'usuari canviï explícitament d'element seleccionat o d'estil de redacció
+    // Si tenim copies generats amb IA per a aquest estil, no cal aplicar la plantilla estàtica
+    if (aiCopiesByStyle && aiCopiesByStyle[copyStyle]) {
+      return;
+    }
+
     const isNewItem = prevSelectedItemRef.current !== selectedItem;
     const isNewStyle = prevCopyStyleRef.current !== copyStyle;
     prevSelectedItemRef.current = selectedItem;
@@ -1244,6 +1420,11 @@ export default function PostingApp({ setActiveTab }) {
 
     if (editingScheduledPostId && !isNewItem && !isNewStyle && generatedCopy) {
       return;
+    }
+
+    // Si ha canviat d'element, reiniciem la memòria de copies IA per carregar el nou element
+    if (isNewItem) {
+      setAiCopiesByStyle(null);
     }
 
     const itemName = title || selectedItem.nom || selectedItem.titol || 'Aquesta peça única';
@@ -1264,12 +1445,26 @@ export default function PostingApp({ setActiveTab }) {
       copyBody = `${itemDesc}\n\nPeces amb ànima, fetes a Catalunya amb paciència i passió pel treball ben fet.`;
     }
 
+    const rawDefaultHashtags = `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`;
     const hashtags = showHashtags 
-      ? `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`
+      ? filterBannedHashtagsFromText(rawDefaultHashtags, bannedHashtags)
       : '';
 
-    setGeneratedCopy(`${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`);
-  }, [selectedItem, title, subtitle, copyStyle, sourceType, showHashtags]);
+    const fullDraft = `${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`;
+    setGeneratedCopy(filterBannedHashtagsFromText(fullDraft, bannedHashtags));
+  }, [selectedItem, title, subtitle, copyStyle, sourceType, showHashtags, bannedHashtags, aiCopiesByStyle]);
+
+  // Canvi directe d'estil de redacció unificat
+  const handleSelectCopyStyle = (newStyle) => {
+    setCopyStyle(newStyle);
+    if (aiCopiesByStyle && aiCopiesByStyle[newStyle]) {
+      let finalCopy = filterBannedHashtagsFromText(aiCopiesByStyle[newStyle], bannedHashtags);
+      if (!showHashtags) {
+        finalCopy = finalCopy.replace(/\n*#minimmon[\s\S]*$/i, '').trimEnd();
+      }
+      setGeneratedCopy(finalCopy);
+    }
+  };
 
   // Funció per analitzar i generar copy i disseny per a qualsevol tipus de post (Productes, Projectes o Tema Lliure)
   const handleAnalyzeCopyContent = async (customTopicText = null) => {
@@ -1291,7 +1486,7 @@ export default function PostingApp({ setActiveTab }) {
     try {
       const res = await generatePostingAssistantContent({
         topic: textToAnalyze || title.trim(),
-        tone: sourceType === 'custom' ? freeTopicTone : copyStyle,
+        tone: copyStyle,
         imageUrl: selectedPhotoUrl,
         existingTitle: title,
         format: format,
@@ -1306,9 +1501,25 @@ export default function PostingApp({ setActiveTab }) {
           if (res.etiqueta) setTagText(res.etiqueta);
         }
         setTopicAnalysisResult(res);
-        setSelectedVariantIdx(0);
 
-        let finalCopy = res.copy;
+        // Mapegem les variants generades per la IA directament als 3 estils únics
+        const copiesMap = {};
+        if (Array.isArray(res.variantsCopy)) {
+          res.variantsCopy.forEach(v => {
+            const s = (v.estil || '').toLowerCase();
+            if (/emocional|poètica/i.test(s)) copiesMap.emocional = v.copy;
+            else if (/taller|procés|ofici/i.test(s)) copiesMap.taller = v.copy;
+            else if (/regal|detall/i.test(s)) copiesMap.regal = v.copy;
+          });
+        }
+        copiesMap[copyStyle] = res.copy;
+        if (!copiesMap.emocional) copiesMap.emocional = res.variantsCopy?.[0]?.copy || res.copy;
+        if (!copiesMap.taller) copiesMap.taller = res.variantsCopy?.[1]?.copy || res.copy;
+        if (!copiesMap.regal) copiesMap.regal = res.variantsCopy?.[2]?.copy || res.copy;
+
+        setAiCopiesByStyle(copiesMap);
+
+        let finalCopy = filterBannedHashtagsFromText(copiesMap[copyStyle] || res.copy, bannedHashtags);
         if (!showHashtags) {
           finalCopy = finalCopy.replace(/\n*#minimmon[\s\S]*$/i, '').trimEnd();
         }
@@ -1324,10 +1535,10 @@ export default function PostingApp({ setActiveTab }) {
 
   const handleAnalyzeFreeTopic = handleAnalyzeCopyContent;
 
-  // Aplicar una variant de text generada per la IA
+  // Aplicar una variant de text generada per la IA (usat des del modal de Tema Lliure)
   const handleApplyVariant = (idx, variantText) => {
     setSelectedVariantIdx(idx);
-    let finalCopy = variantText;
+    let finalCopy = filterBannedHashtagsFromText(variantText, bannedHashtags);
     if (!showHashtags) {
       finalCopy = finalCopy.replace(/\n*#minimmon[\s\S]*$/i, '').trimEnd();
     }
@@ -1492,12 +1703,10 @@ export default function PostingApp({ setActiveTab }) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, w, h);
         const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.68);
-        setSelectedPhotoUrl(compressedDataUrl);
-        if (!title) setTitle('Peça especial');
+        handleApplyPhotoToCurrentSlide(compressedDataUrl, file.name);
       };
       img.onerror = () => {
-        setSelectedPhotoUrl(rawDataUrl);
-        if (!title) setTitle('Peça especial');
+        handleApplyPhotoToCurrentSlide(rawDataUrl, file.name);
       };
       img.src = rawDataUrl;
     };
@@ -2067,7 +2276,7 @@ export default function PostingApp({ setActiveTab }) {
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => setSelectedPhotoUrl(imgUrl)}
+                          onClick={() => handleApplyPhotoToCurrentSlide(imgUrl)}
                           className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer group text-left ${
                             isActive 
                               ? 'border-amber-600 ring-2 ring-amber-500/30 shadow-md scale-[1.02]' 
@@ -2309,7 +2518,22 @@ export default function PostingApp({ setActiveTab }) {
             <div className="space-y-3 pt-3 border-t border-outline/10">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">Títol a la imatge</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-bold text-slate-600">
+                      {postMode === 'carousel' ? `Títol de la diapo (${activeSlideIdx + 1}/${slides.length})` : 'Títol a la imatge'}
+                    </label>
+                    {postMode === 'carousel' && (
+                      <button
+                        type="button"
+                        onClick={handleRegenerateCurrentSlideText}
+                        className="text-[10px] text-amber-800 hover:text-black font-semibold flex items-center gap-1 cursor-pointer"
+                        title="Deduir títol i subtítol automàticament a partir d'aquesta imatge"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                        <span>Sugerir segons foto</span>
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={title}
@@ -3081,89 +3305,51 @@ export default function PostingApp({ setActiveTab }) {
                 </h2>
               </div>
 
-              {/* Botons d'estil i botó generador amb IA */}
+              {/* Selector únic d'estil i botó generador amb IA */}
               <div className="flex flex-wrap items-center gap-2">
-                {sourceType !== 'custom' && (
-                  <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setCopyStyle('emocional')}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                        copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                      }`}
-                    >
-                      🤍 Emocional
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCopyStyle('regal')}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                        copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                      }`}
-                    >
-                      🎁 Regal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCopyStyle('taller')}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                        copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
-                      }`}
-                    >
-                      🔨 Taller
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-1 bg-[#F3ECE4] p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCopyStyle('emocional')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'emocional' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🤍 Emocional
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCopyStyle('taller')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'taller' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🔨 Taller i Procés
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectCopyStyle('regal')}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      copyStyle === 'regal' ? 'bg-[#3D2B1F] text-white shadow-xs' : 'text-[#3D2B1F] hover:bg-black/5'
+                    }`}
+                  >
+                    🎁 Regal i Detall
+                  </button>
+                </div>
 
-                {/* Botó generador amb IA disponible tant per a Productes, Projectes com Tema Lliure */}
+                {/* Botó generador amb IA */}
                 <button
                   type="button"
                   disabled={isAnalyzingTopic}
                   onClick={() => handleAnalyzeCopyContent()}
-                  className="px-3 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                  title="Genera propostes de text noves amb IA basades en aquest producte/projecte"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  title="Redactar propostes noves amb intel·ligència artificial"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-700" />
-                  <span>{isAnalyzingTopic ? 'Generant...' : 'Generar text nou amb IA'}</span>
+                  <span>{isAnalyzingTopic ? 'Redactant...' : '✨ Redactar amb IA'}</span>
                 </button>
               </div>
             </div>
-
-            {/* Selector de variants generades per la IA (disponible per a Productes, Projectes i Tema Lliure) */}
-            {topicAnalysisResult?.variantsCopy && topicAnalysisResult.variantsCopy.length > 0 && (
-              <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1.5 animate-fadeIn">
-                <span className="text-[11px] font-bold text-amber-950 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-700" /> Variants generades per l'assistent:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyVariant(0, topicAnalysisResult.copy)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                      selectedVariantIdx === 0
-                        ? 'bg-[#3D2B1F] text-white shadow-xs'
-                        : 'bg-white hover:bg-amber-100 text-[#3D2B1F] border border-amber-900/15'
-                    }`}
-                  >
-                    Principal
-                  </button>
-                  {topicAnalysisResult.variantsCopy.map((v, vIdx) => (
-                    <button
-                      key={vIdx}
-                      type="button"
-                      onClick={() => handleApplyVariant(vIdx + 1, v.copy)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-all ${
-                        selectedVariantIdx === vIdx + 1
-                          ? 'bg-[#3D2B1F] text-white shadow-xs'
-                          : 'bg-white hover:bg-amber-100 text-[#3D2B1F] border border-amber-900/15'
-                      }`}
-                    >
-                      {v.estil || `Variant ${vIdx + 2}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <div className="relative">
               <textarea
@@ -3175,27 +3361,69 @@ export default function PostingApp({ setActiveTab }) {
               />
             </div>
 
+            {/* Avís en temps real si es detecta algun hashtag vetat al text */}
+            {detectedBannedInCopy.length > 0 && (
+              <div className="p-3 bg-red-50 border border-red-300 rounded-xl text-xs text-red-900 flex items-center justify-between gap-3 animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>
+                    <strong>Hashtag vetat detectat al text:</strong>{' '}
+                    <span className="font-mono font-bold bg-red-100 text-red-950 px-1.5 py-0.5 rounded border border-red-200">
+                      {detectedBannedInCopy.join(', ')}
+                    </span>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGeneratedCopy(prev => filterBannedHashtagsFromText(prev, bannedHashtags))}
+                  className="px-2.5 py-1 bg-red-700 hover:bg-red-800 text-white font-bold rounded-lg text-[11px] shadow-xs cursor-pointer flex items-center gap-1 shrink-0 transition-transform active:scale-95"
+                  title="Eliminar automàticament els hashtags vetats d'aquest copy"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Retirar-los del text</span>
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
-              {/* Commutador de Hashtags / Etiquetes */}
-              <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 text-xs">
-                <input
-                  type="checkbox"
-                  checked={showHashtags}
-                  onChange={(e) => {
-                    const nextVal = e.target.checked;
-                    setShowHashtags(nextVal);
-                    const hashtagsRegex = /\n*#minimmon[\s\S]*$/i;
-                    if (!nextVal) {
-                      setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd());
-                    } else {
-                      const hashtags = `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`;
-                      setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd() + hashtags);
-                    }
-                  }}
-                  className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
-                />
-                <span>Incloure hashtags / etiquetes (#)</span>
-              </label>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Commutador de Hashtags / Etiquetes */}
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={showHashtags}
+                    onChange={(e) => {
+                      const nextVal = e.target.checked;
+                      setShowHashtags(nextVal);
+                      const hashtagsRegex = /\n*#minimmon[\s\S]*$/i;
+                      if (!nextVal) {
+                        setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd());
+                      } else {
+                        const rawHashtags = `\n\n#minimmon #artesania #fustacatalunya #regalspersonalitzats #fetama #decoraciocasa #recordsenfusta #regalsunics #fetamà #detallsambamor #tallerartesanal`;
+                        const filtered = filterBannedHashtagsFromText(rawHashtags, bannedHashtags);
+                        setGeneratedCopy(prev => prev.replace(hashtagsRegex, '').trimEnd() + filtered);
+                      }
+                    }}
+                    className="w-4 h-4 rounded text-amber-700 accent-amber-700 cursor-pointer"
+                  />
+                  <span>Incloure hashtags / etiquetes (#)</span>
+                </label>
+
+                {/* Botó del Registre de Hashtags Vetats */}
+                <button
+                  type="button"
+                  onClick={() => setShowBannedManager(prev => !prev)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                    showBannedManager
+                      ? 'bg-red-800 text-white border-red-900 shadow-xs'
+                      : 'bg-red-50/80 hover:bg-red-100 text-red-800 border-red-200'
+                  }`}
+                  title="Veure i gestionar el registre de hashtags vetats"
+                >
+                  <Ban className="w-3.5 h-3.5 text-red-600" />
+                  <span>Hashtags vetats ({bannedHashtags.length})</span>
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -3219,6 +3447,78 @@ export default function PostingApp({ setActiveTab }) {
                 )}
               </button>
             </div>
+
+            {/* Panell d'Administració del Registre de Hashtags Vetats */}
+            {showBannedManager && (
+              <div className="p-3.5 bg-red-50/60 rounded-xl border border-red-200 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Ban className="w-4 h-4 text-red-700" />
+                    <span className="text-xs font-bold text-red-900">Registre de Hashtags Vetats</span>
+                  </div>
+                  <span className="text-[10px] text-red-700 font-medium hidden sm:inline">
+                    No es poden fer servir en cap ocasió tret que es retirin del registre
+                  </span>
+                </div>
+
+                {/* Píndoles de hashtags vetats amb botó de retirar */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {bannedHashtags.map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-100 text-red-900 border border-red-200 text-xs font-mono font-bold shadow-2xs group"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBannedHashtag(tag)}
+                        className="w-4 h-4 rounded-full hover:bg-red-200 flex items-center justify-center text-red-700 hover:text-red-950 transition-colors cursor-pointer"
+                        title={`Retirar ${tag} del registre de vetats (permetrà tornar-lo a fer servir)`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {bannedHashtags.length === 0 && (
+                    <span className="text-xs text-slate-500 italic">Cap hashtag vetat en aquests moments.</span>
+                  )}
+                </div>
+
+                {/* Formulari per afegir un nou hashtag vetat */}
+                <form onSubmit={handleAddBannedHashtag} className="flex items-center gap-2 pt-1">
+                  <div className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-xs font-bold">#</span>
+                    <input
+                      type="text"
+                      value={newBannedTagInput}
+                      onChange={(e) => setNewBannedTagInput(e.target.value.replace(/^#+/, ''))}
+                      placeholder="Escriu un nou hashtag per vetar (ex: FustaMassissa)"
+                      className="w-full pl-7 pr-3 py-1.5 text-xs font-sans rounded-lg bg-white border border-red-300 focus:outline-none focus:border-red-600 text-slate-800"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!newBannedTagInput.trim()}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${
+                      newBannedTagInput.trim()
+                        ? 'bg-red-700 hover:bg-red-800 text-white active:scale-95'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Vetar</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetBannedHashtags}
+                    className="px-2 py-1.5 text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg cursor-pointer"
+                    title="Restablir la llista als hashtags inicials (#MiniaturesEnFusta, #MiniaturesAmbÀnima, #FustaDeBedoll)"
+                  >
+                    Restablir inicials
+                  </button>
+                </form>
+              </div>
+            )}
           </section>
 
         </div>
@@ -3248,6 +3548,15 @@ export default function PostingApp({ setActiveTab }) {
                     <span className="text-xs font-bold text-[#3D2B1F]">Diapositives ({slides.length}/10)</span>
                   </div>
                   <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleAutoGenerateAllSlidesText}
+                      title="Regenerar automàticament els títols i subtítols de totes les diapositives segons la imatge inserida a cadascuna"
+                      className="px-2 py-0.5 text-[11px] font-semibold text-amber-900 bg-amber-100/70 hover:bg-amber-100 border border-amber-300/80 rounded-md shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-700" />
+                      <span>Textos per foto</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleDuplicateSlide(activeSlideIdx)}
@@ -3355,6 +3664,9 @@ export default function PostingApp({ setActiveTab }) {
                   const scaleRatio = format === '1:1' ? 0.481 : (format === '4:5' ? 0.385 : 0.271);
                   const layerFs = (layer.fontSize || 34) * scaleRatio;
                   const maxWPercent = layer.maxWidthPercent || 58;
+                  // Amplada de referència del contenidor de previsualització (520px d'alçada)
+                  const previewWidth = format === '1:1' ? 520 : (format === '4:5' ? 416 : 292.5);
+                  const maxAllowedWidthPx = Math.round(previewWidth * (maxWPercent / 100));
 
                   return (
                     <div
@@ -3379,8 +3691,11 @@ export default function PostingApp({ setActiveTab }) {
                         whiteSpace: 'pre-wrap',
                         textAlign: 'center',
                         lineHeight: 1.34,
-                        maxWidth: `${maxWPercent}%`,
-                        wordBreak: 'break-word',
+                        width: 'max-content',
+                        maxWidth: `${maxAllowedWidthPx}px`,
+                        boxSizing: 'border-box',
+                        wordBreak: 'normal',
+                        overflowWrap: 'break-word',
                         touchAction: 'none'
                       }}
                       title="Fes clic per editar o arrossega per moure aquesta capa per la imatge"
@@ -3495,33 +3810,9 @@ export default function PostingApp({ setActiveTab }) {
 
               <p className="text-[11px] text-center text-slate-500">
                 {postMode === 'carousel'
-                  ? 'Fitxers numerats (carrusel-1, carrusel-2...) llestos per pujar tots d’un cop a Meta Business Suite o Instagram.'
+                  ? 'Fitxers numerats (carrusel-1, carrusel-2...) llestos per publicar directament a Instagram.'
                   : 'Resolució nativa neta de 1080px d’alta qualitat, sense marques d’aigua.'}
               </p>
-            </div>
-
-            {/* Enllaç ràpid a Meta Business Suite */}
-            <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5 text-xs text-amber-950">
-              <HelpCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold text-amber-900">
-                  {postMode === 'carousel' ? 'Com publicar el carrusel a Meta en 30 segons:' : 'Com publicar-ho en 30 segons:'}
-                </p>
-                <p className="text-[11px] text-amber-900/80 leading-relaxed">
-                  {postMode === 'carousel'
-                    ? 'Obre Meta Business Suite i en fer «Crear publicació», selecciona els ' + slides.length + ' fitxers PNG junts. Meta els ordenarà sols conservant el mateix estil!'
-                    : 'Pots enviar la imatge al teu mòbil i pujar-la a Instagram, o obrir Meta Business Suite al navegador per programar posts gratuïtament.'}
-                </p>
-                <a
-                  href="https://business.facebook.com/latest/composer"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-bold text-amber-800 hover:text-amber-950 underline text-[11px] pt-0.5"
-                >
-                  <span>Obrir Meta Business Suite per programar</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
             </div>
 
           </div>

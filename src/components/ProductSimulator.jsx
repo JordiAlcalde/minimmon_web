@@ -178,7 +178,7 @@ export default function ProductSimulator({ initialLetter = '', phraseText = '', 
             >
               <svg viewBox="0 0 200 250" className="w-full h-full drop-shadow-xl overflow-visible">
                 <defs>
-                  {/* Fusta clara de bedoll / pollancre */}
+                  {/* Fusta clara de til·ler / pollancre */}
                   <linearGradient id="woodBase" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#F7EBD9" />
                     <stop offset="50%" stopColor="#EFE1C9" />

@@ -173,7 +173,7 @@ export default function PuzzleSimulator({
       return { filter: 'none' };
     }
 
-    // Mode Gravat Làser (To clar i nítid de fusta de bedoll natural amb cremat suau)
+    // Mode Gravat Làser (To clar i nítid de fusta de til·ler natural amb cremat suau)
     if (userAttachedFile) {
       return { 
         filter: 'url(#laserVectorizeFilter) sepia(0.65) contrast(1.25) brightness(1.02) hue-rotate(-10deg)',
@@ -231,7 +231,7 @@ export default function PuzzleSimulator({
             className={`relative ${getContainerWidthClass()} mt-6 mb-2 rounded-xl overflow-hidden shadow-2xl border-4 border-[#3D2B1F] bg-[#F9F3EA] group transition-all duration-300`}
             style={{ aspectRatio: `${cols} / ${rows}` }}
           >
-            {/* Fons de textura de fusta clara de bedoll */}
+            {/* Fons de textura de fusta clara de til·ler */}
             <div className="absolute inset-0 bg-[#F9F3EA] opacity-95 mix-blend-multiply pointer-events-none"></div>
 
             {/* Imatge de la Peça / Exemple amb filtres d'impressió i to de fusta clar */}

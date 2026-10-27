@@ -3,6 +3,7 @@
  * Servei per interactuar amb la API de Google Gemini (gemini-3.8-flash)
  * per als descriptors de PROJECTES i PRODUCTES de Mínim Món.
  */
+import { filterBannedHashtagsFromText, getStoredBannedHashtags } from './bannedHashtags';
 
 const DEFAULT_API_KEY = "";
 // Llista de models amb fallback en cas de saturació temporal de servidors (Error 503 / High Demand)
@@ -66,7 +67,7 @@ RESPON EXCLUSIVAMENT EN FORMAT JSON VÀLID (sense cometes de markdown de codi si
 
   posting: `Ets el redactor i creador de continguts oficial d'Instagram de "Mínim Món" (taller artesanal de creació en fusta, miniatures, diorames i regals únics a Catalunya - web: minimmon.cat, instagram: @minimmon58).
 La teva missió és analitzar l'element (producte de catàleg, projecte de taller o tema lliure) i, si s'escau, la fotografia aportada, i generar una proposta completa de post d'Instagram que transmeti la filosofia de Mínim Món:
-- Valors: L'art de la paciència, el treball acurat en contraxapat de bedoll seleccionat polit a mà, el tall i gravat làser d'alta precisió al servei de l'emoció, la memòria i la calidesa de les vetes naturals. IMPORTANT: Mai parlis de "fusta noble" ni "fusta massissa", parla de fusta de bedoll seleccionat, polit suau i acabat artesanal.
+- Valors: L'art de la paciència, el treball acurat en fusta i contraxapat de til·ler seleccionat polit a mà, el tall i gravat làser d'alta precisió al servei de l'emoció, la memòria i la calidesa de les vetes naturals. IMPORTANTÍSSIM: Mínim Món NO utilitza MAI fusta de bedoll, només fusta de til·ler. Mai parlis tampoc de "fusta noble" ni "fusta massissa". Parla sempre de fusta de til·ler seleccionat, polit suau i acabat artesanal.
 - To: Proper, càlid, sensible sense sensibleria buida, poètic però clar, professional i amb l'aroma d'ofici de taller.
 - Redacció en català impecable.
 
@@ -307,6 +308,10 @@ export async function callGeminiDescriptor({
     if (contextInfo.to) userText += `- Enfocament o to desitjat: ${contextInfo.to}\n`;
     if (contextInfo.format) userText += `- Format d'Instagram: ${contextInfo.format}\n`;
     if (contextInfo.titolPrevi) userText += `- Títol previ considerat: ${contextInfo.titolPrevi}\n`;
+    const banned = getStoredBannedHashtags();
+    if (banned && banned.length > 0) {
+      userText += `- HASHTAGS VETATS (ESTRICTAMENT PROHIBITS): No utilitzis mai cap d'aquests hashtags: ${banned.join(', ')}. Estan completament vetats per a la marca.\n`;
+    }
   } else {
     // productes
     if (contextInfo.nom) userText += `- Nom actual: ${contextInfo.nom}\n`;
@@ -448,12 +453,21 @@ export async function generatePostingAssistantContent({
       });
 
       if (res?.data && res.data.copy && res.data.titol) {
+        const bannedList = getStoredBannedHashtags();
+        const cleanedCopy = filterBannedHashtagsFromText(res.data.copy, bannedList);
+        const cleanedVariants = Array.isArray(res.data.variantsCopy)
+          ? res.data.variantsCopy.map(v => ({
+              ...v,
+              copy: filterBannedHashtagsFromText(v.copy, bannedList)
+            }))
+          : [];
+
         return {
           titol: res.data.titol,
-          subtitol: res.data.subtitol || 'Artesania amb ànima en fusta de bedoll.',
+          subtitol: res.data.subtitol || 'Artesania amb ànima en fusta de til·ler.',
           etiqueta: res.data.etiqueta || (itemType === 'projectes' ? '🔨 Projecte d\'Atelier' : '✨ Fet a mà'),
-          copy: res.data.copy,
-          variantsCopy: Array.isArray(res.data.variantsCopy) ? res.data.variantsCopy : [],
+          copy: cleanedCopy,
+          variantsCopy: cleanedVariants,
           fromAi: true
         };
       }
@@ -468,7 +482,7 @@ export async function generatePostingAssistantContent({
   const isProject = itemType === 'projectes' || /diorama|espai|memòria|herboristeria|orquestra|fruits|mundet|escacs/i.test(itemName + ' ' + cleanTopic);
 
   let titol = itemName;
-  let subtitol = itemDesc.split('.')[0] || 'Artesania en fusta de bedoll i memòria.';
+  let subtitol = itemDesc.split('.')[0] || 'Artesania en fusta de til·ler i memòria.';
   let etiqueta = isProject ? '🔨 Projecte d\'Atelier' : '🪵 Fet a mà';
   let copyIntro = '';
   let copyBody = '';
@@ -479,25 +493,27 @@ export async function generatePostingAssistantContent({
   if (tone === 'emocional') {
     copyIntro = isProject
       ? `Hi ha històries que no es poden explicar només amb paraules; necessiten volum, calidesa i temps. 🪵🤍\n\nUs mostrem "${itemName}", una peça on cada detall és un homenatge a la memòria i als vincles que perduren.`
-      : `Hi ha records que mereixen un lloc especial a casa. 🪵🤍\n\nUs presentem el nostre ${itemName}, dissenyat per acollir els vostres moments més feliços amb la textura suau del contraxapat de bedoll polit.`;
+      : `Hi ha records que mereixen un lloc especial a casa. 🪵🤍\n\nUs presentem el nostre ${itemName}, dissenyat per acollir els vostres moments més feliços amb la textura suau del contraxapat de til·ler polit.`;
     copyBody = `${itemDesc}\n\nTreballat capa a capa, respectant la veta natural de la fusta i cuidant cada acabat perquè sigui un record per a tota la vida.`;
   } else if (tone === 'taller') {
     copyIntro = `Directe des del banc de feina del taller! 🔨🪵\n\nAvui donem els últims tocs a "${itemName}". La precisió del tall làser mil·limètric i el polit suau a mà és el que fa que cada peça tingui una presència única.`;
-    copyBody = `${itemDesc}\n\nSense artificis: fusta de bedoll seleccionada, vetes naturals i la satisfacció de donar forma tangible a les idees amb calma.`;
+    copyBody = `${itemDesc}\n\nSense artificis: fusta de til·ler seleccionada, vetes naturals i la satisfacció de donar forma tangible a les idees amb calma.`;
   } else if (tone === 'regal') {
     copyIntro = `Busques un detall amb ànima i que no s'oblidi mai? 🎁✨\n\n"${itemName}" és una d'aquelles peces creades pensant en emocionar a qui més estimes.`;
-    copyBody = `Artesania feta a Catalunya, personalització acurada i fusta de bedoll polit. ${itemDesc}\n\nUn detall que no surt d'una gran cadena, sinó que neix d'un ofici fet amb dedicació.`;
+    copyBody = `Artesania feta a Catalunya, personalització acurada i fusta de til·ler polit. ${itemDesc}\n\nUn detall que no surt d'una gran cadena, sinó que neix d'un ofici fet amb dedicació.`;
   } else {
     copyIntro = `Nova creació a l'atelier de Mínim Món: "${itemName}". 🪵✨`;
     copyBody = `${itemDesc}\n\nCada relleu i cada capa estan pensats per aturar el temps i transmetre la calidesa de la feina ben feta.`;
   }
 
-  const hashtags = '\n\n#minimmon #fustadebedoll #artesaniacatalana #fetama #diorames #recordsenfusta #dissenyartesanal #tallerartesanal #fetaCat';
-  const mainCopy = `${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`;
+  const bannedList = getStoredBannedHashtags();
+  const rawHashtags = '\n\n#minimmon #artesaniacatalana #fetama #diorames #recordsenfusta #dissenyartesanal #tallerartesanal #fetaCat';
+  const hashtags = filterBannedHashtagsFromText(rawHashtags, bannedList);
 
-  const variantEmocional = `${copyIntro.replace('!', '.')} 🪵🤍\n\nLa fusta acull la memòria amb una calma difícil de trobar avui dia.\n\n${itemDesc}\n\n${copyCta}${hashtags}`;
-  const variantTaller = `Mirada al procés de taller: "${itemName}". 🔨🪵\n\n${itemDesc}\n\nContraxapat de bedoll seleccionat, polit fi a mà i la il·lusió de veure com un esbós pren vida volumètrica.\n\n${copyCta}${hashtags}`;
-  const variantRegal = `Un detall que parla de tu: "${itemName}". 🎁✨\n\n${itemDesc}\n\n${copyCta}${hashtags}`;
+  const mainCopy = filterBannedHashtagsFromText(`${copyIntro}\n\n${copyBody}\n\n${copyCta}${hashtags}`, bannedList);
+  const variantEmocional = filterBannedHashtagsFromText(`${copyIntro.replace('!', '.')} 🪵🤍\n\nLa fusta acull la memòria amb una calma difícil de trobar avui dia.\n\n${itemDesc}\n\n${copyCta}${hashtags}`, bannedList);
+  const variantTaller = filterBannedHashtagsFromText(`Mirada al procés de taller: "${itemName}". 🔨🪵\n\n${itemDesc}\n\nContraxapat de til·ler seleccionat, polit fi a mà i la il·lusió de veure com un esbós pren vida volumètrica.\n\n${copyCta}${hashtags}`, bannedList);
+  const variantRegal = filterBannedHashtagsFromText(`Un detall que parla de tu: "${itemName}". 🎁✨\n\n${itemDesc}\n\n${copyCta}${hashtags}`, bannedList);
 
   return {
     titol,

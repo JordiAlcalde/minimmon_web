@@ -4,13 +4,13 @@ export const MINIATURE_WORLDS = [
     title: 'La Llibreria del Temps Aturat',
     subtitle: "Un homenatge a la quietud, l'olor de paper antic i les hores de lectura silenciosa.",
     image: '/images/world_library.jpg',
-    materials: ['Fusta de roure', 'Contrapesats de bedoll 2mm', 'Detalls 3D en resina', 'Micro-LEDs 2700K'],
+    materials: ['Fusta de roure', 'Contraxapat de til·ler 2mm', 'Detalls 3D en resina', 'Micro-LEDs 2700K'],
     dimensions: '22 x 16 x 14 cm',
     concept: "Creat per capturar la sensació de pau quan et perds en un llibre. No busca reproduir un edifici real, sinó el santuari mental que representa una vella llibreria per a qui busca refugi.",
     whyDetails: [
       {
         title: 'La scaliola de caragol gravada',
-        description: 'Tallada en capes superposades de bedoll de 1.5mm. Simbolitza el camí ascendent i lent del coneixement que no té pressa.'
+        description: 'Tallada en capes superposades de til·ler de 1.5mm. Simbolitza el camí ascendent i lent del coneixement que no té pressa.'
       },
       {
         title: 'El llum d ambre càlid',
@@ -50,7 +50,7 @@ export const MINIATURE_WORLDS = [
     title: 'El Banc del Dissenyador i l Artesà',
     subtitle: "Un tribut als oficis, la mesura exacta, l olor de l viruta i la línia dibuixada a mà.",
     image: '/images/world_workbench.jpg',
-    materials: ['Fusta de faig', 'Bedoll gravat amb micradura', 'Components 3D personalitzats'],
+    materials: ['Fusta de faig', 'Til·ler gravat amb micradura', 'Components 3D personalitzats'],
     dimensions: '20 x 20 x 15 cm',
     concept: "Un autorefugi que resumeix la meva pròpia vida entre el disseny industrial, el codi de programació i el marcatge làser. L aliança entre l artesania clàssica i la tecnologia de petit format.",
     whyDetails: [
@@ -79,7 +79,7 @@ export const GIFT_PRODUCTS = [
     priceDescription: 'Consulta segons volum i disseny',
     image: '/images/gifts.jpg',
     description: 'Tallats i gravats en fusta de noguer o roure natural. Ideals per portar inicials, coordenades d un lloc especial o una frase significativa.',
-    customizableOptions: ['Tipus de fusta (Noguer, Roure, Bedoll)', 'Gravat a doble cara', 'Forma geomètrica o silueta lliure']
+    customizableOptions: ['Tipus de fusta (Til·ler, Roure, Noguer)', 'Gravat a doble cara', 'Forma geomètrica o silueta lliure']
   },
   {
     id: 'punt-llibre-laser',

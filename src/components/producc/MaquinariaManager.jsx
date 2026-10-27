@@ -1304,7 +1304,7 @@ export default function MaquinariaManager({ maquinaria = [], setMaquinaria, mate
                             type="text"
                             value={newLibMaterialCustomNom}
                             onChange={(e) => setNewLibMaterialCustomNom(e.target.value)}
-                            placeholder="P. ex. Fusta de Bedoll 3mm, Metacrilat 4mm..."
+                            placeholder="P. ex. Fusta de Til·ler 3mm, Metacrilat 4mm..."
                             className={`w-full p-2 rounded-xl border outline-none ${
                               isDark ? 'bg-slate-950 border-slate-800 text-slate-200' : 'bg-slate-50 border-slate-200'
                             }`}

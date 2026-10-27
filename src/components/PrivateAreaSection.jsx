@@ -5016,7 +5016,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         isPreuDesDe: false,
                         simulador: 'cap',
                         opcionsPersonalitzacio: [
-                          { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Noguer, Roure natural, Bedoll' }
+                          { tipus: 'desplegable', titol: 'Fusta preferida', valors: 'Til·ler, Roure natural, Noguer' }
                         ],
                         cost: 0,
                         preu: 0,
@@ -5605,7 +5605,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             type="text"
                             placeholder={
                               opc.tipus === 'desplegable'
-                                ? "Valors: Noguer, Roure, Bedoll"
+                                ? "Valors: Til·ler, Roure, Noguer"
                                 : opc.tipus === 'memo'
                                 ? "Text d'ajuda (ex: Escriu la teva dedicatoria...)"
                                 : "Placeholder de text..."

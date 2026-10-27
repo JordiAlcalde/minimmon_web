@@ -302,7 +302,7 @@ export default function RegalsCatalogSection({
           gammaIds: g.items || [g.title],
           terminiFabricacio: '3 - 5 dies feiners',
           opcionsPersonalitzacio: [
-            { tipus: 'desplegable', titol: 'Material de Fusta', valors: 'Fusta de Noguer, Roure natural, Bedoll' },
+            { tipus: 'desplegable', titol: 'Material de Fusta', valors: 'Fusta de Til·ler, Roure natural, Noguer' },
             { tipus: 'text', titol: 'Text o Nom a gravar', valors: 'Escriu el nom o frase curta...' }
           ]
         })));

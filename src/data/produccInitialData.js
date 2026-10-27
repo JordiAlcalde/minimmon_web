@@ -35,7 +35,7 @@ export const INITIAL_FABRICANTS = [
     fabricant: 'Plywood Nordic AB', 
     pais: 'Finlàndia', 
     web: 'https://www.plywoodnordic.com', 
-    descripcio: 'Fabricant de plaques de bedoll d\'alta densitat i qualitat làser.' 
+    descripcio: 'Fabricant de plaques de til·ler d\'alta densitat i qualitat làser.' 
   },
   { 
     id: 'fab-2', 
@@ -94,16 +94,16 @@ export const INITIAL_PROVEIDORS = [
 export const INITIAL_MATERIALS = [
   {
     id: 'mat-1',
-    material: 'Bedoll Natural 1.5mm',
-    descripcio: 'Placa de fusta de bedoll especialment seleccionada per a tall i gravat làser d\'alta precisió.',
+    material: 'Til·ler Natural 1.5mm',
+    descripcio: 'Placa de fusta de til·ler especialment seleccionada per a tall i gravat làser d\'alta precisió.',
     imatge: 'https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80',
     grupId: 'grup-1',
     unitat: 'm²',
     estocActual: 15.5,
     estocMinim: 5,
     proPrinId: 'prov-2',
-    codiProPrin: 'LW-BED-15',
-    enllacProPrin: 'https://www.laserwood.es/productes/bedoll-1-5mm',
+    codiProPrin: 'LW-TIL-15',
+    enllacProPrin: 'https://www.laserwood.es/productes/tiller-1-5mm',
     preuProPrin: 18.50,
     terminiProPrin: '2-3 dies feiners',
     altresProveidors: [
@@ -258,7 +258,7 @@ export const INITIAL_ESCANDALLS = [
     margePercent: 65,
     notes: 'Escandall base per a un clauer individual amb gravat a 2 cares.',
     materials: [
-      { materialId: 'mat-1', quantitat: 0.05, costUnitari: 18.50 }, // ~0.05 m² de bedoll 1.5mm
+      { materialId: 'mat-1', quantitat: 0.05, costUnitari: 18.50 }, // ~0.05 m² de til·ler 1.5mm
       { materialId: 'mat-5', quantitat: 0.01, costUnitari: 24.50 }  // vernís
     ],
     operacions: [
@@ -307,7 +307,7 @@ export const INITIAL_COMPRES = [
     dataCreacio: '2026-08-10',
     estat: 'Rebut', // Pendent, Demanat, Rebut, Cancel·lat
     numAlbara: 'ALB-2026-994',
-    observacions: 'Comanda urgent de làmines de bedoll per a producció de comandes d\'estiu.',
+    observacions: 'Comanda urgent de làmines de til·ler per a producció de comandes d\'estiu.',
     linies: [
       {
         materialId: 'mat-1',
@@ -359,7 +359,7 @@ export const INITIAL_ORDRES_FABRICACIO = [
     materials: [
       {
         materialId: 'mat-1',
-        nom: 'Bedoll Natural 1.5mm',
+        nom: 'Til·ler Natural 1.5mm',
         quantitatTeoricaUnitat: 0.0012,
         quantitatTotal: 0.06,
         unitat: 'm²',
@@ -400,7 +400,7 @@ export const INITIAL_ORDRES_FABRICACIO = [
     materials: [
       {
         materialId: 'mat-1',
-        nom: 'Bedoll Natural 1.5mm',
+        nom: 'Til·ler Natural 1.5mm',
         quantitatTeoricaUnitat: 0.0015,
         quantitatTotal: 0.0375,
         unitat: 'm²',
