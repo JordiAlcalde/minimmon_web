@@ -1652,11 +1652,11 @@ export default function EscandallsManager({
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
               <div>
-                <h3 className="text-base sm:text-lg font-bold font-serif flex items-center gap-2 text-slate-100">
+                <h3 className={`text-base sm:text-lg font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                   <Package className="w-5 h-5 text-amber-500" />
                   <span>Selecciona el Producte a Escandallar</span>
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   Filtra per Família i Gamma per localitzar la peça ràpidament.
                 </p>
               </div>
@@ -1664,7 +1664,7 @@ export default function EscandallsManager({
               <button
                 type="button"
                 onClick={() => setProductPickerOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                className={`p-1.5 cursor-pointer rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
                 title="Tancar"
               >
                 <X className="w-5 h-5" />
@@ -1760,13 +1760,13 @@ export default function EscandallsManager({
                                 </span>
                               )}
                               {Array.isArray(p.opcionsPersonalitzacio) && p.opcionsPersonalitzacio.length > 0 && (
-                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-semibold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
                                   {p.opcionsPersonalitzacio.length} opcions
                                 </span>
                               )}
                             </div>
 
-                            <h4 className="font-bold text-slate-100 text-xs truncate">
+                            <h4 className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                               {p.nom || p.title}
                             </h4>
                           </div>
@@ -1774,11 +1774,11 @@ export default function EscandallsManager({
 
                         <div className="text-right shrink-0">
                           {p.preu ? (
-                            <span className="font-mono font-bold text-xs text-amber-400 block">{Number(p.preu).toFixed(2)} €</span>
+                            <span className={`font-mono font-bold text-xs block ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>{Number(p.preu).toFixed(2)} €</span>
                           ) : (
                             <span className="text-[10px] text-slate-500 block">Sense preu</span>
                           )}
-                          <span className="text-[10px] text-amber-400/80 hover:underline flex items-center justify-end gap-1 mt-0.5 font-semibold">
+                          <span className={`text-[10px] hover:underline flex items-center justify-end gap-1 mt-0.5 font-semibold ${isDark ? 'text-amber-400/80' : 'text-amber-600'}`}>
                             Triar <ArrowRight className="w-3 h-3" />
                           </span>
                         </div>
@@ -1804,11 +1804,11 @@ export default function EscandallsManager({
               isDark ? 'bg-slate-900 border-slate-800' : 'bg-slate-50 border-slate-200'
             }`}>
               <div>
-                <h3 className="text-base sm:text-lg font-bold font-serif flex items-center gap-2 text-slate-100">
+                <h3 className={`text-base sm:text-lg font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                   <Palette className="w-5 h-5 text-amber-500" />
                   <span>Selecciona el Projecte a Escandallar</span>
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                   Tria entre els projectes existents de Món Mínim, encàrrecs de taller o crea'n un a mida.
                 </p>
               </div>
@@ -1816,7 +1816,7 @@ export default function EscandallsManager({
               <button
                 type="button"
                 onClick={() => setProjectPickerOpen(false)}
-                className="text-slate-400 hover:text-white p-1.5 cursor-pointer rounded-xl hover:bg-slate-800 transition-colors"
+                className={`p-1.5 cursor-pointer rounded-xl transition-colors ${isDark ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'}`}
                 title="Tancar"
               >
                 <X className="w-5 h-5" />
@@ -1956,7 +1956,7 @@ export default function EscandallsManager({
                                   </span>
                                 )}
                               </div>
-                              <h4 className="font-bold text-slate-100 text-xs truncate mt-0.5" title={titol}>
+                              <h4 className={`font-bold text-xs truncate mt-0.5 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={titol}>
                                 {titol}
                               </h4>
                               {preuVal > 0 && (
@@ -2038,7 +2038,7 @@ export default function EscandallsManager({
                                   </span>
                                 )}
                               </div>
-                              <h4 className="font-bold text-slate-100 text-xs truncate mt-0.5" title={titol}>
+                              <h4 className={`font-bold text-xs truncate mt-0.5 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={titol}>
                                 {titol}
                               </h4>
                               {pressupostVal > 0 && (
@@ -2080,7 +2080,7 @@ export default function EscandallsManager({
                     <Plus className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-100">Projecte o Encàrrec a Mida</h4>
+                    <h4 className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Projecte o Encàrrec a Mida</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
                       Crea un escandall tècnic per a un projecte personalitzat o nou encàrrec des de zero sense haver d'estar donat d'alta prèviament.
                     </p>
