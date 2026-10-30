@@ -81,7 +81,7 @@ export function ProjeccAssignTaskModal({
             }`}>
               {item.tipus === 'projecte' ? 'Projecte a Mida' : 'Producte de Catàleg'}
             </span>
-            <h2 className="text-lg font-bold font-serif text-slate-100 mt-1">
+            <h2 className={`text-lg font-bold font-serif mt-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
               Triar Tasca de Treball
             </h2>
             <p className="text-xs text-slate-400">
@@ -162,7 +162,7 @@ export function ProjeccAssignTaskModal({
                     >
                       <div className="space-y-0.5 flex-1 pr-2">
                         <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-slate-100 font-serif">
+                          <h4 className={`text-sm font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                             {mTask.nom}
                           </h4>
                           {alreadyAssigned && (
@@ -204,7 +204,7 @@ export function ProjeccAssignTaskModal({
           ) : (
             <div className="space-y-3 text-xs">
               <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">Nom de la Nova Tasca a Mida:</label>
+                <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nom de la Nova Tasca a Mida:</label>
                 <input
                   type="text"
                   value={customNom}
@@ -217,7 +217,7 @@ export function ProjeccAssignTaskModal({
               </div>
 
               <div className="space-y-1">
-                <label className="font-bold text-slate-300 block">Descripció o Detalls (Opcional):</label>
+                <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Descripció o Detalls (Opcional):</label>
                 <textarea
                   value={customDesc}
                   onChange={(e) => setCustomDesc(e.target.value)}

@@ -155,7 +155,7 @@ export function ProjeccAnalytics({ item, isDark, onBack }) {
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}>
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold font-serif flex items-center gap-2 text-slate-200">
+              <h2 className={`text-base font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                 <BarChart3 className="w-5 h-5 text-amber-500" />
                 Desglossament de Temps per Tasca
               </h2>
@@ -171,7 +171,7 @@ export function ProjeccAnalytics({ item, isDark, onBack }) {
                   return (
                     <div key={t.id} className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-200 truncate pr-2" title={t.nom}>
+                        <span className={`font-semibold truncate pr-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`} title={t.nom}>
                           {t.nom}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
@@ -204,7 +204,7 @@ export function ProjeccAnalytics({ item, isDark, onBack }) {
           <div className={`p-5 rounded-2xl border space-y-4 ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}>
-            <h2 className="text-base font-bold font-serif flex items-center gap-2 text-slate-200">
+            <h2 className={`text-base font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               <Calendar className="w-5 h-5 text-emerald-500" />
               Activitat per Dates
             </h2>
@@ -214,9 +214,9 @@ export function ProjeccAnalytics({ item, isDark, onBack }) {
             ) : (
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
                 {dateEntries.map(([dateStr, sec]) => (
-                  <div key={dateStr} className="p-3 rounded-xl bg-slate-950/40 border border-slate-800/70 flex items-center justify-between">
+                  <div key={dateStr} className={`p-3 rounded-xl border flex items-center justify-between ${isDark ? 'bg-slate-950/40 border-slate-800/70' : 'bg-slate-50 border-slate-200'}`}>
                     <div>
-                      <span className="text-xs font-bold text-slate-200 block">{formatDateDMY(dateStr)}</span>
+                      <span className={`text-xs font-bold block ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{formatDateDMY(dateStr)}</span>
                       <span className="text-[10px] text-slate-400">{formatSecondsHuman(sec)}</span>
                     </div>
                     <span className="font-mono text-xs font-bold text-emerald-400">

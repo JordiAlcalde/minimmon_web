@@ -226,22 +226,22 @@ export function ProjeccDetail({
               </div>
 
               {/* Nom ben visible */}
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold font-serif text-slate-100 tracking-tight leading-tight">
+              <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-bold font-serif tracking-tight leading-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 {item.nomDefinitiu || item.nomProvisional || item.nom}
               </h1>
 
               {/* Dades ràpides: Client i Data d'inici */}
               <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap pt-0.5">
                 {item.nomClient && (
-                  <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                  <span className={`flex items-center gap-1.5 font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     <User className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Client: <strong className="text-white">{item.nomClient}</strong></span>
+                    <span>Client: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{item.nomClient}</strong></span>
                   </span>
                 )}
                 {item.dataInici && (
-                  <span className="flex items-center gap-1.5 font-medium text-slate-300">
+                  <span className={`flex items-center gap-1.5 font-medium ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                     <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Inici: <strong className="text-white">{formatDateDMY(item.dataInici)}</strong></span>
+                    <span>Inici: <strong className={isDark ? 'text-white' : 'text-slate-900'}>{formatDateDMY(item.dataInici)}</strong></span>
                   </span>
                 )}
               </div>
@@ -257,7 +257,7 @@ export function ProjeccDetail({
                   {formatSecondsToHMS(grandTotalSeconds)}
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Equival a <strong className="text-slate-300">{formatSecondsHuman(grandTotalSeconds)}</strong> ({totalSessions} {totalSessions === 1 ? 'sessió' : 'sessions'})
+                  Equival a <strong className={isDark ? 'text-slate-300' : 'text-slate-800'}>{formatSecondsHuman(grandTotalSeconds)}</strong> ({totalSessions} {totalSessions === 1 ? 'sessió' : 'sessions'})
                 </p>
               </div>
 
@@ -295,8 +295,8 @@ export function ProjeccDetail({
           <div className={`p-4 rounded-2xl border flex flex-col h-52 transition-all ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 mb-2 shrink-0">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <div className={`flex items-center justify-between pb-2 border-b mb-2 shrink-0 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+              <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <FileText className="w-3.5 h-3.5 text-amber-500" />
                 Notes Descriptives del Projecte
               </h3>
@@ -308,7 +308,7 @@ export function ProjeccDetail({
             </div>
 
             {/* Contingut amb barra de desplaçament vertical */}
-            <div className="flex-1 overflow-y-auto pr-2 text-sm sm:text-base text-slate-200 leading-relaxed whitespace-pre-wrap">
+            <div className={`flex-1 overflow-y-auto pr-2 text-sm sm:text-base leading-relaxed whitespace-pre-wrap ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               {item.notes ? (
                 <p className="italic">{item.notes}</p>
               ) : (
@@ -331,8 +331,8 @@ export function ProjeccDetail({
           <div className={`p-4 rounded-2xl border flex flex-col h-52 transition-all ${
             isDark ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
           }`}>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 mb-2 shrink-0">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <div className={`flex items-center justify-between pb-2 border-b mb-2 shrink-0 ${isDark ? 'border-slate-800/60' : 'border-slate-200'}`}>
+              <h3 className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <Camera className="w-3.5 h-3.5 text-amber-500" />
                 Fitxers / Imatges de Mostra ({Array.isArray(item.mostresClient) ? item.mostresClient.length : 0})
               </h3>
@@ -385,7 +385,7 @@ export function ProjeccDetail({
         <section className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold font-serif text-slate-100 flex items-center gap-2">
+              <h2 className={`text-lg font-bold font-serif flex items-center gap-2 ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 <Layers className="w-5 h-5 text-amber-500" />
                 Tasques de Treball ({tasks.length})
               </h2>
@@ -460,7 +460,7 @@ export function ProjeccDetail({
                           <span className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center justify-center">
                             {tIdx + 1}
                           </span>
-                          <h3 className="text-sm font-bold text-slate-100 font-serif">
+                          <h3 className={`text-sm font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                             {task.nom}
                           </h3>
                           {runningTimer && (
@@ -477,7 +477,7 @@ export function ProjeccDetail({
                       </div>
 
                       {task.descripcio && (
-                        <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed">{task.descripcio}</p>
+                        <p className={`text-sm line-clamp-2 leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{task.descripcio}</p>
                       )}
 
                       <div className="flex items-center gap-3 text-[11px] text-slate-400 pt-1">
@@ -489,7 +489,7 @@ export function ProjeccDetail({
                     </div>
 
                     {/* Botons d'acció de la tasca */}
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                    <div className={`flex items-center justify-between gap-2 pt-2 border-t ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => onViewSessions(task)}

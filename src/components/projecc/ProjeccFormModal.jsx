@@ -185,7 +185,7 @@ export function ProjeccFormModal({
             <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center font-bold">
               {tipus === 'projecte' ? <FolderPlus className="w-4 h-4" /> : <Package className="w-4 h-4" />}
             </div>
-            <h2 className="text-lg font-bold font-serif text-slate-100">
+            <h2 className={`text-lg font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
               {initialData ? 'Editar Control de Desenvolupament' : 'Nou Control de Desenvolupament'}
             </h2>
           </div>
@@ -205,7 +205,7 @@ export function ProjeccFormModal({
           
           {/* 1. Selector de Tipus (Projecte o Producte) */}
           <div className="space-y-1.5">
-            <label className="font-bold text-slate-300 block">Tipus de Gestió:</label>
+            <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Tipus de Gestió:</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -237,7 +237,7 @@ export function ProjeccFormModal({
 
           {/* 2. Origen: Nou vs Existent a la BD */}
           <div className="space-y-1.5">
-            <label className="font-bold text-slate-300 block">Origen de la Dades:</label>
+            <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Origen de la Dades:</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -299,7 +299,7 @@ export function ProjeccFormModal({
           {/* 3. Noms (Provisional i Definitiu) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-slate-300 block">Nom Provisional:</label>
+              <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nom Provisional:</label>
               <input
                 type="text"
                 value={nomProvisional}
@@ -314,7 +314,7 @@ export function ProjeccFormModal({
 
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-300 block">Nom Definitiu:</label>
+                <label className={`font-bold block ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Nom Definitiu:</label>
                 <button
                   type="button"
                   onClick={() => setIsAiOpen(true)}
@@ -341,7 +341,7 @@ export function ProjeccFormModal({
           {/* 4. Client i Data */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+              <label className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <User className="w-3.5 h-3.5 text-amber-500" />
                 Nom del Client:
               </label>
@@ -357,7 +357,7 @@ export function ProjeccFormModal({
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+              <label className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <Calendar className="w-3.5 h-3.5 text-amber-500" />
                 Data d'Inici:
               </label>
@@ -375,7 +375,7 @@ export function ProjeccFormModal({
           {/* 5. Notes Generals */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+              <label className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <FileText className="w-3.5 h-3.5 text-amber-500" />
                 Notes i Objectius Generals:
               </label>
@@ -401,9 +401,9 @@ export function ProjeccFormModal({
           </div>
 
           {/* 6. Fitxers i Imatges de Mostra del Client */}
-          <div className="space-y-2 p-3.5 rounded-xl border bg-slate-950/30 border-slate-800">
+          <div className={`space-y-2 p-3.5 rounded-xl border ${isDark ? 'bg-slate-950/30 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+              <label className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <Camera className="w-3.5 h-3.5 text-amber-500" />
                 Fitxers / Imatges de mostra del Client ({mostresClient.length}):
               </label>
@@ -448,9 +448,9 @@ export function ProjeccFormModal({
           </div>
 
           {/* 7. Conjunt de Tasques Personalitzables */}
-          <div className="space-y-2.5 p-3.5 rounded-xl border bg-slate-950/30 border-slate-800">
+          <div className={`space-y-2.5 p-3.5 rounded-xl border ${isDark ? 'bg-slate-950/30 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-300 flex items-center gap-1.5">
+              <label className={`font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                 <ListChecks className="w-3.5 h-3.5 text-amber-500" />
                 Conjunt de Tasques ({tasques.length}):
               </label>
@@ -458,8 +458,8 @@ export function ProjeccFormModal({
 
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {tasques.map((t, idx) => (
-                <div key={t.id || idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800">
-                  <span className="font-medium text-slate-200 truncate pr-2">{t.nom}</span>
+                <div key={t.id || idx} className={`flex items-center justify-between p-2 rounded-lg border ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                  <span className={`font-medium truncate pr-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{t.nom}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveTasca(t.id)}

@@ -264,19 +264,19 @@ export function ProjeccTimerView({
             <Clock className="w-4 h-4" />
             Tasca en Curs
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-serif text-slate-100">
+          <h1 className={`text-2xl sm:text-3xl font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
             {currentTimer.taskNom}
           </h1>
           {currentTimer.taskDesc && (
-            <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-md mx-auto">
+            <p className={`text-sm sm:text-base leading-relaxed max-w-md mx-auto ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               {currentTimer.taskDesc}
             </p>
           )}
 
           {currentTimer.nomClient && (
-            <div className="flex items-center justify-center gap-1.5 text-sm sm:text-base text-slate-300 pt-1">
+            <div className={`flex items-center justify-center gap-1.5 text-sm sm:text-base pt-1 ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
               <User className="w-4 h-4 text-amber-400" />
-              <span>Client: <strong className="text-white font-bold">{currentTimer.nomClient}</strong></span>
+              <span>Client: <strong className={`${isDark ? 'text-white' : 'text-slate-900'} font-bold`}>{currentTimer.nomClient}</strong></span>
             </div>
           )}
         </section>
@@ -298,7 +298,7 @@ export function ProjeccTimerView({
           <div className="flex items-center justify-center gap-6 text-sm text-slate-300 pt-3 border-t border-slate-800/60">
             <div className="text-center">
               <span className="block text-xs uppercase tracking-wider text-slate-400 font-semibold mb-0.5">Temps Previ</span>
-              <span className="font-mono text-base sm:text-lg font-bold text-slate-200">{formatSecondsToHMS(previousTaskSeconds)}</span>
+              <span className={`font-mono text-base sm:text-lg font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{formatSecondsToHMS(previousTaskSeconds)}</span>
             </div>
             <div className="h-8 w-px bg-slate-800" />
             <div className="text-center">
@@ -312,7 +312,7 @@ export function ProjeccTimerView({
         <section className={`p-4 sm:p-5 rounded-2xl border space-y-2.5 ${
           isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}>
-          <label className="text-sm sm:text-base font-bold text-slate-200 flex items-center justify-between">
+          <label className={`text-sm sm:text-base font-bold flex items-center justify-between ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
             <span className="flex items-center gap-2">
               <MessageSquare className="w-4 h-4 text-amber-500" />
               Notes & Observacions de la feina
@@ -335,7 +335,7 @@ export function ProjeccTimerView({
           isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
         }`}>
           <div className="flex items-center justify-between">
-            <div className="text-sm sm:text-base font-bold text-slate-200 flex items-center gap-2">
+            <div className={`text-sm sm:text-base font-bold flex items-center gap-2 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
               <Camera className="w-4 h-4 text-amber-500" />
               Fotos de Procés ({sessionPhotos.length})
             </div>
@@ -381,7 +381,7 @@ export function ProjeccTimerView({
               ))}
             </div>
           ) : (
-            <p className="text-xs sm:text-sm text-slate-300 italic leading-relaxed">
+            <p className={`text-xs sm:text-sm italic leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-500'}`}>
               Fotografia detalls del muntatge, posició de peces o calibratge per recordar-ho després.
             </p>
           )}
@@ -438,8 +438,8 @@ export function ProjeccTimerView({
             </div>
 
             <div className="text-center space-y-1.5">
-              <h3 className="text-xl font-bold font-serif text-slate-100">Finalitzar aquesta sessió?</h3>
-              <p className="text-sm text-slate-300">
+              <h3 className={`text-xl font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Finalitzar aquesta sessió?</h3>
+              <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                 Es desarà un registre de <strong className="text-amber-400 font-bold">{formatSecondsHuman(elapsedSeconds)}</strong> ({formatSecondsToHMS(elapsedSeconds)}) per a la tasca "{currentTimer.taskNom}".
               </p>
             </div>

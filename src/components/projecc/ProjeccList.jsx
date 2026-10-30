@@ -194,7 +194,7 @@ export function ProjeccList({
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
               <Layers className="w-6 h-6" />
             </div>
-            <h3 className="text-sm font-bold font-serif text-slate-300">No s'ha trobat cap registre</h3>
+            <h3 className={`text-sm font-bold font-serif ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>No s'ha trobat cap registre</h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto">
               Crea un nou Projecte a Mida o Producte de Catàleg per començar a cronometrar les tasques.
             </p>
@@ -232,8 +232,8 @@ export function ProjeccList({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                       item.tipus === 'projecte' 
-                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
-                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        ? isDark ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-amber-100 text-amber-800 border border-amber-300' 
+                        : isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                     }`}>
                       {item.tipus === 'projecte' ? 'Projecte' : 'Producte'}
                     </span>
@@ -247,8 +247,8 @@ export function ProjeccList({
 
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
                       isClosed
-                        ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        ? isDark ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-red-100 text-red-700 border border-red-300'
+                        : isDark ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                     }`}>
                       {isClosed ? <Lock className="w-2.5 h-2.5" /> : <Unlock className="w-2.5 h-2.5" />}
                       {isClosed ? 'Tancat' : 'En Curs'}
@@ -263,7 +263,7 @@ export function ProjeccList({
                   </div>
 
                   <div>
-                    <h3 className="text-base font-bold font-serif text-slate-100 group-hover:text-amber-400 transition-colors">
+                    <h3 className={`text-base font-bold font-serif transition-colors ${isDark ? 'text-slate-100 group-hover:text-amber-400' : 'text-slate-900 group-hover:text-amber-700'}`}>
                       {item.nomDefinitiu || item.nomProvisional || item.nom}
                     </h3>
                     {item.nomProvisional && item.nomDefinitiu && item.nomProvisional !== item.nomDefinitiu && (
@@ -273,11 +273,11 @@ export function ProjeccList({
                     )}
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+                  <div className={`flex items-center gap-4 text-xs flex-wrap ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                     {item.nomClient && (
                       <span className="flex items-center gap-1">
                         <User className="w-3.5 h-3.5 text-slate-400" />
-                        Client: <strong className="text-slate-300">{item.nomClient}</strong>
+                        Client: <strong className={isDark ? 'text-slate-300' : 'text-slate-800'}>{item.nomClient}</strong>
                       </span>
                     )}
                     <span>
@@ -287,10 +287,10 @@ export function ProjeccList({
                 </div>
 
                 {/* Temps Acumulat i Acció */}
-                <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800 shrink-0">
+                <div className={`flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 shrink-0 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
                   <div className="text-left sm:text-right">
                     <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Temps Acumulat</span>
-                    <span className="font-mono text-lg sm:text-xl font-bold text-amber-400">
+                    <span className={`font-mono text-lg sm:text-xl font-bold ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
                       {formatSecondsToHMS(itemTotalSeconds)}
                     </span>
                     <span className="text-[10px] text-slate-400 block">{formatSecondsHuman(itemTotalSeconds)}</span>

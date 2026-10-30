@@ -405,7 +405,7 @@ export function ProjeccSessionsModal({
               {task.nom}
             </h3>
             {task.descripcio && (
-              <p className="text-sm text-slate-300 line-clamp-2 leading-relaxed">{task.descripcio}</p>
+              <p className={`text-sm line-clamp-2 leading-relaxed ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>{task.descripcio}</p>
             )}
           </div>
 
@@ -757,7 +757,7 @@ export function ProjeccSessionsModal({
               <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
                 <Clock className="w-6 h-6" />
               </div>
-              <p className="text-sm font-semibold text-slate-300">Encara no s'ha enregistrat cap sessió</p>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Encara no s'ha enregistrat cap sessió</p>
               <p className="text-xs text-slate-400 max-w-xs mx-auto">
                 Pots iniciar el cronòmetre en viu o afegir un temps manual aproximat si ja has fet la feina.
               </p>
@@ -802,7 +802,7 @@ export function ProjeccSessionsModal({
                       <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold flex items-center justify-center">
                         #{revIndex}
                       </span>
-                      <span className="text-xs font-semibold flex items-center gap-1 text-slate-300">
+                      <span className={`text-xs font-semibold flex items-center gap-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                         {formatDateDMY(session.data) || 'Data sense especificar'}
                       </span>
@@ -1068,7 +1068,7 @@ export function ProjeccSessionsModal({
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-200 italic whitespace-pre-wrap leading-relaxed">
+                      <p className={`text-sm italic whitespace-pre-wrap leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                         {session.notes || <span className="text-slate-400 not-italic">Sense comentaris registrats en aquesta sessió.</span>}
                       </p>
                     )}

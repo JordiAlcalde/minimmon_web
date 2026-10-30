@@ -85,7 +85,7 @@ export function ProjeccMestreTasquesModal({
               <ListChecks className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-lg font-bold font-serif text-slate-100">
+              <h2 className={`text-lg font-bold font-serif ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 Catàleg de Tasques de Taller
               </h2>
               <p className="text-xs text-slate-400">
@@ -187,7 +187,7 @@ export function ProjeccMestreTasquesModal({
                   ) : (
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1 flex-1">
-                        <h4 className="text-sm font-bold text-slate-200 font-serif">
+                        <h4 className={`text-sm font-bold font-serif ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                           {t.nom}
                         </h4>
                         {t.descripcio && (
@@ -223,7 +223,7 @@ export function ProjeccMestreTasquesModal({
         <form onSubmit={handleAddNewTask} className={`p-4 border-t space-y-2.5 ${
           isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'
         }`}>
-          <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+          <div className={`text-xs font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
             <Plus className="w-4 h-4 text-amber-500" />
             Afegir Nova Tasca al Catàleg
           </div>
