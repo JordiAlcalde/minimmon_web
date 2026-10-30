@@ -12,12 +12,14 @@ import { getDefaultTheme, saveDefaultTheme } from '../utils/themeUtils';
 import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
 import GeminiDescriptorModal from './common/GeminiDescriptorModal';
+import ClientsPortalsManager from './ClientsPortalsManager';
 import { getProductStockMetrics } from '../utils/productStockUtils';
 import { 
   Bell,
   Lock, 
   Boxes,
   ListTodo,
+  Building2,
   Key, 
   Mail, 
   Phone, 
@@ -675,6 +677,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [editingProducte, setEditingProducte] = useState(null); // null = list mode, {} = edit mode
   const [adminFamFilter, setAdminFamFilter] = useState('Totes');
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
+  const [adminClientFilter, setAdminClientFilter] = useState('Tots'); // 'Tots' | 'general' | 'client_exclusiu' | <clientId>
+  const [dbClientsPortals, setDbClientsPortals] = useState([]);
   const descTextAreaRef = useRef(null);
   const infoAdicionalTextAreaRef = useRef(null);
   const savedProductScrollY = useRef(0);
@@ -852,6 +856,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
         setLoadingInformacions(false);
       });
 
+      // 9. Clients i Portals Exclusius
+      const unsubClients = onSnapshot(collection(db, "clients_portals"), (snapshot) => {
+        const loaded = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        loaded.sort((a, b) => String(a.nomComercial || '').localeCompare(String(b.nomComercial || '')));
+        setDbClientsPortals(loaded);
+      }, (err) => {
+        console.warn("Error carregant clients_portals:", err);
+      });
+
       return () => {
         unsubPress();
         unsubProd();
@@ -861,6 +874,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
         unsubCalc();
         unsubFrases();
         unsubInfo();
+        unsubClients();
       };
     }
   }, [isAuthenticated]);
@@ -2376,6 +2390,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
           notificatInici: editingProducte.programacio.notificatInici === true,
           notificatFi: editingProducte.programacio.notificatFi === true,
         } : { activa: false },
+        tipusCataleg: editingProducte.tipusCataleg || 'general',
+        clientId: editingProducte.tipusCataleg === 'client_exclusiu' ? (editingProducte.clientId || null) : null,
+        clientSlug: editingProducte.tipusCataleg === 'client_exclusiu' ? (editingProducte.clientSlug || null) : null,
         dataCreacio: editingProducte.dataCreacio || new Date().toISOString()
       }, { merge: true });
 
@@ -3046,6 +3063,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'taxonomy' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
                   {dbGammes.length}
+                </span>
+              </button>
+
+              <button 
+                onClick={() => setActiveModule('clients')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'clients' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Clients & Portals</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'clients' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbClientsPortals.length}
                 </span>
               </button>
             </div>
@@ -5130,6 +5164,124 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </div>
               </div>
 
+              {/* ÀMBIT DE PUBLICACIÓ I DESTÍ (CATÀLEG GENERAL VS CLIENT EXCLUSIU) */}
+              <div className="p-4 bg-surface rounded-xl border border-outline/20 space-y-3">
+                <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                  <label className="text-xs uppercase font-bold text-primary flex items-center gap-2">
+                    <Building2 className="w-4 h-4 text-primary" />
+                    <span>Àmbit de Publicació i Destí del Producte</span>
+                  </label>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                    editingProducte.tipusCataleg === 'client_exclusiu'
+                      ? 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border border-sky-500/30'
+                      : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {editingProducte.tipusCataleg === 'client_exclusiu' ? '🔒 Exclusiu de Client' : '🌍 Catàleg Obert'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                    (editingProducte.tipusCataleg || 'general') === 'general'
+                      ? 'border-primary bg-primary/5 text-primary shadow-xs'
+                      : 'border-outline/20 hover:bg-surface-container text-on-surface-variant'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="prod_tipus_cataleg"
+                      checked={(editingProducte.tipusCataleg || 'general') === 'general'}
+                      onChange={() => setEditingProducte({ 
+                        ...editingProducte, 
+                        tipusCataleg: 'general',
+                        clientId: null,
+                        clientSlug: null 
+                      })}
+                      className="mt-0.5 text-primary"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-primary">🌍 Catàleg Obert de Mínim Món</span>
+                      <span className="text-[11px] text-on-surface-variant leading-tight block mt-0.5">
+                        Visible al catàleg públic general per a tothom.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all ${
+                    editingProducte.tipusCataleg === 'client_exclusiu'
+                      ? 'border-sky-600 bg-sky-500/10 text-sky-950 dark:text-sky-200 shadow-xs'
+                      : 'border-outline/20 hover:bg-surface-container text-on-surface-variant'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="prod_tipus_cataleg"
+                      checked={editingProducte.tipusCataleg === 'client_exclusiu'}
+                      onChange={() => {
+                        const firstClient = dbClientsPortals[0];
+                        setEditingProducte({ 
+                          ...editingProducte, 
+                          tipusCataleg: 'client_exclusiu',
+                          clientId: editingProducte.clientId || firstClient?.id || '',
+                          clientSlug: editingProducte.clientSlug || firstClient?.slug || ''
+                        });
+                      }}
+                      className="mt-0.5 text-sky-600"
+                    />
+                    <div>
+                      <span className="block text-xs font-bold text-primary flex items-center gap-1">
+                        <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                        <span>🏷️ Exclusiu de Client</span>
+                      </span>
+                      <span className="text-[11px] text-on-surface-variant leading-tight block mt-0.5">
+                        Ocult al catàleg general. Només visible a la seva pàgina pròpia (/?slug).
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {editingProducte.tipusCataleg === 'client_exclusiu' && (
+                  <div className="pt-3 border-t border-outline/10 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-primary">
+                        Selecciona el Client Propietari:
+                      </label>
+                      {dbClientsPortals.length === 0 ? (
+                        <div className="text-xs text-error font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>Encara no hi ha cap client creat. Vés al mòdul "Clients & Portals" per donar d'alta el primer.</span>
+                        </div>
+                      ) : (
+                        <select
+                          required
+                          value={editingProducte.clientId || ''}
+                          onChange={(e) => {
+                            const selectedId = e.target.value;
+                            const matched = dbClientsPortals.find(c => c.id === selectedId);
+                            setEditingProducte({
+                              ...editingProducte,
+                              clientId: selectedId,
+                              clientSlug: matched ? matched.slug : ''
+                            });
+                          }}
+                          className="bg-surface border border-sky-400 rounded-lg px-3 py-2 text-xs font-bold text-primary outline-none focus:border-primary cursor-pointer"
+                        >
+                          <option value="">-- Tria un client registrat --</option>
+                          {dbClientsPortals.map(client => (
+                            <option key={client.id} value={client.id}>
+                              {client.nomComercial} (/?{client.slug})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    {editingProducte.clientSlug && (
+                      <p className="text-[11px] text-on-surface-variant font-mono">
+                        🔗 Aquest producte només serà accessible a: <strong className="text-primary">https://minimmon.cat/?{editingProducte.clientSlug}</strong>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* CAIXETÍ DESTACAT: SIMULADOR INTERACTIU DE FITXA PÚBLICA */}
               <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/30 space-y-3">
                 <div className="space-y-1.5">
@@ -6707,9 +6859,30 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </select>
                 </div>
 
-                {(adminFamFilter !== 'Totes' || adminGamFilter !== 'Totes') && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase font-mono font-semibold text-primary flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-primary" />
+                    <span>Àmbit / Client:</span>
+                  </span>
+                  <select
+                    value={adminClientFilter}
+                    onChange={(e) => setAdminClientFilter(e.target.value)}
+                    className="bg-surface border border-outline/25 rounded px-3 py-1.5 text-xs text-primary font-semibold cursor-pointer outline-none focus:border-primary"
+                  >
+                    <option value="Tots">Tots els productes</option>
+                    <option value="general">🌍 Només Catàleg Obert</option>
+                    <option value="client_exclusiu">🔒 Tots els Clients Exclusius</option>
+                    {dbClientsPortals.map(c => (
+                      <option key={c.id} value={c.id}>
+                        🏢 {c.nomComercial} (/?{c.slug})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {(adminFamFilter !== 'Totes' || adminGamFilter !== 'Totes' || adminClientFilter !== 'Tots') && (
                   <button
-                    onClick={() => { setAdminFamFilter('Totes'); setAdminGamFilter('Totes'); }}
+                    onClick={() => { setAdminFamFilter('Totes'); setAdminGamFilter('Totes'); setAdminClientFilter('Tots'); }}
                     className="text-xs text-primary underline font-medium cursor-pointer ml-auto"
                   >
                     Netejar filtres
@@ -6756,6 +6929,16 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             if (adminGamFilter !== 'Totes') {
                               const matchGam = isProductInGamma(p.gammaIds, adminGamFilter, dbGammes);
                               if (!matchGam) return false;
+                            }
+                            if (adminClientFilter !== 'Tots') {
+                              if (adminClientFilter === 'general') {
+                                if (p.tipusCataleg === 'client_exclusiu') return false;
+                              } else if (adminClientFilter === 'client_exclusiu') {
+                                if (p.tipusCataleg !== 'client_exclusiu') return false;
+                              } else {
+                                // És un ID de client específic
+                                if (p.clientId !== adminClientFilter && p.clientSlug !== adminClientFilter) return false;
+                              }
                             }
                             return true;
                           }),
@@ -6835,6 +7018,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
                             <td className="p-4 font-semibold text-primary">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span>{p.nom}</span>
+                                {p.tipusCataleg === 'client_exclusiu' && (
+                                  <span 
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-950 border border-sky-300 dark:bg-sky-950/60 dark:text-sky-200 dark:border-sky-700 inline-flex items-center gap-1 shadow-2xs"
+                                    title={`Producte exclusiu visible només a /?${p.clientSlug || ''}`}
+                                  >
+                                    <Building2 className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                                    <span>Client: {dbClientsPortals.find(c => c.id === p.clientId || c.slug === p.clientSlug)?.nomComercial || p.clientSlug || 'Exclusiu'}</span>
+                                  </span>
+                                )}
                                 {p.novetat && (
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 inline-flex items-center gap-0.5 shadow-2xs">
                                     <Sparkles className="w-3 h-3 text-amber-600" /> NOVETAT
@@ -7461,6 +7653,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* MODULE: CLIENTS I PORTALS EXCLUSIUS */}
+      {activeModule === 'clients' && (
+        <ClientsPortalsManager
+          clients={dbClientsPortals}
+          products={dbProductesAdmin}
+          onEditProduct={(p) => {
+            setActiveModule('productes');
+            setEditingProducte(p);
+          }}
+          setActiveModule={setActiveModule}
+        />
       )}
 
       {/* MODULE: GESTIÓ DE FAMÍLIES I GAMMES */}

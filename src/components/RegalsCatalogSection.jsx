@@ -399,7 +399,10 @@ export default function RegalsCatalogSection({
     // 1. Si està marcat com a inactiu (actiu === false), MAI no es veu (ni com a públic ni com a administrador)
     if (p.actiu === false) return false;
 
-    // 2. Avaluació d'estat de programació temporal i esborrany
+    // 2. Protecció estricta: Els productes exclusius de client MAI apareixen al catàleg obert general
+    if (p.tipusCataleg === 'client_exclusiu') return false;
+
+    // 3. Avaluació d'estat de programació temporal i esborrany
     const sched = getItemScheduleStatus(p);
     if (!sched.isVisible && !isAdmin) return false;
 
@@ -1230,7 +1233,7 @@ class ProductCardErrorBoundary extends React.Component {
 }
 
 // Subcomponent per a cada Fitxa de Producte amb opcions de personalització i quantitat
-function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], dbEscandalls = [], onSelectImageModal, isModalView = false }) {
+export function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGammes = [], dbEscandalls = [], onSelectImageModal, isModalView = false }) {
   const [isMoreInfoOpen, setIsMoreInfoOpen] = useState(false);
 
   // Trobar si aquest producte pertany a una Gamma amb dades comunes

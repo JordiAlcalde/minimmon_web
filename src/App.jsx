@@ -18,8 +18,9 @@ import OrderTrackingModal from './components/OrderTrackingModal';
 import { FloatingWhatsApp } from './components/WhatsAppButton';
 import { BudgetProvider } from './context/BudgetContext';
 import BudgetDrawer from './components/BudgetDrawer';
+import ClientPortalView from './components/ClientPortalView';
 import { db } from './firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { STITCH_PROJECTS } from './data/stitchData';
 import { THEME_STORAGE_KEY, THEME_CHANGED_EVENT } from './utils/themeUtils';
 
@@ -80,6 +81,7 @@ export default function App() {
   const [legalTitle, setLegalTitle] = useState(null);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingInitialRef, setTrackingInitialRef] = useState('');
+  const [activeClientPortal, setActiveClientPortal] = useState(null);
 
   // Sincronització en temps real del mode per defecte de l'aplicació des de Firestore
   useEffect(() => {
@@ -102,6 +104,39 @@ export default function App() {
     const processDeepLink = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
+
+      // 0. Detecció de Portal de Client Exclusiu (?nom_del_client o ?client=nom_del_client)
+      let detectedClientSlug = urlParams.get('client');
+      if (!detectedClientSlug) {
+        const reservedKeys = [
+          'projecte', 'producte', 'seccio', 'producc', 'projecc', 'posting', 
+          'perfer', 'nfc', 'comanda', 'seguiment', 'lang', 'idioma'
+        ];
+        for (const key of urlParams.keys()) {
+          const k = key.toLowerCase().trim();
+          if (k && !reservedKeys.includes(k) && !k.startsWith('utm_') && !k.startsWith('fbclid')) {
+            detectedClientSlug = k;
+            break;
+          }
+        }
+      }
+
+      if (detectedClientSlug) {
+        try {
+          const qClient = query(collection(db, "clients_portals"), where("slug", "==", detectedClientSlug));
+          const snap = await getDocs(qClient);
+          if (!snap.empty) {
+            const clientData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            if (clientData.actiu !== false) {
+              setActiveClientPortal(clientData);
+              setActiveTab('client_portal');
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn("Error consultant portal de client:", err);
+        }
+      }
 
       const projectId = urlParams.get('projecte') || (hash.startsWith('#projecte-') ? hash.replace('#projecte-', '') : null);
       const productId = urlParams.get('producte') || (hash.startsWith('#producte-') ? hash.replace('#producte-', '') : null);
@@ -205,6 +240,8 @@ export default function App() {
       document.title = 'Mínim Món | PER FER';
     } else if (activeTab === 'nfc') {
       document.title = 'Mínim Món | Targetes i Productes NFC Intel·ligents';
+    } else if (activeTab === 'client_portal' && activeClientPortal) {
+      document.title = `${activeClientPortal.nomComercial} | Col·lecció Exclusiva`;
     } else {
       document.title = 'Mínim Món | Essències en Miniatura';
     }
@@ -230,8 +267,8 @@ export default function App() {
         {/* Texture overlay */}
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
-        {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc, Posting o Per Fer) */}
-        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && (
+        {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc, Posting, Per Fer o Portal de Client) */}
+        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'client_portal' && (
           <Header 
             activeTab={activeTab} 
             setActiveTab={handleSelectTab} 
@@ -302,10 +339,14 @@ export default function App() {
         {activeTab === 'nfc' && (
           <NfcLandingSection setActiveTab={handleSelectTab} />
         )}
+
+        {activeTab === 'client_portal' && activeClientPortal && (
+          <ClientPortalView clientPortal={activeClientPortal} />
+        )}
       </main>
 
-      {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc, Posting o Per Fer) */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && (
+      {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc, Posting, Per Fer o Portal de Client) */}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'client_portal' && (
         <Footer 
           setActiveTab={setActiveTab} 
           onOpenLegal={(title) => setLegalTitle(title)} 
@@ -325,7 +366,7 @@ export default function App() {
       />
 
       {/* Floating WhatsApp Button */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && <FloatingWhatsApp />}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'client_portal' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
       <BudgetDrawer 

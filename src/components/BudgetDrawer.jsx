@@ -154,6 +154,8 @@ export default function BudgetDrawer({ onOpenTracking = null }) {
         metodePagament: paymentMethod,
         estatPagament: 'pendent',
         totalFinalAmbEnviament: hasFixed ? totalWithShipping : null,
+        // Portal de client exclusiu (si s'ha demanat des d'un portal personalitzat)
+        clientPortalRef: cart.find(i => i.clientPortalRef)?.clientPortalRef || null,
         // Seguiment i producció
         estat: 'pendent',
         estatComanda: 'rebuda',
@@ -169,7 +171,8 @@ export default function BudgetDrawer({ onOpenTracking = null }) {
             isBudgetRequired: !isItemFixed,
             observacions: item.observacions || '',
             opcionsTriades: item.opcionsTriades || {},
-            terminiFabricacio: item.terminiFabricacio || ''
+            terminiFabricacio: item.terminiFabricacio || '',
+            clientPortalRef: item.clientPortalRef || null
           };
         }),
         data: serverTimestamp()
@@ -205,10 +208,13 @@ export default function BudgetDrawer({ onOpenTracking = null }) {
         adrecaText = `📍 <b>Adreça de tramesa:</b>\n   ${shippingAddress.carrer}\n   ${shippingAddress.codiPostal} ${shippingAddress.poblacio}${shippingAddress.provincia ? ` (${shippingAddress.provincia})` : ''}\n`;
       }
 
+      const clientPortalInfo = cart.find(i => i.clientPortalRef)?.clientPortalRef;
+      const portalText = clientPortalInfo ? `🏢 <b>Portal Exclusiu:</b> ${clientPortalInfo.nomComercial} (/?${clientPortalInfo.slug})\n` : '';
+
       const telegramMsg = `
 📋 <b>${tipusTitol}</b>
 Ref: <code>${refCode}</code>
-
+${portalText}
 👤 <b>Client:</b> ${formData.name}
 📞 <b>Contacte:</b> ${formData.contact}
 
