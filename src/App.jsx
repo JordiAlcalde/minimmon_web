@@ -11,6 +11,7 @@ import ProduccApp from './components/producc/ProduccApp';
 import ProjeccApp from './components/projecc/ProjeccApp';
 import PostingApp from './components/posting/PostingApp';
 import PerFerApp from './components/perfer/PerFerApp';
+import RetocApp from './components/retoc/RetocApp';
 import NfcLandingSection from './components/NfcLandingSection';
 import ProjectModal from './components/ProjectModal';
 import LegalModal from './components/LegalModal';
@@ -268,7 +269,7 @@ export default function App() {
         <div className="fixed inset-0 wood-texture-overlay z-0 pointer-events-none"></div>
 
         {/* Header (Amagat quan s'està a l'aplicació Producc, Projecc, Posting, Per Fer o Portal de Client) */}
-        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'client_portal' && (
+        {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'retoc' && activeTab !== 'client_portal' && (
           <Header 
             activeTab={activeTab} 
             setActiveTab={handleSelectTab} 
@@ -336,6 +337,10 @@ export default function App() {
           <PerFerApp setActiveTab={setActiveTab} />
         )}
 
+        {activeTab === 'retoc' && (
+          <RetocApp setActiveTab={setActiveTab} />
+        )}
+
         {activeTab === 'nfc' && (
           <NfcLandingSection setActiveTab={handleSelectTab} />
         )}
@@ -346,7 +351,7 @@ export default function App() {
       </main>
 
       {/* Footer (Amagat quan s'està a l'aplicació Producc, Projecc, Posting, Per Fer o Portal de Client) */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'client_portal' && (
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'retoc' && activeTab !== 'client_portal' && (
         <Footer 
           setActiveTab={setActiveTab} 
           onOpenLegal={(title) => setLegalTitle(title)} 
@@ -366,7 +371,7 @@ export default function App() {
       />
 
       {/* Floating WhatsApp Button */}
-      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'client_portal' && <FloatingWhatsApp />}
+      {activeTab !== 'producc' && activeTab !== 'projecc' && activeTab !== 'posting' && activeTab !== 'perfer' && activeTab !== 'retoc' && activeTab !== 'client_portal' && <FloatingWhatsApp />}
 
       {/* Budget Cart Drawer */}
       <BudgetDrawer 

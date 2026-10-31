@@ -2932,6 +2932,14 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
         <div className="flex items-center gap-2.5 self-stretch md:self-auto justify-end flex-wrap md:flex-nowrap">
           <button 
+            onClick={() => setActiveTab('retoc')}
+            className="px-3.5 py-2 bg-gradient-to-r from-stone-700 to-stone-900 hover:from-stone-600 hover:to-stone-800 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0 border border-amber-500/30"
+            title="Accedir a l'Estudi de Retoc 1:1 (Centrat 1000x1000px, millora de la peça i fons mostra #E8E6E7)"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+            <span className="whitespace-nowrap">Retoc 1:1</span>
+          </button>
+          <button 
             onClick={() => setActiveTab('perfer')}
             className="px-3.5 py-2 bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-700 hover:to-teal-800 text-white font-medium rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow-sm text-sm whitespace-nowrap shrink-0"
             title="Accedir a l'aplicació Per Fer (Gestor global de feines pendents i idees)"
