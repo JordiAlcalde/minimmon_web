@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ShieldCheck, Send, CheckCircle2, FileText, Info, ChevronDown, Check, Sparkles, Truck, MapPin, CreditCard, ExternalLink, MessageCircle, Search, Package, Clock, ArrowRight } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
-import { resolveMediaUrl } from '../utils/mediaUtils';
+import { resolveMediaUrl, resolveProducteMediaUrl } from '../utils/mediaUtils';
 import { formatCurrency } from '../utils/numberUtils';
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
@@ -766,7 +766,7 @@ ${formData.generalNotes ? `\n📝 <b>Observacions Generals:</b>\n${formData.gene
                         <div className="flex gap-3">
                           <div className="w-16 h-16 rounded-lg bg-surface-container overflow-hidden shrink-0 border border-outline/10">
                             {item.imatge ? (
-                              <img src={resolveMediaUrl(item.imatge)} alt={item.nom} className="w-full h-full object-cover" />
+                              <img src={resolveProducteMediaUrl(item.imatge) || resolveMediaUrl(item.imatge)} alt={item.nom} className="w-full h-full object-cover" onError={(e) => { e.target.onerror = null; e.target.src = resolveMediaUrl(item.imatge); }} />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-outline text-xs">Sense img</div>
                             )}

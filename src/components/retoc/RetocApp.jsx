@@ -9,6 +9,7 @@ import {
   DEFAULT_SWATCH_BG_HEX,
   PRESET_BACKGROUNDS,
   RETOUCH_PRESETS,
+  RETOUCH_ALGO_VERSION,
   processMinimMonImage,
   formatFileSize,
 } from '../../utils/imageRetouchUtils';
@@ -67,6 +68,7 @@ export default function RetocApp({ setActiveTab }) {
                 processedBlob: result.blob,
                 processedSize: result.sizeBytes,
                 mimeType: result.mimeType,
+                transformParams: result.transformParams,
               }
             : it
         )
@@ -145,6 +147,16 @@ export default function RetocApp({ setActiveTab }) {
     setIsProcessingAll(false);
   };
 
+  // Reprocessar automàticament les imatges carregades quan s'actualitza l'algoritme (HMR)
+  useEffect(() => {
+    if (items.length > 0) {
+      items.forEach((it) => {
+        processSingleItem(it, it.customSettings || globalSettings);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [RETOUCH_ALGO_VERSION]);
+
   // Restablir paràmetres al protocol estàndard de Mínim Món
   const handleResetDefault = () => {
     const def = { ...DEFAULT_RETOUCH_SETTINGS };
@@ -160,9 +172,15 @@ export default function RetocApp({ setActiveTab }) {
   // Clic sobre la imatge original per afegir un punt d'esborrat de fons o de restauració de peça
   const handleOriginalImageClick = (e) => {
     if ((!pickMode && !isSamplingBg) || !selectedItem) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const imgEl = e.currentTarget.tagName === 'IMG' ? e.currentTarget : e.currentTarget.querySelector('img');
+    const rect = (imgEl || e.currentTarget).getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const rawX = (e.clientX - rect.left) / rect.width;
+    const rawY = (e.clientY - rect.top) / rect.height;
+    // Ignorar clics fora de la superfície real de la fotografia (franges laterals del contenidor 1:1)
+    if (rawX < 0 || rawX > 1 || rawY < 0 || rawY > 1) return;
+    const x = Math.max(0, Math.min(1, rawX));
+    const y = Math.max(0, Math.min(1, rawY));
     const mode = pickMode || 'bg';
     setIsSamplingBg(false);
     setPickMode(null);
@@ -171,6 +189,41 @@ export default function RetocApp({ setActiveTab }) {
       handleUpdateSetting('manualFgPoints', nextFg);
     } else {
       const nextBg = [...(activeSettings.manualBgPoints || []), { x, y }];
+      handleUpdateSetting('manualBgPoints', nextBg);
+    }
+  };
+
+  // Clic sobre la imatge de resultat 1:1 per afegir un punt d'esborrat o restauració
+  const handleResultImageClick = (e) => {
+    if ((!pickMode && !isSamplingBg) || !selectedItem) return;
+    const imgEl = e.currentTarget.tagName === 'IMG' ? e.currentTarget : e.currentTarget.querySelector('img');
+    const rect = (imgEl || e.currentTarget).getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const clickRelX = (e.clientX - rect.left) / rect.width;
+    const clickRelY = (e.clientY - rect.top) / rect.height;
+    if (clickRelX < 0 || clickRelX > 1 || clickRelY < 0 || clickRelY > 1) return;
+
+    let origX = clickRelX;
+    let origY = clickRelY;
+    const tp = selectedItem.transformParams;
+    if (tp && tp.scale > 0 && tp.workW > 0 && tp.workH > 0) {
+      const targetSize = tp.targetSize || 1000;
+      const resPxX = clickRelX * targetSize;
+      const resPxY = clickRelY * targetSize;
+      const workX = (resPxX - tp.drawX) / tp.scale;
+      const workY = (resPxY - tp.drawY) / tp.scale;
+      origX = Math.max(0, Math.min(1, workX / tp.workW));
+      origY = Math.max(0, Math.min(1, workY / tp.workH));
+    }
+
+    const mode = pickMode || 'bg';
+    setIsSamplingBg(false);
+    setPickMode(null);
+    if (mode === 'fg') {
+      const nextFg = [...(activeSettings.manualFgPoints || []), { x: origX, y: origY }];
+      handleUpdateSetting('manualFgPoints', nextFg);
+    } else {
+      const nextBg = [...(activeSettings.manualBgPoints || []), { x: origX, y: origY }];
       handleUpdateSetting('manualBgPoints', nextBg);
     }
   };
@@ -740,10 +793,33 @@ export default function RetocApp({ setActiveTab }) {
               {/* Visor Principal */}
               {selectedItem && (
                 <div
-                  className={`p-4 sm:p-5 rounded-3xl border space-y-4 ${
+                  className={`p-4 sm:p-5 rounded-3xl border space-y-3 ${
                     isDark ? 'bg-slate-900/70 border-slate-800' : 'bg-white border-slate-200 shadow-sm'
                   }`}
                 >
+                  {pickMode && (
+                    <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-amber-300 text-xs font-semibold flex items-center justify-between gap-2 shadow-sm border border-amber-500/40">
+                      <span className="flex items-center gap-2">
+                        <Pipette className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>
+                          {pickMode === 'fg'
+                            ? 'Fes clic sobre la zona de la peça a conservar (pots clicar a la foto ORIGINAL o al RESULTAT)'
+                            : 'Fes clic sobre el fons o ombra a eliminar (pots clicar a la foto ORIGINAL o directament al RESULTAT)'}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPickMode(null);
+                          setIsSamplingBg(false);
+                        }}
+                        className="text-[11px] text-slate-300 hover:text-white underline cursor-pointer shrink-0"
+                      >
+                        Cancel·lar
+                      </button>
+                    </div>
+                  )}
+
                   <div
                     className={`grid gap-4 items-center ${
                       compareMode === 'split' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 max-w-md mx-auto'
@@ -763,7 +839,7 @@ export default function RetocApp({ setActiveTab }) {
                         <div
                           onClick={handleOriginalImageClick}
                           className={`relative aspect-square rounded-2xl overflow-hidden border flex items-center justify-center bg-slate-950/20 ${
-                            isSamplingBg
+                            pickMode || isSamplingBg
                               ? 'cursor-crosshair ring-2 ring-amber-500 border-amber-500'
                               : isDark
                               ? 'border-slate-800'
@@ -775,13 +851,6 @@ export default function RetocApp({ setActiveTab }) {
                             alt={selectedItem.name}
                             className="max-w-full max-h-full object-contain"
                           />
-                          {pickMode && (
-                            <div className="absolute inset-x-2 bottom-2 p-2 rounded-xl bg-black/80 text-amber-300 text-[11px] text-center font-semibold pointer-events-none">
-                              {pickMode === 'fg'
-                                ? 'Fes clic sobre la zona de la peça que vulguis conservar'
-                                : 'Fes clic sobre un punt del fons que vulguis eliminar'}
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
@@ -805,8 +874,13 @@ export default function RetocApp({ setActiveTab }) {
                         </div>
 
                         <div
+                          onClick={handleResultImageClick}
                           className={`relative aspect-square rounded-2xl overflow-hidden border flex items-center justify-center ${
-                            isDark ? 'border-slate-700' : 'border-slate-300 shadow-inner'
+                            pickMode || isSamplingBg
+                              ? 'cursor-crosshair ring-2 ring-amber-500 border-amber-500'
+                              : isDark
+                              ? 'border-slate-700'
+                              : 'border-slate-300 shadow-inner'
                           }`}
                           style={{
                             backgroundColor: activeSettings.transparentBg ? undefined : activeSettings.bgColorHex,
@@ -921,6 +995,20 @@ export default function RetocApp({ setActiveTab }) {
                             : 'Enviar a Productes'}
                         </span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(selectedItem.id)}
+                        className={`h-9 px-3 rounded-xl border text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-all shrink-0 ${
+                          isDark
+                            ? 'bg-slate-900 border-red-500/30 text-red-400 hover:bg-red-500/20 hover:border-red-500/50'
+                            : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100 hover:border-red-300'
+                        }`}
+                        title="Suprimir aquesta imatge de la llista"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Suprimir</span>
+                      </button>
                     </div>
                   </div>
 
@@ -991,10 +1079,10 @@ export default function RetocApp({ setActiveTab }) {
                             e.stopPropagation();
                             handleRemoveItem(item.id);
                           }}
-                          className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          className="absolute top-1 right-1 p-1.5 rounded-full bg-red-600/90 hover:bg-red-600 text-white opacity-70 hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
                           title="Treure de la llista"
                         >
-                          <Trash2 className="w-2.5 h-2.5" />
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
                     );

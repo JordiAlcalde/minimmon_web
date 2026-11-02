@@ -75,14 +75,62 @@ class GlobalErrorBoundary extends React.Component {
   }
 }
 
+const CLIENT_PORTAL_CACHE_PREFIX = 'minimmon_client_portal_cache_';
+
+function detectInitialRouteFromUrl() {
+  if (typeof window === 'undefined') return { tab: 'inici', clientSlug: null, cachedPortal: null };
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+
+    let detectedClientSlug = urlParams.get('client');
+    if (!detectedClientSlug) {
+      const reservedKeys = [
+        'projecte', 'producte', 'seccio', 'producc', 'projecc', 'posting',
+        'perfer', 'retoc', 'nfc', 'comanda', 'seguiment', 'lang', 'idioma'
+      ];
+      for (const key of urlParams.keys()) {
+        const k = key.toLowerCase().trim();
+        if (k && !reservedKeys.includes(k) && !k.startsWith('utm_') && !k.startsWith('fbclid')) {
+          detectedClientSlug = k;
+          break;
+        }
+      }
+    }
+
+    if (detectedClientSlug) {
+      const cleanSlug = detectedClientSlug.toLowerCase().trim();
+      let cachedPortal = null;
+      try {
+        const raw = localStorage.getItem(`${CLIENT_PORTAL_CACHE_PREFIX}${cleanSlug}`);
+        if (raw) cachedPortal = JSON.parse(raw);
+      } catch (e) {}
+      return { tab: 'client_portal', clientSlug: cleanSlug, cachedPortal };
+    }
+
+    const seccioParam = urlParams.get('seccio') || (hash.startsWith('#seccio-') ? hash.replace('#seccio-', '') : null);
+    if (urlParams.get('nfc') !== null || seccioParam === 'nfc' || hash === '#nfc' || hash.startsWith('#nfc')) return { tab: 'nfc', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('posting') !== null || seccioParam === 'posting' || hash === '#posting') return { tab: 'posting', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('perfer') !== null || seccioParam === 'perfer' || hash === '#perfer') return { tab: 'perfer', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('retoc') !== null || seccioParam === 'retoc' || hash === '#retoc') return { tab: 'retoc', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('projecc') !== null || seccioParam === 'projecc' || hash === '#projecc') return { tab: 'projecc', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('producc') !== null || seccioParam === 'producc' || hash === '#producc') return { tab: 'producc', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('projecte') || hash.startsWith('#projecte-')) return { tab: 'mons', clientSlug: null, cachedPortal: null };
+    if (urlParams.get('producte') || hash.startsWith('#producte-')) return { tab: 'regals', clientSlug: null, cachedPortal: null };
+    if (seccioParam) return { tab: seccioParam, clientSlug: null, cachedPortal: null };
+  } catch (e) {}
+  return { tab: 'inici', clientSlug: null, cachedPortal: null };
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState('inici');
+  const initialRoute = detectInitialRouteFromUrl();
+  const [activeTab, setActiveTab] = useState(initialRoute.tab);
   const [catalogResetKey, setCatalogResetKey] = useState(0);
   const [selectedProject, setSelectedProject] = useState(null);
   const [legalTitle, setLegalTitle] = useState(null);
   const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [trackingInitialRef, setTrackingInitialRef] = useState('');
-  const [activeClientPortal, setActiveClientPortal] = useState(null);
+  const [activeClientPortal, setActiveClientPortal] = useState(initialRoute.cachedPortal);
 
   // Sincronització en temps real del mode per defecte de l'aplicació des de Firestore
   useEffect(() => {
@@ -129,6 +177,7 @@ export default function App() {
           if (!snap.empty) {
             const clientData = { id: snap.docs[0].id, ...snap.docs[0].data() };
             if (clientData.actiu !== false) {
+              try { localStorage.setItem(`${CLIENT_PORTAL_CACHE_PREFIX}${detectedClientSlug.toLowerCase().trim()}`, JSON.stringify(clientData)); } catch (e) {}
               setActiveClientPortal(clientData);
               setActiveTab('client_portal');
               return;
@@ -345,7 +394,10 @@ export default function App() {
           <NfcLandingSection setActiveTab={handleSelectTab} />
         )}
 
-        {activeTab === 'client_portal' && activeClientPortal && (
+        {activeTab === 'client_portal' && (activeClientPortal || initialRoute.clientSlug) && (
+          activeClientPortal ? <ClientPortalView clientPortal={activeClientPortal} /> : <div className="min-h-screen flex items-center justify-center bg-surface"><div className="w-8 h-8 border-3 border-outline/20 border-t-primary rounded-full animate-spin" /></div>
+        )}
+        {false && activeTab === 'client_portal' && activeClientPortal && (
           <ClientPortalView clientPortal={activeClientPortal} />
         )}
       </main>

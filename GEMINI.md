@@ -26,3 +26,10 @@ Aquest document defineix les regles d'estil, vocabulari, materials i filosofia a
   - `#MiniaturesAmbÀnima`
   - `#FustaDeBedoll`
 - **Carrusels:** Els textos i subtítols de cada diapositiva s'adapten contextualment al contingut visual i la posició de cada imatge.
+
+---
+
+## 🌐 Traducció i Noms de Clients / Marques
+
+- **Prohibició de traduir noms de clients:** Cap nom comercial de client o marca (com ara *"Little Spider Homes"*, *"Mínim Món"*, etc.) s'ha de traduir mai en canviar d'idioma (`ES`, `CA`, `EN`, `FR`).
+- Sempre s'han de protegir al DOM amb `className="notranslate"` i `translate="no"`, tant quan apareixen com a títol independent com quan formen part d'una frase (ex. caixetí de tramitació, copyright o peu de pàgina).

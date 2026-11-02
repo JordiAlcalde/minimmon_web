@@ -10,6 +10,7 @@
 // Color de mostra escollit per defecte (extret de la mostra oficial: RGB 232, 230, 231 -> #E8E6E7)
 export const DEFAULT_SWATCH_BG_HEX = '#E8E6E7';
 export const DEFAULT_TARGET_SIZE = 1000;
+export const RETOUCH_ALGO_VERSION = 6;
 
 export const PRESET_BACKGROUNDS = [
   { id: 'mostra', label: 'Mostra Mínim Món (#E8E6E7)', hex: '#E8E6E7', transparent: false },
@@ -110,12 +111,11 @@ export function hexToRgb(hex) {
 }
 
 /**
- * Construeix un mapa espacial del color de fons esperat a cada píxel (x, y)
- * interpolant de manera suau les 4 vores de la imatge (filtrades per mediana).
- * Això permet eliminar fons amb forts gradients d'il·luminació (com taules de fusta)
- * sense confondre mai la peça central amb les zones fosques o clares d'altres racons de la foto.
+ * Construeix dos mapes espacials del color de fons esperat a cada píxel (x, y):
+ * - bgField: interpolació suau de les 4 vores de la imatge (filtrades per mediana)
+ * - vertField: interpolació vertical directa (topEdge -> botEdge) per columna, immune a reflexos laterals
  */
-function buildLocalBackgroundField(data, width, height) {
+function buildBackgroundFields(data, width, height) {
   const borderPad = Math.max(2, Math.floor(Math.min(width, height) * 0.038));
   const winH = Math.max(6, Math.floor(height * 0.06));
   const winW = Math.max(6, Math.floor(width * 0.06));
@@ -177,7 +177,49 @@ function buildLocalBackgroundField(data, width, height) {
     botEdge[x * 3 + 2] = mB[2];
   }
 
+  // Detecció de dominant de fons neutre/paper clar vs. vora inferior de taula que sobresurt
+  let avgTopLuma = 0, avgTopRB = 0;
+  for (let x = 0; x < width; x++) {
+    const x3 = x * 3;
+    avgTopLuma += 0.299 * topEdge[x3] + 0.587 * topEdge[x3 + 1] + 0.114 * topEdge[x3 + 2];
+    avgTopRB += (topEdge[x3] - topEdge[x3 + 2]);
+  }
+  avgTopLuma /= width;
+  avgTopRB /= width;
+
+  let avgLeftLuma = 0, avgLeftRB = 0;
+  for (let y = 0; y < height; y++) {
+    const y3 = y * 3;
+    avgLeftLuma += 0.299 * leftEdge[y3] + 0.587 * leftEdge[y3 + 1] + 0.114 * leftEdge[y3 + 2];
+    avgLeftRB += (leftEdge[y3] - leftEdge[y3 + 2]);
+  }
+  avgLeftLuma /= height;
+  avgLeftRB /= height;
+
+  let avgBotLuma = 0, avgBotRB = 0;
+  for (let x = 0; x < width; x++) {
+    const x3 = x * 3;
+    avgBotLuma += 0.299 * botEdge[x3] + 0.587 * botEdge[x3 + 1] + 0.114 * botEdge[x3 + 2];
+    avgBotRB += (botEdge[x3] - botEdge[x3 + 2]);
+  }
+  avgBotLuma /= width;
+  avgBotRB /= width;
+
+  const isNeutralBackdrop = avgTopLuma >= 165 && Math.abs(avgTopRB) <= 16 && avgLeftLuma >= 165;
+  const isBottomTableMargin = isNeutralBackdrop && (avgBotLuma < avgTopLuma - 22 || avgBotRB >= avgTopRB + 18);
+
+  if (isBottomTableMargin) {
+    for (let x = 0; x < width; x++) {
+      const x3 = x * 3;
+      botEdge[x3] = topEdge[x3];
+      botEdge[x3 + 1] = topEdge[x3 + 1];
+      botEdge[x3 + 2] = topEdge[x3 + 2];
+    }
+  }
+
   const bgField = new Float32Array(width * height * 3);
+  const vertField = new Float32Array(width * height * 3);
+
   for (let y = 0; y < height; y++) {
     const uY = (y + 0.5) / height;
     const wT = 1 / Math.max(0.03, uY);
@@ -196,9 +238,13 @@ function buildLocalBackgroundField(data, width, height) {
       bgField[idx3]     = (wL * leftEdge[y3]     + wR * rightEdge[y3]     + wT * topEdge[x3]     + wB * botEdge[x3]) / wSum;
       bgField[idx3 + 1] = (wL * leftEdge[y3 + 1] + wR * rightEdge[y3 + 1] + wT * topEdge[x3 + 1] + wB * botEdge[x3 + 1]) / wSum;
       bgField[idx3 + 2] = (wL * leftEdge[y3 + 2] + wR * rightEdge[y3 + 2] + wT * topEdge[x3 + 2] + wB * botEdge[x3 + 2]) / wSum;
+
+      vertField[idx3]     = topEdge[x3]     * (1 - uY) + botEdge[x3]     * uY;
+      vertField[idx3 + 1] = topEdge[x3 + 1] * (1 - uY) + botEdge[x3 + 1] * uY;
+      vertField[idx3 + 2] = topEdge[x3 + 2] * (1 - uY) + botEdge[x3 + 2] * uY;
     }
   }
-  return bgField;
+  return { bgField, vertField, isNeutralBackdrop, isBottomTableMargin, avgTopRB, avgTopLuma };
 }
 
 /**
@@ -216,11 +262,25 @@ function pixelBgDistance(r, g, b, bgR, bgG, bgB, shadowCleanup = 28) {
   const cGB = Math.abs((g - b) - (bgG - bgB));
   const chromaDist = cRB * 0.55 + cRG * 0.25 + cGB * 0.20;
 
-  // Si és una ombra o veta suau del mateix to cromàtic que el fons (però sense arribar al negre del cantell làser)
+  // Si és una ombra projectada del mateix to cromàtic neutre que el fons de cartolina/paper
   const luma = 0.299 * r + 0.587 * g + 0.114 * b;
   const bgLuma = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
-  if (shadowCleanup > 0 && luma < bgLuma && luma > bgLuma - shadowCleanup * 1.4 && chromaDist < 14 && luma > 48) {
-    rgbDist *= 0.65;
+  const isNeutralBg = Math.abs(bgR - bgB) <= 14;
+  const isWarmWoodPixel = (r - b) >= 14 && (r - g) >= 3 && r >= 120;
+
+  if (shadowCleanup > 0 && luma < bgLuma && chromaDist < 14) {
+    if (isNeutralBg && !isWarmWoodPixel) {
+      // Ombra sobre cartolina o fons neutre/blanc:
+      // Com que l'ombra sobre paper només atenua la llum conservant la neutralitat (r ≈ g ≈ b),
+      // escalem rgbDist perquè fins i tot ombres de contacte denses (luma 20..90) caiguin sota la tolerància
+      const neutrality = Math.max(0, (14 - chromaDist) / 14);
+      const cleanFactor = Math.min(1.5, shadowCleanup / 24);
+      const reduction = Math.max(0.08, 0.40 - cleanFactor * 0.26);
+      rgbDist *= (reduction * (1 - neutrality * 0.28));
+    } else if (!isNeutralBg && luma > bgLuma - shadowCleanup * 1.6) {
+      // Sobre taula de fusta fosca
+      rgbDist *= 0.65;
+    }
   }
 
   return rgbDist * 0.65 + chromaDist * 0.90;
@@ -228,8 +288,8 @@ function pixelBgDistance(r, g, b, bgR, bgG, bgB, shadowCleanup = 28) {
 
 /**
  * Calcula la màscara d'opacitat (alpha 0..255) separant la peça del fons.
- * - Preserva 100% l'interior de la peça (lletres gravades, logotips, vetes)
- * - Buida automàticament els forats passants reals (com l'anella metàl·lica o el forat del clauer)
+ * - Preserva 100% l'interior de la peça (lletres gravades, logotips, figures i vetes de fusta de til·ler)
+ * - Buida automàticament els forats passants reals (anelles metàl·liques grans i petites i espais entre peces)
  * - Permet afegir punts manuals d'esborrat de fons o de restauració de peça
  */
 export function computeForegroundMask(imageData, settings) {
@@ -261,17 +321,59 @@ export function computeForegroundMask(imageData, settings) {
   const bgTolerance = Math.max(4, Number(settings.bgTolerance ?? 32));
   const shadowCleanup = Math.max(0, Number(settings.shadowCleanup ?? 28));
 
-  const bgField = buildLocalBackgroundField(data, width, height);
+  const { bgField, vertField, isNeutralBackdrop, isBottomTableMargin, avgTopRB, avgTopLuma } = buildBackgroundFields(data, width, height);
   const distMap = new Float32Array(totalPixels);
 
   for (let i = 0; i < totalPixels; i++) {
     const i4 = i * 4;
     const i3 = i * 3;
-    distMap[i] = pixelBgDistance(
-      data[i4], data[i4 + 1], data[i4 + 2],
-      bgField[i3], bgField[i3 + 1], bgField[i3 + 2],
-      shadowCleanup
-    );
+    const r = data[i4];
+    const g = data[i4 + 1];
+    const b = data[i4 + 2];
+
+    const d1 = pixelBgDistance(r, g, b, bgField[i3], bgField[i3 + 1], bgField[i3 + 2], shadowCleanup);
+    const d2 = pixelBgDistance(r, g, b, vertField[i3], vertField[i3 + 1], vertField[i3 + 2], shadowCleanup);
+    let d = Math.min(d1, d2 * 1.04);
+
+    // Protecció específica per a la fusta de til·ler clara davant de reflexos laterals a la taula de fusta:
+    const bgR = bgField[i3];
+    const bgG = bgField[i3 + 1];
+    const bgB = bgField[i3 + 2];
+    const bgFieldLuma = 0.299 * bgR + 0.587 * bgG + 0.114 * bgB;
+    const bgFieldRB = bgR - bgB;
+    const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+    if (
+      (bgFieldRB >= 14 && (r - b) <= 9 && luma > bgFieldLuma + 14) ||
+      (bgFieldRB >= 23 && bgB <= 136 && b > bgB + 18 && luma > bgFieldLuma + 14 && (r - b) <= bgFieldRB)
+    ) {
+      d = Math.max(d, bgTolerance + 20);
+    }
+
+    // Protecció directa de fusta de til·ler clara sobre fons de cartolina/paper blanc o neutre:
+    if (bgFieldRB <= 14 && (r - b) >= 14 && (r - g) >= 3 && r >= 135) {
+      d = Math.max(d, bgTolerance + 16);
+    }
+
+    // Protecció d'arestes de transició (anti-aliasing) entre fusta de til·ler clara i gravat/cantell fosc
+    const pxX = i % width;
+    const pxY = (i - pxX) / width;
+    const spanX = Math.max(2, Math.round(width * 0.004));
+    const spanY = Math.max(1, Math.round(height * 0.0016));
+    if (d <= bgTolerance && pxX >= spanX && pxX < width - spanX && pxY >= spanY && pxY < height - spanY) {
+      const lL = 0.299 * data[(i - spanX) * 4] + 0.587 * data[(i - spanX) * 4 + 1] + 0.114 * data[(i - spanX) * 4 + 2];
+      const lR = 0.299 * data[(i + spanX) * 4] + 0.587 * data[(i + spanX) * 4 + 1] + 0.114 * data[(i + spanX) * 4 + 2];
+      const lU = 0.299 * data[(i - width * spanY) * 4] + 0.587 * data[(i - width * spanY) * 4 + 1] + 0.114 * data[(i - width * spanY) * 4 + 2];
+      const lD = 0.299 * data[(i + width * spanY) * 4] + 0.587 * data[(i + width * spanY) * 4 + 1] + 0.114 * data[(i + width * spanY) * 4 + 2];
+      if (
+        (lL >= 145 && lR <= 88) || (lR >= 145 && lL <= 88) ||
+        (lU >= 152 && lD <= 75) || (lD >= 152 && lU <= 75)
+      ) {
+        d = Math.max(d, bgTolerance + 15);
+      }
+    }
+
+    distMap[i] = d;
   }
 
   // Pas 1: Flood-Fill des de les 4 vores amb fre en arestes vives (step gradient barrier)
@@ -298,11 +400,11 @@ export function computeForegroundMask(imageData, settings) {
       const stepChroma = Math.abs((data[i1] - data[i1 + 2]) - (data[i2] - data[i2 + 2]));
 
       // Si hi ha un salt brusc de vora cap a la peça, frenem la inundació
-      if (stepDist > 22 || stepChroma > 18) {
-        if (d > bgTolerance * 0.65) {
+      if (stepDist > 20 || stepChroma > 15) {
+        if (d > bgTolerance * 0.58) {
           isBg = false;
         }
-      } else if (!isBg && d <= bgTolerance * 1.22 && stepDist < 8 && stepChroma < 8) {
+      } else if (!isBg && d <= bgTolerance * 1.18 && stepDist < 7 && stepChroma < 7) {
         isBg = true;
       }
     }
@@ -333,23 +435,21 @@ export function computeForegroundMask(imageData, settings) {
     enqueueIfBg(cx, cy + 1, curr);
   }
 
-  // Pas 2: Detecció automàtica de forats passants reals (interior d'anelles de clauer o forats de peça)
-  // Només s'activen si el seu color coincideix fidelment amb el fons local esperat en aquell punt
+  // Pas 2: Detecció automàtica de forats passants reals (anelles grans, sub-anelles petites i buits entre peces)
+  // Validem que la frontera del forat toqui píxels metàl·lics d'acer/crom i no sigui un gravat làser intern sobre fusta
   const holeSeeds = [];
-  for (let y = 6; y < height - 6; y += 2) {
-    for (let x = 6; x < width - 6; x += 2) {
+  for (let y = 4; y < height - 4; y++) {
+    for (let x = 4; x < width - 4; x++) {
       const pos = y * width + x;
-      if (mask[pos] === 255 && distMap[pos] < bgTolerance * 0.65) {
-        let allBgLike = true;
-        for (let dy = -1; dy <= 1 && allBgLike; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (distMap[(y + dy) * width + (x + dx)] > bgTolerance * 0.75) {
-              allBgLike = false;
-              break;
-            }
-          }
+      if (mask[pos] === 255 && distMap[pos] < bgTolerance * 0.72) {
+        if (
+          distMap[pos - 1] <= bgTolerance * 0.88 &&
+          distMap[pos + 1] <= bgTolerance * 0.88 &&
+          distMap[pos - width] <= bgTolerance * 0.88 &&
+          distMap[pos + width] <= bgTolerance * 0.88
+        ) {
+          holeSeeds.push(pos);
         }
-        if (allBgLike) holeSeeds.push(pos);
       }
     }
   }
@@ -358,61 +458,144 @@ export function computeForegroundMask(imageData, settings) {
   for (let s = 0; s < holeSeeds.length; s++) {
     const seed = holeSeeds[s];
     if (holeVisited[seed] || mask[seed] === 0) continue;
+
+    const s4 = seed * 4;
+    const seedR = data[s4];
+    const seedG = data[s4 + 1];
+    const seedB = data[s4 + 2];
+
     let hHead = 0;
     let hTail = 0;
     queue[hTail++] = seed;
     holeVisited[seed] = 1;
     const component = [seed];
 
+    let borderTotal = 0;
+    let borderSilverMetal = 0;
+    let borderDarkCharred = 0;
+    let borderDarkEdge = 0;
+
     while (hHead < hTail) {
       const curr = queue[hHead++];
       const cx = curr % width;
       const cy = (curr - cx) / width;
+      const c4 = curr * 4;
+      const cr = data[c4];
+      const cg = data[c4 + 1];
+      const cb = data[c4 + 2];
+
       const nbs = [
         cx > 0 ? curr - 1 : -1,
         cx < width - 1 ? curr + 1 : -1,
         cy > 0 ? curr - width : -1,
         cy < height - 1 ? curr + width : -1,
+        cx > 0 && cy > 0 ? curr - width - 1 : -1,
+        cx < width - 1 && cy > 0 ? curr - width + 1 : -1,
+        cx > 0 && cy < height - 1 ? curr + width - 1 : -1,
+        cx < width - 1 && cy < height - 1 ? curr + width + 1 : -1,
       ];
-      for (let k = 0; k < 4; k++) {
+      for (let k = 0; k < 8; k++) {
         const nb = nbs[k];
-        if (nb < 0 || holeVisited[nb] || mask[nb] === 0) continue;
-        if (distMap[nb] <= bgTolerance * 0.92) {
+        if (nb < 0 || mask[nb] === 0 || holeVisited[nb]) continue;
+
+        const n4 = nb * 4;
+        const nr = data[n4];
+        const ng = data[n4 + 1];
+        const nbB = data[n4 + 2];
+        const stepDist = Math.abs(nr - cr) * 0.3 + Math.abs(ng - cg) * 0.59 + Math.abs(nbB - cb) * 0.11;
+        const stepChroma = Math.abs((nr - nbB) - (cr - cb));
+        const seedDist = pixelBgDistance(nr, ng, nbB, seedR, seedG, seedB, 22);
+
+        const isPaleWoodWall = (seedR - seedB >= 14) || ((nr - nbB) >= 14 && nr >= 135);
+        const isWarmTableCore = !isNeutralBackdrop && (nr - nbB) >= 40 && nbB <= 130 && nr >= 140 && distMap[nb] <= bgTolerance * 1.18;
+        if (
+          !isPaleWoodWall &&
+          (distMap[nb] <= bgTolerance * 0.96 || isWarmTableCore) &&
+          (seedDist <= bgTolerance * 1.25 || isWarmTableCore) &&
+          stepDist <= 22 &&
+          stepChroma <= 18
+        ) {
           holeVisited[nb] = 1;
           queue[hTail++] = nb;
           component.push(nb);
+        } else {
+          borderTotal++;
+          const luma = 0.299 * nr + 0.587 * ng + 0.114 * nbB;
+          const rg = Math.abs(nr - ng);
+          // Píxel metàl·lic d'acer/crom a la vora de l'anella (to fred/neutre i luminància mitjana)
+          if ((nr - nbB) <= 4 && rg <= 10 && luma >= 70 && luma <= 172) {
+            borderSilverMetal++;
+          }
+          // Píxel d'aresta fosca o ombra 3D
+          if (luma < 95) {
+            borderDarkEdge++;
+          }
+          // Píxel de gravat làser torrat/marró fosc sobre fusta
+          if (luma < 95 && nr > nbB + 10) {
+            borderDarkCharred++;
+          }
         }
       }
     }
 
-    if (component.length >= Math.max(18, Math.round(totalPixels * 0.00085)) && component.length < totalPixels * 0.12) {
-      let minX = width, maxX = 0, minY = height, maxY = 0;
-      for (let k = 0; k < component.length; k++) {
-        const p = component[k];
-        const px = p % width;
-        const py = (p - px) / width;
-        if (px < minX) minX = px;
-        if (px > maxX) maxX = px;
-        if (py < minY) minY = py;
-        if (py > maxY) maxY = py;
-      }
-      const bw = maxX - minX + 1;
-      const bh = maxY - minY + 1;
-      const minHoleDim = Math.max(4, Math.round(Math.min(width, height) * 0.032));
-      const fillRatio = component.length / (bw * bh);
+    const minSize = Math.max(8, Math.round(totalPixels * 0.00010));
+    if (component.length < minSize) continue;
 
-      // Només buidem forats compactes i prou amplis (anella o forat del clauer), mai traços prims de lletres gravades
-      if (bw >= minHoleDim && bh >= minHoleDim && fillRatio >= 0.52) {
-        for (let k = 0; k < component.length; k++) {
-          mask[component[k]] = 0;
-        }
+    let sumR = 0;
+    let sumB = 0;
+    for (let k = 0; k < component.length; k++) {
+      const p4 = component[k] * 4;
+      sumR += data[p4];
+      sumB += data[p4 + 2];
+    }
+    const meanRB = (sumR - sumB) / component.length;
+
+    // Si el fons de la foto és paper/cartolina clara o neutra i l'interior té el to càlid de fusta de til·ler,
+    // MAI és un forat: és una cara massissa de fusta (com el frontal de la capseta)!
+    if (isNeutralBackdrop && meanRB >= 13) {
+      continue;
+    }
+
+    const darkCharredRatio = borderTotal > 0 ? borderDarkCharred / borderTotal : 0;
+    const metalRatio = borderTotal > 0 ? borderSilverMetal / borderTotal : 0;
+
+    // Anella metàl·lica d'acer/crom (clauer): mida continguda, vora metàl·lica autèntica (> 18%) i to neutre
+    const isMetalHole =
+      component.length <= Math.round(totalPixels * 0.035) &&
+      borderSilverMetal >= 8 &&
+      metalRatio >= 0.18 &&
+      darkCharredRatio <= 0.08 &&
+      (isNeutralBackdrop ? meanRB <= 11 : true);
+
+    // Forat passador perforat a la fusta (foradet petit per on passa l'anella o cordó)
+    const isDrilledHole =
+      component.length >= 8 &&
+      component.length <= Math.round(totalPixels * 0.008) &&
+      (borderDarkEdge / borderTotal >= 0.28 || borderDarkCharred / borderTotal >= 0.22) &&
+      (isNeutralBackdrop ? meanRB <= 12 : Math.abs(meanRB - avgTopRB) <= 15);
+
+    // Buit de taula atrapat entre dues peces (només quan la foto té com a fons una taula càlida de fusta)
+    const isTableBackground = !isNeutralBackdrop && (avgTopRB >= 18 || avgLeftRB >= 18);
+    const isTrappedTableGap =
+      isTableBackground &&
+      component.length >= Math.max(120, Math.round(totalPixels * 0.004)) &&
+      borderDarkEdge >= Math.max(10, Math.round(borderTotal * 0.04)) &&
+      darkCharredRatio <= 0.21 &&
+      meanRB >= 38;
+
+    if (isMetalHole || isDrilledHole || isTrappedTableGap) {
+      for (let k = 0; k < component.length; k++) {
+        mask[component[k]] = 0;
       }
     }
   }
 
-  // Pas 3: Neteja de petites illes de soroll aïllades al fons (< 55 píxels)
+  // Pas 3: Neteja de petites illes de soroll aïllades i franges perifèriques de vora de foli/taula
   const fgVisited = new Uint8Array(totalPixels);
   const minComponentSize = Math.max(35, Math.round(totalPixels * 0.0005));
+  const fgComponents = [];
+  let maxCentralCompSize = 0;
+
   for (let i = 0; i < totalPixels; i++) {
     if (mask[i] === 255 && !fgVisited[i]) {
       let fH = 0;
@@ -420,10 +603,17 @@ export function computeForegroundMask(imageData, settings) {
       queue[fT++] = i;
       fgVisited[i] = 1;
       const comp = [i];
+      let cMinX = width, cMaxX = 0, cMinY = height, cMaxY = 0;
+
       while (fH < fT) {
         const curr = queue[fH++];
         const cx = curr % width;
         const cy = (curr - cx) / width;
+        if (cx < cMinX) cMinX = cx;
+        if (cx > cMaxX) cMaxX = cx;
+        if (cy < cMinY) cMinY = cy;
+        if (cy > cMaxY) cMaxY = cy;
+
         if (cx > 0 && mask[curr - 1] === 255 && !fgVisited[curr - 1]) {
           fgVisited[curr - 1] = 1;
           queue[fT++] = curr - 1;
@@ -445,13 +635,34 @@ export function computeForegroundMask(imageData, settings) {
           comp.push(curr + width);
         }
       }
-      if (comp.length < minComponentSize) {
-        for (let k = 0; k < comp.length; k++) mask[comp[k]] = 0;
+
+      const isPeripheralMarginStrip =
+        cMinY >= Math.round(height * 0.76) ||
+        cMaxY <= Math.round(height * 0.18) ||
+        cMinX >= Math.round(width * 0.85) ||
+        cMaxX <= Math.round(width * 0.15);
+
+      if (!isPeripheralMarginStrip && comp.length > maxCentralCompSize) {
+        maxCentralCompSize = comp.length;
       }
+
+      fgComponents.push({ comp, isPeripheralMarginStrip, cMinY, cMaxY, cMinX, cMaxX });
     }
   }
 
-  // Pas 4: Punts manuals d'esborrat de fons (inundació local acotada al color del punt clicat)
+  for (let cIdx = 0; cIdx < fgComponents.length; cIdx++) {
+    const { comp, isPeripheralMarginStrip, cMinY } = fgComponents[cIdx];
+    const isDetachedBottomStrip = cMinY >= Math.round(height * 0.76) && maxCentralCompSize > minComponentSize * 2;
+    if (
+      comp.length < minComponentSize ||
+      (isPeripheralMarginStrip && maxCentralCompSize > minComponentSize * 2) ||
+      isDetachedBottomStrip
+    ) {
+      for (let k = 0; k < comp.length; k++) mask[comp[k]] = 0;
+    }
+  }
+
+  // Pas 4: Punts manuals d'esborrat de fons (inundació local + eliminació d'illes desconnectades clicades)
   const bgPoints = [
     ...(Array.isArray(settings.manualBgPoints) ? settings.manualBgPoints : []),
     ...(settings.manualSamplePoint ? [settings.manualSamplePoint] : []),
@@ -464,7 +675,7 @@ export function computeForegroundMask(imageData, settings) {
     const seedPos = sy * width + sx;
     const s4 = seedPos * 4;
     const sr = data[s4], sg = data[s4 + 1], sb = data[s4 + 2];
-    const localTol = Math.max(14, bgTolerance * 0.85);
+    const localTol = Math.max(20, bgTolerance * 1.05);
 
     const mVisited = new Uint8Array(totalPixels);
     let mH = 0, mT = 0;
@@ -486,10 +697,60 @@ export function computeForegroundMask(imageData, settings) {
         const nb = nbs[k];
         if (nb < 0 || mVisited[nb]) continue;
         const n4 = nb * 4;
-        const d = pixelBgDistance(data[n4], data[n4 + 1], data[n4 + 2], sr, sg, sb, 0);
-        if (d <= localTol) {
+        const nr = data[n4], ng = data[n4 + 1], nbB = data[n4 + 2];
+        const nLuma = 0.299 * nr + 0.587 * ng + 0.114 * nbB;
+        const nRB = nr - nbB;
+
+        // Frena estrictament si trobem la fusta massissa de til·ler o una aresta làser torrada
+        const isWoodPiece = nRB >= 14 && (nr - ng) >= 3 && nr >= 120;
+        const isLaserEdge = nLuma < 85 && nRB >= 10;
+        if (isWoodPiece || isLaserEdge) continue;
+
+        const isNeutralShadow = isNeutralBackdrop && Math.abs(nRB) <= 12;
+        const d = pixelBgDistance(nr, ng, nbB, sr, sg, sb, 0);
+
+        if (isNeutralShadow || d <= Math.max(38, bgTolerance * 1.4)) {
           mVisited[nb] = 1;
           queue[mT++] = nb;
+        }
+      }
+    }
+
+    // Si en esborrar han quedat petits fragments desconnectats al voltant del clic, netejar-los
+    const cleanVisited = new Uint8Array(totalPixels);
+    for (let i = 0; i < totalPixels; i++) {
+      if (mask[i] === 255 && !cleanVisited[i]) {
+        let cH = 0, cT = 0;
+        queue[cT++] = i;
+        cleanVisited[i] = 1;
+        const subComp = [i];
+        while (cH < cT) {
+          const curr = queue[cH++];
+          const cx = curr % width;
+          const cy = (curr - cx) / width;
+          if (cx > 0 && mask[curr - 1] === 255 && !cleanVisited[curr - 1]) {
+            cleanVisited[curr - 1] = 1;
+            queue[cT++] = curr - 1;
+            subComp.push(curr - 1);
+          }
+          if (cx < width - 1 && mask[curr + 1] === 255 && !cleanVisited[curr + 1]) {
+            cleanVisited[curr + 1] = 1;
+            queue[cT++] = curr + 1;
+            subComp.push(curr + 1);
+          }
+          if (cy > 0 && mask[curr - width] === 255 && !cleanVisited[curr - width]) {
+            cleanVisited[curr - width] = 1;
+            queue[cT++] = curr - width;
+            subComp.push(curr - width);
+          }
+          if (cy < height - 1 && mask[curr + width] === 255 && !cleanVisited[curr + width]) {
+            cleanVisited[curr + width] = 1;
+            queue[cT++] = curr + width;
+            subComp.push(curr + width);
+          }
+        }
+        if (subComp.length < minComponentSize * 2) {
+          for (let k = 0; k < subComp.length; k++) mask[subComp[k]] = 0;
         }
       }
     }
@@ -871,6 +1132,7 @@ export async function processMinimMonImage(source, customSettings = {}) {
     sizeBytes,
     mimeType,
     bounds,
+    transformParams: { drawX, drawY, scale, workW, workH, targetSize },
   };
 }
 

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { 
-  Building2, 
   ShoppingBag, 
   Search, 
   Sparkles, 
@@ -10,26 +9,99 @@ import {
   Phone, 
   Info, 
   X, 
-  Check, 
-  ArrowLeft,
-  Sun,
-  Moon,
-  ChevronRight,
-  Package
+  Package,
+  Globe
 } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
 import { ProductCard } from './RegalsCatalogSection';
 import { DEFAULT_CLIENT_PALETTE, resolveClientLogoUrl } from '../utils/clientPortalsUtils';
+import { getCurrentLanguage, setLanguage } from '../utils/translator';
+import { renderFormattedText } from '../utils/textUtils';
 
-export default function ClientPortalView({ clientPortal }) {
-  const { cart, setIsCartOpen } = useBudget();
-  const [dbProducts, setDbProducts] = useState([]);
+const PORTAL_LANGUAGES = ['CA', 'ES', 'EN', 'FR'];
+
+/**
+ * Protegeix el nom comercial del client i "Mínim Món" dins de qualsevol cadena de text
+ * perquè Google Translate no els tradueixi mai (embolcallant-los amb notranslate).
+ */
+function renderProtectedClientText(text, clientName) {
+  if (!text) return null;
+  const str = String(text);
+  const terms = [clientName, 'Mínim Món']
+    .map(t => String(t || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+
+  if (terms.length === 0) return str;
+
+  const escaped = terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const regex = new RegExp(`(${escaped.join('|')})`, 'gi');
+  const parts = str.split(regex);
+
+  return parts.map((part, idx) => {
+    const isProtected = terms.some(t => t.toLowerCase() === part.toLowerCase());
+    if (isProtected) {
+      return (
+        <span key={idx} className="notranslate" translate="no">
+          {part}
+        </span>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
+export default function ClientPortalView({ clientPortal: initialClientPortal }) {
+  const { cart, addToCart, openCart, setIsDrawerOpen, totalItems } = useBudget();
+  const [livePortal, setLivePortal] = useState(initialClientPortal);
+  const portalCacheSlug = String(initialClientPortal?.slug || '').toLowerCase().trim();
+  const [dbProducts, setDbProducts] = useState(() => {
+    if (typeof window === 'undefined' || !portalCacheSlug) return [];
+    try {
+      const raw = localStorage.getItem(`minimmon_client_prods_cache_${portalCacheSlug}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [dbGammes, setDbGammes] = useState([]);
   const [dbEscandalls, setDbEscandalls] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined' || !portalCacheSlug) return true;
+    try {
+      return !localStorage.getItem(`minimmon_client_prods_cache_${portalCacheSlug}`);
+    } catch (e) {
+      return true;
+    }
+  });
   const [selectedGamma, setSelectedGamma] = useState('Tots');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedModalImage, setSelectedModalImage] = useState(null);
+  const [lang, setLang] = useState(() => getCurrentLanguage());
+
+  const clientPortal = livePortal || initialClientPortal;
+
+  const handleLanguageChange = (l) => {
+    setLang(l);
+    setLanguage(l);
+  };
+
+  // Sincronització en temps real de les dades del portal del client
+  useEffect(() => {
+    if (!initialClientPortal?.id) return;
+    const unsubPortal = onSnapshot(doc(db, 'clients_portals', initialClientPortal.id), (snap) => {
+      if (snap.exists()) {
+        const updated = { id: snap.id, ...snap.data() };
+        setLivePortal(updated);
+        if (updated.slug) {
+          try {
+            localStorage.setItem(`minimmon_client_portal_cache_${String(updated.slug).toLowerCase().trim()}`, JSON.stringify(updated));
+          } catch (e) {}
+        }
+      }
+    });
+    return () => unsubPortal();
+  }, [initialClientPortal?.id]);
 
   // Paleta de colors corporativa del client
   const colors = clientPortal.colors || DEFAULT_CLIENT_PALETTE;
@@ -54,6 +126,11 @@ export default function ClientPortalView({ clientPortal }) {
       );
       setDbProducts(clientProds);
       setLoading(false);
+      if (clientPortal.slug) {
+        try {
+          localStorage.setItem(`minimmon_client_prods_cache_${String(clientPortal.slug).toLowerCase().trim()}`, JSON.stringify(clientProds));
+        } catch (e) {}
+      }
     }, (err) => {
       console.warn("Error carregant productes del portal:", err);
       setLoading(false);
@@ -118,7 +195,51 @@ export default function ClientPortalView({ clientPortal }) {
   }, [dbProducts, selectedGamma, searchQuery]);
 
   // Comptador total d'articles a la cistella
-  const cartCount = (cart || []).reduce((acc, item) => acc + (item.quantity || 1), 0);
+  const cartCount = totalItems !== undefined
+    ? totalItems
+    : (cart || []).reduce((acc, item) => acc + (item.quantitat || item.quantity || 1), 0);
+
+  // Etiquetes editables i opcionals de la capçalera i del banner
+  const headerLogoSubtitle = clientPortal.etiquetaLogo !== undefined
+    ? String(clientPortal.etiquetaLogo).trim()
+    : 'Col·lecció Exclusiva';
+
+  const bannerTopBadge = clientPortal.etiquetaSuperior !== undefined
+    ? String(clientPortal.etiquetaSuperior).trim()
+    : 'Fusta de til·ler seleccionada & precisió làser · Artesania Mínim Món';
+
+  const bannerMainTitle = clientPortal.titolCapcalera !== undefined
+    ? String(clientPortal.titolCapcalera).trim()
+    : String(clientPortal.nomComercial || '').trim();
+
+  const bannerSubtitle = String(clientPortal.subtitolCapcalera || '').trim();
+  const bannerDescription = String(clientPortal.descripcioCapcalera || '').trim();
+
+  const infoComandaTitle = clientPortal.titolInfoComanda !== undefined
+    ? String(clientPortal.titolInfoComanda).trim()
+    : (clientPortal.nomComercial ? `Tramitació directa amb ${clientPortal.nomComercial}:` : '');
+  const infoComandaText = String(clientPortal.infoComanda || '').trim();
+  const hasInfoComandaBox = Boolean(infoComandaTitle || infoComandaText);
+
+  const hasHeroContent = Boolean(
+    bannerTopBadge || bannerMainTitle || bannerSubtitle || bannerDescription || hasInfoComandaBox
+  );
+
+  // Configuració del Peu de Pàgina (editable i opcional)
+  const footerMainText = String(clientPortal.peuContingut || '').trim();
+  const footerColumns = [
+    { titol: String(clientPortal.peuCol1Titol || '').trim(), text: String(clientPortal.peuCol1Text || '').trim() },
+    { titol: String(clientPortal.peuCol2Titol || '').trim(), text: String(clientPortal.peuCol2Text || '').trim() },
+    { titol: String(clientPortal.peuCol3Titol || '').trim(), text: String(clientPortal.peuCol3Text || '').trim() }
+  ].filter(c => c.titol || c.text);
+
+  const footerCopyright = clientPortal.peuCopyright !== undefined
+    ? String(clientPortal.peuCopyright).trim()
+    : `© ${new Date().getFullYear()} ${clientPortal.nomComercial || ''}${headerLogoSubtitle ? ` · ${headerLogoSubtitle}` : ''}`;
+
+  const footerCredit = clientPortal.peuCredit !== undefined
+    ? String(clientPortal.peuCredit).trim()
+    : 'Artesania en fusta de til·ler per Mínim Món';
 
   return (
     <div 
@@ -133,12 +254,12 @@ export default function ClientPortalView({ clientPortal }) {
     >
       {/* CAPÇALERA SUPERIOR CORPORATIVA DEL CLIENT */}
       <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-outline/15 transition-all shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3 sm:gap-4">
           
           {/* Logo i Nom del Client */}
           <div className="flex items-center gap-3.5 min-w-0">
             {clientPortal.logoUrl ? (
-              <div className="h-12 max-w-[180px] sm:max-w-[220px] flex items-center justify-start overflow-hidden">
+              <div className="h-12 max-w-[160px] sm:max-w-[220px] flex items-center justify-start overflow-hidden shrink-0">
                 <img 
                   src={resolveClientLogoUrl(clientPortal.logoUrl)} 
                   alt={clientPortal.nomComercial} 
@@ -148,29 +269,36 @@ export default function ClientPortalView({ clientPortal }) {
               </div>
             ) : (
               <div 
-                className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-xs shrink-0"
+                className="w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-xs shrink-0 notranslate"
                 style={{ backgroundColor: primaryColor }}
+                translate="no"
               >
                 {(clientPortal.nomComercial || 'C').charAt(0).toUpperCase()}
               </div>
             )}
 
             <div className="truncate">
-              <h1 className="font-serif text-lg sm:text-xl font-bold tracking-tight truncate" style={{ color: primaryColor }}>
+              <h1 
+                className="font-serif text-lg sm:text-xl font-bold tracking-tight truncate notranslate" 
+                style={{ color: primaryColor }}
+                translate="no"
+              >
                 {clientPortal.nomComercial}
               </h1>
-              <p className="text-[11px] text-on-surface-variant font-mono truncate">
-                Col·lecció Exclusiva
-              </p>
+              {headerLogoSubtitle && (
+                <p className="text-[11px] text-on-surface-variant font-mono truncate">
+                  {renderProtectedClientText(headerLogoSubtitle, clientPortal.nomComercial)}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Dades de Contacte ràpides i Botó Cistella */}
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {/* Selector d'Idiomes (ES, CA, EN, FR), Dades de Contacte i Botó Comanda */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {clientPortal.emailContacte && (
               <a
                 href={`mailto:${clientPortal.emailContacte}`}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
                 title="Contactar amb la marca per correu"
               >
                 <Mail className="w-3.5 h-3.5" />
@@ -181,7 +309,7 @@ export default function ClientPortalView({ clientPortal }) {
             {clientPortal.telefonContacte && (
               <a
                 href={`tel:${clientPortal.telefonContacte}`}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-on-surface-variant hover:text-primary hover:bg-surface-container transition-colors"
                 title="Trucar o escriure"
               >
                 <Phone className="w-3.5 h-3.5" />
@@ -189,10 +317,39 @@ export default function ClientPortalView({ clientPortal }) {
               </a>
             )}
 
+            {/* Selector d'Idiomes (ES, CA, EN, FR) */}
+            <div 
+              className="flex items-center bg-surface-container/80 border border-outline/20 rounded-xl p-1 gap-0.5 shadow-2xs notranslate"
+              translate="no"
+              aria-label="Selector d'idioma"
+            >
+              <Globe className="w-3.5 h-3.5 text-on-surface-variant ml-1.5 mr-0.5 hidden sm:block shrink-0" />
+              {PORTAL_LANGUAGES.map((l) => {
+                const isActive = lang === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => handleLanguageChange(l)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer notranslate ${
+                      isActive
+                        ? 'text-white shadow-2xs'
+                        : 'text-on-surface-variant hover:text-primary hover:bg-surface/60'
+                    }`}
+                    style={isActive ? { backgroundColor: primaryColor } : {}}
+                    translate="no"
+                    title={`Canviar idioma a ${l}`}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Botó Cistella / Pressupost */}
             <button
-              onClick={() => setIsCartOpen(true)}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-xs flex items-center gap-2 cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              onClick={() => openCart ? openCart() : setIsDrawerOpen(true)}
+              className="px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold text-white shadow-xs flex items-center gap-2 cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]"
               style={{ backgroundColor: primaryColor }}
               title="Veure la comanda / pressupost"
             >
@@ -211,56 +368,72 @@ export default function ClientPortalView({ clientPortal }) {
         </div>
       </header>
 
-      {/* BANNER / HERO DE BENVINGUDA PERSONALITZAT */}
-      <section className="relative overflow-hidden py-10 md:py-14 border-b border-outline/10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
-          
-          {/* Segell Artesanal Mínim Món */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xs border border-outline/15 bg-surface-container/60 text-on-surface-variant">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: accentColor }} />
-            <span>Fusta de til·ler seleccionada & precisió làser · Artesania Mínim Món</span>
-          </div>
+      {/* BANNER / HERO DE BENVINGUDA PERSONALITZAT (Totes les etiquetes són editables i opcionals) */}
+      {hasHeroContent && (
+        <section className="relative overflow-hidden py-10 md:py-14 border-b border-outline/10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
+            
+            {/* Píndola / Etiqueta Superior (Editable i Opcional) */}
+            {bannerTopBadge && (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xs border border-outline/15 bg-surface-container/60 text-on-surface-variant">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" style={{ color: accentColor }} />
+                <span>{renderProtectedClientText(bannerTopBadge, clientPortal.nomComercial)}</span>
+              </div>
+            )}
 
-          {/* Títol Principal Lliure */}
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance" style={{ color: primaryColor }}>
-            {clientPortal.titolCapcalera || clientPortal.nomComercial}
-          </h2>
-
-          {/* Subtítol */}
-          {clientPortal.subtitolCapcalera && (
-            <p className="font-serif text-lg sm:text-xl text-on-surface-variant italic max-w-2xl mx-auto">
-              {clientPortal.subtitolCapcalera}
-            </p>
-          )}
-
-          {/* Descripció o Missatge de Benvinguda */}
-          {clientPortal.descripcioCapcalera && (
-            <p className="text-sm text-on-surface-variant max-w-2xl mx-auto leading-relaxed pt-1">
-              {clientPortal.descripcioCapcalera}
-            </p>
-          )}
-
-          {/* Caixetí d'Informació de Tramitació / Enviament i Pagament del Client */}
-          {clientPortal.infoComanda && (
-            <div className="pt-3 max-w-xl mx-auto">
-              <div 
-                className="p-3.5 rounded-2xl border text-xs text-left flex items-start gap-2.5 shadow-2xs"
-                style={{ backgroundColor: containerColor, borderColor: `${primaryColor}25` }}
+            {/* Títol Principal (Editable i Opcional) */}
+            {bannerMainTitle && (
+              <h2 
+                className={`font-serif text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance ${
+                  bannerMainTitle.toLowerCase() === String(clientPortal.nomComercial || '').trim().toLowerCase() ? 'notranslate' : ''
+                }`}
+                style={{ color: primaryColor }}
+                translate={bannerMainTitle.toLowerCase() === String(clientPortal.nomComercial || '').trim().toLowerCase() ? 'no' : undefined}
               >
-                <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: primaryColor }} />
-                <div className="space-y-0.5">
-                  <span className="font-bold block" style={{ color: primaryColor }}>
-                    Tramitació directa amb {clientPortal.nomComercial}:
-                  </span>
-                  <span className="text-on-surface-variant leading-snug block">
-                    {clientPortal.infoComanda}
-                  </span>
+                {renderProtectedClientText(bannerMainTitle, clientPortal.nomComercial)}
+              </h2>
+            )}
+
+            {/* Subtítol (Editable i Opcional) */}
+            {bannerSubtitle && (
+              <p className="font-serif text-lg sm:text-xl text-on-surface-variant italic max-w-2xl mx-auto">
+                {renderProtectedClientText(bannerSubtitle, clientPortal.nomComercial)}
+              </p>
+            )}
+
+            {/* Descripció o Missatge de Benvinguda (Editable i Opcional) */}
+            {bannerDescription && (
+              <p className="text-sm text-on-surface-variant max-w-2xl mx-auto leading-relaxed pt-1 whitespace-pre-line">
+                {renderProtectedClientText(bannerDescription, clientPortal.nomComercial)}
+              </p>
+            )}
+
+            {/* Caixetí d'Informació de Tramitació / Enviament i Pagament del Client (Editable i Opcional) */}
+            {hasInfoComandaBox && (
+              <div className="pt-3 max-w-xl mx-auto">
+                <div 
+                  className="p-3.5 rounded-2xl border text-xs text-left flex items-start gap-2.5 shadow-2xs"
+                  style={{ backgroundColor: containerColor, borderColor: `${primaryColor}25` }}
+                >
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: primaryColor }} />
+                  <div className="space-y-0.5">
+                    {infoComandaTitle && (
+                      <span className="font-bold block" style={{ color: primaryColor }}>
+                        {renderProtectedClientText(infoComandaTitle, clientPortal.nomComercial)}
+                      </span>
+                    )}
+                    {infoComandaText && (
+                      <span className="text-on-surface-variant leading-snug block whitespace-pre-line">
+                        {renderProtectedClientText(infoComandaText, clientPortal.nomComercial)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* CONTINGUT PRINCIPAL: FILTRES DE GAMMES I PRODUCTES */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 flex-1 w-full space-y-8">
@@ -329,7 +502,7 @@ export default function ClientPortalView({ clientPortal }) {
           </div>
         </div>
 
-        {/* GRAELLA DE PRODUCTES DEL CLIENT */}
+        {/* LLISTA DE PRODUCTES DEL CLIENT (Ample complet) */}
         {loading ? (
           <div className="py-20 text-center space-y-3">
             <div className="w-8 h-8 border-3 border-outline/20 border-t-primary rounded-full animate-spin mx-auto" />
@@ -357,15 +530,11 @@ export default function ClientPortalView({ clientPortal }) {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+          <div className="space-y-8">
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
-                product={{
-                  ...product,
-                  // Si no té material definit, recordem sempre la fusta de til·ler
-                  material: product.material || 'Fusta de til·ler seleccionada'
-                }}
+                product={product}
                 selectedGamma={selectedGamma}
                 dbGammes={dbGammes}
                 dbEscandalls={dbEscandalls}
@@ -379,6 +548,7 @@ export default function ClientPortalView({ clientPortal }) {
                     emailContacte: clientPortal.emailContacte,
                     telefonContacte: clientPortal.telefonContacte
                   };
+                  addToCart(cartItem);
                 }}
               />
             ))}
@@ -386,18 +556,53 @@ export default function ClientPortalView({ clientPortal }) {
         )}
       </main>
 
-      {/* PEU DE PÀGINA ARTESANAL MÍNIM MÓN */}
-      <footer className="mt-auto border-t border-outline/15 py-8 bg-surface-container/30 text-center text-xs text-on-surface-variant space-y-2">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 font-mono text-[11px]">
-            <span>© {new Date().getFullYear()} {clientPortal.nomComercial}</span>
-            <span>·</span>
-            <span>Col·lecció Exclusiva</span>
-          </div>
+      {/* PEU DE PÀGINA CONFIGURABLE DEL PORTAL DE CLIENT */}
+      <footer className="mt-auto border-t border-outline/15 bg-surface-container/35 text-xs text-on-surface-variant">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+          
+          {/* Contingut superior o columnes del peu de pàgina (si se n'han definit) */}
+          {(footerMainText || footerColumns.length > 0) && (
+            <div className="space-y-6 pb-6 border-b border-outline/15">
+              {footerMainText && (
+                <div className="max-w-3xl text-xs sm:text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
+                  {renderFormattedText(footerMainText)}
+                </div>
+              )}
 
-          <div className="flex items-center gap-1.5 font-serif text-xs text-primary/80">
-            <span>Artesania en fusta de til·ler per</span>
-            <strong className="font-semibold text-primary">Mínim Món</strong>
+              {footerColumns.length > 0 && (
+                <div className={`grid grid-cols-1 sm:grid-cols-${Math.min(footerColumns.length, 3)} gap-6 text-left`}>
+                  {footerColumns.map((col, idx) => (
+                    <div key={idx} className="space-y-2">
+                      {col.titol && (
+                        <h4 className="font-serif text-sm font-bold" style={{ color: primaryColor }}>
+                          {col.titol}
+                        </h4>
+                      )}
+                      {col.text && (
+                        <div className="text-xs text-on-surface-variant leading-relaxed whitespace-pre-line">
+                          {renderFormattedText(col.text)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Barra inferior del Peu de Pàgina */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {footerCopyright ? (
+              <div className="flex items-center gap-2 font-mono text-[11px] text-center sm:text-left">
+                <span>{renderProtectedClientText(footerCopyright, clientPortal.nomComercial)}</span>
+              </div>
+            ) : <div />}
+
+            {footerCredit && (
+              <div className="flex items-center gap-1.5 font-serif text-xs text-primary/80 text-center sm:text-right">
+                <span>{renderProtectedClientText(footerCredit, clientPortal.nomComercial)}</span>
+              </div>
+            )}
           </div>
         </div>
       </footer>

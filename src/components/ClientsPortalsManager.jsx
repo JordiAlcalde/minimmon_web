@@ -63,6 +63,19 @@ export default function ClientsPortalsManager({
     if (client) {
       setEditingClient({
         ...client,
+        etiquetaLogo: client.etiquetaLogo !== undefined ? client.etiquetaLogo : 'Col·lecció Exclusiva',
+        etiquetaSuperior: client.etiquetaSuperior !== undefined ? client.etiquetaSuperior : 'Fusta de til·ler seleccionada & precisió làser · Artesania Mínim Món',
+        titolCapcalera: client.titolCapcalera !== undefined ? client.titolCapcalera : (client.nomComercial || ''),
+        titolInfoComanda: client.titolInfoComanda !== undefined ? client.titolInfoComanda : (client.nomComercial ? `Tramitació directa amb ${client.nomComercial}:` : ''),
+        peuContingut: client.peuContingut || '',
+        peuCol1Titol: client.peuCol1Titol || '',
+        peuCol1Text: client.peuCol1Text || '',
+        peuCol2Titol: client.peuCol2Titol || '',
+        peuCol2Text: client.peuCol2Text || '',
+        peuCol3Titol: client.peuCol3Titol || '',
+        peuCol3Text: client.peuCol3Text || '',
+        peuCopyright: client.peuCopyright !== undefined ? client.peuCopyright : `© ${new Date().getFullYear()} ${client.nomComercial || ''} · Col·lecció Exclusiva`,
+        peuCredit: client.peuCredit !== undefined ? client.peuCredit : 'Artesania en fusta de til·ler per Mínim Món',
         colors: {
           ...DEFAULT_CLIENT_PALETTE,
           ...(client.colors || {})
@@ -74,12 +87,24 @@ export default function ClientsPortalsManager({
         nomComercial: '',
         slug: '',
         logoUrl: '',
+        etiquetaLogo: 'Col·lecció Exclusiva',
+        etiquetaSuperior: 'Fusta de til·ler seleccionada & precisió làser · Artesania Mínim Món',
         titolCapcalera: '',
         subtitolCapcalera: '',
         descripcioCapcalera: '',
         emailContacte: '',
         telefonContacte: '',
+        titolInfoComanda: '',
         infoComanda: 'Els pagaments i condicions d\'enviament d\'aquesta col·lecció exclusiva es gestionen directament amb la marca.',
+        peuContingut: '',
+        peuCol1Titol: '',
+        peuCol1Text: '',
+        peuCol2Titol: '',
+        peuCol2Text: '',
+        peuCol3Titol: '',
+        peuCol3Text: '',
+        peuCopyright: '',
+        peuCredit: 'Artesania en fusta de til·ler per Mínim Món',
         colors: { ...DEFAULT_CLIENT_PALETTE },
         actiu: true,
         dataCreacio: new Date().toISOString()
@@ -129,13 +154,25 @@ export default function ClientsPortalsManager({
         ...editingClient,
         slug: finalSlug,
         nomComercial: editingClient.nomComercial.trim(),
-        titolCapcalera: (editingClient.titolCapcalera || editingClient.nomComercial).trim(),
-        subtitolCapcalera: (editingClient.subtitolCapcalera || '').trim(),
-        descripcioCapcalera: (editingClient.descripcioCapcalera || '').trim(),
-        emailContacte: (editingClient.emailContacte || '').trim(),
-        telefonContacte: (editingClient.telefonContacte || '').trim(),
-        infoComanda: (editingClient.infoComanda || '').trim(),
-        logoUrl: (editingClient.logoUrl || '').trim(),
+        etiquetaLogo: String(editingClient.etiquetaLogo ?? '').trim(),
+        etiquetaSuperior: String(editingClient.etiquetaSuperior ?? '').trim(),
+        titolCapcalera: String(editingClient.titolCapcalera ?? '').trim(),
+        subtitolCapcalera: String(editingClient.subtitolCapcalera ?? '').trim(),
+        descripcioCapcalera: String(editingClient.descripcioCapcalera ?? '').trim(),
+        emailContacte: String(editingClient.emailContacte ?? '').trim(),
+        telefonContacte: String(editingClient.telefonContacte ?? '').trim(),
+        titolInfoComanda: String(editingClient.titolInfoComanda ?? '').trim(),
+        infoComanda: String(editingClient.infoComanda ?? '').trim(),
+        peuContingut: String(editingClient.peuContingut ?? '').trim(),
+        peuCol1Titol: String(editingClient.peuCol1Titol ?? '').trim(),
+        peuCol1Text: String(editingClient.peuCol1Text ?? '').trim(),
+        peuCol2Titol: String(editingClient.peuCol2Titol ?? '').trim(),
+        peuCol2Text: String(editingClient.peuCol2Text ?? '').trim(),
+        peuCol3Titol: String(editingClient.peuCol3Titol ?? '').trim(),
+        peuCol3Text: String(editingClient.peuCol3Text ?? '').trim(),
+        peuCopyright: String(editingClient.peuCopyright ?? '').trim(),
+        peuCredit: String(editingClient.peuCredit ?? '').trim(),
+        logoUrl: String(editingClient.logoUrl ?? '').trim(),
         colors: editingClient.colors || DEFAULT_CLIENT_PALETTE,
         actiu: editingClient.actiu !== false,
         dataActualitzacio: new Date().toISOString()
@@ -358,22 +395,55 @@ export default function ClientsPortalsManager({
             </p>
           </div>
 
-          {/* Textos Lliures de la Capçalera */}
+          {/* Textos i Etiquetes de la Capçalera i del Banner (Editables i Opcionals) */}
           <div className="bg-surface p-4 rounded-xl border border-outline/15 space-y-4">
-            <div className="flex items-center gap-2 border-b border-outline/10 pb-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h4 className="text-xs uppercase font-bold text-primary">Textos de la Capçalera (Totalment Oberts)</h4>
+            <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h4 className="text-xs uppercase font-bold text-primary">Etiquetes i Textos de la Capçalera (Editables i Opcionals)</h4>
+              </div>
+              <span className="text-[10px] font-mono text-on-surface-variant">
+                Deixa en blanc qualsevol camp per ocultar-lo
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
-                  Títol Principal
+                  Etiqueta sota el Nom al Logo (Barra Superior) — Opcional
                 </label>
                 <input
                   type="text"
-                  placeholder={editingClient.nomComercial || 'Ex: Col·lecció Exclusiva'}
-                  value={editingClient.titolCapcalera || ''}
+                  placeholder="Ex: Col·lecció Exclusiva (deixa buit per ocultar)"
+                  value={editingClient.etiquetaLogo ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, etiquetaLogo: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Píndola / Etiqueta Superior del Banner — Opcional
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Fusta de til·ler seleccionada & precisió làser (deixa buit per ocultar)"
+                  value={editingClient.etiquetaSuperior ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, etiquetaSuperior: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Títol Principal del Banner — Opcional
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Little Spider Homes (deixa buit per ocultar)"
+                  value={editingClient.titolCapcalera ?? ''}
                   onChange={(e) => setEditingClient({ ...editingClient, titolCapcalera: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs font-semibold text-primary focus:border-primary outline-none"
                 />
@@ -381,12 +451,12 @@ export default function ClientsPortalsManager({
 
               <div>
                 <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
-                  Subtítol
+                  Subtítol del Banner — Opcional
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Peces commemoratives artesanes en fusta de til·ler"
-                  value={editingClient.subtitolCapcalera || ''}
+                  placeholder="Ex: Terrarios artesanales (deixa buit per ocultar)"
+                  value={editingClient.subtitolCapcalera ?? ''}
                   onChange={(e) => setEditingClient({ ...editingClient, subtitolCapcalera: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none"
                 />
@@ -395,26 +465,31 @@ export default function ClientsPortalsManager({
 
             <div>
               <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
-                Descripció / Missatge de Benvinguda
+                Descripció / Missatge de Benvinguda — Opcional
               </label>
               <textarea
                 rows={2}
                 placeholder="Ex: Benvinguts al portal exclusiu de productes dissenyats especialment per a la nostra comunitat..."
-                value={editingClient.descripcioCapcalera || ''}
+                value={editingClient.descripcioCapcalera ?? ''}
                 onChange={(e) => setEditingClient({ ...editingClient, descripcioCapcalera: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none resize-y"
               />
             </div>
           </div>
 
-          {/* Dades de Contacte i Tramitació de Comandes */}
+          {/* Dades de Contacte i Caixetí de Tramitació de Comandes */}
           <div className="bg-surface p-4 rounded-xl border border-outline/15 space-y-4">
-            <div className="flex items-center gap-2 border-b border-outline/10 pb-2">
-              <Mail className="w-4 h-4 text-primary" />
-              <h4 className="text-xs uppercase font-bold text-primary">Dades de Contacte i Tramitació de Comandes</h4>
+            <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-primary" />
+                <h4 className="text-xs uppercase font-bold text-primary">Contacte i Caixetí d'Informació / Tramitació (Opcional)</h4>
+              </div>
+              <span className="text-[10px] font-mono text-on-surface-variant">
+                Deixa buit per ocultar el caixetí
+              </span>
             </div>
             <p className="text-[11px] text-on-surface-variant">
-              Com que els seus clients tracten directament amb ell el pagament i els enviaments, aquí s'indiquen les seves dades per tramitar pressupostos i comandes.
+              Configura les dades de contacte i el caixetí d'avís sota el títol. Tant el títol negreta com el text són editables i opcionals.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -447,17 +522,115 @@ export default function ClientsPortalsManager({
               </div>
             </div>
 
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Títol del Caixetí d'Informació / Tramitació — Opcional
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Tramitació directa amb la marca: (deixa buit per ocultar el títol)"
+                  value={editingClient.titolInfoComanda ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, titolInfoComanda: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs font-semibold text-primary focus:border-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Text del Caixetí d'Informació / Instruccions de Comanda — Opcional
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Els pagaments i condicions d'enviament es gestionen directament amb la marca (deixa buit per ocultar)."
+                  value={editingClient.infoComanda ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, infoComanda: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none resize-y"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Peu de Pàgina Configurable (Footer) */}
+          <div className="bg-surface p-4 rounded-xl border border-outline/15 space-y-4">
+            <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-primary" />
+                <h4 className="text-xs uppercase font-bold text-primary">Peu de Pàgina del Portal (Editable i Opcional)</h4>
+              </div>
+              <span className="text-[10px] font-mono text-on-surface-variant">
+                Admet negreta (**text**) i salts de línia
+              </span>
+            </div>
+
             <div>
               <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
-                Instruccions d'enviament i pagament al carret de compra
+                Contingut General / Text Principal del Peu de Pàgina — Opcional
               </label>
               <textarea
-                rows={2}
-                placeholder="Ex: Les comandes seran lliurades a la recepció de l'empresa. El cobrament es realitzarà a través de la nòmina interna o compte associat."
-                value={editingClient.infoComanda || ''}
-                onChange={(e) => setEditingClient({ ...editingClient, infoComanda: e.target.value })}
+                rows={3}
+                placeholder="Escriu aquí la informació general, condicions, adreça, xarxes socials o text del peu de pàgina..."
+                value={editingClient.peuContingut ?? ''}
+                onChange={(e) => setEditingClient({ ...editingClient, peuContingut: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none resize-y"
               />
+            </div>
+
+            {/* 3 Columnes opcionals per estructurar el peu */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[1, 2, 3].map((colNum) => {
+                const titolKey = `peuCol${colNum}Titol`;
+                const textKey = `peuCol${colNum}Text`;
+                return (
+                  <div key={colNum} className="p-3 rounded-lg bg-surface-container/50 border border-outline/15 space-y-2">
+                    <label className="block text-[10px] uppercase font-mono font-bold text-primary">
+                      Columna {colNum} del Peu (Opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={`Títol columna ${colNum}...`}
+                      value={editingClient[titolKey] ?? ''}
+                      onChange={(e) => setEditingClient({ ...editingClient, [titolKey]: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded bg-surface border border-outline/20 text-xs font-semibold text-primary focus:border-primary outline-none"
+                    />
+                    <textarea
+                      rows={3}
+                      placeholder={`Contingut columna ${colNum}...`}
+                      value={editingClient[textKey] ?? ''}
+                      onChange={(e) => setEditingClient({ ...editingClient, [textKey]: e.target.value })}
+                      className="w-full px-2.5 py-1.5 rounded bg-surface border border-outline/20 text-xs text-primary focus:border-primary outline-none resize-y"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Línia Inferior Esquerra (Copyright) — Opcional
+                </label>
+                <input
+                  type="text"
+                  placeholder={`Ex: © ${new Date().getFullYear()} ${editingClient.nomComercial || 'Client'}`}
+                  value={editingClient.peuCopyright ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, peuCopyright: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs font-mono text-primary focus:border-primary outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] uppercase font-semibold text-on-surface-variant mb-1">
+                  Línia Inferior Dreta (Segell / Crèdit) — Opcional
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Artesania en fusta de til·ler per Mínim Món (deixa buit per ocultar)"
+                  value={editingClient.peuCredit ?? ''}
+                  onChange={(e) => setEditingClient({ ...editingClient, peuCredit: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg bg-surface-container border border-outline/25 text-xs text-primary focus:border-primary outline-none"
+                />
+              </div>
             </div>
           </div>
 
@@ -710,18 +883,19 @@ export default function ClientsPortalsManager({
                             </div>
                           ) : (
                             <div 
-                              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-2xs"
+                              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shrink-0 shadow-2xs notranslate"
                               style={{ backgroundColor: client.colors?.primary || DEFAULT_CLIENT_PALETTE.primary }}
+                              translate="no"
                             >
                               {(client.nomComercial || 'C').charAt(0).toUpperCase()}
                             </div>
                           )}
 
                           <div className="truncate">
-                            <h3 className="font-serif text-base font-bold text-primary truncate">
+                            <h3 className="font-serif text-base font-bold text-primary truncate notranslate" translate="no">
                               {client.nomComercial}
                             </h3>
-                            <span className="font-mono text-[11px] font-bold text-on-surface-variant flex items-center gap-1">
+                            <span className="font-mono text-[11px] font-bold text-on-surface-variant flex items-center gap-1 notranslate" translate="no">
                               /?{client.slug}
                             </span>
                           </div>

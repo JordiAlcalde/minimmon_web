@@ -1559,7 +1559,7 @@ export function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGa
       )}
 
       {/* Columna Imatges (5 cols) */}
-      <div className="md:col-span-5 space-y-4">
+      <div className="md:col-span-5 min-w-0 space-y-4">
         <div className="aspect-square bg-surface-container rounded-lg overflow-hidden border border-outline/10 shadow-xs relative">
           {product.novetat && (
             <div className="absolute top-3 left-3 bg-[#3D2B1F] text-amber-200 font-bold font-mono text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10 border border-amber-200/30">
@@ -1592,9 +1592,10 @@ export function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGa
           )}
           {currentDisplayImg ? (
             <img
-              src={resolveMediaUrl(currentDisplayImg)}
+              src={resolveProducteMediaUrl(currentDisplayImg) || resolveMediaUrl(currentDisplayImg)}
               alt={product.nom}
-              className="w-full h-full object-cover transition-all duration-300"
+              onClick={() => onSelectImageModal && onSelectImageModal(resolveProducteMediaUrl(currentDisplayImg) || resolveMediaUrl(currentDisplayImg))}
+              className={`w-full h-full object-cover transition-all duration-300 ${onSelectImageModal ? 'cursor-zoom-in hover:scale-[1.02]' : ''}`}
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.src = resolveMediaUrl('images/tots_productes.jpg');
@@ -1617,7 +1618,7 @@ export function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGa
                   }`}
               >
                 <img
-                  src={resolveMediaUrl(imgUrl)}
+                  src={resolveProducteMediaUrl(imgUrl) || resolveMediaUrl(imgUrl)}
                   alt=""
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -1632,11 +1633,11 @@ export function ProductCard({ product, onAddToCart, selectedGamma = 'Tots', dbGa
       </div>
 
       {/* Columna Informació i Formulari de Pressupost (7 cols) */}
-      <div className="md:col-span-7 space-y-5">
+      <div className="md:col-span-7 min-w-0 space-y-5">
         {/* Títol del Producte en vista Desktop (ocult si ja és dins del Modal flotant) */}
         {!isModalView && (
           <div className="hidden md:flex justify-between items-start gap-4">
-            <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold">{product.nom}</h2>
+            <h2 className="font-serif text-2xl md:text-3xl text-primary font-semibold min-w-0 break-words">{product.nom}</h2>
             <button
               type="button"
               onClick={handleShareProductLink}

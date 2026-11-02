@@ -163,7 +163,8 @@ export function BudgetProvider({ children }) {
         preuBase: newItem.preuBase || null,
         sobrecost: newItem.sobrecost || null,
         isBudgetRequired: Boolean(newItem.isBudgetRequired),
-        terminiFabricacio: newItem.terminiFabricacio || ''
+        terminiFabricacio: newItem.terminiFabricacio || '',
+        clientPortalRef: newItem.clientPortalRef || null
       };
 
       return [...prevCart, cartItem];
