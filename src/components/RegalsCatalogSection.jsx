@@ -313,14 +313,14 @@ export default function RegalsCatalogSection({
     const qGam = query(collection(db, "gammes"), orderBy("ordre", "asc"));
     const unsubGam = onSnapshot(qGam, (snapshot) => {
       if (!snapshot.empty) {
-        setDbGammes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(g => g.actiu !== false));
+        setDbGammes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(g => g.actiu !== false && !g.clientId && g.tipus !== 'client_exclusiu'));
       }
     });
 
     const qFam = query(collection(db, "families"), orderBy("ordre", "asc"));
     const unsubFam = onSnapshot(qFam, (snapshot) => {
       if (!snapshot.empty) {
-        setDbFamilies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setDbFamilies(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(f => !f.clientId && f.tipus !== 'client_exclusiu'));
       }
     });
 

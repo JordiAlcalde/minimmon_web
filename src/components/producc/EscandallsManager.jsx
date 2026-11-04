@@ -4,7 +4,7 @@ import {
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
   Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap, RotateCw,
-  Printer, Paperclip, BookOpen, Eye, Upload
+  Printer, Paperclip, BookOpen, Eye, Upload, Building2
 } from 'lucide-react';
 import { compressImageFile } from '../../data/projeccInitialData';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
@@ -195,12 +195,14 @@ export default function EscandallsManager({
   projeccItems = [], 
   families = [], 
   gammes = [], 
+  clientsPortals = [], 
   isDark 
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeScope, setActiveScope] = useState('productes'); // 'productes' | 'projectes'
   const [filterFamilia, setFilterFamilia] = useState('all');
   const [filterGamma, setFilterGamma] = useState('all');
+  const [filterClient, setFilterClient] = useState('all'); // 'all' | 'general' | clientId
 
   // Modal d'Edició / Formulari Principal
   const [modalOpen, setModalOpen] = useState(false);
@@ -399,6 +401,7 @@ export default function EscandallsManager({
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [pickerFamilia, setPickerFamilia] = useState('all');
   const [pickerGamma, setPickerGamma] = useState('all');
+  const [pickerClient, setPickerClient] = useState('all'); // 'all' | 'general' | clientId
   const [pickerSearch, setPickerSearch] = useState('');
 
   // Finestra Flotant de Selecció de Projecte
@@ -500,6 +503,11 @@ export default function EscandallsManager({
   // Productes filtrats a la finestra flotant de selecció
   const filteredPickerProducts = useMemo(() => {
     return allCatalogProducts.filter(p => {
+      const isClientProd = p.tipusCataleg === 'client_exclusiu';
+      if (pickerClient === 'general' && isClientProd) return false;
+      if (pickerClient !== 'all' && pickerClient !== 'general') {
+        if (!isClientProd || (p.clientId !== pickerClient && p.clientSlug !== pickerClient)) return false;
+      }
       if (pickerFamilia !== 'all') {
         if (!matchesFamilyFilter(p, null, pickerFamilia, families, gammes)) return false;
       }
@@ -518,7 +526,7 @@ export default function EscandallsManager({
 
       return true;
     });
-  }, [allCatalogProducts, pickerFamilia, pickerGamma, pickerSearch, families, gammes]);
+  }, [allCatalogProducts, pickerClient, pickerFamilia, pickerGamma, pickerSearch, families, gammes]);
 
   // Llistes filtrades de projectes reals per a la finestra de selecció de projectes
   const filteredProjectes = useMemo(() => {
@@ -604,6 +612,7 @@ export default function EscandallsManager({
     setExpandedOptionKey(null);
     setSelectedLaserLibMaterialId('');
     setLastAppliedLaserMaterialNom('');
+    const matchedClient = (clientsPortals || []).find(c => c.id === prod.clientId || c.slug === prod.clientSlug);
     setFormData({
       producteNom: prod.nom || prod.title || prod.titol || 'Sense nom',
       producteId: prod.id,
@@ -611,6 +620,10 @@ export default function EscandallsManager({
       producteImatge: rawImage,
       preuWebActual: Number(prod.preu || prod.price || 0),
       tipus: 'Producte Web',
+      tipusCataleg: prod.tipusCataleg || 'general',
+      clientId: prod.clientId || null,
+      clientSlug: prod.clientSlug || null,
+      clientNom: prod.clientNom || matchedClient?.nomComercial || null,
       mermePercent: 8,
       margePercent: 65,
       notes: '',
@@ -679,8 +692,14 @@ export default function EscandallsManager({
       }
     }
 
+    const associatedProd = (productes || []).find(p => (esc.producteId && p.id === esc.producteId) || (esc.producteCodi && p.codi === esc.producteCodi) || (esc.producteNom && p.nom === esc.producteNom));
+    const matchedClient = (clientsPortals || []).find(c => c.id === (esc.clientId || associatedProd?.clientId) || c.slug === (esc.clientSlug || associatedProd?.clientSlug));
     setFormData({
       ...esc,
+      tipusCataleg: esc.tipusCataleg || associatedProd?.tipusCataleg || 'general',
+      clientId: esc.clientId || associatedProd?.clientId || null,
+      clientSlug: esc.clientSlug || associatedProd?.clientSlug || null,
+      clientNom: esc.clientNom || associatedProd?.clientNom || matchedClient?.nomComercial || null,
       producteImatge: rawImg,
       materials: esc.materials ? esc.materials.map(m => ({ ...m })) : [],
       operacions: esc.operacions ? esc.operacions.map(o => ({
@@ -1225,9 +1244,16 @@ export default function EscandallsManager({
         if (activeScope === 'productes' && !isProducte) return false;
         if (activeScope === 'projectes' && isProducte) return false;
 
-        // Filtres específics de Família i Gamma per a Productes
+        // Filtres específics de Família, Gamma i Client per a Productes
         if (activeScope === 'productes') {
           const prod = findProductForEscandall(e, allCatalogProducts);
+          const isClientProd = e.tipusCataleg === 'client_exclusiu' || prod?.tipusCataleg === 'client_exclusiu';
+          const itemClientId = e.clientId || prod?.clientId;
+
+          if (filterClient === 'general' && isClientProd) return false;
+          if (filterClient !== 'all' && filterClient !== 'general') {
+            if (!isClientProd || (itemClientId !== filterClient && (e.clientSlug || prod?.clientSlug) !== filterClient)) return false;
+          }
           
           if (filterFamilia !== 'all') {
             if (!matchesFamilyFilter(prod, e, filterFamilia, families, gammes)) return false;
@@ -1248,7 +1274,7 @@ export default function EscandallsManager({
         return true;
       })
       .sort((a, b) => (a.producteNom || '').localeCompare(b.producteNom || '', 'ca', { sensitivity: 'base' }));
-  }, [escandalls, activeScope, allCatalogProducts, filterFamilia, filterGamma, families, gammes, searchTerm]);
+  }, [escandalls, activeScope, allCatalogProducts, filterFamilia, filterGamma, filterClient, families, gammes, searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -1323,6 +1349,38 @@ export default function EscandallsManager({
             </span>
           </button>
         </div>
+
+        {/* Selector de Client Propietari o Catàleg General */}
+        {activeScope === 'productes' && clientsPortals && clientsPortals.length > 0 && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <select
+              value={filterClient}
+              onChange={(e) => setFilterClient(e.target.value)}
+              className={`px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer font-medium ${
+                isDark ? 'bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/50' : 'bg-slate-50 border-slate-200 text-slate-800'
+              }`}
+              title="Filtrar per Client Propietari o Catàleg General"
+            >
+              <option value="all">🌐 Tots els Productes (General + Clients)</option>
+              <option value="general">✨ Catàleg General Mínim Món</option>
+              {clientsPortals.map(c => (
+                <option key={c.id} value={c.id}>🏷️ Client: {c.nomComercial}</option>
+              ))}
+            </select>
+            {filterClient !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setFilterClient('all')}
+                className={`p-2 rounded-xl text-xs border transition-all cursor-pointer ${
+                  isDark ? 'bg-slate-800 text-amber-400 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}
+                title="Restablir filtre de client"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 2. Filtres Dinàmics de Família i Gamma (Només quan s'ha triat 'Productes') */}
         {activeScope === 'productes' && (
@@ -1515,6 +1573,20 @@ export default function EscandallsManager({
                       <span className={`px-1.5 py-0.2 rounded text-[10px] font-medium border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-800 border-amber-300'}`}>
                         {esc.tipus || 'Producte Web'}
                       </span>
+                      {(() => {
+                        const associatedProd = findProductForEscandall(esc, allCatalogProducts);
+                        const isClient = esc.tipusCataleg === 'client_exclusiu' || associatedProd?.tipusCataleg === 'client_exclusiu';
+                        if (!isClient) return null;
+                        const clientOwnerId = esc.clientId || associatedProd?.clientId;
+                        const clientOwner = (clientsPortals || []).find(c => c.id === clientOwnerId || c.slug === (esc.clientSlug || associatedProd?.clientSlug));
+                        const clientDisplayNom = esc.clientNom || associatedProd?.clientNom || clientOwner?.nomComercial || 'Client';
+                        return (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-sky-500/15 text-sky-400 border-sky-500/30 flex items-center gap-1 shadow-2xs">
+                            <Building2 className="w-2.5 h-2.5 text-sky-400" />
+                            <span>Client: <span className="notranslate" translate="no">{clientDisplayNom}</span></span>
+                          </span>
+                        );
+                      })()}
                       {esc.parametresLaser && (
                         <span className="px-1.5 py-0.2 rounded text-[10px] font-bold border bg-amber-500/15 text-amber-400 border-amber-500/30 flex items-center gap-1" title="Té paràmetres de làser personalitzats">
                           <Zap className="w-2.5 h-2.5" /> Làser
@@ -1675,6 +1747,23 @@ export default function EscandallsManager({
             <div className={`p-4 border-b flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0 ${
               isDark ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
             }`}>
+              {/* Filtre Client Propietari */}
+              {clientsPortals && clientsPortals.length > 0 && (
+                <select
+                  value={pickerClient}
+                  onChange={(e) => setPickerClient(e.target.value)}
+                  className={`px-3 py-2 rounded-xl text-xs border outline-none cursor-pointer flex-1 sm:flex-none sm:w-48 font-medium ${
+                    isDark ? 'bg-slate-900 border-slate-700 text-slate-200 focus:border-amber-500/50' : 'bg-white border-slate-300 text-slate-800'
+                  }`}
+                >
+                  <option value="all">🌐 Tots els Productes</option>
+                  <option value="general">✨ Catàleg General</option>
+                  {clientsPortals.map(c => (
+                    <option key={c.id} value={c.id}>🏷️ Client: {c.nomComercial}</option>
+                  ))}
+                </select>
+              )}
+
               {/* Filtre Família */}
               <select
                 value={pickerFamilia}
@@ -1766,9 +1855,17 @@ export default function EscandallsManager({
                               )}
                             </div>
 
-                            <h4 className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                              {p.nom || p.title}
-                            </h4>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className={`font-bold text-xs truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                                {p.nom || p.title}
+                              </h4>
+                              {p.tipusCataleg === 'client_exclusiu' && (
+                                <span className="font-sans text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 flex items-center gap-1 font-bold">
+                                  <Building2 className="w-2.5 h-2.5 text-sky-300" />
+                                  <span className="notranslate" translate="no">{(p.clientNom || (clientsPortals.find(c => c.id === p.clientId || c.slug === p.clientSlug)?.nomComercial)) || 'Client'}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -2123,6 +2220,12 @@ export default function EscandallsManager({
                     activeScope === 'productes' ? 'Nou Escandall de Producte' : 'Nou Escandall de Projecte'
                   )}
                 </span>
+                {formData.tipusCataleg === 'client_exclusiu' && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center gap-1 font-sans shrink-0">
+                    <Building2 className="w-3 h-3 text-sky-400" />
+                    <span>Exclusiu: <span className="notranslate" translate="no">{formData.clientNom || (clientsPortals.find(c => c.id === formData.clientId || c.slug === formData.clientSlug)?.nomComercial) || 'Client'}</span></span>
+                  </span>
+                )}
               </h3>
 
               <div className="flex items-center gap-2 shrink-0">

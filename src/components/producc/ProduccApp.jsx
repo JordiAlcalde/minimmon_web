@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart, 
+import {
+  Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart,
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
   Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2, Store
 } from 'lucide-react';
 
 import { db } from '../../firebase';
-import { 
-  collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch 
+import {
+  collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch
 } from 'firebase/firestore';
 
 import MaterialsManager from './MaterialsManager';
@@ -26,10 +26,10 @@ import EsdevenimentsManager from './EsdevenimentsManager';
 import { ControlProduccioManager } from './ProduccioPlaceholders';
 import { getScreenTheme, setScreenTheme, THEME_CHANGED_EVENT } from '../../utils/themeUtils';
 
-import { 
+import {
   INITIAL_GRUPS, INITIAL_UNITATS, INITIAL_UNITATS_COMPRA, INITIAL_FABRICANTS,
-  INITIAL_PROVEIDORS, INITIAL_MATERIALS, INITIAL_MAQUINARIA, INITIAL_OPERACIONS, 
-  INITIAL_ESCANDALLS, INITIAL_COMPRES, INITIAL_ORDRES_FABRICACIO 
+  INITIAL_PROVEIDORS, INITIAL_MATERIALS, INITIAL_MAQUINARIA, INITIAL_OPERACIONS,
+  INITIAL_ESCANDALLS, INITIAL_COMPRES, INITIAL_ORDRES_FABRICACIO
 } from '../../data/produccInitialData';
 import { normalizeEntityIds } from '../../utils/produccIdUtils';
 
@@ -111,6 +111,7 @@ export default function ProduccApp({ setActiveTab }) {
   const [projectes, setProjectes] = useState([]);
   const [projeccItems, setProjeccItems] = useState([]);
   const [pressupostos, setPressupostos] = useState([]);
+  const [clientsPortals, setClientsPortals] = useState([]);
 
   // Refs to hold current state without triggering listener re-subscribes
   const stateRefs = useRef({
@@ -201,6 +202,10 @@ export default function ProduccApp({ setActiveTab }) {
       setPressupostos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (e) => console.warn("Error onSnapshot pressupostos a ProduccApp:", e));
 
+    const unsubClientsPortals = onSnapshot(collection(db, "clients_portals"), (snapshot) => {
+      setClientsPortals(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (e) => console.warn("Error onSnapshot clients_portals a ProduccApp:", e));
+
     return () => {
       unsubGrups();
       unsubUnitats();
@@ -220,6 +225,7 @@ export default function ProduccApp({ setActiveTab }) {
       unsubProjectes();
       unsubProjeccItems();
       unsubPressupostos();
+      unsubClientsPortals();
     };
   }, []);
 
@@ -280,7 +286,7 @@ export default function ProduccApp({ setActiveTab }) {
     if (hasLongUcomp) {
       const { updatedItems: cleanUcomp, idMap: ucompMap } = normalizeEntityIds(unitatsCompra, 'ucomp');
       setUnitatsCompraWithFirestore(cleanUcomp);
-      
+
       if (ucompMap.size > 0) {
         setMaterialsWithFirestore(prevMaterials => prevMaterials.map(m => {
           let updated = false;
@@ -353,24 +359,23 @@ export default function ProduccApp({ setActiveTab }) {
   };
 
   return (
-    <div className={`min-h-screen transition-colors ${
-      isDark ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
-    }`}>
+    <div className={`min-h-screen transition-colors ${isDark ? 'dark bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
+      }`}>
       {/* Dedicated Producc Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-[#FAF7F2] shadow-sm backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4">
-          
+
           {/* Left Side: Mínim Món Brand Logo */}
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setActiveTab('inici')} 
+            <button
+              onClick={() => setActiveTab('inici')}
               className="flex items-center gap-2 cursor-pointer focus:outline-none hover:opacity-90 transition-opacity"
               title="Tornar a Mínim Món Web"
             >
-              <img 
-                alt="Mínim Món Logo" 
-                className="h-10 w-auto object-contain" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAS8Jj-lMhj2YQ72t6WLkDSnqRoaVGgnJcBn1mFLA2dz2EbXCcs9lMmNJEzNqnPLgaQFbCFwYRuEyApwh8-QW8HnoTc93LaDdIoaaDu56EYaxyCzQQXCS5N9Ge6zVSpgg10WuYz5av2AKy8LDEC3rc0DMoEuOlnAy2jSCJuEPgLsZKrtQlS9qoL-sy8AQvR8vBKkHGZp1zvLiYEjWDbNE8PqRyExPu8HJUvtp89sPvvci3kmY0aLOuve1WHm7YE8NTqnLg" 
+              <img
+                alt="Mínim Món Logo"
+                className="h-10 w-auto object-contain"
+                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAS8Jj-lMhj2YQ72t6WLkDSnqRoaVGgnJcBn1mFLA2dz2EbXCcs9lMmNJEzNqnPLgaQFbCFwYRuEyApwh8-QW8HnoTc93LaDdIoaaDu56EYaxyCzQQXCS5N9Ge6zVSpgg10WuYz5av2AKy8LDEC3rc0DMoEuOlnAy2jSCJuEPgLsZKrtQlS9qoL-sy8AQvR8vBKkHGZp1zvLiYEjWDbNE8PqRyExPu8HJUvtp89sPvvci3kmY0aLOuve1WHm7YE8NTqnLg"
               />
             </button>
 
@@ -405,12 +410,11 @@ export default function ProduccApp({ setActiveTab }) {
           {/* Right Side: Header Title & Controls */}
           <div className="flex items-center gap-3">
             {/* Firestore Cloud Sync Badge */}
-            <div 
-              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all ${
-                isSyncing 
-                  ? 'bg-amber-50 border-amber-300 text-amber-800' 
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              }`}
+            <div
+              className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all ${isSyncing
+                ? 'bg-amber-50 border-amber-300 text-amber-800'
+                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}
               title="Totes les dades es guarden en temps real a Firebase Firestore"
             >
               <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500 animate-pulse'}`}></span>
@@ -482,7 +486,7 @@ export default function ProduccApp({ setActiveTab }) {
         {/* Subtabs & Group Selector Row */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-200/80">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2">
-            
+
             {/* 1. Selector Desplegable de Barres a l'Esquerra */}
             <div className="flex items-center gap-2 shrink-0">
               <div className="relative">
@@ -512,91 +516,81 @@ export default function ProduccApp({ setActiveTab }) {
 
             {/* 2. Botons de la Barra Seleccionada */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
-              
+
               {/* Barra: PRINCIPAL */}
               {activeGroup === 'principal' && (
                 <>
                   <button
                     onClick={() => setActiveProduccSubtab('materials')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'materials'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'materials'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Package className="w-4 h-4" />
                     <span>Materials</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'materials' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'materials' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {materials.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('operacions')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'operacions'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'operacions'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Wrench className="w-4 h-4" />
                     <span>Operacions</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'operacions' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'operacions' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {operacions.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('escandalls')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'escandalls'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'escandalls'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Calculator className="w-4 h-4" />
                     <span>Escandalls</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'escandalls' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'escandalls' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {escandalls.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('compres')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'compres'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'compres'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <ShoppingCart className="w-4 h-4" />
                     <span>Compres</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'compres' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'compres' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {compres.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('estoc_productes')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'estoc_productes'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'estoc_productes'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Boxes className="w-4 h-4" />
                     <span>Estoc Productes</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {productes.length}
                     </span>
                   </button>
@@ -608,102 +602,90 @@ export default function ProduccApp({ setActiveTab }) {
                 <>
                   <button
                     onClick={() => setActiveProduccSubtab('grups')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'grups'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'grups'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Layers className="w-4 h-4" />
                     <span>Grups</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'grups' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'grups' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {grups.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('unitats')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'unitats'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'unitats'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Scale className="w-4 h-4" />
                     <span>Unitats mesura</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'unitats' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'unitats' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {unitats.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('proveidors')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'proveidors'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'proveidors'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Building2 className="w-4 h-4" />
                     <span>Proveïdors</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'proveidors' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'proveidors' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {proveidors.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('fabricants')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'fabricants'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'fabricants'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Factory className="w-4 h-4" />
                     <span>Fabricants</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'fabricants' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'fabricants' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {fabricants.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('unitats_compra')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'unitats_compra'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'unitats_compra'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Box className="w-4 h-4" />
                     <span>Unitats compra</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'unitats_compra' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'unitats_compra' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {unitatsCompra.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('maquinaria')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'maquinaria'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'maquinaria'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Cpu className="w-4 h-4" />
                     <span>Maquinària</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'maquinaria' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'maquinaria' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {maquinaria.length}
                     </span>
                   </button>
@@ -724,11 +706,10 @@ export default function ProduccApp({ setActiveTab }) {
 
                   <button
                     onClick={() => setActiveProduccSubtab('ordres_fabricacio')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'ordres_fabricacio'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'ordres_fabricacio'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <ClipboardList className="w-4 h-4" />
                     <span>Ordres de Fabricació</span>
@@ -736,46 +717,41 @@ export default function ProduccApp({ setActiveTab }) {
 
                   <button
                     onClick={() => setActiveProduccSubtab('estoc_productes')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'estoc_productes'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'estoc_productes'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Boxes className="w-4 h-4" />
                     <span>Estoc Productes</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'estoc_productes' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {productes.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('esdeveniments')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'esdeveniments'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'esdeveniments'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                     title="Gestió d'esdeveniments i fires d'artesans"
                   >
                     <Store className="w-4 h-4" />
                     <span>Esdeveniments</span>
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                      activeProduccSubtab === 'esdeveniments' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeProduccSubtab === 'esdeveniments' ? 'bg-amber-700/80 text-white' : 'bg-slate-200 text-slate-600'
+                      }`}>
                       {esdeveniments.length}
                     </span>
                   </button>
 
                   <button
                     onClick={() => setActiveProduccSubtab('control_produccio')}
-                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${
-                      activeProduccSubtab === 'control_produccio'
-                        ? 'bg-amber-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
-                    }`}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'control_produccio'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
                   >
                     <Activity className="w-4 h-4" />
                     <span>Control de Producció</span>
@@ -832,6 +808,7 @@ export default function ProduccApp({ setActiveTab }) {
             projeccItems={projeccItems}
             families={families}
             gammes={gammes}
+            clientsPortals={clientsPortals}
             isDark={isDark}
           />
         )}
@@ -915,6 +892,7 @@ export default function ProduccApp({ setActiveTab }) {
             setProductes={setProductesWithFirestore}
             families={families}
             gammes={gammes}
+            clientsPortals={clientsPortals}
             maquinaria={maquinaria}
             operacions={operacions}
             esdeveniments={esdeveniments}
@@ -930,6 +908,7 @@ export default function ProduccApp({ setActiveTab }) {
             setProductes={setProductesWithFirestore}
             families={families}
             gammes={gammes}
+            clientsPortals={clientsPortals}
             escandalls={escandalls}
             ordresFabricacio={ordresFabricacio}
             pressupostos={pressupostos}
@@ -946,6 +925,7 @@ export default function ProduccApp({ setActiveTab }) {
             setProductes={setProductesWithFirestore}
             families={families}
             gammes={gammes}
+            clientsPortals={clientsPortals}
             ordresFabricacio={ordresFabricacio}
             setOrdresFabricacio={setOrdresFabricacioWithFirestore}
             escandalls={escandalls}

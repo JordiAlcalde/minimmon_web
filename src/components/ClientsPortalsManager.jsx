@@ -35,6 +35,7 @@ export default function ClientsPortalsManager({
   clients = [],
   products = [],
   onEditProduct = null,
+  onManageTaxonomy = null,
   setActiveModule = null
 }) {
   const [editingClient, setEditingClient] = useState(null); // null = list, {} = form
@@ -979,6 +980,16 @@ export default function ClientsPortalsManager({
                       </div>
 
                       <div className="flex items-center gap-1">
+                        {onManageTaxonomy && (
+                          <button
+                            onClick={() => onManageTaxonomy(client.id)}
+                            className="px-2.5 py-1.5 text-xs bg-surface border border-outline/20 hover:bg-surface-container rounded-lg text-primary font-medium flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Gestionar Famílies i Gammes d'aquest client"
+                          >
+                            <Layers className="w-3.5 h-3.5 text-primary" />
+                            <span className="hidden sm:inline">Grups</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => handleOpenForm(client)}
                           className="px-3 py-1.5 text-xs bg-primary text-on-primary hover:bg-primary-container rounded-lg font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"

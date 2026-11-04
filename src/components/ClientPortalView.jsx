@@ -153,21 +153,44 @@ export default function ClientPortalView({ clientPortal: initialClientPortal }) 
     };
   }, [clientPortal.id, clientPortal.slug]);
 
-  // Obtenir de manera dinàmica únicament les gammes presents als productes d'aquest client
+  // Obtenir les gammes d'aquest client (definides a Firestore + presents als seus productes)
   const availableGammes = useMemo(() => {
-    const gammesSet = new Set();
+    // 1. Gammes registrades a la base de dades exclusives per a aquest client
+    const registeredGammes = (dbGammes || [])
+      .filter(g => 
+        g.actiu !== false && 
+        g.tipus === 'client_exclusiu' && 
+        (
+          (clientPortal.id && g.clientId === clientPortal.id) ||
+          (clientPortal.slug && g.clientSlug === clientPortal.slug)
+        )
+      )
+      .sort((a, b) => Number(a.ordre || 1) - Number(b.ordre || 1))
+      .map(g => (g.nom || '').trim())
+      .filter(Boolean);
+
+    // 2. Gammes assignades als productes d'aquest client
+    const fromProds = new Set();
     dbProducts.forEach(p => {
       if (Array.isArray(p.gammaIds)) {
         p.gammaIds.forEach(g => {
-          if (g && typeof g === 'string') gammesSet.add(g.trim());
+          if (g && typeof g === 'string') fromProds.add(g.trim());
         });
       } else if (p.gammaNom || p.gamma) {
-        gammesSet.add(String(p.gammaNom || p.gamma).trim());
+        fromProds.add(String(p.gammaNom || p.gamma).trim());
       }
     });
 
-    return Array.from(gammesSet).sort();
-  }, [dbProducts]);
+    // Unir mantenint la prioritat d'ordre configurat pel client
+    const combined = [...registeredGammes];
+    fromProds.forEach(g => {
+      if (!combined.some(c => c.toLowerCase() === g.toLowerCase())) {
+        combined.push(g);
+      }
+    });
+
+    return combined;
+  }, [dbGammes, dbProducts, clientPortal.id, clientPortal.slug]);
 
   // Filtrar productes per gamma i per cerca
   const filteredProducts = useMemo(() => {

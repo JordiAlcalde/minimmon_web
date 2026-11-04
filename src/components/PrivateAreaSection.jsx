@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch, getDocs, getDoc } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
@@ -627,9 +627,36 @@ export default function PrivateAreaSection({ setActiveTab }) {
   // Active module inside Private Area ('consultes' | 'pressupostos' | 'productes' | 'projectes' | 'taxonomy' | 'branques' | 'config')
   const [activeModule, setActiveModule] = useState('consultes');
 
+  // Clients i Portals State
+  const [dbClientsPortals, setDbClientsPortals] = useState([]);
+  const [taxonomyClientScope, setTaxonomyClientScope] = useState('general'); // 'general' | <clientId>
+  const [quickClientGammaName, setQuickClientGammaName] = useState('');
+  const [isCreatingQuickGamma, setIsCreatingQuickGamma] = useState(false);
+
   // Famílies i Gammes State
   const [dbFamilies, setDbFamilies] = useState(DEFAULT_FAMILIES);
   const [dbGammes, setDbGammes] = useState(DEFAULT_GAMMES);
+
+  // Famílies i Gammes filtrades per l'àmbit seleccionat a Taxonomia
+  const scopedFamilies = useMemo(() => {
+    if (taxonomyClientScope === 'general') {
+      return dbFamilies.filter(f => !f.clientId && f.tipus !== 'client_exclusiu');
+    }
+    return dbFamilies.filter(f => 
+      f.tipus === 'client_exclusiu' && 
+      (f.clientId === taxonomyClientScope || f.clientSlug === dbClientsPortals.find(c => c.id === taxonomyClientScope)?.slug)
+    );
+  }, [dbFamilies, taxonomyClientScope, dbClientsPortals]);
+
+  const scopedGammes = useMemo(() => {
+    if (taxonomyClientScope === 'general') {
+      return dbGammes.filter(g => !g.clientId && g.tipus !== 'client_exclusiu');
+    }
+    return dbGammes.filter(g => 
+      g.tipus === 'client_exclusiu' && 
+      (g.clientId === taxonomyClientScope || g.clientSlug === dbClientsPortals.find(c => c.id === taxonomyClientScope)?.slug)
+    );
+  }, [dbGammes, taxonomyClientScope, dbClientsPortals]);
   const [editingFamilia, setEditingFamilia] = useState(null);
   const [editingGamma, setEditingGamma] = useState(null);
 
@@ -678,7 +705,6 @@ export default function PrivateAreaSection({ setActiveTab }) {
   const [adminFamFilter, setAdminFamFilter] = useState('Totes');
   const [adminGamFilter, setAdminGamFilter] = useState('Totes');
   const [adminClientFilter, setAdminClientFilter] = useState('Tots'); // 'Tots' | 'general' | 'client_exclusiu' | <clientId>
-  const [dbClientsPortals, setDbClientsPortals] = useState([]);
   const descTextAreaRef = useRef(null);
   const infoAdicionalTextAreaRef = useRef(null);
   const savedProductScrollY = useRef(0);
@@ -2546,12 +2572,20 @@ export default function PrivateAreaSection({ setActiveTab }) {
     const newName = editingFamilia.nom.trim();
 
     try {
+      const isClientScope = editingFamilia.tipus === 'client_exclusiu' || taxonomyClientScope !== 'general';
+      const assignedClientId = editingFamilia.clientId || (taxonomyClientScope !== 'general' ? taxonomyClientScope : null);
+      const clientObj = assignedClientId ? dbClientsPortals.find(c => c.id === assignedClientId) : null;
+
       await setDoc(doc(db, "families", docId), {
         nom: newName,
         descripcio: editingFamilia.descripcio || '',
         imatge: imgResolved || editingFamilia.imatge || '',
         ordre: Number(editingFamilia.ordre || 1),
-        actiu: editingFamilia.actiu !== false
+        actiu: editingFamilia.actiu !== false,
+        tipus: isClientScope ? 'client_exclusiu' : 'general',
+        clientId: isClientScope ? assignedClientId : null,
+        clientSlug: isClientScope ? (editingFamilia.clientSlug || clientObj?.slug || null) : null,
+        clientNom: isClientScope ? (editingFamilia.clientNom || clientObj?.nomComercial || null) : null
       }, { merge: true });
 
       // Si s'ha canviat el nom d'una família existent, actualitzar gammes i productes en cascada
@@ -2611,13 +2645,21 @@ export default function PrivateAreaSection({ setActiveTab }) {
     const newName = editingGamma.nom.trim();
 
     try {
+      const isClientScope = editingGamma.tipus === 'client_exclusiu' || taxonomyClientScope !== 'general';
+      const assignedClientId = editingGamma.clientId || (taxonomyClientScope !== 'general' ? taxonomyClientScope : null);
+      const clientObj = assignedClientId ? dbClientsPortals.find(c => c.id === assignedClientId) : null;
+
       await setDoc(doc(db, "gammes", docId), {
         nom: newName,
-        familiaNom: editingGamma.familiaNom || (dbFamilies[0]?.nom || ''),
+        familiaNom: editingGamma.familiaNom || (scopedFamilies[0]?.nom || dbFamilies[0]?.nom || ''),
         ordre: Number(editingGamma.ordre || 1),
         textInformatiu: editingGamma.textInformatiu || '',
         imatges: cleanImatges,
-        actiu: editingGamma.actiu !== false
+        actiu: editingGamma.actiu !== false,
+        tipus: isClientScope ? 'client_exclusiu' : 'general',
+        clientId: isClientScope ? assignedClientId : null,
+        clientSlug: isClientScope ? (editingGamma.clientSlug || clientObj?.slug || null) : null,
+        clientNom: isClientScope ? (editingGamma.clientNom || clientObj?.nomComercial || null) : null
       }, { merge: true });
 
       // Si s'ha canviat el nom d'una gamma existent, actualitzar automàticament tots els productes en cascada
@@ -5616,35 +5658,112 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
               {/* Selecció Dinàmica de Gammes a les que pertany */}
               <div className="bg-surface p-4 rounded-lg border border-outline/15 space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="block text-xs uppercase font-semibold text-primary">
-                    Gammes a les que pertany (Dinàmic):
-                  </label>
-                  <span className="text-[11px] text-on-surface-variant font-mono">
-                    {dbGammes.length} gammes disponibles
-                  </span>
-                </div>
+                {(() => {
+                  const isClientExclusive = editingProducte.tipusCataleg === 'client_exclusiu';
+                  const clientObj = isClientExclusive ? dbClientsPortals.find(c => c.id === editingProducte.clientId || c.slug === editingProducte.clientSlug) : null;
+                  const relevantGammes = isClientExclusive
+                    ? dbGammes.filter(g => g.tipus === 'client_exclusiu' && ((editingProducte.clientId && g.clientId === editingProducte.clientId) || (editingProducte.clientSlug && g.clientSlug === editingProducte.clientSlug)))
+                    : dbGammes.filter(g => !g.clientId && g.tipus !== 'client_exclusiu');
+                  const relevantFamilies = isClientExclusive
+                    ? dbFamilies.filter(f => f.tipus === 'client_exclusiu' && ((editingProducte.clientId && f.clientId === editingProducte.clientId) || (editingProducte.clientSlug && f.clientSlug === editingProducte.clientSlug)))
+                    : dbFamilies.filter(f => !f.clientId && f.tipus !== 'client_exclusiu');
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-2 bg-surface-container/50 rounded border border-outline/10">
-                  {getSortedGammes(dbGammes, dbFamilies, 'Totes').map((gam) => (
-                    <label key={gam.id || gam.nom} className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary p-1 bg-surface rounded border border-outline/10">
-                      <input
-                        type="checkbox"
-                        checked={(editingProducte.gammaIds || []).some(g => isProductInGamma([g], gam.nom, dbGammes))}
-                        onChange={(e) => {
-                          const current = editingProducte.gammaIds || [];
-                          const updated = e.target.checked
-                            ? [...current.filter(g => !isProductInGamma([g], gam.nom, dbGammes)), gam.nom]
-                            : current.filter(g => !isProductInGamma([g], gam.nom, dbGammes));
-                          setEditingProducte({ ...editingProducte, gammaIds: updated });
-                        }}
-                        className="rounded text-primary"
-                      />
-                      <span className="font-medium truncate">{gam.nom}</span>
-                      {gam.familiaNom && <span className="text-[10px] text-outline font-mono truncate">({gam.familiaNom})</span>}
-                    </label>
-                  ))}
-                </div>
+                  return (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <label className="block text-xs uppercase font-semibold text-primary flex items-center gap-1.5">
+                          {isClientExclusive && <Building2 className="w-3.5 h-3.5 text-sky-600" />}
+                          <span>Gammes {isClientExclusive ? `exclusives de ${clientObj?.nomComercial || 'Client'}` : 'del Catàleg General'}:</span>
+                        </label>
+                        <span className="text-[11px] text-on-surface-variant font-mono">
+                          {relevantGammes.length} gammes disponibles
+                        </span>
+                      </div>
+
+                      {relevantGammes.length === 0 ? (
+                        <div className="p-4 bg-surface-container/30 rounded border border-outline/10 text-center space-y-1">
+                          <p className="text-xs text-on-surface-variant">
+                            {isClientExclusive 
+                              ? `Aquest client (${clientObj?.nomComercial || 'Client'}) encara no té cap gamma exclusiva creada.`
+                              : "No hi ha cap gamma general disponible."
+                            }
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-2 bg-surface-container/50 rounded border border-outline/10">
+                          {getSortedGammes(relevantGammes, relevantFamilies, 'Totes').map((gam) => (
+                            <label key={gam.id || gam.nom} className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary p-1 bg-surface rounded border border-outline/10">
+                              <input
+                                type="checkbox"
+                                checked={(editingProducte.gammaIds || []).some(g => isProductInGamma([g], gam.nom, dbGammes))}
+                                onChange={(e) => {
+                                  const current = editingProducte.gammaIds || [];
+                                  const updated = e.target.checked
+                                    ? [...current.filter(g => !isProductInGamma([g], gam.nom, dbGammes)), gam.nom]
+                                    : current.filter(g => !isProductInGamma([g], gam.nom, dbGammes));
+                                  setEditingProducte({ ...editingProducte, gammaIds: updated });
+                                }}
+                                className="rounded text-primary"
+                              />
+                              <span className="font-medium truncate">{gam.nom}</span>
+                              {gam.familiaNom && <span className="text-[10px] text-outline font-mono truncate">({gam.familiaNom})</span>}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Creació ràpida de Gamma exclusiva per a aquest client */}
+                      {isClientExclusive && editingProducte.clientId && (
+                        <div className="pt-2 border-t border-outline/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="Nom de nova gamma per a aquest client..."
+                            value={quickClientGammaName}
+                            onChange={(e) => setQuickClientGammaName(e.target.value)}
+                            className="flex-1 px-3 py-1.5 rounded bg-surface border border-outline/20 text-xs text-primary font-medium"
+                          />
+                          <button
+                            type="button"
+                            disabled={!quickClientGammaName.trim() || isCreatingQuickGamma}
+                            onClick={async () => {
+                              const newGName = quickClientGammaName.trim();
+                              if (!newGName) return;
+                              setIsCreatingQuickGamma(true);
+                              try {
+                                const newId = `gam-${Date.now()}`;
+                                await setDoc(doc(db, "gammes", newId), {
+                                  nom: newGName,
+                                  familiaNom: relevantFamilies[0]?.nom || 'General',
+                                  ordre: relevantGammes.length + 1,
+                                  textInformatiu: '',
+                                  imatges: [],
+                                  actiu: true,
+                                  tipus: 'client_exclusiu',
+                                  clientId: editingProducte.clientId,
+                                  clientSlug: editingProducte.clientSlug || clientObj?.slug || null,
+                                  clientNom: clientObj?.nomComercial || null
+                                });
+                                setEditingProducte(prev => ({
+                                  ...prev,
+                                  gammaIds: [...(prev.gammaIds || []), newGName]
+                                }));
+                                setQuickClientGammaName('');
+                              } catch (err) {
+                                alert("Error creant la gamma: " + err.message);
+                              } finally {
+                                setIsCreatingQuickGamma(false);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded hover:bg-primary-container cursor-pointer transition-colors disabled:opacity-50 shrink-0 flex items-center justify-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Crear i assignar gamma</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Builder d'Opcions de Personalització */}
@@ -7672,6 +7791,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
             setActiveModule('productes');
             setEditingProducte(p);
           }}
+          onManageTaxonomy={(clientId) => {
+            setTaxonomyClientScope(clientId);
+            setActiveModule('taxonomy');
+          }}
           setActiveModule={setActiveModule}
         />
       )}
@@ -7680,6 +7803,52 @@ export default function PrivateAreaSection({ setActiveTab }) {
       {activeModule === 'taxonomy' && (
         <div className="space-y-8">
           
+          {/* SELECTOR D'ÀMBIT: CATÀLEG GENERAL VS CLIENTS EXCLUSIUS */}
+          <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline/15 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-serif text-sm font-bold text-primary flex items-center gap-2">
+                  <span>Àmbit de Treball:</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-sans font-bold">
+                    {taxonomyClientScope === 'general' ? '✨ Catàleg General' : `🏷️ ${(dbClientsPortals.find(c => c.id === taxonomyClientScope)?.nomComercial) || 'Client'}`}
+                  </span>
+                </h3>
+                <p className="text-xs text-on-surface-variant">
+                  {taxonomyClientScope === 'general' 
+                    ? "Gestionant famílies i gammes públiques de Mínim Món (visibles a la botiga oberta)." 
+                    : `Gestionant famílies i gammes exclusives per a ${(dbClientsPortals.find(c => c.id === taxonomyClientScope)?.nomComercial) || 'aquest client'}. Totalment aïllades de la resta.`
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={taxonomyClientScope}
+                onChange={(e) => {
+                  setTaxonomyClientScope(e.target.value);
+                  setEditingFamilia(null);
+                  setEditingGamma(null);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-surface border border-outline/30 text-xs font-bold text-primary cursor-pointer w-full sm:w-auto shadow-2xs focus:border-primary outline-none"
+              >
+                <option value="general">✨ Catàleg General Mínim Món</option>
+                {dbClientsPortals.length > 0 && (
+                  <optgroup label="🏷️ Clients Exclusius">
+                    {dbClientsPortals.map(c => (
+                      <option key={c.id} value={c.id}>
+                        🏷️ {c.nomComercial} (/?{c.slug})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </div>
+          </div>
+
           {/* SECCIÓ 1: FAMÍLIES */}
           <div className="bg-surface-container-lowest p-6 rounded-xl border border-outline/15 space-y-4">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline/15 pb-4">
@@ -7691,7 +7860,16 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingFamilia({ id: `fam-${Date.now()}`, nom: '', ordre: dbFamilies.length + 1, actiu: true })}
+                onClick={() => setEditingFamilia({ 
+                  id: `fam-${Date.now()}`, 
+                  nom: '', 
+                  ordre: scopedFamilies.length + 1, 
+                  actiu: true,
+                  tipus: taxonomyClientScope === 'general' ? 'general' : 'client_exclusiu',
+                  clientId: taxonomyClientScope === 'general' ? null : taxonomyClientScope,
+                  clientSlug: taxonomyClientScope === 'general' ? null : dbClientsPortals.find(c => c.id === taxonomyClientScope)?.slug,
+                  clientNom: taxonomyClientScope === 'general' ? null : dbClientsPortals.find(c => c.id === taxonomyClientScope)?.nomComercial
+                })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -7782,8 +7960,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline/10">
-                    {dbFamilies.map(f => {
-                      const activeGammesCount = dbGammes.filter(g =>
+                    {scopedFamilies.map(f => {
+                      const activeGammesCount = scopedGammes.filter(g =>
                         g && g.familiaNom && String(g.familiaNom).toLowerCase().includes(String(f.nom || '').toLowerCase()) && g.actiu !== false
                       ).length;
 
@@ -7841,7 +8019,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
 
               <button
-                onClick={() => setEditingGamma({ id: `gam-${Date.now()}`, nom: '', familiaNom: dbFamilies[0]?.nom || '', ordre: dbGammes.length + 1, textInformatiu: '', imatges: [], actiu: true })}
+                onClick={() => setEditingGamma({ 
+                  id: `gam-${Date.now()}`, 
+                  nom: '', 
+                  familiaNom: scopedFamilies[0]?.nom || (taxonomyClientScope === 'general' ? 'General' : ''), 
+                  ordre: scopedGammes.length + 1, 
+                  textInformatiu: '', 
+                  imatges: [], 
+                  actiu: true,
+                  tipus: taxonomyClientScope === 'general' ? 'general' : 'client_exclusiu',
+                  clientId: taxonomyClientScope === 'general' ? null : taxonomyClientScope,
+                  clientSlug: taxonomyClientScope === 'general' ? null : dbClientsPortals.find(c => c.id === taxonomyClientScope)?.slug,
+                  clientNom: taxonomyClientScope === 'general' ? null : dbClientsPortals.find(c => c.id === taxonomyClientScope)?.nomComercial
+                })}
                 className="px-4 py-2 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer shadow"
               >
                 <Plus className="w-4 h-4" />
@@ -7896,11 +8086,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         onChange={(e) => setEditingGamma({ ...editingGamma, familiaNom: e.target.value })}
                         className="w-full px-3 py-2 rounded bg-surface border text-xs text-primary font-semibold focus:outline-none focus:border-primary"
                       >
-                        {dbFamilies.map(fam => (
-                          <option key={fam.id} value={fam.nom}>
-                            {fam.nom} {fam.actiu === false ? '(Inactiva)' : ''}
-                          </option>
-                        ))}
+                        {scopedFamilies.length === 0 ? (
+                          <option value="General">Sense família / General</option>
+                        ) : (
+                          scopedFamilies.map(fam => (
+                            <option key={fam.id} value={fam.nom}>
+                              {fam.nom} {fam.actiu === false ? '(Inactiva)' : ''}
+                            </option>
+                          ))
+                        )}
                       </select>
                       {(() => {
                         const selectedParentFam = dbFamilies.find(f => (f.nom || '').toLowerCase() === (editingGamma.familiaNom || '').toLowerCase());
@@ -8134,9 +8328,9 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   </thead>
                   <tbody className="divide-y divide-outline/10">
                     {(() => {
-                      const sortedGammes = [...dbGammes].sort((a, b) => {
-                        const famIndexA = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === (a.familiaNom || '').toLowerCase());
-                        const famIndexB = dbFamilies.findIndex(f => (f.nom || '').toLowerCase() === (b.familiaNom || '').toLowerCase());
+                      const sortedGammes = [...scopedGammes].sort((a, b) => {
+                        const famIndexA = scopedFamilies.findIndex(f => (f.nom || '').toLowerCase() === (a.familiaNom || '').toLowerCase());
+                        const famIndexB = scopedFamilies.findIndex(f => (f.nom || '').toLowerCase() === (b.familiaNom || '').toLowerCase());
                         
                         const idxA = famIndexA !== -1 ? famIndexA : 999;
                         const idxB = famIndexB !== -1 ? famIndexB : 999;
@@ -8149,7 +8343,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       });
 
                       return sortedGammes.map(g => {
-                        const parentFam = dbFamilies.find(f => (f.nom || '').toLowerCase() === (g.familiaNom || '').toLowerCase());
+                        const parentFam = scopedFamilies.find(f => (f.nom || '').toLowerCase() === (g.familiaNom || '').toLowerCase());
                         const isParentFamInactive = Boolean(parentFam && parentFam.actiu === false);
                         const isGammaActive = g.actiu !== false;
 
