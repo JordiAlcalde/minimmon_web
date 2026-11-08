@@ -313,7 +313,11 @@ export function generateSlideTextForImage({
   totalSlides = 3,
   item = null,
   itemType = 'projectes',
-  fileName = ''
+  fileName = '',
+  currentTitle = '',
+  currentSubtitle = '',
+  cycleIndex = 0,
+  forceAlternative = false
 }) {
   const isCover = slideIdx === 0;
   const isLast = slideIdx === totalSlides - 1 && totalSlides > 1;
@@ -322,14 +326,84 @@ export function generateSlideTextForImage({
   const itemDesc = item?.descripcio || item?.subtitol || item?.subtitle || 'Elaborada amb fusta de til·ler al nostre taller.';
   const isProject = itemType === 'projectes' || item?.branca;
 
-  // 1. DIAPOSITIVA 1: Portada i presentació principal de la peça
-  if (isCover) {
+  const alternativeProposals = isProject ? [
+    {
+      title: "Detalls i volumetria",
+      subtitle: "Treball pacient de capes superposades en fusta de til·ler polit.",
+      tagText: "🌿 Detall d'Atelier"
+    },
+    {
+      title: "L'ànima del detall",
+      subtitle: "Geometries i elements a escala que reten homenatge a la memòria.",
+      tagText: "✨ Peça única"
+    },
+    {
+      title: "Precisió i acabats",
+      subtitle: "Gravat làser mil·limètric i polit suau sobre contraxapat de til·ler.",
+      tagText: "📐 Precisió làser"
+    },
+    {
+      title: "Vetes i perspectiva",
+      subtitle: "La calidesa de la fusta natural de til·ler explicant racons únics.",
+      tagText: "🪵 Fusta de til·ler"
+    },
+    {
+      title: "Arquitectura i memòria",
+      subtitle: "Peces creades amb dedicació artesanal al taller de Mínim Món.",
+      tagText: "🏛️ Arquitectura"
+    },
+    {
+      title: "Relleu i profunditat",
+      subtitle: "Capes de fusta de til·ler que donen vida a cada escena.",
+      tagText: "✨ Atelier artesà"
+    },
+    {
+      title: "Records en miniatura",
+      subtitle: "Petits mons que capturen moments inoblidables.",
+      tagText: "🤍 Mínim Món"
+    }
+  ] : [
+    {
+      title: "Records que donen calidesa",
+      subtitle: "La fusta de til·ler abraça els teus moments inoblidables.",
+      tagText: "🪵 Fusta de til·ler"
+    },
+    {
+      title: "Acabats i textures",
+      subtitle: "Gravat nítid i suau tacte artesanal amb vernís ecològic mat.",
+      tagText: "✨ Fet a mà"
+    },
+    {
+      title: "L'ànima del detall",
+      subtitle: "Peces creades amb paciència per acompanyar el dia a dia.",
+      tagText: "✨ Peça única"
+    },
+    {
+      title: "El valor de la calma",
+      subtitle: "Fusta de til·ler seleccionada amb vetes naturals i polit sedós.",
+      tagText: "🪵 Vetes naturals"
+    },
+    {
+      title: "Personalització al taller",
+      subtitle: "Detalls mil·limètrics que fan única cada creació.",
+      tagText: "🎁 Fet a mida"
+    }
+  ];
+
+  // 1. DIAPOSITIVA 1: Portada i presentació principal de la peça (només si no es demana alternativa expressa)
+  if (isCover && !forceAlternative) {
     const subOneLine = itemDesc.split('\n')[0].split('.')[0] || 'Espais en miniatura i records en fusta.';
     return {
       title: itemNom,
       subtitle: subOneLine.length > 60 ? `${subOneLine.slice(0, 57)}...` : subOneLine,
       tagText: item?.branca ? `🔨 ${item.branca}` : (isProject ? '✨ Projecte de Taller' : '✨ Fet a mà')
     };
+  }
+
+  // Si s'ha forçat una alternativa (ex. clic a "Sugerir segons foto"), rotem directament
+  if (forceAlternative) {
+    const pickIdx = (cycleIndex + slideIdx) % alternativeProposals.length;
+    return alternativeProposals[pickIdx];
   }
 
   // 2. Comprovar si l'element té metadata explícita d'aquesta imatge a item.media o item.imatges
@@ -344,11 +418,13 @@ export function generateSlideTextForImage({
       const mediaTitle = matchedMedia.titol || matchedMedia.title || matchedMedia.peu;
       const mediaSub = matchedMedia.subtitol || matchedMedia.descripcio;
       if (mediaTitle && mediaTitle.trim().length > 2 && !/[=&#]/.test(mediaTitle)) {
-        return {
-          title: mediaTitle,
-          subtitle: mediaSub || 'Detall artesanal elaborat amb contraxapat de til·ler.',
-          tagText: matchedMedia.etiqueta || '🪵 Fusta de til·ler'
-        };
+        if (!currentTitle || currentTitle.trim().toLowerCase() !== mediaTitle.trim().toLowerCase()) {
+          return {
+            title: mediaTitle,
+            subtitle: mediaSub || 'Detall artesanal elaborat amb contraxapat de til·ler.',
+            tagText: matchedMedia.etiqueta || '🪵 Fusta de til·ler'
+          };
+        }
       }
     }
   }
@@ -357,11 +433,13 @@ export function generateSlideTextForImage({
   if (cleanName) {
     for (const pattern of IMAGE_KEYWORD_PATTERNS) {
       if (pattern.regex.test(cleanName)) {
-        return {
-          title: pattern.title,
-          subtitle: pattern.subtitle,
-          tagText: pattern.tag
-        };
+        if (!currentTitle || currentTitle.trim().toLowerCase() !== pattern.title.trim().toLowerCase()) {
+          return {
+            title: pattern.title,
+            subtitle: pattern.subtitle,
+            tagText: pattern.tag
+          };
+        }
       }
     }
   }
@@ -375,23 +453,32 @@ export function generateSlideTextForImage({
         .join(' ');
 
       if (humanTitle.length >= 4 && !/[=&#]/.test(humanTitle)) {
-        return {
-          title: humanTitle,
-          subtitle: isProject 
-            ? "Detall i perspectiva elaborats amb calidesa al taller."
-            : "Fusta natural de til·ler amb polit fi i vetes úniques.",
-          tagText: "🪵 Fusta de til·ler"
-        };
+        // Només retornem el títol del fitxer si NO és el que ja tenim actualment
+        if (!currentTitle || currentTitle.trim().toLowerCase() !== humanTitle.trim().toLowerCase()) {
+          return {
+            title: humanTitle,
+            subtitle: isProject 
+              ? "Detall i perspectiva elaborats amb calidesa al taller."
+              : "Fusta natural de til·ler amb polit fi i vetes úniques.",
+            tagText: "🪵 Fusta de til·ler"
+          };
+        }
       }
     }
   }
 
   // 5. Generació narrativa seqüencial i contextual adaptada al tipus de producte o projecte
-  if (!isProject) {
-    return getContextualSlideTextForProduct(item, slideIdx, totalSlides);
-  } else {
-    return getContextualSlideTextForProject(item, slideIdx, totalSlides);
+  const fallback = !isProject
+    ? getContextualSlideTextForProduct(item, slideIdx, totalSlides)
+    : getContextualSlideTextForProject(item, slideIdx, totalSlides);
+
+  // Si el fallback coincideix amb el títol actual, triem una alternativa rotativa
+  if (currentTitle && fallback.title && currentTitle.trim().toLowerCase() === fallback.title.trim().toLowerCase()) {
+    const pickIdx = (cycleIndex + slideIdx + 1) % alternativeProposals.length;
+    return alternativeProposals[pickIdx];
   }
+
+  return fallback;
 }
 
 /**

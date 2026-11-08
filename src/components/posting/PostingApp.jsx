@@ -14,10 +14,12 @@ import { AVAILABLE_FONTS } from '../FontSelectorDropdown';
 import { 
   generatePostingAssistantContent, 
   getGeminiApiKey, 
-  setGeminiApiKey 
+  setGeminiApiKey,
+  generateSlideSuggestionWithAi
 } from '../../utils/geminiAiService';
 import { 
   Sparkles, 
+  Loader2,
   Download, 
   Copy, 
   Check, 
@@ -463,7 +465,7 @@ export default function PostingApp({ setActiveTab }) {
     {
       id: 'slide-2',
       title: 'Detalls de la parada',
-      subtitle: 'Peces fetes a mà una a una amb fusta noble.',
+      subtitle: 'Peces fetes a mà una a una amb fusta de til·ler.',
       photoUrl: '',
       tagText: '🪵 Fet amb ànima',
       imageFit: 'cover',
@@ -492,6 +494,9 @@ export default function PostingApp({ setActiveTab }) {
   const prevCopyStyleRef = useRef(null);
   const [isDownloadingCarousel, setIsDownloadingCarousel] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(null);
+  const [isSuggestingSlide, setIsSuggestingSlide] = useState(false);
+  const [suggestFeedback, setSuggestFeedback] = useState(null);
+  const [slideCycleCounts, setSlideCycleCounts] = useState({});
 
   // Transició atòmica i síncrona entre diapositives del carrusel
   const handleSelectSlide = (targetIdx) => {
@@ -1336,31 +1341,73 @@ export default function PostingApp({ setActiveTab }) {
   };
 
   // Regenera el títol i subtítol de la diapositiva activa segons la seva imatge o context
-  const handleRegenerateCurrentSlideText = () => {
-    const currentSlide = slides[activeSlideIdx];
-    const photoToUse = currentSlide?.photoUrl || selectedPhotoUrl;
-    const textData = generateSlideTextForImage({
-      imgUrl: photoToUse,
-      slideIdx: activeSlideIdx,
-      totalSlides: slides.length,
-      item: selectedItem,
-      itemType: sourceType
-    });
-    if (textData) {
-      setTitle(textData.title);
-      setSubtitle(textData.subtitle);
-      if (textData.tagText) setTagText(textData.tagText);
-      setSlides(prev => prev.map((s, idx) => {
-        if (idx === activeSlideIdx) {
-          return {
-            ...s,
-            title: textData.title,
-            subtitle: textData.subtitle,
-            tagText: textData.tagText || s.tagText
-          };
+  const handleRegenerateCurrentSlideText = async () => {
+    setIsSuggestingSlide(true);
+    setSuggestFeedback(null);
+    try {
+      const currentSlide = slides[activeSlideIdx];
+      const photoToUse = currentSlide?.photoUrl || selectedPhotoUrl;
+      const nextCycle = (slideCycleCounts[activeSlideIdx] || 0) + 1;
+      setSlideCycleCounts(prev => ({ ...prev, [activeSlideIdx]: nextCycle }));
+
+      let textData = null;
+
+      // Si hi ha API key de Gemini configurada, demanem proposta creativa a la IA
+      if (getGeminiApiKey()) {
+        try {
+          textData = await generateSlideSuggestionWithAi({
+            slideIdx: activeSlideIdx,
+            totalSlides: slides.length,
+            item: selectedItem,
+            itemType: sourceType,
+            imgUrl: photoToUse,
+            currentTitle: title,
+            currentSubtitle: subtitle
+          });
+        } catch (aiErr) {
+          console.warn("Falla temporal Gemini per suggeriment diapo, usant motor artesà alternatiu:", aiErr);
         }
-        return s;
-      }));
+      }
+
+      // Si no hi ha IA o no ha retornat dades, utilitzem el motor local amb propostes rotatives alternatives
+      if (!textData) {
+        // Breu transició perceptible perquè l'usuari vegi que el motor està treballant
+        await new Promise(r => setTimeout(r, 320));
+        textData = generateSlideTextForImage({
+          imgUrl: photoToUse,
+          slideIdx: activeSlideIdx,
+          totalSlides: slides.length,
+          item: selectedItem,
+          itemType: sourceType,
+          currentTitle: title,
+          currentSubtitle: subtitle,
+          cycleIndex: nextCycle,
+          forceAlternative: true
+        });
+      }
+
+      if (textData) {
+        setTitle(textData.title);
+        setSubtitle(textData.subtitle);
+        if (textData.tagText) setTagText(textData.tagText);
+        setSlides(prev => prev.map((s, idx) => {
+          if (idx === activeSlideIdx) {
+            return {
+              ...s,
+              title: textData.title,
+              subtitle: textData.subtitle,
+              tagText: textData.tagText || s.tagText
+            };
+          }
+          return s;
+        }));
+        setSuggestFeedback(textData.fromAi ? '✨ Suggerit per IA!' : '✨ Suggerit!');
+        setTimeout(() => setSuggestFeedback(null), 2500);
+      }
+    } catch (err) {
+      console.warn("Error suggerint text de diapo:", err);
+    } finally {
+      setIsSuggestingSlide(false);
     }
   };
 
@@ -2525,12 +2572,33 @@ export default function PostingApp({ setActiveTab }) {
                     {postMode === 'carousel' && (
                       <button
                         type="button"
+                        disabled={isSuggestingSlide}
                         onClick={handleRegenerateCurrentSlideText}
-                        className="text-[10px] text-amber-800 hover:text-black font-semibold flex items-center gap-1 cursor-pointer"
-                        title="Deduir títol i subtítol automàticament a partir d'aquesta imatge"
+                        className={`text-[10px] font-semibold flex items-center gap-1.5 px-2 py-0.5 rounded-md transition-all cursor-pointer ${
+                          isSuggestingSlide
+                            ? 'bg-amber-100 text-amber-900 cursor-wait opacity-80'
+                            : suggestFeedback
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'text-amber-800 hover:text-black hover:bg-amber-100/60'
+                        }`}
+                        title="Deduir o renovar el títol i subtítol automàticament per a aquesta diapositiva"
                       >
-                        <Sparkles className="w-2.5 h-2.5 text-amber-600" />
-                        <span>Sugerir segons foto</span>
+                        {isSuggestingSlide ? (
+                          <>
+                            <Loader2 className="w-3 h-3 text-amber-700 animate-spin" />
+                            <span>Analitzant imatge...</span>
+                          </>
+                        ) : suggestFeedback ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span>{suggestFeedback}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                            <span>Sugerir segons foto</span>
+                          </>
+                        )}
                       </button>
                     )}
                   </div>

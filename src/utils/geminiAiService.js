@@ -529,3 +529,61 @@ export async function generatePostingAssistantContent({
   };
 }
 
+/**
+ * Suggeridor intel·ligent de títol i subtítol per a una diapositiva concreta d'Instagram
+ */
+export async function generateSlideSuggestionWithAi({
+  slideIdx = 0,
+  totalSlides = 3,
+  item = null,
+  itemType = 'projectes',
+  imgUrl = '',
+  currentTitle = '',
+  currentSubtitle = ''
+}) {
+  const apiKey = getGeminiApiKey();
+  if (apiKey) {
+    try {
+      const prompt = `Ets el redactor i creador de continguts oficial d'Instagram de "Mínim Món" (taller artesanal de miniatures, arquitectura en miniatura i peces úniques en fusta de til·ler a Catalunya - minimmon.cat).
+Analitza aquesta fotografia específica d'una diapositiva de carrusel d'Instagram (diapositiva ${slideIdx + 1} de ${totalSlides}) que pertany a:
+- Element: ${item?.nom || item?.titol || 'Projecte de taller'}
+- Descripció de l'obra: ${item?.descripcio || item?.art || ''}
+- Títol actual que volem canviar o millorar: "${currentTitle || 'Sense títol'}"
+- Subtítol actual: "${currentSubtitle || 'Sense subtítol'}"
+
+REGLA ESTRICTA DE MATERIALS: Mínim Món treballa EXCLUSIVAMENT amb fusta de til·ler seleccionada per a tall i gravat làser d'alta precisió. MAI fusta de bedoll, mai "fusta noble" ni "fusta massissa".
+
+Genera una proposta NOVA, fresca, poètica, artesanal i diferent de l'actual per a aquesta diapositiva concreta:
+1. "title": Títol molt breu i elegant per a la imatge (màxim 3-5 paraules, ex: "L'ànima del detall", "Precisió en til·ler", "Volumetria i memòria", "Acabats artesanals", "Vetes i calidesa").
+2. "subtitle": Subtítol breu o lema evocador d'una sola frase (màxim 10-12 paraules).
+3. "tagText": Etiqueta curta per a la insígnia (màxim 2-3 paraules, ex: "🪵 Fusta de til·ler", "✨ Fet a mà", "🌿 Detall d'Atelier", "📐 Precisió làser").
+
+RESPON EXCLUSIVAMENT EN FORMAT JSON:
+{
+  "title": "Títol breu",
+  "subtitle": "Subtítol breu",
+  "tagText": "Etiqueta"
+}`;
+
+      const res = await callGeminiDescriptor({
+        type: 'posting',
+        contextInfo: { assumpte: `Diapositiva ${slideIdx + 1}: ${item?.nom || ''}` },
+        images: imgUrl ? [imgUrl] : [],
+        customSystemPrompt: prompt
+      });
+
+      if (res && res.data && res.data.title) {
+        return {
+          title: res.data.title.trim(),
+          subtitle: res.data.subtitle ? res.data.subtitle.trim() : '',
+          tagText: res.data.tagText ? res.data.tagText.trim() : '🪵 Fusta de til·ler',
+          fromAi: true
+        };
+      }
+    } catch (err) {
+      console.warn("Error en la crida de Gemini per suggerir diapo:", err);
+    }
+  }
+  return null;
+}
+
