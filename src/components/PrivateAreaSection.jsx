@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db, getAccessKeyFromFirestore, updateAccessKeyInFirestore } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch, getDocs, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, setDoc, deleteDoc, writeBatch, getDocs, getDoc, serverTimestamp } from 'firebase/firestore';
 import { STITCH_PROJECTS, DEFAULT_BRANQUES, STITCH_GIFTS } from '../data/stitchData';
 import { resolveMediaUrl, resolveProducteMediaUrl, resolveProjecteMediaUrl, toRawProjecteUrl, GITHUB_RAW_BASE, GITHUB_RAW_PRODUCTES_BASE, GITHUB_RAW_PROJECTES_BASE } from '../utils/mediaUtils';
 import { getTelegramConfig, saveTelegramConfig, sendTelegramNotification, sendTelegramScheduleNotification } from '../utils/telegramUtils';
@@ -13,6 +13,9 @@ import { getNextOFId } from './producc/OrdresFabricacioManager';
 import DecimalInput from './common/DecimalInput';
 import GeminiDescriptorModal from './common/GeminiDescriptorModal';
 import ClientsPortalsManager from './ClientsPortalsManager';
+import VendesManager from './vendes/VendesManager';
+import DocumentViewerModal from './vendes/DocumentViewerModal';
+import ManualDocumentEditorModal from './vendes/ManualDocumentEditorModal';
 import { getProductStockMetrics } from '../utils/productStockUtils';
 import { 
   Bell,
@@ -90,7 +93,8 @@ import {
   ArrowUp,
   ArrowDown,
   Eye,
-  EyeOff
+  EyeOff,
+  Receipt
 } from 'lucide-react';
 import { copyDirectLink } from '../utils/shareUtils';
 import { StarRating } from './CommentsSection';
@@ -629,6 +633,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   // Clients i Portals State
   const [dbClientsPortals, setDbClientsPortals] = useState([]);
+  const [dbFacturesCount, setDbFacturesCount] = useState(0);
+  const [viewerSalesDocModal, setViewerSalesDocModal] = useState(null); // { doc, tipus }
+  const [orderSalesDocModal, setOrderSalesDocModal] = useState({
+    isOpen: false,
+    tipus: 'factura',
+    initialData: null
+  });
   const [taxonomyClientScope, setTaxonomyClientScope] = useState('general'); // 'general' | <clientId>
   const [quickClientGammaName, setQuickClientGammaName] = useState('');
   const [isCreatingQuickGamma, setIsCreatingQuickGamma] = useState(false);
@@ -1152,6 +1163,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    const unsubFac = onSnapshot(collection(db, "vendes_factures"), (snap) => {
+      setDbFacturesCount(snap.size);
+    }, (err) => console.warn("Error vendes_factures count:", err));
+
     const unsubEsc = onSnapshot(query(collection(db, "producc_escandalls")), (snapshot) => {
       setDbEscandalls(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.warn("Error producc_escandalls:", err));
@@ -1173,6 +1188,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }, (err) => console.warn("Error producc_ordres_fabricacio a PrivateAreaSection:", err));
 
     return () => {
+      unsubFac();
       unsubEsc();
       unsubMat();
       unsubOp();
@@ -1579,6 +1595,392 @@ export default function PrivateAreaSection({ setActiveTab }) {
     } catch (err) {
       alert("Error modificant el cost d'enviament: " + err.message);
     }
+  };
+
+  // --- MÒDUL DE VENDES: CREACIÓ D'ALBARANS, FACTURES I COMANDES MANUALS ---
+  const handleEditPressupost = (p) => {
+    if (!p) return;
+    const linies = (p.linies || p.productes || []).map(item => ({
+      articleId: item.articleId || item.id || null,
+      tipusLinia: item.tipusLinia || item.tipus || 'producte',
+      concepte: item.concepte || item.nom || 'Article',
+      descripcioAdicional: item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : ''),
+      quantitat: Number(item.quantitat || 1),
+      preuUnitari: Number(item.preuUnitari || item.preu || 0),
+      descomptePercent: Number(item.descomptePercent || 0),
+      subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
+    }));
+
+    let carrer = p.clientAdreca || '';
+    let cp = p.clientCodiPostal || '';
+    let pob = p.clientPoblacio || '';
+    let prov = p.clientProvincia || '';
+    let pais = p.clientPais || 'Espanya';
+
+    if (p.adrecaEnviament && typeof p.adrecaEnviament === 'object') {
+      carrer = carrer || p.adrecaEnviament.carrer || '';
+      cp = cp || p.adrecaEnviament.codiPostal || '';
+      pob = pob || p.adrecaEnviament.poblacio || '';
+      prov = prov || p.adrecaEnviament.provincia || '';
+      pais = pais || p.adrecaEnviament.pais || 'Espanya';
+    } else if (typeof p.adrecaEnviament === 'string') {
+      carrer = carrer || p.adrecaEnviament;
+    }
+
+    const rao = p.clientRaoSocial || p.clientNom || '';
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'pressupost',
+      initialData: {
+        id: p.id,
+        numero: p.codiReferencia || p.numero || p.id,
+        dataEmissio: p.data ? new Date(p.data.seconds * 1000).toISOString().slice(0, 10) : (p.dataEmissio || new Date().toISOString().slice(0, 10)),
+        dataVenciment: p.dataVenciment || '',
+        clientRaoSocial: rao,
+        clientNom: rao,
+        clientPersonaContacte: p.clientPersonaContacte || p.personaContacte || '',
+        clientNif: p.clientNif || p.nif || '',
+        clientEmail: (p.clientContacte && p.clientContacte.includes('@')) ? p.clientContacte : (p.clientEmail || ''),
+        clientTelefon: (p.clientContacte && !p.clientContacte.includes('@')) ? p.clientContacte : (p.clientTelefon || ''),
+        clientWeb: p.clientWeb || p.web || '',
+        clientAdreca: carrer,
+        clientCodiPostal: cp,
+        clientPoblacio: pob,
+        clientProvincia: prov,
+        clientPais: pais,
+        costEnviament: Number(p.costEnviament || 0),
+        linies: linies,
+        notes: p.observacionsGenerals || p.notes || '',
+        metodePagament: p.metodePagament || 'bizum',
+        total: Number(p.total || 0),
+        baseImposable: Number(p.baseImposable || 0),
+        ivaPercent: Number(p.ivaPercent || 21),
+        importIva: Number(p.importIva || 0)
+      }
+    });
+  };
+
+  const handleTransferPressupostToComanda = (p) => {
+    if (!p) return;
+    const linies = (p.productes || []).map(item => ({
+      articleId: item.id || null,
+      tipusLinia: item.tipus || 'producte',
+      concepte: item.nom || 'Article',
+      descripcioAdicional: item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '',
+      quantitat: Number(item.quantitat || 1),
+      preuUnitari: Number(item.preuUnitari || item.preu || 0),
+      descomptePercent: 0,
+      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+    }));
+
+    let adrecaStr = '';
+    if (typeof p.adrecaEnviament === 'string') {
+      adrecaStr = p.adrecaEnviament;
+    } else if (p.adrecaEnviament && typeof p.adrecaEnviament === 'object') {
+      const a = p.adrecaEnviament;
+      adrecaStr = `${a.carrer || ''}, ${a.codiPostal || ''} ${a.poblacio || ''} ${a.provincia ? `(${a.provincia})` : ''}`.trim();
+    }
+
+    let carrer = p.clientAdreca || '';
+    let cp = p.clientCodiPostal || '';
+    let pob = p.clientPoblacio || '';
+    let prov = p.clientProvincia || '';
+    let pais = p.clientPais || 'Espanya';
+
+    if (p.adrecaEnviament && typeof p.adrecaEnviament === 'object') {
+      carrer = carrer || p.adrecaEnviament.carrer || '';
+      cp = cp || p.adrecaEnviament.codiPostal || '';
+      pob = pob || p.adrecaEnviament.poblacio || '';
+      prov = prov || p.adrecaEnviament.provincia || '';
+      pais = pais || p.adrecaEnviament.pais || 'Espanya';
+    } else if (typeof p.adrecaEnviament === 'string') {
+      carrer = carrer || p.adrecaEnviament;
+    }
+
+    const rao = p.clientRaoSocial || p.clientNom || '';
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'comanda',
+      initialData: {
+        comandaCodi: p.codiReferencia || p.id,
+        pressupostId: p.id,
+        clientRaoSocial: rao,
+        clientNom: rao,
+        clientPersonaContacte: p.clientPersonaContacte || p.personaContacte || '',
+        clientNif: p.clientNif || p.nif || '',
+        clientEmail: (p.clientContacte && p.clientContacte.includes('@')) ? p.clientContacte : (p.clientEmail || ''),
+        clientTelefon: (p.clientContacte && !p.clientContacte.includes('@')) ? p.clientContacte : (p.clientTelefon || ''),
+        clientWeb: p.clientWeb || p.web || '',
+        clientAdreca: carrer,
+        clientCodiPostal: cp,
+        clientPoblacio: pob,
+        clientProvincia: prov,
+        clientPais: pais,
+        costEnviament: Number(p.costEnviament || 0),
+        linies: linies,
+        notes: p.observacionsGenerals || '',
+        estatPagament: p.estatPagament || 'pendent',
+        metodePagament: p.metodePagament || 'bizum'
+      }
+    });
+  };
+
+  const handleTransferCalculToComanda = (c) => {
+    if (!c) return;
+    const linia = {
+      articleId: c.articleId || null,
+      tipusLinia: 'producte',
+      concepte: c.articleNom || 'Article a mida',
+      descripcioAdicional: c.resenyaManual ? `Càlcul: ${c.resenyaManual}` : 'Pressupost calculat a mida',
+      quantitat: 1,
+      preuUnitari: Number(c.preuVendaFinal || 0),
+      descomptePercent: 0,
+      subtotal: Number(c.preuVendaFinal || 0)
+    };
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'comanda',
+      initialData: {
+        comandaCodi: `CALC-${c.id ? c.id.slice(-6).toUpperCase() : 'PREU'}`,
+        pressupostId: c.id,
+        clientNom: c.clientNom || '',
+        linies: [linia],
+        notes: c.resenyaManual ? `Pressupost calculat: ${c.resenyaManual}` : ''
+      }
+    });
+  };
+
+  const handleSaveSalesDoc = async (data, tipus) => {
+    try {
+      if (tipus === 'pressupost') {
+        const newPreId = data.id || `pre_manual_${Date.now()}`;
+        const prePayload = {
+          id: newPreId,
+          codiReferencia: data.numero,
+          clientNom: data.clientRaoSocial || data.clientNom || 'Client Manual',
+          clientRaoSocial: data.clientRaoSocial || data.clientNom || 'Client Manual',
+          clientPersonaContacte: data.clientPersonaContacte || '',
+          clientContacte: data.clientEmail || data.clientTelefon || '',
+          clientEmail: data.clientEmail || '',
+          clientTelefon: data.clientTelefon || '',
+          clientWeb: data.clientWeb || '',
+          clientNif: data.clientNif || '',
+          clientAdreca: data.clientAdreca || '',
+          clientCodiPostal: data.clientCodiPostal || '',
+          clientPoblacio: data.clientPoblacio || '',
+          clientProvincia: data.clientProvincia || '',
+          clientPais: data.clientPais || 'Espanya',
+          adrecaEnviament: { carrer: data.clientAdreca || '', codiPostal: data.clientCodiPostal || '', poblacio: data.clientPoblacio || '', provincia: data.clientProvincia || '', pais: data.clientPais || 'Espanya' },
+          costEnviament: Number(data.costEnviament || 0),
+          productes: (data.linies || []).map(l => ({
+            id: l.articleId || l.id || `linia_${Date.now()}`,
+            nom: l.concepte || l.nom || 'Article',
+            quantitat: Number(l.quantitat || 1),
+            preuUnitari: Number(l.preuUnitari || 0),
+            tipus: l.tipusLinia || 'producte',
+            subtotal: Number(l.subtotal || 0),
+            opcionsTriades: l.opcionsTriades || null
+          })),
+          total: Number(data.total || 0),
+          baseImposable: Number(data.baseImposable || 0),
+          ivaPercent: Number(data.ivaPercent || 21),
+          importIva: Number(data.importIva || 0),
+          estat: 'pendent',
+          estatComanda: 'pressupost_manual',
+          estatPagament: 'pendent',
+          metodePagament: data.metodePagament || 'bizum',
+          metodeLliurament: 'ordinari',
+          observacionsGenerals: data.notes || '',
+          dataVenciment: data.dataVenciment || '',
+          origen: 'manual_taller',
+          data: { seconds: Math.floor(Date.now() / 1000) },
+          createdAt: serverTimestamp()
+        };
+        await setDoc(doc(db, "pressupostos", newPreId), prePayload, { merge: true });
+        try {
+          await setDoc(doc(db, "vendes_pressupostos", data.numero || newPreId), {
+            ...data,
+            id: data.numero || newPreId,
+            createdAt: serverTimestamp()
+          }, { merge: true });
+        } catch (ePre) {
+          console.warn("Could not save to vendes_pressupostos:", ePre);
+        }
+        if (selectedPressupost && (selectedPressupost.id === newPreId || selectedPressupost.codiReferencia === data.numero)) {
+          setSelectedPressupost(prev => ({
+            ...prev,
+            ...prePayload,
+            linies: data.linies,
+            productes: prePayload.productes,
+            total: prePayload.total,
+            baseImposable: prePayload.baseImposable
+          }));
+        }
+      } else if (tipus === 'comanda') {
+        const newCmdId = data.id || `cmd_manual_${Date.now()}`;
+        const cmdPayload = {
+          id: newCmdId,
+          codiReferencia: data.numero,
+          clientNom: data.clientRaoSocial || data.clientNom || 'Client Manual',
+          clientRaoSocial: data.clientRaoSocial || data.clientNom || 'Client Manual',
+          clientPersonaContacte: data.clientPersonaContacte || '',
+          clientContacte: data.clientEmail || data.clientTelefon || '',
+          clientEmail: data.clientEmail || '',
+          clientTelefon: data.clientTelefon || '',
+          clientWeb: data.clientWeb || '',
+          clientNif: data.clientNif || '',
+          clientAdreca: data.clientAdreca || '',
+          clientCodiPostal: data.clientCodiPostal || '',
+          clientPoblacio: data.clientPoblacio || '',
+          clientProvincia: data.clientProvincia || '',
+          clientPais: data.clientPais || 'Espanya',
+          adrecaEnviament: { carrer: data.clientAdreca || '', codiPostal: data.clientCodiPostal || '', poblacio: data.clientPoblacio || '', provincia: data.clientProvincia || '', pais: data.clientPais || 'Espanya' },
+          costEnviament: Number(data.costEnviament || 0),
+          productes: (data.linies || []).map(l => ({
+            id: l.articleId || l.id || `linia_${Date.now()}`,
+            nom: l.concepte || l.nom || 'Article',
+            quantitat: Number(l.quantitat || 1),
+            preuUnitari: Number(l.preuUnitari || 0),
+            tipus: l.tipusLinia || 'producte',
+            subtotal: Number(l.subtotal || 0),
+            opcionsTriades: l.opcionsTriades || null
+          })),
+          total: Number(data.total || 0),
+          baseImposable: Number(data.baseImposable || 0),
+          estat: 'ates',
+          estatComanda: 'rebuda',
+          estatPagament: data.estatCobrament === 'cobrada' ? 'pagat' : 'pendent',
+          metodePagament: data.metodePagament || 'bizum',
+          metodeLliurament: 'ordinari',
+          observacionsGenerals: data.notes || '',
+          origen: 'verbal_manual',
+          data: { seconds: Math.floor(Date.now() / 1000) },
+          createdAt: serverTimestamp()
+        };
+        if (data.pressupostId && data.pressupostId.length > 5) {
+          try {
+            await updateDoc(doc(db, "pressupostos", data.pressupostId), {
+              comandaVinculada: data.numero,
+              comandaCodi: data.numero,
+              estatComanda: 'acceptada',
+              estat: 'ates',
+              dataComandaVinculada: new Date().toISOString()
+            });
+          } catch (errP) {
+            console.warn("Could not update linked pressupost document:", errP);
+          }
+        } else {
+          await setDoc(doc(db, "pressupostos", newCmdId), cmdPayload, { merge: true });
+        }
+
+        // Registre addicional a vendes_comandes
+        try {
+          await setDoc(doc(db, "vendes_comandes", data.numero || newCmdId), {
+            ...data,
+            id: data.numero || newCmdId,
+            pressupostId: data.pressupostId || null,
+            createdAt: serverTimestamp()
+          }, { merge: true });
+        } catch (eCom) {
+          console.warn("Could not save to vendes_comandes:", eCom);
+        }
+      } else {
+        const colName = tipus === 'albara' ? 'vendes_albarans' : 'vendes_factures';
+        const docId = data.id || `${tipus}_${Date.now()}`;
+        await setDoc(doc(db, colName, docId), {
+          ...data,
+          id: docId,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+      setOrderSalesDocModal({ isOpen: false, tipus: 'factura', initialData: null });
+      alert(`✨ ${tipus === 'comanda' ? 'Comanda' : tipus === 'albara' ? 'Albarà' : 'Factura'} desat correctament!`);
+    } catch (err) {
+      console.error("Error desant document de vendes:", err);
+      alert("Error desant document: " + err.message);
+    }
+  };
+
+  const handleCreateAlbaraFromOrder = (p) => {
+    if (!p) return;
+    const linies = (p.productes || []).map(item => ({
+      articleId: item.id || null,
+      tipusLinia: item.tipus || 'producte',
+      concepte: item.nom || 'Article',
+      descripcioAdicional: item.opcionsTriades ? JSON.stringify(item.opcionsTriades) : '',
+      quantitat: Number(item.quantitat || 1),
+      preuUnitari: Number(item.preuUnitari || item.preu || 0),
+      descomptePercent: 0,
+      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+    }));
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'albara',
+      initialData: {
+        comandaCodi: p.codiReferencia || p.id,
+        comandaId: p.id,
+        clientRaoSocial: p.clientRaoSocial || p.clientNom || '',
+        clientNom: p.clientRaoSocial || p.clientNom || '',
+        clientPersonaContacte: p.clientPersonaContacte || p.personaContacte || '',
+        clientNif: p.clientNif || p.nif || '',
+        clientEmail: (p.clientContacte && p.clientContacte.includes('@')) ? p.clientContacte : (p.clientEmail || ''),
+        clientTelefon: (p.clientContacte && !p.clientContacte.includes('@')) ? p.clientContacte : (p.clientTelefon || ''),
+        clientWeb: p.clientWeb || p.web || '',
+        clientAdreca: p.clientAdreca || (typeof p.adrecaEnviament === 'string' ? p.adrecaEnviament : p.adrecaEnviament?.carrer || ''),
+        clientCodiPostal: p.clientCodiPostal || p.adrecaEnviament?.codiPostal || '',
+        clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
+        clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
+        clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
+        costEnviament: Number(p.costEnviament || 0),
+        linies: linies,
+        notes: p.observacionsGenerals || '',
+        valorat: true
+      }
+    });
+  };
+
+  const handleCreateFacturaFromOrder = (p) => {
+    if (!p) return;
+    const linies = (p.productes || []).map(item => ({
+      articleId: item.id || null,
+      tipusLinia: item.tipus || 'producte',
+      concepte: item.nom || 'Article',
+      descripcioAdicional: item.opcionsTriades ? JSON.stringify(item.opcionsTriades) : '',
+      quantitat: Number(item.quantitat || 1),
+      preuUnitari: Number(item.preuUnitari || item.preu || 0),
+      descomptePercent: 0,
+      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+    }));
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'factura',
+      initialData: {
+        comandaCodi: p.codiReferencia || p.id,
+        comandaId: p.id,
+        clientRaoSocial: p.clientRaoSocial || p.clientNom || '',
+        clientNom: p.clientRaoSocial || p.clientNom || '',
+        clientPersonaContacte: p.clientPersonaContacte || p.personaContacte || '',
+        clientNif: p.clientNif || p.nif || '',
+        clientEmail: (p.clientContacte && p.clientContacte.includes('@')) ? p.clientContacte : (p.clientEmail || ''),
+        clientTelefon: (p.clientContacte && !p.clientContacte.includes('@')) ? p.clientContacte : (p.clientTelefon || ''),
+        clientWeb: p.clientWeb || p.web || '',
+        clientAdreca: p.clientAdreca || (typeof p.adrecaEnviament === 'string' ? p.adrecaEnviament : p.adrecaEnviament?.carrer || ''),
+        clientCodiPostal: p.clientCodiPostal || p.adrecaEnviament?.codiPostal || '',
+        clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
+        clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
+        clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
+        costEnviament: Number(p.costEnviament || 0),
+        linies: linies,
+        notes: p.observacionsGenerals || '',
+        estatCobrament: p.estatPagament === 'pagat' ? 'cobrada' : 'pendent',
+        metodePagament: p.metodePagament || 'bizum'
+      }
+    });
   };
 
   // --- NAVEGACIÓ RÀPIDA A SECCIONS DE PRODUCC ---
@@ -3165,6 +3567,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </button>
 
               <button 
+                onClick={() => setActiveModule('vendes')}
+                className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
+                  activeModule === 'vendes' 
+                    ? 'bg-primary text-on-primary font-semibold shadow-xs border-primary' 
+                    : 'bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border-outline/15'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Receipt className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Vendes i Factures</span>
+                </div>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'vendes' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
+                  {dbFacturesCount}
+                </span>
+              </button>
+
+              <button 
                 onClick={() => setActiveModule('calcul_pressupostos')}
                 className={`w-full h-12 px-3.5 font-medium text-xs md:text-sm rounded-xl transition-all cursor-pointer flex items-center justify-between gap-2 border ${
                   activeModule === 'calcul_pressupostos' 
@@ -3491,32 +3910,52 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </p>
             </div>
 
-            {/* Filters */}
-            <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-              <button 
-                onClick={() => setPressupostFilter('tots')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  pressupostFilter === 'tots' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
-                }`}
+            {/* Filters & Actions */}
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button
+                type="button"
+                onClick={() => setOrderSalesDocModal({ isOpen: true, tipus: 'pressupost', initialData: null })}
+                className="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                title="Elaborar un nou pressupost o proposta comercial per a un client"
               >
-                Tots ({pressupostos.length})
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Nou Pressupost</span>
               </button>
-              <button 
-                onClick={() => setPressupostFilter('pendent')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  pressupostFilter === 'pendent' ? 'bg-amber-600 text-white' : 'bg-surface-container text-on-surface-variant'
-                }`}
+              <button
+                type="button"
+                onClick={() => setOrderSalesDocModal({ isOpen: true, tipus: 'comanda', initialData: null })}
+                className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                title="Crear una comanda manual o verbal rebuda per telèfon, taller o correu"
               >
-                Pendents ({pressupostosPendentsCount})
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Comanda Verbal</span>
               </button>
-              <button 
-                onClick={() => setPressupostFilter('ates')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  pressupostFilter === 'ates' ? 'bg-emerald-600 text-white' : 'bg-surface-container text-on-surface-variant'
-                }`}
-              >
-                Atesos ({pressupostos.length - pressupostosPendentsCount})
-              </button>
+              <div className="flex gap-2 overflow-x-auto">
+                <button 
+                  onClick={() => setPressupostFilter('tots')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                    pressupostFilter === 'tots' ? 'bg-primary text-on-primary' : 'bg-surface-container text-on-surface-variant'
+                  }`}
+                >
+                  Tots ({pressupostos.length})
+                </button>
+                <button 
+                  onClick={() => setPressupostFilter('pendent')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                    pressupostFilter === 'pendent' ? 'bg-amber-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                  }`}
+                >
+                  Pendents ({pressupostosPendentsCount})
+                </button>
+                <button 
+                  onClick={() => setPressupostFilter('ates')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                    pressupostFilter === 'ates' ? 'bg-emerald-600 text-white' : 'bg-surface-container text-on-surface-variant'
+                  }`}
+                >
+                  Atesos ({pressupostos.length - pressupostosPendentsCount})
+                </button>
+              </div>
             </div>
           </div>
 
@@ -3574,6 +4013,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
                               {p.estatComanda === 'lliurat' && 'Lliurat'}
                             </span>
                           )}
+                          {p.comandaVinculada && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <ShoppingBag className="w-3 h-3" />
+                              <span>CMD: {p.comandaVinculada}</span>
+                            </span>
+                          )}
                           {/* Indicador OF */}
                           {p.ofId && (
                             <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-600/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
@@ -3627,6 +4072,18 @@ export default function PrivateAreaSection({ setActiveTab }) {
                         </button>
 
                         <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditPressupost(p);
+                            }}
+                            className="px-2.5 py-1 bg-amber-700/10 hover:bg-amber-700/20 text-amber-800 dark:text-amber-300 border border-amber-700/30 text-xs font-medium rounded transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Modificar aquest pressupost"
+                          >
+                            <Edit3 className="w-3 h-3 text-amber-700 dark:text-amber-400" />
+                            <span>Modificar</span>
+                          </button>
                           <a
                             href={p.clientContacte && p.clientContacte.includes('@')
                               ? `https://mail.google.com/mail/u/minimmon58@gmail.com/?view=cm&fs=1&authuser=minimmon58@gmail.com&from=minimmon58@gmail.com&to=${encodeURIComponent(p.clientContacte)}&su=${encodeURIComponent(`Pressupost Mínim Món - ${p.codiReferencia || p.id}`)}`
@@ -3676,12 +4133,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     <h3 className="font-serif text-2xl text-primary font-semibold mt-1">{selectedPressupost.clientNom}</h3>
                     <p className="text-xs text-on-surface-variant font-mono">{selectedPressupost.clientContacte}</p>
                   </div>
-                  <button 
-                    onClick={() => setSelectedPressupost(null)}
-                    className="text-xs text-on-surface-variant hover:text-primary px-2.5 py-1 bg-surface border rounded cursor-pointer"
-                  >
-                    ✕ Tancar
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditPressupost(selectedPressupost)}
+                      className="text-xs font-semibold px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Modificar aquest pressupost"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Modificar</span>
+                    </button>
+                    <button 
+                      onClick={() => setSelectedPressupost(null)}
+                      className="text-xs text-on-surface-variant hover:text-primary px-2.5 py-1 bg-surface border rounded cursor-pointer"
+                    >
+                      ✕ Tancar
+                    </button>
+                  </div>
                 </div>
 
                 {/* 1. PANNELL D'ESTAT DEL PROCÉS I SEGUIMENT DE COMANDA */}
@@ -4104,6 +4572,97 @@ export default function PrivateAreaSection({ setActiveTab }) {
                   )}
                 </div>
 
+                {/* MÒDUL DE VENDES: GENERAR ALBARÀ I FACTURA DES DE LA COMANDA */}
+                <div className="bg-surface-container p-4 rounded-xl border border-outline/15 space-y-3">
+                  <div className="flex items-center justify-between border-b border-outline/10 pb-2">
+                    <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      <span>Documentació de Venda (Albarà / Factura):</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEditPressupost(selectedPressupost)}
+                      className="px-3.5 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Modificar els preus, quantitats, línies o dades del client d'aquest pressupost"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>✏️ Modificar Pressupost</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewerSalesDocModal({
+                        doc: {
+                          numero: selectedPressupost.codiReferencia || selectedPressupost.id,
+                          dataEmissio: selectedPressupost.data ? new Date(selectedPressupost.data.seconds * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                          dataVenciment: selectedPressupost.dataVenciment || '',
+                          clientNom: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
+                          clientRaoSocial: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
+                          clientPersonaContacte: selectedPressupost.clientPersonaContacte || selectedPressupost.personaContacte || '',
+                          clientNif: selectedPressupost.clientNif || selectedPressupost.nif || '',
+                          clientEmail: (selectedPressupost.clientContacte && selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientEmail || ''),
+                          clientTelefon: (selectedPressupost.clientContacte && !selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientTelefon || ''),
+                          clientWeb: selectedPressupost.clientWeb || selectedPressupost.web || '',
+                          clientAdreca: selectedPressupost.clientAdreca || (typeof selectedPressupost.adrecaEnviament === 'string' ? selectedPressupost.adrecaEnviament : selectedPressupost.adrecaEnviament?.carrer || ''),
+                          clientCodiPostal: selectedPressupost.clientCodiPostal || selectedPressupost.adrecaEnviament?.codiPostal || '',
+                          clientPoblacio: selectedPressupost.clientPoblacio || selectedPressupost.adrecaEnviament?.poblacio || '',
+                          clientProvincia: selectedPressupost.clientProvincia || selectedPressupost.adrecaEnviament?.provincia || '',
+                          clientPais: selectedPressupost.clientPais || selectedPressupost.adrecaEnviament?.pais || 'Espanya',
+                          costEnviament: Number(selectedPressupost.costEnviament || 0),
+                          linies: (selectedPressupost.productes || []).map(item => ({
+                            articleId: item.id || null,
+                            tipusLinia: item.tipus || 'producte',
+                            concepte: item.nom || 'Article',
+                            descripcioAdicional: item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '',
+                            quantitat: Number(item.quantitat || 1),
+                            preuUnitari: Number(item.preuUnitari || item.preu || 0),
+                            descomptePercent: 0,
+                            subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+                          })),
+                          notes: selectedPressupost.observacionsGenerals || '',
+                          total: Number(selectedPressupost.total || 0),
+                          baseImposable: Number(selectedPressupost.baseImposable || 0),
+                          ivaPercent: 21
+                        },
+                        tipus: 'pressupost'
+                      })}
+                      className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Veure i imprimir el pressupost en format oficial A4"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Imprimir Pressupost A4</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTransferPressupostToComanda(selectedPressupost)}
+                      className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Traspassar aquest pressupost directament a comanda oficial CMD"
+                    >
+                      <ShoppingBag className="w-3.5 h-3.5" />
+                      <span>🛒 Traspassar a Comanda</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateAlbaraFromOrder(selectedPressupost)}
+                      className="px-3 py-1.5 bg-stone-700 hover:bg-stone-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Generar albarà de lliurament a partir d'aquesta comanda"
+                    >
+                      <Package className="w-3.5 h-3.5" />
+                      <span>📦 Generar Albarà</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateFacturaFromOrder(selectedPressupost)}
+                      className="px-3 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
+                      title="Emetre factura fiscal a partir d'aquesta comanda"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>🧾 Emetre Factura</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Accions de Tancament i Gmail */}
                 <div className="pt-4 border-t border-outline/15 flex flex-wrap items-center justify-between gap-3">
                   <button
@@ -4145,6 +4704,44 @@ export default function PrivateAreaSection({ setActiveTab }) {
               </div>
               )}
           </div>
+
+          {/* Modal per Generar Document de Vendes (Comanda Verbal / Albarà / Factura) */}
+          {orderSalesDocModal.isOpen && (
+            <ManualDocumentEditorModal
+              isOpen={orderSalesDocModal.isOpen}
+              tipus={orderSalesDocModal.tipus}
+              initialData={orderSalesDocModal.initialData}
+              clientsPortals={dbClientsPortals}
+              catalogProducts={dbProductesAdmin}
+              projectesList={dbProjects}
+              escandallsList={dbEscandalls}
+              pressupostosList={pressupostos}
+              calculsPressupostosList={calculsPressupostos}
+              onSave={(data) => handleSaveSalesDoc(data, orderSalesDocModal.tipus)}
+              onClose={() => setOrderSalesDocModal({ isOpen: false, tipus: 'factura', initialData: null })}
+              isDark={defaultAppTheme === 'dark'}
+            />
+          )}
+
+          {/* Modal per Veure / Imprimir Pressupost A4 */}
+          {viewerSalesDocModal && (
+            <DocumentViewerModal
+              docData={viewerSalesDocModal.doc}
+              tipus={viewerSalesDocModal.tipus}
+              emissor={{
+                nomComercial: 'Mínim Món',
+                raoSocial: 'Mínim Món · Taller Artesanal',
+                peuFactura: 'Artesania d\'alta precisió en fusta de til·ler seleccionada · Mínim Món'
+              }}
+              onEdit={() => {
+                const targetDoc = selectedPressupost || viewerSalesDocModal.doc;
+                setViewerSalesDocModal(null);
+                handleEditPressupost(targetDoc);
+              }}
+              onClose={() => setViewerSalesDocModal(null)}
+              isDark={defaultAppTheme === 'dark'}
+            />
+          )}
 
           {/* Modal per Acceptar Comanda i Fixar Dies de Fabricació per Línia */}
           {orderAcceptModal.isOpen && (
@@ -4330,6 +4927,19 @@ export default function PrivateAreaSection({ setActiveTab }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* MODULE: VENDES, FACTURES I ALBARANS */}
+      {activeModule === 'vendes' && (
+        <VendesManager
+          clientsPortals={dbClientsPortals}
+          catalogProducts={dbProductesAdmin}
+          projectesList={dbProjects}
+          escandallsList={dbEscandalls}
+          pressupostosList={pressupostos}
+          calculsPressupostosList={calculsPressupostos}
+          isDark={defaultAppTheme === 'dark'}
+        />
       )}
 
       {/* MODULE: CÀLCUL DE PRESSUPOSTOS */}
@@ -4990,14 +5600,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
                           )}
 
                           <div className="flex justify-between items-center pt-1 border-t border-outline/10">
-                            <button
-                              type="button"
-                              onClick={() => handleLoadCalculToForm(item)}
-                              className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                            >
-                              <span>Carregar al Formulari</span>
-                              <ArrowUpRight className="w-3 h-3" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleLoadCalculToForm(item)}
+                                className="text-[11px] font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Carregar al Formulari</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleTransferCalculToComanda(item)}
+                                className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                                title="Traspassar aquest càlcul de pressupost a comanda"
+                              >
+                                <ShoppingBag className="w-3 h-3 text-emerald-600" />
+                                <span>A Comanda</span>
+                              </button>
+                            </div>
 
                             <button
                               type="button"

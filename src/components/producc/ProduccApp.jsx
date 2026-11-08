@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Package, Building2, Layers, Cpu, Wrench, Calculator, ShoppingCart,
   Sun, Moon, ArrowLeft, Boxes, Activity, AlertTriangle, CheckCircle, Scale,
-  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2, Store
+  Box, Factory, ClipboardList, ChevronDown, Cloud, Lock, Clock, Share2, Store, Link
 } from 'lucide-react';
 
 import { db } from '../../firebase';
@@ -14,6 +14,7 @@ import MaterialsManager from './MaterialsManager';
 import ProveidorsManager from './ProveidorsManager';
 import GrupsManager from './GrupsManager';
 import MaquinariaManager from './MaquinariaManager';
+import LinkGrblManager from './LinkGrblManager';
 import OperacionsManager from './OperacionsManager';
 import EscandallsManager from './EscandallsManager';
 import CompresManager from './CompresManager';
@@ -689,6 +690,18 @@ export default function ProduccApp({ setActiveTab }) {
                       {maquinaria.length}
                     </span>
                   </button>
+
+                  <button
+                    onClick={() => setActiveProduccSubtab('link_grbl')}
+                    className={`px-3.5 py-1.5 rounded-xl font-semibold flex items-center gap-2 transition-all shrink-0 cursor-pointer ${activeProduccSubtab === 'link_grbl'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                      }`}
+                    title="Enllaçar múltiples fitxers .nc per a LaserGRBL en un únic fitxer"
+                  >
+                    <Link className="w-4 h-4" />
+                    <span>Link GRBL</span>
+                  </button>
                 </>
               )}
 
@@ -877,6 +890,10 @@ export default function ProduccApp({ setActiveTab }) {
             materials={materials}
             isDark={isDark}
           />
+        )}
+
+        {activeProduccSubtab === 'link_grbl' && (
+          <LinkGrblManager isDark={isDark} />
         )}
 
         {activeProduccSubtab === 'ordres_fabricacio' && (

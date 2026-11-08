@@ -4,7 +4,7 @@ import {
   DollarSign, TrendingUp, AlertCircle, FileText, ChevronRight, ChevronDown, ChevronUp, 
   X, Percent, Save, Sparkles, Filter, Layers, CheckCircle2, ArrowRight, ExternalLink, 
   Image as ImageIcon, Sliders, Check, Palette, Type, ZoomIn, Ruler, Scissors, AlertTriangle, MessageSquare, Zap, RotateCw,
-  Printer, Paperclip, BookOpen, Eye, Upload, Building2
+  Printer, Paperclip, BookOpen, Eye, Upload, Building2, Camera
 } from 'lucide-react';
 import { compressImageFile } from '../../data/projeccInitialData';
 import { getNextSequentialId } from '../../utils/produccIdUtils';
@@ -408,6 +408,7 @@ export default function EscandallsManager({
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectPickerType, setProjectPickerType] = useState('projectes'); // 'projectes' | 'projecc' | 'custom'
   const [projectPickerSearch, setProjectPickerSearch] = useState('');
+  const [customProjectInputName, setCustomProjectInputName] = useState('');
 
   // Finestra Flotant de Duplicació d'Escandall (Triar producte destí sense escandall)
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false);
@@ -563,6 +564,7 @@ export default function EscandallsManager({
     } else {
       setProjectPickerType('projectes');
       setProjectPickerSearch('');
+      setCustomProjectInputName('');
       setProjectPickerOpen(true);
     }
   };
@@ -1562,9 +1564,29 @@ export default function EscandallsManager({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                      <h3 className={`font-bold text-sm sm:text-base font-serif truncate mr-1 ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={esc.producteNom}>
-                        {esc.producteNom}
-                      </h3>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <h3 className={`font-bold text-sm sm:text-base font-serif truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`} title={esc.producteNom}>
+                          {esc.producteNom}
+                        </h3>
+                        {esc.tipus && esc.tipus !== 'Producte Web' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newName = window.prompt("Modificar el nom d'aquest projecte:", esc.producteNom);
+                              if (newName && newName.trim() && newName.trim() !== esc.producteNom) {
+                                setEscandalls(prev => prev.map(item => item.id === esc.id ? { ...item, producteNom: newName.trim() } : item));
+                              }
+                            }}
+                            className={`p-1 rounded-md transition-all cursor-pointer ${
+                              isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:text-amber-700 hover:bg-slate-200'
+                            }`}
+                            title="Reanomenar directament aquest projecte"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                       {esc.producteCodi && (
                         <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${isDark ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-slate-100 border-slate-300 text-slate-600'}`}>
                           {esc.producteCodi}
@@ -2079,7 +2101,7 @@ export default function EscandallsManager({
                     </p>
                     <button
                       type="button"
-                      onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
+                      onClick={() => handleSelectProjectAndOpenEdit({ titol: projectPickerSearch.trim() || 'Projecte a Mida' }, 'A Mida')}
                       className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer transition-all"
                     >
                       Començar a Mida
@@ -2161,7 +2183,7 @@ export default function EscandallsManager({
                     </p>
                     <button
                       type="button"
-                      onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
+                      onClick={() => handleSelectProjectAndOpenEdit({ titol: projectPickerSearch.trim() || 'Projecte a Mida' }, 'A Mida')}
                       className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold cursor-pointer transition-all"
                     >
                       Començar a Mida
@@ -2179,17 +2201,47 @@ export default function EscandallsManager({
                   <div>
                     <h4 className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>Projecte o Encàrrec a Mida</h4>
                     <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                      Crea un escandall tècnic per a un projecte personalitzat o nou encàrrec des de zero sense haver d'estar donat d'alta prèviament.
+                      Crea un escandall tècnic per a un projecte personalitzat o nou encàrrec des de zero i dóna-li un nom descriptiu.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectProjectAndOpenEdit({ titol: 'Nou Projecte a Mida' }, 'A Mida')}
-                    className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all cursor-pointer shadow-md inline-flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Començar Escandall a Mida
-                  </button>
+
+                  <div className="max-w-md mx-auto space-y-3 text-left">
+                    <div>
+                      <label className={`block text-xs font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                        Nom o referència del Projecte a Mida:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Diorama Casa Medieval, Caixa Niu Especial..."
+                        value={customProjectInputName}
+                        onChange={(e) => setCustomProjectInputName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const finalName = customProjectInputName.trim() || 'Projecte a Mida';
+                            handleSelectProjectAndOpenEdit({ titol: finalName }, 'A Mida');
+                          }
+                        }}
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs border outline-none font-medium transition-all ${
+                          isDark 
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-amber-500 focus:ring-1 focus:ring-amber-500' 
+                            : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-2xs'
+                        }`}
+                        autoFocus
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const finalName = customProjectInputName.trim() || 'Projecte a Mida';
+                        handleSelectProjectAndOpenEdit({ titol: finalName }, 'A Mida');
+                      }}
+                      className="w-full px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-all cursor-pointer shadow-md inline-flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Començar Escandall a Mida
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -2405,14 +2457,30 @@ export default function EscandallsManager({
                             )}
                           </div>
 
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             {/* Píndoles: Tipus + Família + Gamma */}
                             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                              <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold border ${
-                                isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
-                              }`}>
-                                {formData.tipus || 'Producte Web'}
-                              </span>
+                              {formData.tipus !== 'Producte Web' ? (
+                                <select
+                                  value={formData.tipus || 'A Mida'}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, tipus: e.target.value }))}
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border cursor-pointer outline-none ${
+                                    isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                                  }`}
+                                  title="Tipus de projecte"
+                                >
+                                  <option value="A Mida">A Mida</option>
+                                  <option value="Projecte Món Mínim">Projecte Món Mínim</option>
+                                  <option value="Encàrrec Taller">Encàrrec Taller</option>
+                                  <option value="Obra Singular">Obra Singular</option>
+                                </select>
+                              ) : (
+                                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold border ${
+                                  isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                                }`}>
+                                  {formData.tipus || 'Producte Web'}
+                                </span>
+                              )}
                               {currentFamiliaNom && (
                                 <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-medium border ${
                                   isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300'
@@ -2429,11 +2497,30 @@ export default function EscandallsManager({
                               )}
                             </div>
 
-                            <h4 className={`font-bold text-sm sm:text-base font-serif truncate ${
-                              isDark ? 'text-slate-100' : 'text-slate-900'
-                            }`}>
-                              {formData.producteNom || 'Sense nom'}
-                            </h4>
+                            {/* Camp editable de Nom del Projecte / Escandall */}
+                            {formData.tipus !== 'Producte Web' ? (
+                              <div className="flex items-center gap-2 max-w-lg">
+                                <input
+                                  type="text"
+                                  value={formData.producteNom || ''}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, producteNom: e.target.value }))}
+                                  placeholder="Nom del projecte a mida..."
+                                  className={`font-serif font-bold text-sm sm:text-base px-2.5 py-1 rounded-xl border outline-none transition-all w-full ${
+                                    isDark 
+                                      ? 'bg-slate-900/90 border-slate-700 text-slate-100 focus:border-amber-500 focus:ring-1 focus:ring-amber-500' 
+                                      : 'bg-white border-slate-300 text-slate-900 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 shadow-2xs'
+                                  }`}
+                                  title="Nom del projecte (pots editar-lo lliurement)"
+                                />
+                                <Edit2 className="w-4 h-4 text-amber-500 shrink-0" title="Nom editable" />
+                              </div>
+                            ) : (
+                              <h4 className={`font-bold text-sm sm:text-base font-serif truncate ${
+                                isDark ? 'text-slate-100' : 'text-slate-900'
+                              }`}>
+                                {formData.producteNom || 'Sense nom'}
+                              </h4>
+                            )}
                           </div>
                         </div>
 
