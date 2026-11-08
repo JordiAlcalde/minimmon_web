@@ -613,12 +613,15 @@ export default function PostingApp({ setActiveTab }) {
     if (newMode === postMode) return;
     setPostMode(newMode);
     if (newMode === 'carousel') {
-      const imgsToUse = (Array.isArray(availableImages) && availableImages.length > 0)
+      const imgsPool = (Array.isArray(availableImages) && availableImages.length > 0)
         ? availableImages
         : [selectedPhotoUrl || resolveMediaUrl('images/tots_productes.jpg')];
 
-      // Generem les diapositives adaptades a cadascuna de les fotos disponibles de la peça
-      const generated = buildCarouselSlidesFromItem(selectedItem, sourceType, imgsToUse);
+      // Per defecte triem fins a 3 fotos inicials per no saturar de cop amb 10 diapos
+      const initialImgs = imgsPool.slice(0, Math.min(3, imgsPool.length));
+
+      // Generem les diapositives adaptades a les fotos triades
+      const generated = buildCarouselSlidesFromItem(selectedItem, sourceType, initialImgs);
       if (generated.length >= 2) {
         setSlides(generated);
         setActiveSlideIdx(0);
@@ -630,9 +633,9 @@ export default function PostingApp({ setActiveTab }) {
       }
 
       // Si només tenim 1 foto, creem 3 diapositives representatives
-      const f1 = selectedPhotoUrl || imgsToUse[0] || resolveMediaUrl('images/tots_productes.jpg');
-      const f2 = imgsToUse[1] || f1;
-      const f3 = imgsToUse[2] || f2;
+      const f1 = selectedPhotoUrl || imgsPool[0] || resolveMediaUrl('images/tots_productes.jpg');
+      const f2 = imgsPool[1] || f1;
+      const f3 = imgsPool[2] || f2;
 
       const t1 = generateSlideTextForImage({ imgUrl: f1, slideIdx: 0, totalSlides: 3, item: selectedItem, itemType: sourceType });
       const t2 = generateSlideTextForImage({ imgUrl: f2, slideIdx: 1, totalSlides: 3, item: selectedItem, itemType: sourceType });
@@ -811,6 +814,143 @@ export default function PostingApp({ setActiveTab }) {
     setTimeout(() => {
       isSyncingSlideRef.current = false;
     }, 150);
+  };
+
+  // Comparador robust d'URLs d'imatges
+  const isMatchingImageUrl = (urlA, urlB) => {
+    if (!urlA || !urlB) return false;
+    if (urlA === urlB) return true;
+    try {
+      const cleanA = urlA.split('?')[0].split('#')[0];
+      const cleanB = urlB.split('?')[0].split('#')[0];
+      return cleanA.endsWith(cleanB) || cleanB.endsWith(cleanA);
+    } catch {
+      return false;
+    }
+  };
+
+  // Incorpora una fotografia de la galeria al carrusel com a nova diapositiva
+  const handleIncorporateImageToPost = (imgUrl) => {
+    if (slides.length >= 10) {
+      alert("Instagram admet un màxim de 10 diapositives per carrusel. Descarta alguna foto abans d'incorporar-ne una altra.");
+      return;
+    }
+    const existingIdx = slides.findIndex(s => isMatchingImageUrl(s.photoUrl, imgUrl));
+    if (existingIdx !== -1) {
+      handleSelectSlide(existingIdx);
+      return;
+    }
+
+    // Flush de la diapositiva en edició actual
+    const flushedSlides = slides.map((s, idx) => {
+      if (idx === activeSlideIdx) {
+        return {
+          ...s,
+          title,
+          subtitle,
+          photoUrl: selectedPhotoUrl,
+          tagText,
+          imageFit,
+          blurIntensity,
+          showTag,
+          showLogo,
+          customLayers
+        };
+      }
+      return s;
+    });
+
+    const newTargetIdx = flushedSlides.length;
+    const textData = generateSlideTextForImage({
+      imgUrl,
+      slideIdx: newTargetIdx,
+      totalSlides: newTargetIdx + 1,
+      item: selectedItem,
+      itemType: sourceType
+    });
+
+    const newSlide = {
+      id: `slide-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      title: textData.title,
+      subtitle: textData.subtitle,
+      photoUrl: imgUrl,
+      tagText: textData.tagText || '🪵 Fusta de til·ler',
+      imageFit: 'cover',
+      blurIntensity: 35,
+      showTag: true,
+      showLogo: true,
+      customLayers: INITIAL_CUSTOM_LAYERS.map(l => ({ ...l, enabled: false, text: '' }))
+    };
+
+    const finalSlides = [...flushedSlides, newSlide];
+
+    isSyncingSlideRef.current = true;
+    setSlides(finalSlides);
+    setActiveSlideIdx(newTargetIdx);
+
+    setTitle(newSlide.title);
+    setSubtitle(newSlide.subtitle);
+    setSelectedPhotoUrl(imgUrl.startsWith('data:') || imgUrl.startsWith('http') ? imgUrl : resolveMediaUrl(imgUrl));
+    setTagText(newSlide.tagText);
+    setImageFit(newSlide.imageFit);
+    setBlurIntensity(newSlide.blurIntensity);
+    setShowTag(newSlide.showTag);
+    setShowLogo(newSlide.showLogo);
+    setCustomLayers(newSlide.customLayers);
+
+    setTimeout(() => {
+      isSyncingSlideRef.current = false;
+    }, 150);
+  };
+
+  // Descarta una fotografia del carrusel eliminant la diapositiva corresponent
+  const handleDiscardImageFromPost = (imgUrl) => {
+    if (postMode !== 'carousel') return;
+    if (slides.length <= 2) {
+      alert("Un carrusel d'Instagram requereix un mínim de 2 diapositives. Si només vols publicar 1 sola imatge, selecciona 'Post Simple' al bloc de formats.");
+      return;
+    }
+    const idxToRemove = slides.findIndex(s => isMatchingImageUrl(s.photoUrl, imgUrl));
+    if (idxToRemove === -1) return;
+    handleRemoveSlide(idxToRemove);
+  };
+
+  // Incorporar totes les fotografies disponibles del projecte (fins a un màxim de 10)
+  const handleSelectAllImagesForCarousel = () => {
+    if (!Array.isArray(availableImages) || availableImages.length === 0) return;
+    const maxImgs = availableImages.slice(0, 10);
+    const generated = buildCarouselSlidesFromItem(selectedItem, sourceType, maxImgs);
+    if (generated.length >= 2) {
+      isSyncingSlideRef.current = true;
+      setSlides(generated);
+      setActiveSlideIdx(0);
+      setTitle(generated[0].title);
+      setSubtitle(generated[0].subtitle);
+      setSelectedPhotoUrl(generated[0].photoUrl);
+      setTagText(generated[0].tagText || '🪵 Fusta de til·ler');
+      setTimeout(() => {
+        isSyncingSlideRef.current = false;
+      }, 150);
+    }
+  };
+
+  // Reduir a només les 3 fotos inicials representatives del projecte
+  const handleResetToThreeImagesForCarousel = () => {
+    if (!Array.isArray(availableImages) || availableImages.length === 0) return;
+    const threeImgs = availableImages.slice(0, Math.min(3, availableImages.length));
+    const generated = buildCarouselSlidesFromItem(selectedItem, sourceType, threeImgs);
+    if (generated.length >= 2) {
+      isSyncingSlideRef.current = true;
+      setSlides(generated);
+      setActiveSlideIdx(0);
+      setTitle(generated[0].title);
+      setSubtitle(generated[0].subtitle);
+      setSelectedPhotoUrl(generated[0].photoUrl);
+      setTagText(generated[0].tagText || '🪵 Fusta de til·ler');
+      setTimeout(() => {
+        isSyncingSlideRef.current = false;
+      }, 150);
+    }
   };
 
   const handleDuplicateSlide = (idxToDup) => {
@@ -1308,11 +1448,17 @@ export default function PostingApp({ setActiveTab }) {
       setShowPrice(false);
     }
 
-    // Si estem en Mode Carrusel, generem les diapositives adaptades a cadascuna de les fotos del nou element seleccionat
+    // Si estem en Mode Carrusel, generem les diapositives adaptades (per defecte fins a 3 principals, per no saturar a 10 diapos de cop)
     if (postMode === 'carousel' && Array.isArray(imgs) && imgs.length > 1) {
-      const generatedSlides = buildCarouselSlidesFromItem(item, type, imgs);
+      const initialImgs = imgs.slice(0, Math.min(3, imgs.length));
+      const generatedSlides = buildCarouselSlidesFromItem(item, type, initialImgs);
       if (generatedSlides.length >= 2) {
         setSlides(generatedSlides);
+        setActiveSlideIdx(0);
+        setTitle(generatedSlides[0].title);
+        setSubtitle(generatedSlides[0].subtitle);
+        setSelectedPhotoUrl(generatedSlides[0].photoUrl);
+        setTagText(generatedSlides[0].tagText || '🪵 Fusta de til·ler');
       }
     }
   };
@@ -2305,43 +2451,165 @@ export default function PostingApp({ setActiveTab }) {
             {/* A. Galeria de fotografies disponibles del projecte / producte */}
             {sourceType !== 'custom' && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span className="font-semibold">
-                    {sourceType === 'projectes' ? 'Fotos d’aquest projecte:' : 'Fotos d’aquest regal:'}
-                    <span className="ml-1.5 px-2 py-0.5 rounded-full bg-slate-100 font-mono text-[11px]">
-                      {availableImages.length} {availableImages.length === 1 ? 'foto' : 'fotos'}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-slate-800">
+                      {sourceType === 'projectes' ? 'Fotos d’aquest projecte:' : 'Fotos d’aquest regal:'}
+                      <span className="ml-1.5 px-2 py-0.5 rounded-full bg-slate-100 font-mono text-[11px] text-slate-700">
+                        {availableImages.length} {availableImages.length === 1 ? 'foto' : 'fotos'}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-[11px] text-slate-400">Fes clic a qualsevol per aplicar-la al post</span>
+                    {postMode === 'carousel' && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-semibold text-[11px] border border-amber-200">
+                        {availableImages.filter(img => slides.some(s => isMatchingImageUrl(s.photoUrl, img))).length} al post ({slides.length}/10 diapos)
+                      </span>
+                    )}
+                  </div>
+
+                  {postMode === 'carousel' && availableImages.length > 1 && (
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllImagesForCarousel}
+                        disabled={slides.length >= Math.min(10, availableImages.length)}
+                        className="px-2 py-0.5 rounded bg-white border border-outline/20 hover:bg-amber-50 text-slate-700 font-medium cursor-pointer transition-all disabled:opacity-40"
+                        title="Incorporar totes les fotos al post (fins a un màxim de 10)"
+                      >
+                        Totes ({Math.min(10, availableImages.length)})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetToThreeImagesForCarousel}
+                        className="px-2 py-0.5 rounded bg-white border border-outline/20 hover:bg-amber-50 text-slate-700 font-medium cursor-pointer transition-all"
+                        title="Triar només les 3 fotos principals al post"
+                      >
+                        Triar 3 principals
+                      </button>
+                    </div>
+                  )}
                 </div>
+
+                <p className="text-[11px] text-slate-500">
+                  {postMode === 'carousel'
+                    ? 'Fes clic a qualsevol foto per incorporar-la o editar la seva diapo. Prem ✕ per descartar-la del post.'
+                    : 'Fes clic a qualsevol per aplicar-la al post.'}
+                </p>
 
                 {availableImages.length > 0 ? (
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5 pt-1">
                     {availableImages.map((imgUrl, idx) => {
-                      const isActive = selectedPhotoUrl === imgUrl;
+                      const slideIndex = postMode === 'carousel'
+                        ? slides.findIndex(s => isMatchingImageUrl(s.photoUrl, imgUrl))
+                        : (isMatchingImageUrl(selectedPhotoUrl, imgUrl) ? 0 : -1);
+                      const isSelected = slideIndex !== -1;
+                      const isActive = postMode === 'carousel'
+                        ? isMatchingImageUrl(slides[activeSlideIdx]?.photoUrl, imgUrl)
+                        : isMatchingImageUrl(selectedPhotoUrl, imgUrl);
+
                       return (
-                        <button
+                        <div
                           key={idx}
-                          type="button"
-                          onClick={() => handleApplyPhotoToCurrentSlide(imgUrl)}
-                          className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer group text-left ${
+                          className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all group select-none ${
                             isActive 
-                              ? 'border-amber-600 ring-2 ring-amber-500/30 shadow-md scale-[1.02]' 
-                              : 'border-outline/15 hover:border-amber-400 opacity-75 hover:opacity-100'
+                              ? 'border-amber-600 ring-2 ring-amber-500/30 shadow-md scale-[1.02] bg-amber-500/5' 
+                              : isSelected
+                                ? 'border-[#3D2B1F]/70 ring-1 ring-amber-900/30 shadow-xs bg-[#3D2B1F]/5'
+                                : 'border-dashed border-slate-300 hover:border-amber-400 opacity-60 hover:opacity-95 bg-white/50'
                           }`}
                         >
-                          <img src={imgUrl} alt="" className="w-full h-full object-cover" />
-                          {isActive && (
-                            <div className="absolute inset-0 bg-amber-950/20 flex items-end p-1">
-                              <span className="w-full text-center bg-amber-600 text-white text-[9px] font-bold py-0.5 rounded shadow-xs">
+                          {/* Superfície clicable de la imatge */}
+                          <div 
+                            onClick={() => {
+                              if (postMode === 'single') {
+                                handleApplyPhotoToCurrentSlide(imgUrl);
+                              } else if (isSelected) {
+                                handleSelectSlide(slideIndex);
+                              } else {
+                                handleIncorporateImageToPost(imgUrl);
+                              }
+                            }}
+                            className="w-full h-full cursor-pointer"
+                            title={
+                              isActive 
+                                ? "Foto activa d'aquesta diapositiva" 
+                                : isSelected 
+                                  ? `Foto inclosa a la Diapo ${slideIndex + 1}. Fes clic per editar aquesta diapositiva.` 
+                                  : "Foto descartada / no inclosa. Fes clic per incorporar-la al post."
+                            }
+                          >
+                            <img src={imgUrl} alt="" className="w-full h-full object-cover pointer-events-none" />
+                          </div>
+
+                          {/* Número d'ordre a la galeria del projecte */}
+                          <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-mono px-1 rounded pointer-events-none z-10">
+                            #{idx + 1}
+                          </span>
+
+                          {/* Botons d'acció superior dreta en Mode Carrusel */}
+                          {postMode === 'carousel' && (
+                            <div className="absolute top-1 right-1 z-20 flex items-center gap-1">
+                              {isSelected ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDiscardImageFromPost(imgUrl);
+                                  }}
+                                  className="w-5 h-5 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center text-[10px] shadow-sm cursor-pointer transition-transform hover:scale-110"
+                                  title="Descartar aquesta foto del post (eliminar diapositiva)"
+                                >
+                                  <X className="w-3 h-3 stroke-[3]" />
+                                </button>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyPhotoToCurrentSlide(imgUrl);
+                                    }}
+                                    className="w-5 h-5 rounded-full bg-white/95 hover:bg-white text-slate-700 hover:text-black flex items-center justify-center shadow-xs cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Substituir la foto de la diapo activa per aquesta"
+                                  >
+                                    <RefreshCw className="w-2.5 h-2.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleIncorporateImageToPost(imgUrl);
+                                    }}
+                                    className="w-5 h-5 rounded-full bg-amber-700 hover:bg-amber-800 text-white flex items-center justify-center text-[10px] shadow-sm cursor-pointer transition-transform hover:scale-110"
+                                    title="Incorporar aquesta foto com a nova diapo al post"
+                                  >
+                                    <Plus className="w-3 h-3 stroke-[3]" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Etiqueta visual inferior: Activa ✓ vs Selecc. */}
+                          {isActive ? (
+                            <div className="absolute inset-x-0 bottom-0 p-1 pointer-events-none z-10">
+                              <span className="w-full block text-center bg-amber-600 text-white text-[9px] font-bold py-0.5 rounded shadow-xs">
                                 Activa ✓
                               </span>
                             </div>
+                          ) : isSelected ? (
+                            <div className="absolute inset-x-0 bottom-0 p-1 pointer-events-none z-10">
+                              <span className="w-full block text-center bg-[#3D2B1F] text-amber-100 text-[9px] font-bold py-0.5 rounded shadow-xs border border-white/20">
+                                Selecc.
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="absolute inset-x-0 bottom-0 p-1 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <span className="w-full block text-center bg-slate-800/85 text-white text-[8.5px] font-semibold py-0.5 rounded shadow-xs">
+                                + Incorporar
+                              </span>
+                            </div>
                           )}
-                          <span className="absolute top-1 left-1 bg-black/60 text-white text-[9px] font-mono px-1 rounded">
-                            #{idx + 1}
-                          </span>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
