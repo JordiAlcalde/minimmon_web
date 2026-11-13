@@ -17,12 +17,14 @@ import VendesManager from './vendes/VendesManager';
 import DocumentViewerModal from './vendes/DocumentViewerModal';
 import ManualDocumentEditorModal from './vendes/ManualDocumentEditorModal';
 import { getProductStockMetrics } from '../utils/productStockUtils';
+import { getVendesConfig, saveVendesConfig, DEFAULT_VENDES_CONFIG } from '../utils/vendesUtils';
 import { 
   Bell,
   Lock, 
   Boxes,
   ListTodo,
   Building2,
+  Landmark,
   Key, 
   Mail, 
   Phone, 
@@ -634,6 +636,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
   // Clients i Portals State
   const [dbClientsPortals, setDbClientsPortals] = useState([]);
   const [dbFacturesCount, setDbFacturesCount] = useState(0);
+  const [dbAlbarans, setDbAlbarans] = useState([]);
+  const [vendesConfig, setVendesConfig] = useState(DEFAULT_VENDES_CONFIG);
+  const [bankConfig, setBankConfig] = useState({
+    iban: '',
+    banc: '',
+    titularCompte: 'Jordi Alcalde / Mínim Món',
+    bic: ''
+  });
+  const [bankSaveStatus, setBankSaveStatus] = useState('');
   const [viewerSalesDocModal, setViewerSalesDocModal] = useState(null); // { doc, tipus }
   const [orderSalesDocModal, setOrderSalesDocModal] = useState({
     isOpen: false,
@@ -1057,6 +1068,32 @@ export default function PrivateAreaSection({ setActiveTab }) {
     }
   };
 
+  const handleSaveBankConfig = async (e) => {
+    e.preventDefault();
+    setBankSaveStatus('Desant dades bancàries a Firestore...');
+    try {
+      const cleanIban = bankConfig.iban.trim().toUpperCase().replace(/\s+/g, ' ');
+      const updatedEmissor = {
+        ...(vendesConfig?.emissor || DEFAULT_VENDES_CONFIG.emissor),
+        iban: cleanIban,
+        banc: bankConfig.banc.trim(),
+        titularCompte: bankConfig.titularCompte.trim(),
+        bic: bankConfig.bic.trim().toUpperCase()
+      };
+      const updatedConfig = {
+        ...(vendesConfig || DEFAULT_VENDES_CONFIG),
+        emissor: updatedEmissor
+      };
+      await saveVendesConfig(updatedConfig);
+      setVendesConfig(updatedConfig);
+      setBankSaveStatus('✓ Compte bancari desat correctament a Firestore!');
+    } catch (err) {
+      console.error("Error desant compte bancari:", err);
+      setBankSaveStatus("❌ Error desant el compte: " + err.message);
+    }
+    setTimeout(() => setBankSaveStatus(''), 4500);
+  };
+
   // Handle Login
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1167,6 +1204,26 @@ export default function PrivateAreaSection({ setActiveTab }) {
       setDbFacturesCount(snap.size);
     }, (err) => console.warn("Error vendes_factures count:", err));
 
+    const unsubAlb = onSnapshot(collection(db, "vendes_albarans"), (snap) => {
+      setDbAlbarans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn("Error vendes_albarans:", err));
+
+    const unsubVConfig = onSnapshot(doc(db, "vendes_configuracio", "main"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        const merged = { ...DEFAULT_VENDES_CONFIG, ...data };
+        setVendesConfig(merged);
+        if (merged.emissor) {
+          setBankConfig({
+            iban: merged.emissor.iban || '',
+            banc: merged.emissor.banc || '',
+            titularCompte: merged.emissor.titularCompte || merged.emissor.titular || 'Jordi Alcalde / Mínim Món',
+            bic: merged.emissor.bic || ''
+          });
+        }
+      }
+    }, (err) => console.warn("Error vendes_configuracio:", err));
+
     const unsubEsc = onSnapshot(query(collection(db, "producc_escandalls")), (snapshot) => {
       setDbEscandalls(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (err) => console.warn("Error producc_escandalls:", err));
@@ -1189,6 +1246,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
     return () => {
       unsubFac();
+      unsubAlb();
+      unsubVConfig();
       unsubEsc();
       unsubMat();
       unsubOp();
@@ -1600,16 +1659,24 @@ export default function PrivateAreaSection({ setActiveTab }) {
   // --- MÒDUL DE VENDES: CREACIÓ D'ALBARANS, FACTURES I COMANDES MANUALS ---
   const handleEditPressupost = (p) => {
     if (!p) return;
-    const linies = (p.linies || p.productes || []).map(item => ({
-      articleId: item.articleId || item.id || null,
-      tipusLinia: item.tipusLinia || item.tipus || 'producte',
-      concepte: item.concepte || item.nom || 'Article',
-      descripcioAdicional: item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : ''),
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: Number(item.descomptePercent || 0),
-      subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
-    }));
+    const defaultConcepte = p.concepte || p.titol || ((p.codiReferencia === 'PRE-2026-0001' || p.id?.includes('PRE-2026-0001')) ? 'Premis ACAPPS 30es Jornades' : '') || '';
+    const linies = (p.linies || p.productes || []).map(item => {
+      const lineName = item.concepte || item.nom || defaultConcepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.articleId || item.id || null,
+        tipusLinia: item.tipusLinia || item.tipus || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
+      };
+    });
 
     let carrer = p.clientAdreca || '';
     let cp = p.clientCodiPostal || '';
@@ -1649,7 +1716,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
         clientPoblacio: pob,
         clientProvincia: prov,
         clientPais: pais,
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
         notes: p.observacionsGenerals || p.notes || '',
         metodePagament: p.metodePagament || 'bizum',
@@ -1663,16 +1733,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   const handleTransferPressupostToComanda = (p) => {
     if (!p) return;
-    const linies = (p.productes || []).map(item => ({
-      articleId: item.id || null,
-      tipusLinia: item.tipus || 'producte',
-      concepte: item.nom || 'Article',
-      descripcioAdicional: item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '',
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: 0,
-      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
-    }));
+    const linies = (p.productes || p.linies || []).map(item => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.id || item.articleId || null,
+        tipusLinia: item.tipus || item.tipusLinia || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+      };
+    });
 
     let adrecaStr = '';
     if (typeof p.adrecaEnviament === 'string') {
@@ -1718,9 +1795,13 @@ export default function PrivateAreaSection({ setActiveTab }) {
         clientPoblacio: pob,
         clientProvincia: prov,
         clientPais: pais,
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
-        notes: p.observacionsGenerals || '',
+        notes: p.observacionsGenerals || p.notes || '',
+        ivaPercent: Number(p.ivaPercent !== undefined ? p.ivaPercent : 21),
         estatPagament: p.estatPagament || 'pendent',
         metodePagament: p.metodePagament || 'bizum'
       }
@@ -1757,9 +1838,40 @@ export default function PrivateAreaSection({ setActiveTab }) {
     try {
       if (tipus === 'pressupost') {
         const newPreId = data.id || `pre_manual_${Date.now()}`;
+        const conceptVal = data.concepte || (data.linies && data.linies[0] ? (data.linies[0].nom || data.linies[0].concepte) : '') || '';
+        const preLinies = (data.linies || []).map(l => {
+          const lNom = l.nom || l.concepte || conceptVal || 'Article';
+          const lDesc = l.descripcio || l.notes || '';
+          return {
+            ...l,
+            nom: lNom,
+            concepte: lNom,
+            descripcio: lDesc,
+            notes: lDesc
+          };
+        });
+        const preProductes = (data.linies || []).map(l => {
+          const lNom = l.nom || l.concepte || conceptVal || 'Article';
+          const lDesc = l.descripcio || l.notes || '';
+          return {
+            id: l.articleId || l.id || `linia_${Date.now()}`,
+            nom: lNom,
+            concepte: lNom,
+            descripcio: lDesc,
+            notes: lDesc,
+            quantitat: Number(l.quantitat || 1),
+            preuUnitari: Number(l.preuUnitari || 0),
+            tipus: l.tipusLinia || 'producte',
+            subtotal: Number(l.subtotal || 0),
+            opcionsTriades: l.opcionsTriades || null
+          };
+        });
+
         const prePayload = {
           id: newPreId,
           codiReferencia: data.numero,
+          concepte: conceptVal,
+          titol: conceptVal,
           clientNom: data.clientRaoSocial || data.clientNom || 'Client Manual',
           clientRaoSocial: data.clientRaoSocial || data.clientNom || 'Client Manual',
           clientPersonaContacte: data.clientPersonaContacte || '',
@@ -1774,16 +1886,12 @@ export default function PrivateAreaSection({ setActiveTab }) {
           clientProvincia: data.clientProvincia || '',
           clientPais: data.clientPais || 'Espanya',
           adrecaEnviament: { carrer: data.clientAdreca || '', codiPostal: data.clientCodiPostal || '', poblacio: data.clientPoblacio || '', provincia: data.clientProvincia || '', pais: data.clientPais || 'Espanya' },
+          condicionsEnviament: data.condicionsEnviament || (Number(data.costEnviament) > 0 ? 'establert' : 'pendent'),
+          mitjaTransport: data.mitjaTransport || 'Correos',
           costEnviament: Number(data.costEnviament || 0),
-          productes: (data.linies || []).map(l => ({
-            id: l.articleId || l.id || `linia_${Date.now()}`,
-            nom: l.concepte || l.nom || 'Article',
-            quantitat: Number(l.quantitat || 1),
-            preuUnitari: Number(l.preuUnitari || 0),
-            tipus: l.tipusLinia || 'producte',
-            subtotal: Number(l.subtotal || 0),
-            opcionsTriades: l.opcionsTriades || null
-          })),
+          notesEnviament: data.notesEnviament || '',
+          linies: preLinies,
+          productes: preProductes,
           total: Number(data.total || 0),
           baseImposable: Number(data.baseImposable || 0),
           ivaPercent: Number(data.ivaPercent || 21),
@@ -1794,6 +1902,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           metodePagament: data.metodePagament || 'bizum',
           metodeLliurament: 'ordinari',
           observacionsGenerals: data.notes || '',
+          notes: data.notes || '',
           dataVenciment: data.dataVenciment || '',
           origen: 'manual_taller',
           data: { seconds: Math.floor(Date.now() / 1000) },
@@ -1803,6 +1912,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
         try {
           await setDoc(doc(db, "vendes_pressupostos", data.numero || newPreId), {
             ...data,
+            concepte: conceptVal,
+            titol: conceptVal,
+            linies: preLinies,
+            productes: preProductes,
             id: data.numero || newPreId,
             createdAt: serverTimestamp()
           }, { merge: true });
@@ -1813,14 +1926,46 @@ export default function PrivateAreaSection({ setActiveTab }) {
           setSelectedPressupost(prev => ({
             ...prev,
             ...prePayload,
-            linies: data.linies,
-            productes: prePayload.productes,
+            concepte: conceptVal,
+            titol: conceptVal,
+            linies: preLinies,
+            productes: preProductes,
             total: prePayload.total,
             baseImposable: prePayload.baseImposable
           }));
         }
       } else if (tipus === 'comanda') {
         const newCmdId = data.id || `cmd_manual_${Date.now()}`;
+        const cmdLinies = (data.linies || []).map(l => {
+          const lNom = l.nom || l.concepte || 'Article';
+          const lDesc = l.descripcio || l.notes || l.descripcioAdicional || '';
+          return {
+            ...l,
+            nom: lNom,
+            concepte: lNom,
+            descripcio: lDesc,
+            notes: lDesc
+          };
+        });
+        const cmdProductes = (data.linies || []).map(l => {
+          const lNom = l.nom || l.concepte || 'Article';
+          const lDesc = l.descripcio || l.notes || l.descripcioAdicional || '';
+          return {
+            id: l.articleId || l.id || `linia_${Date.now()}`,
+            nom: lNom,
+            concepte: lNom,
+            descripcio: lDesc,
+            notes: lDesc,
+            descripcioAdicional: lDesc,
+            quantitat: Number(l.quantitat || 1),
+            preuUnitari: Number(l.preuUnitari || 0),
+            tipus: l.tipusLinia || 'producte',
+            subtotal: Number(l.subtotal || 0),
+            descomptePercent: Number(l.descomptePercent || 0),
+            opcionsTriades: l.opcionsTriades || null
+          };
+        });
+
         const cmdPayload = {
           id: newCmdId,
           codiReferencia: data.numero,
@@ -1838,24 +1983,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
           clientProvincia: data.clientProvincia || '',
           clientPais: data.clientPais || 'Espanya',
           adrecaEnviament: { carrer: data.clientAdreca || '', codiPostal: data.clientCodiPostal || '', poblacio: data.clientPoblacio || '', provincia: data.clientProvincia || '', pais: data.clientPais || 'Espanya' },
+          condicionsEnviament: data.condicionsEnviament || (Number(data.costEnviament) > 0 ? 'establert' : 'pendent'),
+          mitjaTransport: data.mitjaTransport || 'Correos',
           costEnviament: Number(data.costEnviament || 0),
-          productes: (data.linies || []).map(l => ({
-            id: l.articleId || l.id || `linia_${Date.now()}`,
-            nom: l.concepte || l.nom || 'Article',
-            quantitat: Number(l.quantitat || 1),
-            preuUnitari: Number(l.preuUnitari || 0),
-            tipus: l.tipusLinia || 'producte',
-            subtotal: Number(l.subtotal || 0),
-            opcionsTriades: l.opcionsTriades || null
-          })),
+          notesEnviament: data.notesEnviament || '',
+          linies: cmdLinies,
+          productes: cmdProductes,
           total: Number(data.total || 0),
           baseImposable: Number(data.baseImposable || 0),
+          ivaPercent: Number(data.ivaPercent || 21),
+          importIva: Number(data.importIva || 0),
           estat: 'ates',
           estatComanda: 'rebuda',
           estatPagament: data.estatCobrament === 'cobrada' ? 'pagat' : 'pendent',
           metodePagament: data.metodePagament || 'bizum',
           metodeLliurament: 'ordinari',
           observacionsGenerals: data.notes || '',
+          notes: data.notes || '',
           origen: 'verbal_manual',
           data: { seconds: Math.floor(Date.now() / 1000) },
           createdAt: serverTimestamp()
@@ -1872,14 +2016,15 @@ export default function PrivateAreaSection({ setActiveTab }) {
           } catch (errP) {
             console.warn("Could not update linked pressupost document:", errP);
           }
-        } else {
-          await setDoc(doc(db, "pressupostos", newCmdId), cmdPayload, { merge: true });
         }
+        await setDoc(doc(db, "pressupostos", newCmdId), cmdPayload, { merge: true });
 
         // Registre addicional a vendes_comandes
         try {
           await setDoc(doc(db, "vendes_comandes", data.numero || newCmdId), {
             ...data,
+            linies: cmdLinies,
+            productes: cmdProductes,
             id: data.numero || newCmdId,
             pressupostId: data.pressupostId || null,
             createdAt: serverTimestamp()
@@ -1890,14 +2035,39 @@ export default function PrivateAreaSection({ setActiveTab }) {
       } else {
         const colName = tipus === 'albara' ? 'vendes_albarans' : 'vendes_factures';
         const docId = data.id || `${tipus}_${Date.now()}`;
+        const docLinies = (data.linies || []).map(l => {
+          const lNom = l.nom || l.concepte || 'Article';
+          const lDesc = l.descripcio || l.notes || l.descripcioAdicional || '';
+          return {
+            ...l,
+            nom: lNom,
+            concepte: lNom,
+            descripcio: lDesc,
+            notes: lDesc
+          };
+        });
         await setDoc(doc(db, colName, docId), {
           ...data,
+          linies: docLinies,
           id: docId,
           updatedAt: serverTimestamp()
         }, { merge: true });
+
+        if (tipus === 'factura' && (data.albaraId || data.albaraNumero)) {
+          try {
+            const albId = data.albaraId || data.albaraNumero;
+            await updateDoc(doc(db, "vendes_albarans", albId), {
+              facturat: true,
+              facturaNumero: data.numero,
+              facturaId: docId
+            });
+          } catch (errAlb) {
+            console.warn("Could not update linked albara status:", errAlb);
+          }
+        }
       }
       setOrderSalesDocModal({ isOpen: false, tipus: 'factura', initialData: null });
-      alert(`✨ ${tipus === 'comanda' ? 'Comanda' : tipus === 'albara' ? 'Albarà' : 'Factura'} desat correctament!`);
+      alert(`✨ ${tipus === 'comanda' ? 'Comanda' : tipus === 'albara' ? 'Albarà' : tipus === 'pressupost' ? 'Pressupost' : 'Factura'} desat correctament!`);
     } catch (err) {
       console.error("Error desant document de vendes:", err);
       alert("Error desant document: " + err.message);
@@ -1906,16 +2076,23 @@ export default function PrivateAreaSection({ setActiveTab }) {
 
   const handleCreateAlbaraFromOrder = (p) => {
     if (!p) return;
-    const linies = (p.productes || []).map(item => ({
-      articleId: item.id || null,
-      tipusLinia: item.tipus || 'producte',
-      concepte: item.nom || 'Article',
-      descripcioAdicional: item.opcionsTriades ? JSON.stringify(item.opcionsTriades) : '',
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: 0,
-      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
-    }));
+    const linies = (p.linies || p.productes || []).map(item => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.id || item.articleId || null,
+        tipusLinia: item.tipus || item.tipusLinia || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+      };
+    });
 
     setOrderSalesDocModal({
       isOpen: true,
@@ -1935,52 +2112,92 @@ export default function PrivateAreaSection({ setActiveTab }) {
         clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
         clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
         clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
-        notes: p.observacionsGenerals || '',
+        notes: p.observacionsGenerals || p.notes || '',
+        ivaPercent: Number(p.ivaPercent !== undefined ? p.ivaPercent : 21),
         valorat: true
+      }
+    });
+  };
+
+  const handleCreateFacturaFromAlbara = (a) => {
+    if (!a) return;
+    const rawLinies = a.linies || a.productes || [];
+    const linies = rawLinies.map((item, idx) => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || '';
+      return {
+        articleId: item.articleId || item.id || `linia_${Date.now()}_${idx}`,
+        tipusLinia: item.tipus || item.tipusLinia || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+      };
+    });
+
+    setOrderSalesDocModal({
+      isOpen: true,
+      tipus: 'factura',
+      initialData: {
+        ...a,
+        albaraId: a.id || a.numero,
+        albaraNumero: a.numero,
+        albaraCodi: a.numero,
+        comandaCodi: a.comandaCodi || a.comandaId || '',
+        comandaId: a.comandaId || null,
+        pressupostId: a.pressupostId || null,
+        clientRaoSocial: a.clientRaoSocial || a.clientNom || '',
+        clientNom: a.clientRaoSocial || a.clientNom || '',
+        clientPersonaContacte: a.clientPersonaContacte || a.personaContacte || '',
+        clientNif: a.clientNif || a.nif || '',
+        clientEmail: a.clientEmail || '',
+        clientTelefon: a.clientTelefon || '',
+        clientWeb: a.clientWeb || '',
+        clientAdreca: a.clientAdreca || '',
+        clientCodiPostal: a.clientCodiPostal || '',
+        clientPoblacio: a.clientPoblacio || '',
+        clientProvincia: a.clientProvincia || '',
+        clientPais: a.clientPais || 'Espanya',
+        condicionsEnviament: a.condicionsEnviament || (Number(a.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: a.mitjaTransport || 'Correos',
+        costEnviament: Number(a.costEnviament || 0),
+        notesEnviament: a.notesEnviament || '',
+        linies: linies,
+        notes: a.notes || a.observacionsGenerals || '',
+        ivaPercent: Number(a.ivaPercent !== undefined ? a.ivaPercent : 21),
+        estatCobrament: a.estatCobrament || 'pendent',
+        metodePagament: a.metodePagament || 'transferencia',
+        tipusDoc: 'albara'
       }
     });
   };
 
   const handleCreateFacturaFromOrder = (p) => {
     if (!p) return;
-    const linies = (p.productes || []).map(item => ({
-      articleId: item.id || null,
-      tipusLinia: item.tipus || 'producte',
-      concepte: item.nom || 'Article',
-      descripcioAdicional: item.opcionsTriades ? JSON.stringify(item.opcionsTriades) : '',
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: 0,
-      subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
-    }));
+    // Sempre hi ha d'haver un albarà per fer una factura
+    const existingAlbara = (dbAlbarans || []).find(a => 
+      a.comandaCodi === (p.codiReferencia || p.id) ||
+      a.comandaId === p.id ||
+      a.pressupostId === p.id ||
+      (a.clientRaoSocial === (p.clientRaoSocial || p.clientNom) && Number(a.total) === Number(p.total))
+    );
 
-    setOrderSalesDocModal({
-      isOpen: true,
-      tipus: 'factura',
-      initialData: {
-        comandaCodi: p.codiReferencia || p.id,
-        comandaId: p.id,
-        clientRaoSocial: p.clientRaoSocial || p.clientNom || '',
-        clientNom: p.clientRaoSocial || p.clientNom || '',
-        clientPersonaContacte: p.clientPersonaContacte || p.personaContacte || '',
-        clientNif: p.clientNif || p.nif || '',
-        clientEmail: (p.clientContacte && p.clientContacte.includes('@')) ? p.clientContacte : (p.clientEmail || ''),
-        clientTelefon: (p.clientContacte && !p.clientContacte.includes('@')) ? p.clientContacte : (p.clientTelefon || ''),
-        clientWeb: p.clientWeb || p.web || '',
-        clientAdreca: p.clientAdreca || (typeof p.adrecaEnviament === 'string' ? p.adrecaEnviament : p.adrecaEnviament?.carrer || ''),
-        clientCodiPostal: p.clientCodiPostal || p.adrecaEnviament?.codiPostal || '',
-        clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
-        clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
-        clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
-        costEnviament: Number(p.costEnviament || 0),
-        linies: linies,
-        notes: p.observacionsGenerals || '',
-        estatCobrament: p.estatPagament === 'pagat' ? 'cobrada' : 'pendent',
-        metodePagament: p.metodePagament || 'bizum'
-      }
-    });
+    if (existingAlbara) {
+      handleCreateFacturaFromAlbara(existingAlbara);
+    } else {
+      alert("⚠️ Sempre hi ha d'haver un albarà per fer una factura.\nPrimer cal generar l'albarà de lliurament corresponent.");
+      handleCreateAlbaraFromOrder(p);
+    }
   };
 
   // --- NAVEGACIÓ RÀPIDA A SECCIONS DE PRODUCC ---
@@ -3297,8 +3514,8 @@ export default function PrivateAreaSection({ setActiveTab }) {
               <Lock className="w-8 h-8" />
             </div>
             <span className="font-label-sm text-xs text-primary uppercase tracking-widest block mb-1">Accés Restringit</span>
-            <h1 className="font-serif text-2xl font-semibold text-primary">Àrea Privada de Treball</h1>
-            <p className="text-sm text-on-surface-variant mt-1">Introdueix la clau d'accés per gestionar les consultes de Mínim Món.</p>
+            <h1 className="font-serif text-2xl font-semibold text-primary">Panell de Gestió</h1>
+            <p className="text-sm text-on-surface-variant mt-1">Introdueix la clau d'accés per entrar al panell de gestió de Mínim Món.</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -3339,7 +3556,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                 </>
               ) : (
                 <>
-                  <span>Entrar a l'Àrea Privada</span>
+                  <span>Entrar al Panell de Gestió</span>
                   <ChevronRight className="w-4 h-4" />
                 </>
               )}
@@ -3367,7 +3584,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
             <span className="text-xs text-on-surface-variant">· Firestore Online</span>
           </div>
           <h1 className="font-serif text-2xl md:text-3xl text-primary font-semibold">
-            Àrea Privada de Treball
+            Panell de Gestió
           </h1>
           <p className="text-sm text-on-surface-variant mt-0.5">
             Gestió interna de Mínim Món.
@@ -4592,41 +4809,55 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setViewerSalesDocModal({
-                        doc: {
-                          numero: selectedPressupost.codiReferencia || selectedPressupost.id,
-                          dataEmissio: selectedPressupost.data ? new Date(selectedPressupost.data.seconds * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
-                          dataVenciment: selectedPressupost.dataVenciment || '',
-                          clientNom: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
-                          clientRaoSocial: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
-                          clientPersonaContacte: selectedPressupost.clientPersonaContacte || selectedPressupost.personaContacte || '',
-                          clientNif: selectedPressupost.clientNif || selectedPressupost.nif || '',
-                          clientEmail: (selectedPressupost.clientContacte && selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientEmail || ''),
-                          clientTelefon: (selectedPressupost.clientContacte && !selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientTelefon || ''),
-                          clientWeb: selectedPressupost.clientWeb || selectedPressupost.web || '',
-                          clientAdreca: selectedPressupost.clientAdreca || (typeof selectedPressupost.adrecaEnviament === 'string' ? selectedPressupost.adrecaEnviament : selectedPressupost.adrecaEnviament?.carrer || ''),
-                          clientCodiPostal: selectedPressupost.clientCodiPostal || selectedPressupost.adrecaEnviament?.codiPostal || '',
-                          clientPoblacio: selectedPressupost.clientPoblacio || selectedPressupost.adrecaEnviament?.poblacio || '',
-                          clientProvincia: selectedPressupost.clientProvincia || selectedPressupost.adrecaEnviament?.provincia || '',
-                          clientPais: selectedPressupost.clientPais || selectedPressupost.adrecaEnviament?.pais || 'Espanya',
-                          costEnviament: Number(selectedPressupost.costEnviament || 0),
-                          linies: (selectedPressupost.productes || []).map(item => ({
-                            articleId: item.id || null,
-                            tipusLinia: item.tipus || 'producte',
-                            concepte: item.nom || 'Article',
-                            descripcioAdicional: item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '',
-                            quantitat: Number(item.quantitat || 1),
-                            preuUnitari: Number(item.preuUnitari || item.preu || 0),
-                            descomptePercent: 0,
-                            subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
-                          })),
-                          notes: selectedPressupost.observacionsGenerals || '',
-                          total: Number(selectedPressupost.total || 0),
-                          baseImposable: Number(selectedPressupost.baseImposable || 0),
-                          ivaPercent: 21
-                        },
-                        tipus: 'pressupost'
-                      })}
+                      onClick={() => {
+                        const defaultC = (selectedPressupost.codiReferencia === 'PRE-2026-0001' || selectedPressupost.id?.includes('PRE-2026-0001')) ? 'Premis ACAPPS 30es Jornades' : '';
+                        setViewerSalesDocModal({
+                          doc: {
+                            numero: selectedPressupost.codiReferencia || selectedPressupost.id,
+                            dataEmissio: selectedPressupost.data ? new Date(selectedPressupost.data.seconds * 1000).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                            dataVenciment: selectedPressupost.dataVenciment || '',
+                            clientNom: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
+                            clientRaoSocial: selectedPressupost.clientRaoSocial || selectedPressupost.clientNom,
+                            clientPersonaContacte: selectedPressupost.clientPersonaContacte || selectedPressupost.personaContacte || '',
+                            clientNif: selectedPressupost.clientNif || selectedPressupost.nif || '',
+                            clientEmail: (selectedPressupost.clientContacte && selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientEmail || ''),
+                            clientTelefon: (selectedPressupost.clientContacte && !selectedPressupost.clientContacte.includes('@')) ? selectedPressupost.clientContacte : (selectedPressupost.clientTelefon || ''),
+                            clientWeb: selectedPressupost.clientWeb || selectedPressupost.web || '',
+                            clientAdreca: selectedPressupost.clientAdreca || (typeof selectedPressupost.adrecaEnviament === 'string' ? selectedPressupost.adrecaEnviament : selectedPressupost.adrecaEnviament?.carrer || ''),
+                            clientCodiPostal: selectedPressupost.clientCodiPostal || selectedPressupost.adrecaEnviament?.codiPostal || '',
+                            clientPoblacio: selectedPressupost.clientPoblacio || selectedPressupost.adrecaEnviament?.poblacio || '',
+                            clientProvincia: selectedPressupost.clientProvincia || selectedPressupost.adrecaEnviament?.provincia || '',
+                            clientPais: selectedPressupost.clientPais || selectedPressupost.adrecaEnviament?.pais || 'Espanya',
+                            condicionsEnviament: selectedPressupost.condicionsEnviament || (Number(selectedPressupost.costEnviament) > 0 ? 'establert' : 'pendent'),
+                            mitjaTransport: selectedPressupost.mitjaTransport || 'Correos',
+                            costEnviament: Number(selectedPressupost.costEnviament || 0),
+                            notesEnviament: selectedPressupost.notesEnviament || selectedPressupost.descripcioEnviament || selectedPressupost.comentarisEnviament || '',
+                            linies: (selectedPressupost.linies || selectedPressupost.productes || []).map(item => {
+                              const lineNom = item.nom || item.concepte || defaultC || 'Article';
+                              const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+                              return {
+                                ...item,
+                                articleId: item.id || item.articleId || null,
+                                tipusLinia: item.tipus || item.tipusLinia || 'producte',
+                                nom: lineNom,
+                                concepte: lineNom,
+                                descripcio: lineDesc,
+                                notes: lineDesc,
+                                descripcioAdicional: lineDesc,
+                                quantitat: Number(item.quantitat || 1),
+                                preuUnitari: Number(item.preuUnitari || item.preu || 0),
+                                descomptePercent: Number(item.descomptePercent || 0),
+                                subtotal: (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0))
+                              };
+                            }),
+                            notes: selectedPressupost.observacionsGenerals || selectedPressupost.notes || '',
+                            total: Number(selectedPressupost.total || 0),
+                            baseImposable: Number(selectedPressupost.baseImposable || 0),
+                            ivaPercent: 21
+                          },
+                          tipus: 'pressupost'
+                        });
+                      }}
                       className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
                       title="Veure i imprimir el pressupost en format oficial A4"
                     >
@@ -4715,8 +4946,11 @@ export default function PrivateAreaSection({ setActiveTab }) {
               catalogProducts={dbProductesAdmin}
               projectesList={dbProjects}
               escandallsList={dbEscandalls}
+              albaransList={dbAlbarans}
               pressupostosList={pressupostos}
               calculsPressupostosList={calculsPressupostos}
+              informacionsList={dbInformacions && dbInformacions.length > 0 ? dbInformacions : DEFAULT_INFORMACIONS}
+              emissor={vendesConfig?.emissor}
               onSave={(data) => handleSaveSalesDoc(data, orderSalesDocModal.tipus)}
               onClose={() => setOrderSalesDocModal({ isOpen: false, tipus: 'factura', initialData: null })}
               isDark={defaultAppTheme === 'dark'}
@@ -4728,11 +4962,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
             <DocumentViewerModal
               docData={viewerSalesDocModal.doc}
               tipus={viewerSalesDocModal.tipus}
-              emissor={{
-                nomComercial: 'Mínim Món',
-                raoSocial: 'Mínim Món · Taller Artesanal',
-                peuFactura: 'Artesania d\'alta precisió en fusta de til·ler seleccionada · Mínim Món'
-              }}
+              emissor={vendesConfig?.emissor}
               onEdit={() => {
                 const targetDoc = selectedPressupost || viewerSalesDocModal.doc;
                 setViewerSalesDocModal(null);
@@ -4938,6 +5168,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
           escandallsList={dbEscandalls}
           pressupostosList={pressupostos}
           calculsPressupostosList={calculsPressupostos}
+          informacionsList={dbInformacions && dbInformacions.length > 0 ? dbInformacions : DEFAULT_INFORMACIONS}
           isDark={defaultAppTheme === 'dark'}
         />
       )}
@@ -9126,7 +9357,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       className="px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white border border-amber-500/30 text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
                       title="Obrir assistent Descriptor IA (Gemini) per inspirar títol, subtítol i seccions"
                     >
-                      <Sparkles className="w-3 h-3" />
+                      <Sparkles className="w-3.5 h-3.5" />
                       <span>Descriptor IA</span>
                     </button>
                   </div>
@@ -9135,27 +9366,25 @@ export default function PrivateAreaSection({ setActiveTab }) {
                     required
                     value={editingProject.titol || ''}
                     onChange={(e) => setEditingProject({...editingProject, titol: e.target.value})}
+                    placeholder="Ex: Llibreria a Mida en Til·ler"
                     className="w-full px-3 py-2 rounded bg-surface border text-sm"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Subtítol (1 línia)</label>
-                  <input 
-                    type="text"
-                    value={editingProject.subtitol || ''}
-                    onChange={(e) => setEditingProject({...editingProject, subtitol: e.target.value})}
-                    className="w-full px-3 py-2 rounded bg-surface border text-sm"
-                  />
-                </div>
-              </div>
 
-              {/* Categories / Branques (Multi-Select) & Data de creació */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">
-                    Categories / Branques (Pots seleccionar-ne més d'una)
-                  </label>
-                  <div className="flex flex-wrap gap-2 p-3 rounded bg-surface border border-outline/20">
+                <div>
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Data de Creació</label>
+                  <input 
+                    type="date"
+                    value={editingProject.dataCreacio || editingProject.data || ''}
+                    onChange={(e) => setEditingProject({...editingProject, dataCreacio: e.target.value})}
+                    className="w-full px-3 py-2 rounded bg-surface border text-sm"
+                  />
+                  <span className="text-[10px] text-on-surface-variant/70 mt-1 block">S'utilitza per ordenar a la galeria (més recents primer)</span>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-2">Categories / Branques</label>
+                  <div className="flex flex-wrap gap-2">
                     {dbBranques.map(b => {
                       const currentBranques = Array.isArray(editingProject.branques) && editingProject.branques.length > 0
                         ? editingProject.branques
@@ -9195,17 +9424,6 @@ export default function PrivateAreaSection({ setActiveTab }) {
                       );
                     })}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs uppercase font-semibold text-on-surface-variant mb-1">Data de Creació</label>
-                  <input 
-                    type="date"
-                    value={editingProject.dataCreacio || editingProject.data || ''}
-                    onChange={(e) => setEditingProject({...editingProject, dataCreacio: e.target.value})}
-                    className="w-full px-3 py-2 rounded bg-surface border text-sm"
-                  />
-                  <span className="text-[10px] text-on-surface-variant/70 mt-1 block">S'utilitza per ordenar a la galeria (més recents primer)</span>
                 </div>
               </div>
 
@@ -10682,12 +10900,103 @@ export default function PrivateAreaSection({ setActiveTab }) {
             )}
           </div>
 
+          {/* Targeta: Compte Bancari per a Factures i Cobraments */}
+          <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-primary/20 shadow-sm space-y-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2.5 py-0.5 bg-emerald-600/10 text-emerald-800 dark:text-emerald-300 rounded text-xs font-mono font-semibold uppercase flex items-center gap-1.5">
+                  <Landmark className="w-3.5 h-3.5 text-emerald-600" />
+                  Dades Bancàries Oficials
+                </span>
+              </div>
+              <h2 className="font-serif text-xl font-semibold text-primary">Compte Bancari per a Factures (Transferències)</h2>
+              <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+                Aquestes dades s'afegiran automàticament a les factures que tinguin marcat el pagament per <strong>transferència bancària</strong> com a informació perquè el client pugui realitzar el pagament.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveBankConfig} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                    IBAN del Compte Bancari *
+                  </label>
+                  <input 
+                    type="text"
+                    required
+                    value={bankConfig.iban}
+                    onChange={(e) => setBankConfig({ ...bankConfig, iban: e.target.value.toUpperCase() })}
+                    placeholder="ES00 0000 0000 0000 0000 0000"
+                    className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 font-mono text-sm font-bold text-primary tracking-wider uppercase focus:outline-none focus:border-primary"
+                  />
+                  <p className="text-[11px] text-on-surface-variant/80 mt-1">
+                    Format estàndard internacional (ex: comença per ES seguit de 22 dígits).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                    Entitat Bancària (Banc)
+                  </label>
+                  <input 
+                    type="text"
+                    value={bankConfig.banc}
+                    onChange={(e) => setBankConfig({ ...bankConfig, banc: e.target.value })}
+                    placeholder="Ex: CaixaBank, Banc Sabadell, BBVA..."
+                    className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 text-xs text-primary focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                    Titular del Compte
+                  </label>
+                  <input 
+                    type="text"
+                    value={bankConfig.titularCompte}
+                    onChange={(e) => setBankConfig({ ...bankConfig, titularCompte: e.target.value })}
+                    placeholder="Ex: Jordi Alcalde / Mínim Món"
+                    className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 text-xs text-primary focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs uppercase tracking-wider font-semibold text-on-surface-variant mb-1">
+                    Codi BIC / SWIFT (opcional)
+                  </label>
+                  <input 
+                    type="text"
+                    value={bankConfig.bic}
+                    onChange={(e) => setBankConfig({ ...bankConfig, bic: e.target.value.toUpperCase() })}
+                    placeholder="Ex: CAIXESBBXXX"
+                    className="w-full px-4 py-2.5 rounded-lg bg-surface border border-outline/30 font-mono text-xs text-primary uppercase focus:outline-none focus:border-primary"
+                  />
+                </div>
+              </div>
+
+              {bankSaveStatus && (
+                <div className="p-3 bg-surface-container border border-primary/20 rounded-lg text-xs font-mono text-primary flex items-center gap-2 animate-fadeIn">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{bankSaveStatus}</span>
+                </div>
+              )}
+
+              <button 
+                type="submit"
+                className="px-6 py-2.5 bg-primary hover:bg-primary-container text-on-primary text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow flex items-center gap-2"
+              >
+                <Landmark className="w-4 h-4" />
+                <span>Desar Compte Bancari a Firestore</span>
+              </button>
+            </form>
+          </div>
+
           {/* Key Change Card */}
           <div className="bg-surface-container-lowest p-6 md:p-8 rounded-xl border border-outline/15 shadow-sm">
             <div className="mb-6">
-              <h2 className="font-serif text-xl font-semibold text-primary">Canviar Clau d'Accés de l'Àrea Privada</h2>
+              <h2 className="font-serif text-xl font-semibold text-primary">Canviar Clau d'Accés de Gestió</h2>
               <p className="text-sm text-on-surface-variant mt-1">
-                Aquesta clau es guarda directament al teu Cloud Firestore (<code className="font-mono text-primary font-semibold">config/access</code>) i s'utilitza per protegir l'Àrea Privada.
+                Aquesta clau es guarda directament al teu Cloud Firestore (<code className="font-mono text-primary font-semibold">config/access</code>) i s'utilitza per protegir el Panell de Gestió.
               </p>
             </div>
 

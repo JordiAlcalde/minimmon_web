@@ -132,14 +132,14 @@ export default function Footer({ setActiveTab, onOpenLegal }) {
               Cookies
             </button>
 
-            {/* Accés Àrea Privada */}
+            {/* Accés Gestió */}
             <button 
               onClick={() => handleNavClick('privat')} 
               className="hover:text-primary text-primary/80 font-medium transition-colors cursor-pointer flex items-center gap-1.5 pl-2 border-l border-outline/20"
-              title="Accedir a l'Àrea Privada de Treball"
+              title="Accedir al Panell de Gestió"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>PRIVAT</span>
+              <span>GESTIÓ</span>
             </button>
           </div>
         </div>

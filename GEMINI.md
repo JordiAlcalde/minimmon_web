@@ -20,12 +20,27 @@ Aquest document defineix les regles d'estil, vocabulari, materials i filosofia a
 
 ## 📸 Xarxes Socials & Instagram Posting
 
-- **Filtre de realitat:** Només es publiquen imatges basades en peces i projectes reals de l'Atelier o del catàleg en actiu. Mai inventar ni utilitzar imatges genèriques.
+- **Filtre de realitat:** Només es publiquen imatges basades en peces i projectes reals del taller o del catàleg en actiu. Mai inventar ni utilitzar imatges genèriques.
 - **Hashtags vetats inicials:**
   - `#MiniaturesEnFusta`
   - `#MiniaturesAmbÀnima`
   - `#FustaDeBedoll`
 - **Carrusels:** Els textos i subtítols de cada diapositiva s'adapten contextualment al contingut visual i la posició de cada imatge.
+
+---
+
+## 🏛️ Vocabulari: Taller vs. «Atelier»
+
+- **Abandonament del terme «atelier»:** Està expressament prohibit l'ús generalitzat d'«atelier» en textos, copies, codi de la interfície o comunicacions, atès que no és un terme normatiu en català.
+- S'ha d'utilitzar sempre **«taller»** (o «taller artesanal», «taller de creació»).
+- **Excepció molt restringida:** Només en alguna ocasió puntual (per exemple, a la pàgina *El taller*), es pot utilitzar escrit en cursiva (*atelier*) com a gal·licisme i sempre sota prèvia aprovació expressa.
+
+---
+
+## 🧭 Estructura Interna: «Panell de Gestió»
+
+- El mòdul intern d'administració i producció s'anomena oficialment **«Panell de Gestió»** (i abreujat com a **«Gestió»** en botons i eines auxiliars de navegació com ara al peu de pàgina o a la capçalera).
+- S'abandona la denominació antiga d'«Àrea Privada» / «PRIVAT».
 
 ---
 

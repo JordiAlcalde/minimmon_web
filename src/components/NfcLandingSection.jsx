@@ -51,8 +51,8 @@ export default function NfcLandingSection({ setActiveTab }) {
       'N:Alcalde;Jordi;;;',
       'ORG:Mínim Món (Artesania en fusta i espais en miniatura)',
       'TITLE:Artesà & Dissenyador',
-      'TEL;TYPE=CELL,VOICE:+34600000000',
-      'EMAIL;TYPE=WORK,INTERNET:info@minimmon.cat',
+      'TEL;TYPE=CELL,VOICE:+34699592326',
+      'EMAIL;TYPE=WORK,INTERNET:minimmon58@gmail.com',
       'URL:https://minimmon.cat',
       'NOTE:Targeta de visita intel·ligent NFC en fusta gravada a làser per Mínim Món.',
       'END:VCARD'

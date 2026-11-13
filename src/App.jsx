@@ -278,8 +278,8 @@ export default function App() {
 
   // Actualització dinàmica del títol de la pestanya del navegador segons la secció activa
   useEffect(() => {
-    if (activeTab === 'privat' || activeTab === 'privada') {
-      document.title = 'Mínim Món | PRIVAT';
+    if (activeTab === 'gestio' || activeTab === 'privat' || activeTab === 'privada') {
+      document.title = 'Mínim Món | Panell de Gestió';
     } else if (activeTab === 'producc') {
       document.title = 'Mínim Món | PRODUCC';
     } else if (activeTab === 'projecc') {
@@ -366,7 +366,7 @@ export default function App() {
           <ContacteSection />
         )}
 
-        {(activeTab === 'privat' || activeTab === 'privada') && (
+        {(activeTab === 'gestio' || activeTab === 'privat' || activeTab === 'privada') && (
           <PrivateAreaSection setActiveTab={setActiveTab} />
         )}
 

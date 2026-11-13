@@ -1936,10 +1936,10 @@ export default function PostingApp({ setActiveTab }) {
             <button
               onClick={() => setActiveTab && setActiveTab('privat')}
               className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
-              title="Tornar a l'Àrea Privada"
+              title="Tornar a Gestió"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden md:inline">Àrea Privada</span>
+              <span className="hidden md:inline">Gestió</span>
             </button>
 
             <button

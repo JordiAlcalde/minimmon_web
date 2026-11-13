@@ -200,7 +200,7 @@ export default function ContacteSection() {
             </div>
 
             <div className="bg-surface-container-lowest p-6 rounded border border-outline/10 text-xs text-on-surface-variant space-y-2">
-              <p className="font-bold text-primary text-sm">Atelier Privat <span className="notranslate" translate="no">Mínim Món</span></p>
+              <p className="font-bold text-primary text-sm">Taller Artesanal <span className="notranslate" translate="no">Mínim Món</span></p>
               <p>Treball privat sota comanda personalitzada. No es realitza producció en massa; cada peça rep dedicació artesana individual.</p>
             </div>
           </div>

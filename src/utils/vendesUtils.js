@@ -5,18 +5,22 @@ import { parseDecimal } from './numberUtils';
 export const DEFAULT_VENDES_CONFIG = {
   emissor: {
     nomComercial: 'Mínim Món',
-    raoSocial: 'Mínim Món · Taller Artesanal',
-    nif: '',
-    adreca: '',
-    codiPostal: '',
-    poblacio: '',
-    provincia: '',
+    titular: 'Jordi Alcalde',
+    raoSocial: 'Jordi Alcalde',
+    nif: '37.732.370-L',
+    adreca: 'C./ Major, 14, 1',
+    codiPostal: '08512',
+    poblacio: 'Sant Hipòlit de Voltregà',
+    provincia: 'Barcelona',
     pais: 'Espanya',
-    telefon: '',
-    email: '',
+    telefon: '699 592 326',
+    email: 'minimmon58@gmail.com',
     web: 'www.minimmon.cat',
     iban: '',
-    banc: ''
+    banc: '',
+    titularCompte: 'Jordi Alcalde / Mínim Món',
+    bic: '',
+    logoUrl: '/images/logo_minim_mon_documents.png'
   },
   series: {
     prefixAlbara: 'ALB',
@@ -38,7 +42,17 @@ export async function getVendesConfig() {
   try {
     const snap = await getDoc(doc(db, "vendes_configuracio", "main"));
     if (snap.exists()) {
-      return { ...DEFAULT_VENDES_CONFIG, ...snap.data() };
+      const data = snap.data();
+      const merged = { ...DEFAULT_VENDES_CONFIG, ...data };
+      if (merged.emissor) {
+        if (merged.emissor.email === 'info@minimmon.cat' || !merged.emissor.email) {
+          merged.emissor.email = 'minimmon58@gmail.com';
+        }
+        if (!merged.emissor.telefon) {
+          merged.emissor.telefon = '699 592 326';
+        }
+      }
+      return merged;
     }
   } catch (err) {
     console.warn("Error carregant configuració de vendes:", err);

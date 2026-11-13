@@ -392,10 +392,10 @@ export default function ProduccApp({ setActiveTab }) {
             <button
               onClick={() => setActiveTab('privat')}
               className="p-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-              title="Tornar a l'Àrea Privada"
+              title="Tornar a Gestió"
             >
               <Lock className="w-4 h-4 text-slate-600" />
-              <span className="hidden sm:inline">Àrea Privada</span>
+              <span className="hidden sm:inline">Gestió</span>
             </button>
 
             <button

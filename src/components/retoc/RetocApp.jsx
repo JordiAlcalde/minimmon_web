@@ -391,10 +391,10 @@ export default function RetocApp({ setActiveTab }) {
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
               }`}
-              title="Tornar a l'Àrea Privada"
+              title="Tornar a Gestió"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Àrea Privada</span>
+              <span>Gestió</span>
             </button>
           )}
 

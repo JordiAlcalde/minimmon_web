@@ -12,7 +12,7 @@ export default function Hero({ onOpenWizard }) {
       <div className="container hero-container">
         <div className="hero-badge badge badge-laser mb-4">
           <Sparkles size={14} />
-          <span>Atelier privat de precisió i calidesa</span>
+          <span>Taller artesanal de precisió i calidesa</span>
         </div>
 
         <h1 className="hero-title">

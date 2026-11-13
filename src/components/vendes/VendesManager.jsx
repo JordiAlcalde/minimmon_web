@@ -3,7 +3,7 @@ import {
   FileText, Package, Settings, Plus, Search, Filter, 
   Download, Printer, CheckCircle2, Clock, AlertCircle, 
   Trash2, Edit3, ArrowUpDown, ChevronRight, DollarSign,
-  Building2, Calendar, FileSpreadsheet, Send, Eye, ShoppingBag
+  Building2, Calendar, FileSpreadsheet, Send, Eye, ShoppingBag, Receipt
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { 
@@ -22,6 +22,7 @@ export default function VendesManager({
   escandallsList = [],
   pressupostosList = [],
   calculsPressupostosList = [],
+  informacionsList = [],
   isDark = false
 }) {
   const [activeTab, setActiveTab] = useState('factures'); // 'factures' | 'albarans' | 'configuracio'
@@ -150,16 +151,23 @@ export default function VendesManager({
 
   const handleViewPressupostInVendes = (p) => {
     if (!p) return;
-    const linies = (p.linies || p.productes || []).map(item => ({
-      articleId: item.articleId || item.id || null,
-      tipusLinia: item.tipusLinia || item.tipus || 'producte',
-      concepte: item.concepte || item.nom || 'Article',
-      descripcioAdicional: item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : ''),
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: Number(item.descomptePercent || 0),
-      subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
-    }));
+    const linies = (p.linies || p.productes || []).map(item => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.articleId || item.id || null,
+        tipusLinia: item.tipusLinia || item.tipus || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
+      };
+    });
 
     setViewerDoc({
       doc: {
@@ -179,7 +187,10 @@ export default function VendesManager({
         clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
         clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
         clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
         notes: p.observacionsGenerals || p.notes || '',
         total: Number(p.total || 0),
@@ -193,16 +204,23 @@ export default function VendesManager({
 
   const handleEditPressupostInVendes = (p) => {
     if (!p) return;
-    const linies = (p.linies || p.productes || []).map(item => ({
-      articleId: item.articleId || item.id || null,
-      tipusLinia: item.tipusLinia || item.tipus || 'producte',
-      concepte: item.concepte || item.nom || 'Article',
-      descripcioAdicional: item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : ''),
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: Number(item.descomptePercent || 0),
-      subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
-    }));
+    const linies = (p.linies || p.productes || []).map(item => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.articleId || item.id || null,
+        tipusLinia: item.tipusLinia || item.tipus || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: Number(item.descomptePercent || 0),
+        subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
+      };
+    });
 
     let carrer = p.clientAdreca || '';
     let cp = p.clientCodiPostal || '';
@@ -242,7 +260,10 @@ export default function VendesManager({
         clientPoblacio: pob,
         clientProvincia: prov,
         clientPais: pais,
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
         notes: p.observacionsGenerals || p.notes || '',
         metodePagament: p.metodePagament || 'bizum',
@@ -256,16 +277,23 @@ export default function VendesManager({
 
   const handleTransferPressupostInVendes = (p) => {
     if (!p) return;
-    const linies = (p.linies || p.productes || []).map(item => ({
-      articleId: item.articleId || item.id || null,
-      tipusLinia: item.tipusLinia || item.tipus || 'producte',
-      concepte: item.concepte || item.nom || 'Article',
-      descripcioAdicional: item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : ''),
-      quantitat: Number(item.quantitat || 1),
-      preuUnitari: Number(item.preuUnitari || item.preu || 0),
-      descomptePercent: 0,
-      subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
-    }));
+    const linies = (p.linies || p.productes || []).map(item => {
+      const lineName = item.nom || item.concepte || 'Article';
+      const lineDesc = item.descripcio || item.notes || item.descripcioAdicional || (item.opcionsTriades ? (typeof item.opcionsTriades === 'string' ? item.opcionsTriades : JSON.stringify(item.opcionsTriades)) : '');
+      return {
+        articleId: item.articleId || item.id || null,
+        tipusLinia: item.tipusLinia || item.tipus || 'producte',
+        concepte: lineName,
+        nom: lineName,
+        descripcio: lineDesc,
+        notes: lineDesc,
+        descripcioAdicional: lineDesc,
+        quantitat: Number(item.quantitat || 1),
+        preuUnitari: Number(item.preuUnitari || item.preu || 0),
+        descomptePercent: 0,
+        subtotal: Number(item.subtotal || (Number(item.quantitat || 1) * Number(item.preuUnitari || item.preu || 0)))
+      };
+    });
 
     setEditorState({
       isOpen: true,
@@ -285,9 +313,13 @@ export default function VendesManager({
         clientPoblacio: p.clientPoblacio || p.adrecaEnviament?.poblacio || '',
         clientProvincia: p.clientProvincia || p.adrecaEnviament?.provincia || '',
         clientPais: p.clientPais || p.adrecaEnviament?.pais || 'Espanya',
+        condicionsEnviament: p.condicionsEnviament || (Number(p.costEnviament) > 0 ? 'establert' : 'pendent'),
+        mitjaTransport: p.mitjaTransport || p.transportista || 'Correos',
         costEnviament: Number(p.costEnviament || 0),
+        notesEnviament: p.notesEnviament || p.descripcioEnviament || p.comentarisEnviament || '',
         linies: linies,
         notes: p.observacionsGenerals || p.notes || '',
+        ivaPercent: Number(p.ivaPercent !== undefined ? p.ivaPercent : 21),
         estatPagament: 'pendent',
         metodePagament: p.metodePagament || 'bizum'
       }
@@ -333,10 +365,24 @@ export default function VendesManager({
   // Accions sobre documents
   const handleSaveDocument = async (docData, tipus) => {
     try {
+      const docLinies = (docData.linies || []).map(l => {
+        const lNom = l.nom || l.concepte || 'Article';
+        const lDesc = l.descripcio || l.notes || l.descripcioAdicional || '';
+        return {
+          ...l,
+          nom: lNom,
+          concepte: lNom,
+          descripcio: lDesc,
+          notes: lDesc
+        };
+      });
+
       if (tipus === 'pressupost') {
         const docId = docData.id || `pre_manual_${Date.now()}`;
-        await setDoc(doc(db, "pressupostos", docId), {
+        const prePayload = {
           ...docData,
+          linies: docLinies,
+          productes: docLinies,
           id: docId,
           codiReferencia: docData.numero,
           estat: 'pendent',
@@ -344,10 +390,13 @@ export default function VendesManager({
           origen: 'manual_taller',
           data: { seconds: Math.floor(Date.now() / 1000) },
           updatedAt: serverTimestamp()
-        }, { merge: true });
+        };
+        await setDoc(doc(db, "pressupostos", docId), prePayload, { merge: true });
         try {
           await setDoc(doc(db, "vendes_pressupostos", docData.numero || docId), {
             ...docData,
+            linies: docLinies,
+            productes: docLinies,
             id: docData.numero || docId,
             createdAt: serverTimestamp()
           }, { merge: true });
@@ -363,6 +412,7 @@ export default function VendesManager({
       
       const payload = {
         ...docData,
+        linies: docLinies,
         id: docId,
         updatedAt: serverTimestamp()
       };
@@ -371,6 +421,20 @@ export default function VendesManager({
       }
 
       await setDoc(doc(db, colName, docId), payload, { merge: true });
+
+      if (tipus === 'factura' && (docData.albaraId || docData.albaraNumero)) {
+        try {
+          const albId = docData.albaraId || docData.albaraNumero;
+          await updateDoc(doc(db, "vendes_albarans", albId), {
+            facturat: true,
+            facturaNumero: docData.numero,
+            facturaId: docId
+          });
+        } catch (errAlb) {
+          console.warn("Could not update linked albara:", errAlb);
+        }
+      }
+
       setEditorState({ isOpen: false, tipus: 'factura', initialData: null });
     } catch (err) {
       console.error("Error desant document:", err);
@@ -540,12 +604,20 @@ export default function VendesManager({
             Nou Pressupost
           </button>
           <button
-            onClick={() => setEditorState({
-              isOpen: true,
-              tipus: 'factura',
-              initialData: null
-            })}
+            onClick={() => {
+              if (albarans.length === 0) {
+                alert("⚠️ Sempre hi ha d'haver un albarà per fer una factura. Primer cal generar un albarà de lliurament.");
+                setActiveTab('albarans');
+                return;
+              }
+              setEditorState({
+                isOpen: true,
+                tipus: 'factura',
+                initialData: null
+              });
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-sm font-medium shadow-sm transition-all active:scale-95"
+            title="Emetre una nova factura a partir d'un albarà de lliurament"
           >
             <Plus className="w-4 h-4" />
             Nova Factura
@@ -941,6 +1013,25 @@ export default function VendesManager({
                                   <Eye className="w-4 h-4" />
                                 </button>
                                 <button
+                                  onClick={() => {
+                                    setEditorState({
+                                      isOpen: true,
+                                      tipus: 'factura',
+                                      initialData: {
+                                        ...a,
+                                        albaraId: a.id || a.numero,
+                                        albaraNumero: a.numero,
+                                        albaraCodi: a.numero,
+                                        tipusDoc: 'albara'
+                                      }
+                                    });
+                                  }}
+                                  className="p-1.5 text-amber-700 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200 rounded hover:bg-amber-100 dark:hover:bg-amber-950/40"
+                                  title="Emetre Factura des d'aquest Albarà"
+                                >
+                                  <Receipt className="w-4 h-4" />
+                                </button>
+                                <button
                                   onClick={() => setEditorState({
                                     isOpen: true,
                                     tipus: 'albara',
@@ -1301,6 +1392,36 @@ export default function VendesManager({
                     placeholder="ex: CaixaBank"
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                    Titular del compte
+                  </label>
+                  <input
+                    type="text"
+                    value={configForm?.emissor?.titularCompte || ''}
+                    onChange={(e) => setConfigForm({
+                      ...configForm,
+                      emissor: { ...configForm.emissor, titularCompte: e.target.value }
+                    })}
+                    className="w-full text-sm p-2 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg"
+                    placeholder="ex: Jordi Alcalde / Mínim Món"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-stone-600 dark:text-stone-300 mb-1">
+                    Codi BIC / SWIFT (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={configForm?.emissor?.bic || ''}
+                    onChange={(e) => setConfigForm({
+                      ...configForm,
+                      emissor: { ...configForm.emissor, bic: e.target.value.toUpperCase() }
+                    })}
+                    className="w-full text-sm p-2 bg-stone-50 dark:bg-stone-900 border border-stone-300 dark:border-stone-700 rounded-lg font-mono uppercase"
+                    placeholder="ex: CAIXESBBXXX"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1408,8 +1529,10 @@ export default function VendesManager({
           projectesList={projectesList}
           escandallsList={escandallsList}
           existingDocs={editorState.tipus === 'albara' ? albarans : factures}
+          albaransList={albarans}
           pressupostosList={pressupostosList}
           calculsPressupostosList={calculsPressupostosList}
+          informacionsList={informacionsList}
           emissor={vendesConfig?.emissor}
           onSave={(data) => handleSaveDocument(data, editorState.tipus)}
           onClose={() => setEditorState({ isOpen: false, tipus: 'factura', initialData: null })}

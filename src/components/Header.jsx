@@ -226,17 +226,17 @@ export default function Header({
                   )}
                 </button>
 
-                {/* 3. Botó Àrea Privada (Candau) */}
+                {/* 3. Botó Gestió (Candau) */}
                 <button
                   type="button"
                   onClick={() => handleNavClick('privat')}
                   className={`relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all cursor-pointer border shadow-xs hover:shadow hover:scale-105 ${
-                    (activeTab === 'privat' || activeTab === 'privada')
+                    (activeTab === 'gestio' || activeTab === 'privat' || activeTab === 'privada')
                       ? 'bg-primary text-on-primary border-primary shadow-md' 
                       : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/20'
                   }`}
-                  title="Accedir a l'Àrea Privada"
-                  aria-label="Accedir a l'Àrea Privada"
+                  title="Accedir a Gestió"
+                  aria-label="Accedir a Gestió"
                 >
                   <Lock className="w-4 h-4 shrink-0" />
                 </button>

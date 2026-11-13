@@ -611,7 +611,7 @@ export default function PerFerApp({ setActiveTab }) {
             <button
               onClick={() => setActiveTab('privat')}
               className="p-2 rounded-xl bg-surface hover:bg-surface-container text-on-surface-variant hover:text-primary border border-outline/20 transition-all cursor-pointer shadow-xs active:scale-95"
-              title="Tornar a l'Àrea Privada"
+              title="Tornar a Gestió"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
