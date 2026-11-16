@@ -498,14 +498,9 @@ export default function DocumentViewerModal({
 
                     return (
                       <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
-                        <div className="flex items-center justify-between">
+                        <div>
                           <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">
                             Condicions de Pagament
-                          </span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            isCobrada ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'
-                          }`}>
-                            {isCobrada ? 'Cobrada' : 'Pendent de Cobrament'}
                           </span>
                         </div>
 

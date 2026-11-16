@@ -12,6 +12,11 @@ import {
   setCustomPrompt, 
   DEFAULT_PROMPTS 
 } from '../../utils/geminiAiService';
+import { 
+  resolveMediaUrl, 
+  resolveProducteMediaUrl, 
+  resolveProjecteMediaUrl 
+} from '../../utils/mediaUtils';
 
 export default function GeminiDescriptorModal({
   isOpen,
@@ -35,6 +40,7 @@ export default function GeminiDescriptorModal({
   const [keySavedToast, setKeySavedToast] = useState(false);
 
   // Imatges i Notes
+  const [allAvailableImages, setAllAvailableImages] = useState([]);
   const [selectedImages, setSelectedImages] = useState([]);
   const [customUploads, setCustomUploads] = useState([]);
   const [userNotes, setUserNotes] = useState('');
@@ -46,6 +52,17 @@ export default function GeminiDescriptorModal({
   // Estats editables de les propostes (per permetre retocar abans d'aplicar)
   const [editableResults, setEditableResults] = useState(null);
 
+  // Helper per resoldre camins relatius o raw URLs a URL operativa
+  const resolveImg = (img) => {
+    if (!img) return '';
+    const raw = typeof img === 'string' ? img : (img.url || img.imatge || img.src || '');
+    if (!raw) return '';
+    if (raw.startsWith('data:')) return raw;
+    if (mode === 'projectes') return resolveProjecteMediaUrl(raw) || resolveMediaUrl(raw);
+    if (mode === 'productes') return resolveProducteMediaUrl(raw) || resolveMediaUrl(raw);
+    return resolveMediaUrl(raw);
+  };
+
   // Inicialització al obrir
   useEffect(() => {
     if (isOpen) {
@@ -55,21 +72,27 @@ export default function GeminiDescriptorModal({
       setPromptInput(getCustomPrompt(mode));
       setUserNotes('');
       
-      // Carregar imatges del context
+      // Carregar imatges del context i resoldre-les correctament
       const initialImgs = [];
       if (contextData?.images && Array.isArray(contextData.images)) {
         contextData.images.forEach(img => {
-          if (img) initialImgs.push(typeof img === 'string' ? img : (img.url || img.imatge || img.src));
+          const res = resolveImg(img);
+          if (res) initialImgs.push(res);
         });
       } else {
-        if (contextData?.imatgePrincipal) initialImgs.push(contextData.imatgePrincipal);
+        if (contextData?.imatgePrincipal) {
+          const res = resolveImg(contextData.imatgePrincipal);
+          if (res) initialImgs.push(res);
+        }
         if (Array.isArray(contextData?.imatges)) {
           contextData.imatges.forEach(img => {
-            if (img) initialImgs.push(typeof img === 'string' ? img : (img.url || img.imatge || img.src));
+            const res = resolveImg(img);
+            if (res) initialImgs.push(res);
           });
         }
       }
       const unique = Array.from(new Set(initialImgs)).filter(Boolean);
+      setAllAvailableImages(unique);
       setSelectedImages(unique);
       setCustomUploads([]);
     }
@@ -115,6 +138,7 @@ export default function GeminiDescriptorModal({
       reader.onload = (event) => {
         const dataUrl = event.target.result;
         setCustomUploads(prev => [...prev, dataUrl]);
+        setAllAvailableImages(prev => [...prev, dataUrl]);
         setSelectedImages(prev => [...prev, dataUrl]);
       };
       reader.readAsDataURL(file);
@@ -307,7 +331,7 @@ export default function GeminiDescriptorModal({
 
               <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-1">
                 {/* Llistat d'imatges amb checkbox */}
-                {selectedImages.concat(contextData?.images || []).filter((v, i, a) => a.indexOf(v) === i).map((imgUrl, idx) => {
+                {allAvailableImages.map((imgUrl, idx) => {
                   const isChecked = selectedImages.includes(imgUrl);
                   return (
                     <div 
@@ -319,7 +343,27 @@ export default function GeminiDescriptorModal({
                           : 'border-transparent opacity-50 hover:opacity-80'
                       }`}
                     >
-                      <img src={imgUrl} alt={`Foto ${idx}`} className="w-full h-full object-cover" />
+                      <img 
+                        src={imgUrl} 
+                        alt={`Foto ${idx + 1}`} 
+                        className="w-full h-full object-cover" 
+                        onError={(e) => {
+                          const currentSrc = e.target.src;
+                          if (!e.target.dataset.triedFallback) {
+                            e.target.dataset.triedFallback = 'true';
+                            if (currentSrc.includes('/imatges/projectes/')) {
+                              const fileName = currentSrc.split('/imatges/projectes/').pop();
+                              e.target.src = `https://raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/projectes/${fileName}`;
+                            } else if (currentSrc.includes('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/projectes/')) {
+                              const fileName = currentSrc.split('raw.githubusercontent.com/JordiAlcalde/minimmon_web/main/public/imatges/projectes/').pop();
+                              e.target.src = `./imatges/projectes/${fileName}`;
+                            } else if (currentSrc.includes('/imatges/productes/')) {
+                              const fileName = currentSrc.split('/imatges/productes/').pop();
+                              e.target.src = `https://cdn.jsdelivr.net/gh/JordiAlcalde/minimmon_web@main/public/imatges/productes/${fileName}`;
+                            }
+                          }
+                        }}
+                      />
                       <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${
                         isChecked ? 'bg-amber-500 text-white' : 'bg-black/60 text-white'
                       }`}>

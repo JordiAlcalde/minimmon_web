@@ -175,8 +175,11 @@ export async function convertImageToGeminiPart(imgSource) {
     // Si és una URL HTTP o relativa local
     try {
       const resp = await fetch(imgSource);
+      if (!resp.ok) throw new Error(`HTTP error ${resp.status}`);
       const blob = await resp.blob();
-      return await convertImageToGeminiPart(blob);
+      const part = await convertImageToGeminiPart(blob);
+      if (part) return part;
+      throw new Error("No s'ha pogut interpretar el blob");
     } catch (e) {
       // Intentar càrrega via Image en Canvas per evitar alguns problemes de CORS locals
       return new Promise((resolve) => {

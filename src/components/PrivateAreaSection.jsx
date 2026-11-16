@@ -11274,7 +11274,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
             descripcio: editingProducte.descripcio || '',
             images: (Array.isArray(editingProducte.imatges) ? editingProducte.imatges : (editingProducte.imatgesStr || '').split('\n'))
               .concat(editingProducte.imatgePrincipal ? [editingProducte.imatgePrincipal] : [])
-              .map(m => typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src))
+              .map(m => {
+                const raw = typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src);
+                return resolveProducteMediaUrl(raw) || resolveMediaUrl(raw);
+              })
               .filter(Boolean)
           }}
           onApplyTitle={(newNom) => {
@@ -11301,7 +11304,10 @@ export default function PrivateAreaSection({ setActiveTab }) {
             art: editingProject.art || '',
             resolucio: editingProject.resolucio || '',
             images: (editingProject.media || [])
-              .map(m => typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src))
+              .map(m => {
+                const raw = typeof m === 'string' ? m : (m?.url || m?.imatge || m?.src);
+                return resolveProjecteMediaUrl(raw) || resolveMediaUrl(raw);
+              })
               .filter(Boolean)
           }}
           onApplyTitle={(newTitol) => {
