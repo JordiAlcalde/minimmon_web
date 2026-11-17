@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { 
@@ -10,10 +11,11 @@ import {
   Info, 
   X, 
   Package,
-  Globe
+  Globe,
+  Share2
 } from 'lucide-react';
 import { useBudget } from '../context/BudgetContext';
-import { ProductCard } from './RegalsCatalogSection';
+import { ProductCard, MiniProductCard, ProductCardErrorBoundary } from './RegalsCatalogSection';
 import { DEFAULT_CLIENT_PALETTE, resolveClientLogoUrl } from '../utils/clientPortalsUtils';
 import { getCurrentLanguage, setLanguage } from '../utils/translator';
 import { renderFormattedText } from '../utils/textUtils';
@@ -77,9 +79,20 @@ export default function ClientPortalView({ clientPortal: initialClientPortal }) 
   const [selectedGamma, setSelectedGamma] = useState('Tots');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedModalImage, setSelectedModalImage] = useState(null);
+  const [activeModalProduct, setActiveModalProduct] = useState(null);
   const [lang, setLang] = useState(() => getCurrentLanguage());
 
   const clientPortal = livePortal || initialClientPortal;
+
+  // Obertura automàtica per hash a la URL (ex: #idProducte)
+  useEffect(() => {
+    if (!window.location.hash || dbProducts.length === 0) return;
+    const targetId = window.location.hash.replace('#', '');
+    const found = dbProducts.find(p => p.id === targetId || p.slug === targetId);
+    if (found) {
+      setActiveModalProduct(found);
+    }
+  }, [dbProducts]);
 
   const handleLanguageChange = (l) => {
     setLang(l);
@@ -553,31 +566,101 @@ export default function ClientPortalView({ clientPortal: initialClientPortal }) 
             )}
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                selectedGamma={selectedGamma}
-                dbGammes={dbGammes}
-                dbEscandalls={dbEscandalls}
-                onSelectImageModal={(url) => setSelectedModalImage(url)}
-                onAddToCart={(cartItem) => {
-                  // Afegir informació del client a l'article del carret per a traçabilitat
-                  cartItem.clientPortalRef = {
-                    id: clientPortal.id,
-                    slug: clientPortal.slug,
-                    nomComercial: clientPortal.nomComercial,
-                    emailContacte: clientPortal.emailContacte,
-                    telefonContacte: clientPortal.telefonContacte
-                  };
-                  addToCart(cartItem);
-                }}
-              />
+              <ProductCardErrorBoundary key={product.id || product.nom}>
+                <MiniProductCard
+                  product={product}
+                  dbEscandalls={dbEscandalls}
+                  onClick={(selectedQty) => setActiveModalProduct({ 
+                    ...product, 
+                    initialQty: typeof selectedQty === 'number' ? selectedQty : 1 
+                  })}
+                  onAddToCart={(cartItem) => {
+                    cartItem.clientPortalRef = {
+                      id: clientPortal.id,
+                      slug: clientPortal.slug,
+                      nomComercial: clientPortal.nomComercial,
+                      emailContacte: clientPortal.emailContacte,
+                      telefonContacte: clientPortal.telefonContacte
+                    };
+                    addToCart(cartItem);
+                  }}
+                />
+              </ProductCardErrorBoundary>
             ))}
           </div>
         )}
       </main>
+
+      {/* MODAL FLOTANT: FITXA REAL COMPLETA DEL PRODUCTE SELECCIONAT */}
+      {activeModalProduct && typeof document !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xs overflow-y-auto p-0 sm:p-4 md:p-6 flex flex-col items-center justify-start animate-fadeIn"
+          onClick={() => setActiveModalProduct(null)}
+        >
+          <div 
+            className="relative w-full sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl min-h-screen sm:min-h-0 sm:max-h-[92vh] overflow-y-auto bg-surface sm:rounded-3xl border-0 sm:border border-outline/20 shadow-2xl p-0 my-0 sm:my-auto flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Capçalera Fixa Flotant amb Títol, Enllaç i Botó de Tancar */}
+            <div className="sticky top-0 bg-surface/98 backdrop-blur-md z-30 px-4 py-3 sm:px-6 sm:py-4 border-b border-outline/15 flex items-center justify-between gap-3 shadow-xs shrink-0">
+              <h2 className="font-serif text-lg sm:text-2xl font-bold text-primary truncate max-w-[55%] sm:max-w-xl">
+                {activeModalProduct.nom}
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = `${window.location.origin}${window.location.pathname}?${clientPortal.slug}#${activeModalProduct.id}`;
+                    navigator.clipboard.writeText(url);
+                    alert("Enllaç copiat al porta-retalls!");
+                  }}
+                  className="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-primary rounded-xl border border-outline/20 transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 text-xs font-medium"
+                  title="Copiar enllaç directe d'aquest producte"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-primary" />
+                  <span className="hidden sm:inline">Copiar enllaç</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveModalProduct(null)}
+                  className="p-2 rounded-full bg-surface-container hover:bg-surface-container-high text-primary border border-outline/20 shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center"
+                  title="Tancar fitxa"
+                  aria-label="Tancar fitxa"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Fitxa Real Completa (ProductCard) amb màxim aprofitament horitzontal */}
+            <div className="p-3 sm:p-6 md:p-8 flex-1">
+              <ProductCardErrorBoundary key={activeModalProduct.id || activeModalProduct.nom}>
+                <ProductCard
+                  product={activeModalProduct}
+                  onAddToCart={(cartItem) => {
+                    cartItem.clientPortalRef = {
+                      id: clientPortal.id,
+                      slug: clientPortal.slug,
+                      nomComercial: clientPortal.nomComercial,
+                      emailContacte: clientPortal.emailContacte,
+                      telefonContacte: clientPortal.telefonContacte
+                    };
+                    addToCart(cartItem);
+                  }}
+                  selectedGamma={selectedGamma}
+                  dbGammes={dbGammes}
+                  dbEscandalls={dbEscandalls}
+                  onSelectImageModal={(url) => setSelectedModalImage(url)}
+                  isModalView={true}
+                />
+              </ProductCardErrorBoundary>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* PEU DE PÀGINA CONFIGURABLE DEL PORTAL DE CLIENT */}
       <footer className="mt-auto border-t border-outline/15 bg-surface-container/35 text-xs text-on-surface-variant">

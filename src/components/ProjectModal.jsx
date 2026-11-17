@@ -292,7 +292,7 @@ export default function ProjectModal({ project, onClose, setActiveTab, options }
 
           {/* Secció de Valoracions i Comentaris del Projecte */}
           <CommentsSection 
-            targetId={project.id} 
+            targetId={project.id || project.titol || project.title} 
             targetType="projecte" 
             targetTitol={title}
             defaultOpen={!!(project?.scrollToComments || options?.scrollToComments)}

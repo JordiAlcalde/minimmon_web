@@ -3728,7 +3728,7 @@ export default function PrivateAreaSection({ setActiveTab }) {
               >
                 <div className="flex items-center gap-2 truncate">
                   <Folder className="w-4 h-4 shrink-0" />
-                  <span className="truncate">Grups</span>
+                  <span className="truncate">Famílies i Gammes</span>
                 </div>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-bold shrink-0 ${activeModule === 'taxonomy' ? 'bg-on-primary/20 text-on-primary' : 'bg-surface-container text-on-surface-variant'}`}>
                   {dbGammes.length}

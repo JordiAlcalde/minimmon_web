@@ -984,7 +984,7 @@ function isValidImagePath(str) {
 }
 
 // Subcomponent Mini-Fitxa neta per a la graella de 3 columnes
-function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
+export function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
   const [addedToast, setAddedToast] = useState(false);
   const mainImage = product.imatgePrincipal || (Array.isArray(product.imatges) && product.imatges[0]) || product.imatge || '';
   const resolvedImg = resolveProducteMediaUrl(mainImage) || resolveMediaUrl('images/tots_productes.jpg');
@@ -1200,7 +1200,7 @@ function MiniProductCard({ product, onClick, onAddToCart, dbEscandalls = [] }) {
 }
 
 // Error Boundary per prevenir que un error a la fitxa d'un regal faci caure el catàleg en blanc
-class ProductCardErrorBoundary extends React.Component {
+export class ProductCardErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };

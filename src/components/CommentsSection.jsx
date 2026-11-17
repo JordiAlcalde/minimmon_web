@@ -62,6 +62,7 @@ export function StarRating({ rating = 5, size = "w-4 h-4", interactive = false, 
 
 export default function CommentsSection({ targetId, targetType = 'peça', targetTitol = '', defaultOpen = false, autoOpenForm = false }) {
   const [comments, setComments] = useState([]);
+  const [sessionPendingComments, setSessionPendingComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(autoOpenForm || defaultOpen);
   const [isExpanded, setIsExpanded] = useState(defaultOpen || autoOpenForm);
@@ -81,13 +82,13 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
   }, [autoOpenForm, defaultOpen]);
 
   useEffect(() => {
-    if (!targetId) return;
+    if (!targetId && !targetTitol) return;
 
-    // Carregar valoracions d'aquest target
-    const q = query(
-      collection(db, "valoracions"),
-      where("targetId", "==", String(targetId))
-    );
+    // Carregar valoracions d'aquest target (per ID o per títol)
+    const targetIds = Array.from(new Set([String(targetId || ''), String(targetTitol || '')].filter(Boolean)));
+    const q = targetIds.length > 1
+      ? query(collection(db, "valoracions"), where("targetId", "in", targetIds))
+      : query(collection(db, "valoracions"), where("targetId", "==", String(targetId)));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const allVals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -105,7 +106,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
     });
 
     return () => unsubscribe();
-  }, [targetId]);
+  }, [targetId, targetTitol]);
 
   const totalReviews = comments.length;
   const rawAvg = totalReviews > 0
@@ -124,7 +125,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
 
     try {
       const newDoc = {
-        targetId: String(targetId),
+        targetId: String(targetId || targetTitol || ''),
         targetType: targetType,
         targetTitol: targetTitol || 'Peça Mínim Món',
         autor: cleanAutor,
@@ -135,6 +136,13 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
       };
 
       await addDoc(collection(db, "valoracions"), newDoc);
+
+      // Desem a l'estat local perquè l'usuari vegi immediatament que ha quedat registrat
+      setSessionPendingComments(prev => [
+        { id: `local-${Date.now()}`, ...newDoc },
+        ...prev
+      ]);
+      setIsExpanded(true);
 
       // Notificar a Telegram instantàniament
       sendTelegramCommentNotification({
@@ -152,7 +160,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
       setTimeout(() => {
         setSubmittedSuccess(false);
         setShowForm(false);
-      }, 4000);
+      }, 5000);
     } catch (err) {
       console.error("Error guardant valoració:", err);
       alert("No s'ha pogut enviar la valoració. Torna-ho a intentar.");
@@ -178,7 +186,7 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
             <span>{showForm ? 'Cancel·lar' : 'Deixar una opinió'}</span>
           </button>
 
-          {totalReviews > 0 && (
+          {(totalReviews > 0 || sessionPendingComments.length > 0) && (
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
@@ -272,9 +280,31 @@ export default function CommentsSection({ targetId, targetType = 'peça', target
         </form>
       )}
 
-      {/* Llista de comentaris aprovats */}
-      {isExpanded && comments.length > 0 && (
+      {/* Llista de comentaris (locals pendents i aprovats al web) */}
+      {isExpanded && (comments.length > 0 || sessionPendingComments.length > 0) && (
         <div className="space-y-2.5 pt-1 animate-fadeIn">
+          {/* Comentaris de la sessió actual pendents d'aprovació */}
+          {sessionPendingComments.map((item) => (
+            <div key={item.id} className="p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-300/60 dark:border-amber-700/40 rounded-xl space-y-1.5 text-xs shadow-2xs animate-fadeIn">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-primary font-body-md">{item.autor || 'Anònim'}</span>
+                  <StarRating rating={Number(item.puntuacio) || 5} size="w-3 h-3" />
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-900/50 dark:text-amber-200">
+                  ⏳ Pendent d'aprovació
+                </span>
+              </div>
+              <p className="text-on-surface-variant leading-relaxed font-sans italic">
+                "{item.comentari}"
+              </p>
+              <p className="text-[10px] text-amber-800 dark:text-amber-300 font-mono pt-0.5 flex items-center gap-1">
+                <span>✓ El teu comentari ha quedat registrat correctament. Serà visible per a tothom un cop aprovat des del Panell de Gestió.</span>
+              </p>
+            </div>
+          ))}
+
+          {/* Comentaris aprovats */}
           {comments.map((item) => (
             <div key={item.id} className="p-3 bg-surface border border-outline/15 rounded-xl space-y-1.5 text-xs shadow-2xs">
               <div className="flex items-center justify-between gap-2">

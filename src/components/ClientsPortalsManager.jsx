@@ -987,7 +987,7 @@ export default function ClientsPortalsManager({
                             title="Gestionar Famílies i Gammes d'aquest client"
                           >
                             <Layers className="w-3.5 h-3.5 text-primary" />
-                            <span className="hidden sm:inline">Grups</span>
+                            <span className="hidden sm:inline">Famílies & Gammes</span>
                           </button>
                         )}
                         <button

@@ -34,6 +34,13 @@ export async function saveTelegramConfig(botToken, chatId) {
   }
 }
 
+export function escapeTelegramHtml(str = '') {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export async function sendTelegramNotification({ nom, email, telefon, missatge, projecteTitol, tipus = 'Consulta Web' }) {
   try {
     const { botToken, chatId } = await getTelegramConfig();
@@ -43,10 +50,11 @@ export async function sendTelegramNotification({ nom, email, telefon, missatge, 
       return false;
     }
 
-    const cleanNom = nom || 'No indicat';
-    const cleanEmail = email || 'No indicat';
-    const cleanTelefon = telefon || 'No indicat';
-    const cleanMissatge = missatge || 'Sense contingut';
+    const cleanNom = escapeTelegramHtml(nom || 'No indicat');
+    const cleanEmail = escapeTelegramHtml(email || 'No indicat');
+    const cleanTelefon = escapeTelegramHtml(telefon || 'No indicat');
+    const cleanMissatge = escapeTelegramHtml(missatge || 'Sense contingut');
+    const cleanProjecte = escapeTelegramHtml(projecteTitol || '');
 
     const text = `
 📩 <b>NOVA CONSULTA A MÍNIM MÓN</b>
@@ -54,12 +62,12 @@ export async function sendTelegramNotification({ nom, email, telefon, missatge, 
 👤 <b>Nom:</b> ${cleanNom}
 📧 <b>Email:</b> ${cleanEmail}
 📞 <b>Telèfon:</b> ${cleanTelefon}
-${projecteTitol ? `🎨 <b>Projecte:</b> ${projecteTitol}\n` : ''}
+${cleanProjecte ? `🎨 <b>Projecte:</b> ${cleanProjecte}\n` : ''}
 💬 <b>Missatge / Idea:</b>
 ${cleanMissatge}
 
 --------------------------------
-<i>Sent des de minimmon.cat (${tipus})</i>
+<i>Sent des de minimmon.cat (${escapeTelegramHtml(tipus)})</i>
 `.trim();
 
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -68,9 +76,15 @@ ${cleanMissatge}
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        disable_notification: false
       })
     });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Error enviant notificació a Telegram:', response.status, errText);
+    }
 
     return response.ok;
   } catch (err) {
@@ -90,9 +104,9 @@ export async function sendTelegramCommentNotification({ autor, puntuacio, coment
 
     const numStars = Math.min(5, Math.max(1, Number(puntuacio) || 5));
     const starsStr = '★'.repeat(numStars) + '☆'.repeat(5 - numStars);
-    const cleanAutor = autor || 'Anònim';
-    const cleanComentari = comentari || 'Sense text';
-    const cleanTitol = targetTitol || 'Peça Mínim Món';
+    const cleanAutor = escapeTelegramHtml(autor || 'Anònim');
+    const cleanComentari = escapeTelegramHtml(comentari || 'Sense text');
+    const cleanTitol = escapeTelegramHtml(targetTitol || 'Peça Mínim Món');
 
     const text = `
 ⭐ <b>NOVA VALORACIÓ PENDENT D'APROVAR</b>
@@ -104,7 +118,7 @@ export async function sendTelegramCommentNotification({ autor, puntuacio, coment
 <i>"${cleanComentari}"</i>
 
 --------------------------------
-<i>Accedeix a l'Àrea Privada per aprovar-la.</i>
+<i>Accedeix al Panell de Gestió per aprovar-la.</i>
 `.trim();
 
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
@@ -113,9 +127,15 @@ export async function sendTelegramCommentNotification({ autor, puntuacio, coment
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        disable_notification: false
       })
     });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Error enviant valoració a Telegram:', response.status, errText);
+    }
 
     return response.ok;
   } catch (err) {
@@ -196,7 +216,8 @@ ${detalls}
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        disable_notification: false
       })
     });
 
@@ -256,7 +277,8 @@ ${cleanCopy}
       body: JSON.stringify({
         chat_id: chatId,
         text: text,
-        parse_mode: 'HTML'
+        parse_mode: 'HTML',
+        disable_notification: false
       })
     });
 
